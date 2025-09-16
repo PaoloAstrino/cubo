@@ -1,0 +1,47 @@
+import ollama
+import time
+from typing import List, Dict, Any
+from colorama import Fore, Style
+from config import config
+from logger import logger
+
+class ResponseGenerator:
+    """Handles response generation using Ollama LLM for CUBO."""
+
+    def __init__(self):
+        self.messages = []
+        self.system_prompt = "You are an AI assistant that answers queries strictly based on the provided context from documents. Do not use any external knowledge, assumptions, or invented information. If the context does not contain relevant information to answer the query, respond with: 'The provided documents do not contain information to answer this query.'"
+
+    def initialize_conversation(self):
+        """Initialize the conversation with system prompt."""
+        self.messages = [{"role": "system", "content": self.system_prompt}]
+
+    def generate_response(self, query: str, context: str, messages: List[Dict[str, str]] = None) -> str:
+        """Generate a response using the LLM."""
+        if messages is None:
+            messages = self.messages
+
+        try:
+            print(Fore.BLUE + "Generating response..." + Style.RESET_ALL)
+            start = time.time()
+
+            # Add user message with context
+            user_content = f"Context: {context}\n\nQuestion: {query}"
+            messages.append({"role": "user", "content": user_content})
+
+            # Generate response using Ollama
+            response = ollama.chat(model=config.get("llm_model"), messages=messages)
+            assistant_content = response['message']['content']
+
+            # Add assistant message to history
+            messages.append({"role": "assistant", "content": assistant_content})
+
+            print(Fore.GREEN + f"Response generated in {time.time() - start:.2f} seconds." + Style.RESET_ALL)
+            logger.info("Response generated successfully")
+
+            return assistant_content
+
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            print(Fore.RED + f"Response generation error: {e}" + Style.RESET_ALL)
+            return "Sorry, I encountered an error generating the response."

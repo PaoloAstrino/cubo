@@ -1,0 +1,16 @@
+{
+  "model_path": "./models/embeddinggemma-300m",
+  "llm_model": "llama3.2:latest",
+  "top_k": 3,
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "data_folder": "./data",
+  "supported_extensions": [".txt", ".docx", ".pdf"],
+  "max_file_size_mb": 10,
+  "rate_limit_seconds": 1,
+  "log_level": "INFO",
+  "log_file": "./logs/cubo_log.txt",
+  "vector_db_path": "./chroma_db",
+  "embedding_batch_size": 32,
+  "similarity_threshold": 0.5
+}
