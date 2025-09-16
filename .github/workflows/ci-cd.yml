@@ -31,12 +31,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
 
       - name: Run tests
         run: |
-          $env:PYTHONPATH = "src"
+          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
           python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml
 
       - name: Upload coverage to Codecov
@@ -67,8 +67,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
 
       - name: Build executable
         run: |
