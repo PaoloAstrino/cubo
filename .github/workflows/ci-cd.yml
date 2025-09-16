@@ -21,7 +21,7 @@ jobs:
           python-version: "3.11"
 
       - name: Cache pip dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~\AppData\Local\pip\Cache
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -76,7 +76,7 @@ jobs:
           pyinstaller --onefile --exclude-module tensorflow --exclude-module tf_keras --exclude-module sklearn src/main.py --name cubo
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cubo-exe
           path: dist/cubo.exe
