@@ -36,7 +36,12 @@ class Config:
         }
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get configuration value."""
+        """Get configuration value, checking environment variables first."""
+        # Check environment variable first (e.g., CUBO_MODEL_PATH)
+        env_key = f"CUBO_{key.upper()}"
+        env_value = os.getenv(env_key)
+        if env_value is not None:
+            return env_value
         return self._config.get(key, default)
 
     def set(self, key: str, value: Any) -> None:

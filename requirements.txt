@@ -13,6 +13,4 @@ numpy==1.26.0
 protobuf==3.20.3
 pytest  # For unit testing
 pytest-cov  # For test coverage
-# Excluded heavy/unused packages to reduce build time and conflicts
-# tensorflow  # Excluded to avoid CUDA warnings and build slowdown
-# sklearn  # Use scikit-learn directly if needed
+cryptography  # For encryption

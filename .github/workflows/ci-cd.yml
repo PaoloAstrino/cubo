@@ -5,8 +5,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  workflow_dispatch:  # Allow manual trigger
-
+  workflow_dispatch: # Allow manual trigger
 
 jobs:
   test:

@@ -103,6 +103,20 @@ Edit `config.json` to customize:
 - `max_file_size_mb`: Maximum file size limit
 - `log_level`: Logging level (DEBUG, INFO, WARNING, ERROR)
 
+### Environment Variables
+
+For security and flexibility, sensitive configuration can be overridden via environment variables:
+
+- `CUBO_ENCRYPTION_KEY`: 32-byte key for data encryption (base64 encoded)
+- `CUBO_MODEL_PATH`: Override model path
+- `CUBO_LLM_MODEL`: Override LLM model name
+
+Example:
+```bash
+export CUBO_ENCRYPTION_KEY="your-32-byte-key-here"
+export CUBO_MODEL_PATH="/secure/path/to/model"
+```
+
 ## Usage
 
 ### Interactive Mode
@@ -263,7 +277,11 @@ Always use a virtual environment to avoid dependency conflicts. The project is d
 - **Path Sanitization**: Prevents directory traversal attacks
 - **File Size Limits**: Configurable maximum file sizes
 - **Rate Limiting**: Prevents abuse with configurable delays
-- **Input Validation**: Comprehensive input validation
+- **Input Validation**: Comprehensive input validation and sanitization
+- **Encryption**: Sensitive data encryption using Fernet
+- **Audit Logging**: Security-relevant actions are logged for compliance
+- **Environment Variables**: No hardcoded secrets; all sensitive config via env vars
+- **Secure Token Generation**: For session management or API keys
 
 ## Logging
 

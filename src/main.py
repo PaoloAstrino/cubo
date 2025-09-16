@@ -16,6 +16,7 @@ from document_loader import DocumentLoader
 from retriever import DocumentRetriever
 from generator import ResponseGenerator
 from utils import Utils
+from security import security_manager
 
 # Initialize colorama
 init()
@@ -32,6 +33,10 @@ class CUBOApp:
     def setup_wizard(self):
         """Setup wizard for initial configuration and model checks."""
         print(Fore.BLUE + "Welcome to CUBO Setup Wizard!" + Style.RESET_ALL)
+        
+        # Security validation
+        if not security_manager.validate_environment():
+            print(Fore.YELLOW + "Warning: Some security environment variables are missing." + Style.RESET_ALL)
         
         # Check if config.json exists
         try:
@@ -137,6 +142,7 @@ class CUBOApp:
 
         # Get data folder
         data_folder_input = input(Fore.YELLOW + f"Enter path to data folder (default: {config.get('data_folder')}): " + Style.RESET_ALL) or config.get("data_folder")
+        data_folder_input = security_manager.sanitize_input(data_folder_input)
         try:
             data_folder = Utils.sanitize_path(data_folder_input, os.getcwd())
         except ValueError as e:
@@ -201,6 +207,9 @@ class CUBOApp:
             top_docs = self.retriever.retrieve_top_documents(query)
             context = "\n".join(top_docs)
             response = self.generator.generate_response(query, context)
+
+            # Audit log the query
+            security_manager.audit_log("query_processed", details={"query_hash": security_manager.hash_sensitive_data(query)})
 
             # Display results
             print(Fore.CYAN + "Retrieved Documents:" + Style.RESET_ALL)
