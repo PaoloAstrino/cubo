@@ -5,8 +5,9 @@ import os
 import pickle
 from sentence_transformers import SentenceTransformer, util
 from colorama import Fore, Style
-from config import config
-from logger import logger
+from src.config import config
+from src.logger import logger
+from src.utils import metrics
 import chromadb
 from chromadb.config import Settings
 
@@ -98,6 +99,11 @@ class DocumentRetriever:
 
             print(Fore.GREEN + f"Retrieved in {time.time() - start:.2f} seconds." + Style.RESET_ALL)
             logger.info(f"Retrieved {len(top_docs)} top documents for query (threshold: {threshold})")
+
+            # Record metrics
+            duration = time.time() - start
+            metrics.record_time("document_retrieval", duration)
+            metrics.record_count("retrieval_queries")
 
             return top_docs
 

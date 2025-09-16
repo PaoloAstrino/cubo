@@ -1,0 +1,5 @@
+# Development dependencies
+pytest  # For unit testing
+pytest-cov  # For test coverage
+pyinstaller  # For building executables
+flake8  # For code linting

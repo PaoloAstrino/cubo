@@ -2,8 +2,8 @@ import ollama
 import time
 from typing import List, Dict, Any
 from colorama import Fore, Style
-from config import config
-from logger import logger
+from src.config import config
+from src.logger import logger
 
 class ResponseGenerator:
     """Handles response generation using Ollama LLM for CUBO."""
@@ -30,7 +30,8 @@ class ResponseGenerator:
             messages.append({"role": "user", "content": user_content})
 
             # Generate response using Ollama
-            response = ollama.chat(model=config.get("llm_model"), messages=messages)
+            model_name = config.get("selected_llm_model") or config.get("llm_model")
+            response = ollama.chat(model=model_name, messages=messages)
             assistant_content = response['message']['content']
 
             # Add assistant message to history

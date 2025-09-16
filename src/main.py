@@ -9,14 +9,14 @@ import os
 import sys
 import time
 from colorama import Fore, Style, init
-from config import config
-from logger import logger
-from model_loader import model_manager
-from document_loader import DocumentLoader
-from retriever import DocumentRetriever
-from generator import ResponseGenerator
-from utils import Utils
-from security import security_manager
+from src.config import config
+from src.logger import logger
+from src.model_loader import model_manager
+from src.document_loader import DocumentLoader
+from src.retriever import DocumentRetriever
+from src.generator import ResponseGenerator
+from src.utils import Utils, metrics
+from src.security import security_manager
 
 # Initialize colorama
 init()
@@ -99,6 +99,50 @@ class CUBOApp:
             logger.error(f"Logs folder error: {e}")
             return
         
+        # LLM Model Selection
+        try:
+            print(Fore.BLUE + "Checking available Ollama models..." + Style.RESET_ALL)
+            available_models = self.get_available_ollama_models()
+            if available_models:
+                print(Fore.GREEN + f"Found {len(available_models)} Ollama models:" + Style.RESET_ALL)
+                for i, model in enumerate(available_models, 1):
+                    print(f"{i}. {model}")
+                
+                current_model = config.get("selected_llm_model", "llama3.2")
+                print(Fore.CYAN + f"Current selected model: {current_model}" + Style.RESET_ALL)
+                
+                # Auto-select if only one model available
+                if len(available_models) == 1:
+                    if current_model != available_models[0]:
+                        config.set("selected_llm_model", available_models[0])
+                        config.save()
+                        print(Fore.GREEN + f"Auto-selected only available model: {available_models[0]}" + Style.RESET_ALL)
+                    else:
+                        print(Fore.GREEN + "Only one model available and already selected." + Style.RESET_ALL)
+                else:
+                    # Multiple models - let user choose
+                    choice = input(Fore.YELLOW + "Select a model by number (or press Enter to keep current): " + Style.RESET_ALL)
+                    if choice.strip():
+                        try:
+                            index = int(choice) - 1
+                            if 0 <= index < len(available_models):
+                                selected_model = available_models[index]
+                                config.set("selected_llm_model", selected_model)
+                                config.save()
+                                print(Fore.GREEN + f"LLM model updated to: {selected_model}" + Style.RESET_ALL)
+                            else:
+                                print(Fore.RED + "Invalid selection. Keeping current model." + Style.RESET_ALL)
+                        except ValueError:
+                            print(Fore.RED + "Invalid input. Keeping current model." + Style.RESET_ALL)
+                    else:
+                        print(Fore.GREEN + "Keeping current model." + Style.RESET_ALL)
+            else:
+                print(Fore.YELLOW + "No Ollama models found. Please install and pull models using 'ollama pull <model_name>'" + Style.RESET_ALL)
+                print(Fore.YELLOW + "You can change the selected model later in config.json" + Style.RESET_ALL)
+        except Exception as e:
+            print(Fore.RED + f"Error checking Ollama models: {e}" + Style.RESET_ALL)
+            logger.error(f"Ollama check error: {e}")
+        
         # Optional config tweaks
         try:
             tweak = input(Fore.YELLOW + "Do you want to tweak configuration? (y/n): " + Style.RESET_ALL).lower()
@@ -115,6 +159,24 @@ class CUBOApp:
         except Exception as e:
             print(Fore.RED + f"Error during config tweak: {e}" + Style.RESET_ALL)
             logger.error(f"Config tweak error: {e}")
+
+    def get_available_ollama_models(self):
+        """Get list of available Ollama models."""
+        try:
+            import subprocess
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                if len(lines) > 1:  # Skip header
+                    models = []
+                    for line in lines[1:]:
+                        parts = line.split()
+                        if parts:
+                            models.append(parts[0])  # First column is model name
+                    return models
+            return []
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+            return []
 
     def initialize_components(self):
         """Initialize model and components."""
@@ -262,6 +324,7 @@ class CUBOApp:
 
     def main(self):
         """Main entry point."""
+        start_time = time.time()
         try:
             # Run setup wizard
             self.setup_wizard()
@@ -278,6 +341,9 @@ class CUBOApp:
                 self.interactive_mode()
         except Exception as e:
             print(Fore.RED + f"An error occurred: {e}" + Style.RESET_ALL)
+        finally:
+            duration = time.time() - start_time
+            metrics.record_time("main_execution", duration)
             import traceback
             traceback.print_exc()
             input("Press Enter to exit...")  # Keep terminal open for debugging

@@ -1,7 +1,9 @@
 import os
 import re
+import time
 from typing import List
-from logger import logger
+from collections import defaultdict
+from src.logger import logger
 
 class Utils:
     """Utility functions for CUBO."""
@@ -109,3 +111,33 @@ class Utils:
         except Exception as e:
             logger.error(f"Error chunking text: {e}")
             raise
+
+class Metrics:
+    """Basic performance monitoring for enterprise dashboards."""
+
+    def __init__(self):
+        self.metrics = defaultdict(list)
+
+    def record_time(self, operation: str, duration: float):
+        """Record operation duration."""
+        self.metrics[f"{operation}_time"].append(duration)
+        logger.info(f"METRICS: {operation} took {duration:.2f}s")
+
+    def record_count(self, operation: str):
+        """Record operation count."""
+        if f"{operation}_count" not in self.metrics:
+            self.metrics[f"{operation}_count"] = 0
+        self.metrics[f"{operation}_count"] += 1
+        logger.info(f"METRICS: {operation} count: {self.metrics[f'{operation}_count']}")
+
+    def get_average_time(self, operation: str) -> float:
+        """Get average time for an operation."""
+        times = self.metrics.get(f"{operation}_time", [])
+        return sum(times) / len(times) if times else 0.0
+
+    def get_count(self, operation: str) -> int:
+        """Get count for an operation."""
+        return self.metrics.get(f"{operation}_count", 0)
+
+# Global metrics instance
+metrics = Metrics()

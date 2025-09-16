@@ -11,10 +11,14 @@ import chromadb
 def mock_model():
     """Mock SentenceTransformer model."""
     model = MagicMock(spec=SentenceTransformer)
-    # Mock encode to return a tensor-like object with tolist
-    mock_tensor = MagicMock()
-    mock_tensor.tolist.return_value = [[0.1] * 768]
-    model.encode.return_value = mock_tensor
+    # Mock encode to return embeddings based on input length
+    def mock_encode(texts, convert_to_tensor=True):
+        mock_tensor = MagicMock()
+        # Return one embedding per input text
+        embeddings = [[0.1] * 768 for _ in texts]
+        mock_tensor.tolist.return_value = embeddings
+        return mock_tensor
+    model.encode.side_effect = mock_encode
     return model
 
 @pytest.fixture
@@ -43,29 +47,34 @@ def test_add_documents_success(mock_model, temp_db_path):
 
 def test_retrieve_empty_query(mock_model, temp_db_path):
     """Test retrieval with empty query."""
-    with patch('config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
+    with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
         retriever = DocumentRetriever(mock_model)
+        retriever.collection = retriever.client.get_or_create_collection("test_empty_query")
         result = retriever.retrieve_top_documents("")
         assert result == []
 
 def test_retrieve_no_documents(mock_model, temp_db_path):
     """Test retrieval when no documents are loaded."""
-    with patch('config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
+    with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
         retriever = DocumentRetriever(mock_model)
+        retriever.collection = retriever.client.get_or_create_collection("test_no_docs")
         result = retriever.retrieve_top_documents("test query")
         assert result == []
 
 def test_retrieve_success(mock_model, temp_db_path):
     """Test successful retrieval."""
     with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3, "similarity_threshold": 0.5}):
-        retriever = DocumentRetriever(mock_model)
-        retriever.collection = retriever.client.get_or_create_collection("test_retrieve")
-        docs = ["Relevant document"]
-        retriever.add_documents(docs)
-        # Mock the query method properly
+        # Mock the collection query method before creating the retriever
         mock_result = {'documents': [['Relevant document']], 'distances': [[0.3]]}
-        with patch.object(retriever.collection, 'query', return_value=mock_result):
+        with patch('chromadb.api.models.Collection.Collection.query', return_value=mock_result) as mock_query:
+            retriever = DocumentRetriever(mock_model)
+            retriever.collection = retriever.client.get_or_create_collection("test_retrieve")
+            docs = ["Relevant document"]
+            retriever.add_documents(docs)
+            # Clear cache to ensure query is called
+            retriever.query_cache.clear()
             result = retriever.retrieve_top_documents("test query")
+            mock_query.assert_called_once()
             assert len(result) == 1
             assert result[0] == "Relevant document"
 
@@ -77,9 +86,10 @@ def test_cache_persistence(mock_model, temp_db_path):
         # Simulate adding to cache
         retriever.query_cache[("test", 3)] = ["cached doc"]
         retriever._save_cache()
-        cache_file = os.path.join(temp_db_path, "query_cache.pkl")
+        # Use the actual cache file path from the retriever
+        cache_file = retriever.cache_file
         assert os.path.exists(cache_file)
-        # Load new instance and check cache
+        # Load new instance and check cache (within same config context)
         retriever2 = DocumentRetriever(mock_model)
         retriever2.collection = retriever2.client.get_or_create_collection("test_cache2")  # Different collection
         assert ("test", 3) in retriever2.query_cache

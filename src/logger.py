@@ -1,6 +1,6 @@
 import logging
 import os
-from config import config
+from src.config import config
 
 class Logger:
     """Logger class for CUBO."""

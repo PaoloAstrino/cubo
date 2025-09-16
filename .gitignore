@@ -128,3 +128,8 @@ Thumbs.db
 logs/
 data/
 models/
+temp/
+chroma_db/
+*.exe
+*.msi
+*.dmg

@@ -1,8 +1,8 @@
 import torch
 from sentence_transformers import SentenceTransformer
 from colorama import Fore, Style
-from config import config
-from logger import logger
+from src.config import config
+from src.logger import logger
 
 class ModelManager:
     """Manages the loading and configuration of CUBO's embedding model."""

@@ -2,7 +2,7 @@ import os
 import hashlib
 import secrets
 from cryptography.fernet import Fernet
-from logger import logger
+from src.logger import logger
 
 class SecurityManager:
     """Security utilities for CUBO: encryption, auditing, and secret management."""

@@ -32,7 +32,8 @@ cubo/
 ├── models/                # Model storage
 ├── logs/                  # Log files
 ├── config.json           # Configuration file
-├── requirements.txt      # Python dependencies
+├── requirements.txt      # Python runtime dependencies
+├── requirements-dev.txt # Development dependencies
 └── README.md            # This file
 ```
 
@@ -112,6 +113,7 @@ For security and flexibility, sensitive configuration can be overridden via envi
 - `CUBO_LLM_MODEL`: Override LLM model name
 
 Example:
+
 ```bash
 export CUBO_ENCRYPTION_KEY="your-32-byte-key-here"
 export CUBO_MODEL_PATH="/secure/path/to/model"
@@ -294,8 +296,9 @@ CUBO includes comprehensive unit tests to ensure reliability.
 ### Running Tests
 
 ```bash
-# Install test dependencies (included in requirements.txt)
+# Install test dependencies (included in requirements-dev.txt)
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # Run all tests
 python -m pytest tests/

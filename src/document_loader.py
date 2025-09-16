@@ -3,9 +3,9 @@ from typing import List
 from docx import Document
 from PyPDF2 import PdfReader
 from colorama import Fore, Style
-from config import config
-from utils import Utils
-from logger import logger
+from src.config import config
+from src.utils import Utils
+from src.logger import logger
 
 class DocumentLoader:
     """Handles loading and processing of various document types for CUBO."""
