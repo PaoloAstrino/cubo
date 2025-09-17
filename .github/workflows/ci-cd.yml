@@ -39,6 +39,13 @@ jobs:
           $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
           python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml
 
+      - name: Run GUI tests
+        run: |
+          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
+          python -c "from gui.main_window import CUBOGUI; print('GUI imports successfully')"
+          python -c "from gui.components import DocumentWidget, QueryWidget; print('GUI components import successfully')"
+          python -c "from gui.themes import ThemeManager; print('GUI themes import successfully')"
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
