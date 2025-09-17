@@ -13,14 +13,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTabWidget, QStatusBar, QMenuBar, QToolBar, QSplitter,
-    QLabel, QProgressBar, QMessageBox
+    QLabel, QProgressBar, QMessageBox, QDialog
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QAction, QIcon, QFont
 
-from .components import DocumentWidget, QueryWidget, SettingsWidget, AnalyticsWidget
+from .components import DocumentWidget, QueryWidget
 from .themes import ThemeManager
-from .dialogs import ErrorDialog, InfoDialog, ProgressDialog
+from .dialogs import ErrorDialog, InfoDialog, ProgressDialog, ModelSelectionDialog
 
 # Backend imports
 from src.config import config
@@ -37,40 +37,36 @@ class CUBOGUI(QMainWindow):
         super().__init__()
         self.theme_manager = ThemeManager()
         self.init_ui()
-        self.init_menus()
-        self.init_toolbar()
         self.init_status_bar()
-        self.load_settings()
+        self.check_model_selection()
+        self.init_backend()
 
     def init_ui(self):
         """Initialize the main user interface."""
         self.setWindowTitle("CUBO - Enterprise RAG System")
-        self.setMinimumSize(1200, 800)
+        self.setMinimumSize(1000, 700)
 
         # Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Main layout
-        layout = QVBoxLayout(central_widget)
+        # Main horizontal layout
+        main_layout = QHBoxLayout(central_widget)
 
-        # Create tab widget
-        self.tab_widget = QTabWidget()
-        layout.addWidget(self.tab_widget)
+        # Create splitter for left sidebar and main content
+        splitter = QSplitter(Qt.Horizontal)
+        main_layout.addWidget(splitter)
 
-        # Add tabs
-        self.document_tab = DocumentWidget()
-        self.query_tab = QueryWidget()
-        self.settings_tab = SettingsWidget()
-        self.analytics_tab = AnalyticsWidget()
+        # Left sidebar - Document upload
+        self.document_widget = DocumentWidget()
+        splitter.addWidget(self.document_widget)
 
-        self.tab_widget.addTab(self.document_tab, "Documents")
-        self.tab_widget.addTab(self.query_tab, "Query")
-        self.tab_widget.addTab(self.settings_tab, "Settings")
-        self.tab_widget.addTab(self.analytics_tab, "Analytics")
+        # Right side - Chat/Query interface
+        self.query_widget = QueryWidget()
+        splitter.addWidget(self.query_widget)
 
-        # Initialize backend
-        self.init_backend()
+        # Set splitter proportions (30% left, 70% right)
+        splitter.setSizes([300, 700])
 
         # Connect signals
         self.connect_signals()
@@ -78,13 +74,16 @@ class CUBOGUI(QMainWindow):
     def init_backend(self):
         """Initialize backend components."""
         try:
+            # Get selected model from config
+            selected_model = config.get("llm_model", "llama3.2")
+
             # Initialize document loader
             self.document_loader = DocumentLoader()
 
-            # Initialize retriever with default model
-            self.retriever = DocumentRetriever()
+            # Initialize retriever with selected model
+            self.retriever = DocumentRetriever(selected_model)
 
-            # Initialize generator with default model
+            # Initialize generator with selected model
             self.generator = ResponseGenerator()
 
             self.status_label.setText("Ready - Backend initialized")
@@ -97,14 +96,11 @@ class CUBOGUI(QMainWindow):
     def connect_signals(self):
         """Connect UI signals to backend operations."""
         # Document management signals
-        self.document_tab.document_uploaded.connect(self.on_document_uploaded)
-        self.document_tab.document_deleted.connect(self.on_document_deleted)
+        self.document_widget.document_uploaded.connect(self.on_document_uploaded)
+        self.document_widget.document_deleted.connect(self.on_document_deleted)
 
         # Query signals
-        self.query_tab.query_submitted.connect(self.on_query_submitted)
-
-        # Settings signals
-        self.settings_tab.settings_changed.connect(self.on_settings_changed)
+        self.query_widget.query_submitted.connect(self.on_query_submitted)
 
     def on_document_uploaded(self, filepath):
         """Handle document upload."""
@@ -125,7 +121,7 @@ class CUBOGUI(QMainWindow):
             self.status_label.setText("Error processing document")
 
         finally:
-            self.document_tab.set_processing_progress(False)
+            self.document_widget.set_processing_progress(False)
 
     def on_document_deleted(self, filepath):
         """Handle document deletion."""
@@ -149,25 +145,26 @@ class CUBOGUI(QMainWindow):
             relevant_docs = self.retriever.retrieve_top_documents(query, top_k=3)
 
             # Generate response
-            response = self.generator.generate_response(query, relevant_docs)
+            context = "\n\n".join(relevant_docs) if relevant_docs else "No relevant documents found."
+            response = self.generator.generate_response(query, context)
 
             # Format sources
             sources_text = ""
             if relevant_docs:
                 sources_text = "Source documents:\n" + "\n".join([
-                    f"• {doc['metadata'].get('source', 'Unknown')} (similarity: {doc.get('score', 0):.3f})"
-                    for doc in relevant_docs
+                    f"• Document chunk {i+1} (found in search)"
+                    for i, doc in enumerate(relevant_docs)
                 ])
             else:
                 sources_text = "No relevant documents found."
 
             # Display results
-            self.query_tab.display_results(response, sources_text)
+            self.query_widget.display_results(response, sources_text)
             self.status_label.setText("Query completed successfully")
 
         except Exception as e:
             logger.error(f"Failed to process query '{query}': {e}")
-            self.query_tab.show_error(str(e))
+            self.query_widget.show_error(str(e))
             ErrorDialog("Query Error", f"Failed to process query: {str(e)}", str(e)).exec()
             self.status_label.setText("Error processing query")
 
@@ -250,6 +247,70 @@ class CUBOGUI(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.status_bar.addPermanentWidget(self.progress_bar)
+
+    def check_model_selection(self):
+        """Check if model is selected and show selection dialog if needed."""
+        try:
+            # Get current selected model from config
+            current_model = config.get("llm_model", "")
+
+            # Check if we have available models
+            available_models = self.get_available_ollama_models()
+
+            if not available_models:
+                # No models available - show error and continue with default
+                ErrorDialog(
+                    "No Ollama Models Found",
+                    "No Ollama models were found on your system.\n\n"
+                    "Please install Ollama and pull models using:\n"
+                    "ollama pull llama3.2\n\n"
+                    "The application will continue with default settings."
+                ).exec()
+                return
+
+            # If no model selected or current model not available, show dialog
+            if not current_model or current_model not in available_models:
+                dialog = ModelSelectionDialog(current_model, self)
+                if dialog.exec() == QDialog.Accepted:
+                    selected_model = dialog.get_selected_model()
+                    if selected_model:
+                        config.set("llm_model", selected_model)
+                        config.save()
+                        self.status_label.setText(f"Model selected: {selected_model}")
+                    else:
+                        # User cancelled, use first available model
+                        config.set("llm_model", available_models[0])
+                        config.save()
+                        self.status_label.setText(f"Using default model: {available_models[0]}")
+                else:
+                    # Dialog rejected, use first available model
+                    config.set("llm_model", available_models[0])
+                    config.save()
+                    self.status_label.setText(f"Using default model: {available_models[0]}")
+            else:
+                self.status_label.setText(f"Using model: {current_model}")
+
+        except Exception as e:
+            logger.error(f"Error in model selection: {e}")
+            ErrorDialog("Model Selection Error", f"Failed to check models: {str(e)}").exec()
+
+    def get_available_ollama_models(self):
+        """Get list of available Ollama models."""
+        try:
+            import subprocess
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                if len(lines) > 1:  # Skip header
+                    models = []
+                    for line in lines[1:]:
+                        parts = line.split()
+                        if parts:
+                            models.append(parts[0])  # First column is model name
+                    return models
+            return []
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+            return []
 
     def change_theme(self, theme_name):
         """Change application theme."""

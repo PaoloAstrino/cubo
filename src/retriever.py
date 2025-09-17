@@ -49,7 +49,7 @@ class DocumentRetriever:
             batch_size = config.get("embedding_batch_size", 32)
             for i in range(0, len(documents), batch_size):
                 batch = documents[i:i + batch_size]
-                embeddings = self.model.encode(batch, convert_to_tensor=True).tolist()
+                embeddings = self.model.encode(batch).tolist()
                 ids = [str(j) for j in range(i, i + len(batch))]
                 self.collection.add(embeddings=embeddings, documents=batch, ids=ids)
             logger.info(f"Added {len(documents)} documents to vector DB in batches")
@@ -82,7 +82,7 @@ class DocumentRetriever:
             print(Fore.BLUE + "Retrieving top documents..." + Style.RESET_ALL)
             start = time.time()
 
-            query_embedding = self.model.encode([query], convert_to_tensor=True).tolist()[0]
+            query_embedding = self.model.encode([query]).tolist()[0]
             results = self.collection.query(query_embeddings=[query_embedding], n_results=top_k, include=['distances'])
 
             # Apply similarity threshold (e.g., cosine distance < 0.5 for relevance)

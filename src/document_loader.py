@@ -72,3 +72,16 @@ class DocumentLoader:
 
         print(Fore.GREEN + f"Total documents loaded and chunked into {len(documents)} chunks." + Style.RESET_ALL)
         return documents
+
+    def load_documents(self, file_paths: List[str]) -> List[str]:
+        """Load multiple documents from a list of file paths."""
+        documents = []
+
+        print(Fore.BLUE + f"Loading {len(file_paths)} documents..." + Style.RESET_ALL)
+
+        for file_path in file_paths:
+            chunks = self.load_single_document(file_path)
+            documents.extend(chunks)
+
+        print(Fore.GREEN + f"Total documents loaded and chunked into {len(documents)} chunks." + Style.RESET_ALL)
+        return documents

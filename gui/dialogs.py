@@ -6,9 +6,11 @@ Modal dialogs for the desktop interface.
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QDialogButtonBox, QMessageBox, QProgressDialog,
-    QFileDialog, QInputDialog
+    QFileDialog, QInputDialog, QComboBox, QListWidget, QListWidgetItem,
+    QGroupBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
+import subprocess
 
 
 class ProgressDialog(QProgressDialog):
@@ -129,3 +131,182 @@ class AboutDialog(QDialog):
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn, alignment=Qt.AlignCenter)
+
+
+class ModelSelectionDialog(QDialog):
+    """Dialog for selecting Ollama model."""
+
+    def __init__(self, current_model=None, parent=None):
+        super().__init__(parent)
+        self.current_model = current_model
+        self.selected_model = None
+        self.available_models = []
+        self.init_ui()
+        self.load_available_models()
+
+    def init_ui(self):
+        """Initialize the model selection dialog."""
+        self.setWindowTitle("CUBO Setup - Choose AI Model")
+        self.setModal(True)
+        self.resize(450, 350)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(20)
+
+        # Welcome header
+        welcome_label = QLabel("🤖 Welcome to CUBO!")
+        welcome_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #007acc; margin-bottom: 10px;")
+        welcome_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(welcome_label)
+
+        # Simple explanation
+        desc_label = QLabel(
+            "Choose which AI brain you want CUBO to use for answering questions.\n"
+            "Don't worry - you can change this later if needed."
+        )
+        desc_label.setStyleSheet("font-size: 12px; color: #666; margin-bottom: 15px;")
+        desc_label.setWordWrap(True)
+        desc_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(desc_label)
+
+        # Model selection section
+        model_group = QGroupBox("Available AI Models")
+        model_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        model_layout = QVBoxLayout(model_group)
+
+        # Model list
+        self.model_list = QListWidget()
+        self.model_list.setSelectionMode(QListWidget.SingleSelection)
+        self.model_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 12px;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:selected {
+                background-color: #007acc;
+                color: white;
+            }
+        """)
+        model_layout.addWidget(self.model_list)
+
+        layout.addWidget(model_group)
+
+        # Status label with better styling
+        self.status_label = QLabel("🔍 Checking for available models...")
+        self.status_label.setStyleSheet("font-size: 11px; color: #666; font-style: italic;")
+        layout.addWidget(self.status_label)
+
+        # Buttons with better styling
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
+            Qt.Horizontal, self
+        )
+        buttons.button(QDialogButtonBox.Ok).setText("✅ Use This Model")
+        buttons.button(QDialogButtonBox.Cancel).setText("❌ Cancel")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # Connect signals
+        self.model_list.itemSelectionChanged.connect(self.on_selection_changed)
+
+    def load_available_models(self):
+        """Load available Ollama models."""
+        try:
+            self.status_label.setText("Checking for available models...")
+            self.available_models = self.get_available_ollama_models()
+
+            if self.available_models:
+                self.model_list.clear()
+                for i, model in enumerate(self.available_models):
+                    # Make model names more user-friendly
+                    display_name = self.get_friendly_model_name(model)
+                    item = QListWidgetItem(f"🤖 {display_name}")
+                    item.setData(Qt.UserRole, model)  # Store actual model name
+                    self.model_list.addItem(item)
+                    
+                    # Pre-select current model if available
+                    if model == self.current_model:
+                        self.model_list.setCurrentItem(item)
+
+                if self.available_models:
+                    if len(self.available_models) == 1:
+                        self.status_label.setText("✅ Found 1 model - perfect!")
+                        # Auto-select the only model
+                        self.model_list.setCurrentRow(0)
+                    else:
+                        self.status_label.setText(f"✅ Found {len(self.available_models)} models - choose your favorite!")
+                        # Select first model if none selected
+                        if not self.model_list.currentItem():
+                            self.model_list.setCurrentRow(0)
+                else:
+                    self.status_label.setText("❌ No models found")
+            else:
+                self.status_label.setText("❌ No AI models found. Please install models using 'ollama pull llama3.2'")
+                self.model_list.setEnabled(False)
+
+        except Exception as e:
+            self.status_label.setText(f"❌ Error checking models: {str(e)}")
+            self.model_list.setEnabled(False)
+
+    def get_friendly_model_name(self, model_name):
+        """Convert technical model names to user-friendly names."""
+        friendly_names = {
+            "llama3.2:latest": "Llama 3.2 (Recommended)",
+            "llama3.2": "Llama 3.2 (Recommended)", 
+            "granite3.2:2b": "Granite 3.2 (Fast & Light)",
+            "llama3.1": "Llama 3.1",
+            "llama3": "Llama 3",
+            "llama2": "Llama 2",
+            "mistral": "Mistral AI",
+            "codellama": "Code Llama (For Programming)",
+            "phi3": "Phi-3 (Microsoft)",
+            "gemma": "Gemma (Google)"
+        }
+        
+        # Try exact match first
+        if model_name in friendly_names:
+            return friendly_names[model_name]
+            
+        # Try partial matches
+        for key, friendly in friendly_names.items():
+            if key in model_name.lower():
+                return friendly
+                
+        # Default: clean up the name a bit
+        clean_name = model_name.replace(":latest", "").replace("_", " ").title()
+        return clean_name
+
+    def get_available_ollama_models(self):
+        """Get list of available Ollama models."""
+        try:
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                if len(lines) > 1:  # Skip header
+                    models = []
+                    for line in lines[1:]:
+                        parts = line.split()
+                        if parts:
+                            models.append(parts[0])  # First column is model name
+                    return models
+            return []
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+            return []
+
+    def on_selection_changed(self):
+        """Handle model selection change."""
+        current_item = self.model_list.currentItem()
+        if current_item:
+            # Get the actual model name from stored data
+            self.selected_model = current_item.data(Qt.UserRole)
+
+    def get_selected_model(self):
+        """Get the selected model."""
+        return self.selected_model

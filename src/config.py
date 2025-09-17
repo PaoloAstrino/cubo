@@ -48,6 +48,10 @@ class Config:
         """Set configuration value."""
         self._config[key] = value
 
+    def update(self, settings: Dict[str, Any]) -> None:
+        """Update multiple configuration values."""
+        self._config.update(settings)
+
     def save(self) -> None:
         """Save configuration to file."""
         with open(self.config_path, 'w') as f:

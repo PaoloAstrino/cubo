@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QListWidget, QListWidgetItem, QProgressBar,
     QComboBox, QSpinBox, QGroupBox, QFormLayout, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QFileDialog,
-    QMessageBox, QScrollArea, QFrame
+    QMessageBox, QScrollArea, QFrame, QLineEdit
 )
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QFont, QPixmap, QIcon
@@ -134,102 +134,217 @@ class DocumentWidget(QWidget):
 
 
 class QueryWidget(QWidget):
-    """Widget for query input and results display."""
+    """Widget for chat-based query interface with company expert persona."""
 
     query_submitted = Signal(str)  # Signal emitted when query is submitted
 
     def __init__(self):
         super().__init__()
+        self.conversation_history = []
         self.init_ui()
 
     def init_ui(self):
-        """Initialize the query interface."""
+        """Initialize the chat interface."""
         layout = QVBoxLayout(self)
+        layout.setSpacing(10)
 
-        # Header
-        header = QLabel("Query Interface")
-        header.setFont(QFont("Arial", 14, QFont.Bold))
-        layout.addWidget(header)
+        # Header with expert persona
+        header_layout = QHBoxLayout()
+        avatar_label = QLabel("👔")
+        avatar_label.setFont(QFont("Arial", 24))
+        header_layout.addWidget(avatar_label)
 
-        # Query input section
-        input_group = QGroupBox("Enter Your Query")
-        input_layout = QVBoxLayout(input_group)
+        header_text = QLabel("Company Expert Assistant")
+        header_text.setFont(QFont("Arial", 16, QFont.Bold))
+        header_text.setStyleSheet("color: #2c3e50;")
+        header_layout.addWidget(header_text)
 
-        self.query_input = QTextEdit()
-        self.query_input.setPlaceholderText("Ask a question about your documents...")
-        self.query_input.setMaximumHeight(100)
+        header_layout.addStretch()
+        status_label = QLabel("🟢 Online - Ready to help")
+        status_label.setStyleSheet("color: #27ae60; font-size: 10px;")
+        header_layout.addWidget(status_label)
+
+        layout.addLayout(header_layout)
+
+        # Chat history area (main chat window)
+        chat_group = QGroupBox()
+        chat_group.setStyleSheet("""
+            QGroupBox {
+                border: 1px solid #bdc3c7;
+                border-radius: 8px;
+                margin-top: 5px;
+                background-color: #f8f9fa;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        chat_layout = QVBoxLayout(chat_group)
+
+        self.chat_display = QTextEdit()
+        self.chat_display.setReadOnly(True)
+        self.chat_display.setStyleSheet("""
+            QTextEdit {
+                border: none;
+                background-color: #f8f9fa;
+                font-size: 11px;
+                line-height: 1.4;
+            }
+        """)
+        self.chat_display.setMinimumHeight(300)
+        chat_layout.addWidget(self.chat_display)
+
+        layout.addWidget(chat_group)
+
+        # Input area at bottom
+        input_layout = QHBoxLayout()
+
+        self.query_input = QLineEdit()
+        self.query_input.setPlaceholderText("Ask me anything about your company documents...")
+        self.query_input.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #3498db;
+                border-radius: 20px;
+                padding: 8px 15px;
+                font-size: 12px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border-color: #2980b9;
+            }
+        """)
+        self.query_input.returnPressed.connect(self.submit_query)
         input_layout.addWidget(self.query_input)
 
-        self.submit_btn = QPushButton("🔍 Search & Generate Response")
+        self.submit_btn = QPushButton("� Send")
+        self.submit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                padding: 8px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
         self.submit_btn.clicked.connect(self.submit_query)
         input_layout.addWidget(self.submit_btn)
 
-        layout.addWidget(input_group)
+        layout.addLayout(input_layout)
 
-        # Results section
-        results_group = QGroupBox("Results")
-        results_layout = QVBoxLayout(results_group)
+        # Welcome message
+        self.add_welcome_message()
 
-        # Splitter for results and sources
-        splitter = QSplitter(Qt.Vertical)
-
-        # Response display
-        response_widget = QWidget()
-        response_layout = QVBoxLayout(response_widget)
-
-        response_label = QLabel("AI Response:")
-        response_label.setFont(QFont("Arial", 10, QFont.Bold))
-        response_layout.addWidget(response_label)
-
-        self.response_display = QTextEdit()
-        self.response_display.setReadOnly(True)
-        response_layout.addWidget(self.response_display)
-
-        splitter.addWidget(response_widget)
-
-        # Sources display
-        sources_widget = QWidget()
-        sources_layout = QVBoxLayout(sources_widget)
-
-        sources_label = QLabel("Source Documents:")
-        sources_label.setFont(QFont("Arial", 10, QFont.Bold))
-        sources_layout.addWidget(sources_label)
-
-        self.sources_display = QTextEdit()
-        self.sources_display.setReadOnly(True)
-        self.sources_display.setMaximumHeight(150)
-        sources_layout.addWidget(self.sources_display)
-
-        splitter.addWidget(sources_widget)
-        splitter.setSizes([400, 150])
-
-        results_layout.addWidget(splitter)
-        layout.addWidget(results_group)
-
-        # Progress bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
+    def add_welcome_message(self):
+        """Add initial welcome message from the expert."""
+        welcome_html = """
+        <div style='margin: 10px; padding: 15px; background-color: #e8f4fd; border-radius: 10px; border-left: 4px solid #3498db;'>
+            <div style='font-weight: bold; color: #2c3e50; margin-bottom: 5px;'>👔 Company Expert</div>
+            <div style='color: #34495e; line-height: 1.4;'>
+                Hello! I'm your company knowledge expert. I've analyzed all the documents you've uploaded and I'm ready to help with any questions about your business, processes, or data.<br><br>
+                <b>What can I help you with today?</b>
+            </div>
+        </div>
+        """
+        self.chat_display.append(welcome_html)
 
     def submit_query(self):
-        """Submit the query."""
-        query = self.query_input.toPlainText().strip()
-        if query:
-            self.query_submitted.emit(query)
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        """Submit the query and add it to chat."""
+        query = self.query_input.text().strip()
+        if not query:
+            return
+
+        # Add user message to chat
+        user_html = f"""
+        <div style='margin: 10px; padding: 10px; background-color: #dcf8c6; border-radius: 10px; margin-left: 50px; border-left: 4px solid #27ae60;' align='right'>
+            <div style='font-weight: bold; color: #2c3e50; margin-bottom: 3px;'>You</div>
+            <div style='color: #34495e;'>{query}</div>
+        </div>
+        """
+        self.chat_display.append(user_html)
+
+        # Clear input
+        self.query_input.clear()
+
+        # Show typing indicator
+        self.show_typing_indicator()
+
+        # Emit signal
+        self.query_submitted.emit(query)
+
+    def show_typing_indicator(self):
+        """Show typing indicator."""
+        typing_html = """
+        <div style='margin: 10px; padding: 8px; background-color: #f0f0f0; border-radius: 10px; margin-right: 50px;' align='left'>
+            <div style='color: #7f8c8d; font-style: italic;'>👔 Company Expert is typing...</div>
+        </div>
+        """
+        self.chat_display.append(typing_html)
+
+        # Scroll to bottom
+        cursor = self.chat_display.textCursor()
+        cursor.movePosition(cursor.End)
+        self.chat_display.setTextCursor(cursor)
 
     def display_results(self, response, sources):
-        """Display query results."""
-        self.response_display.setPlainText(response)
-        self.sources_display.setPlainText(sources)
-        self.progress_bar.setVisible(False)
+        """Display query results in chat format."""
+        # Remove typing indicator (replace last message)
+        current_text = self.chat_display.toHtml()
+        # Simple way: clear and rebuild (could be optimized)
+        self.chat_display.clear()
+        self.add_welcome_message()
+
+        # Re-add conversation history
+        for msg in self.conversation_history:
+            self.chat_display.append(msg)
+
+        # Add the expert's response
+        response_html = f"""
+        <div style='margin: 10px; padding: 15px; background-color: #e8f4fd; border-radius: 10px; margin-right: 50px; border-left: 4px solid #3498db;' align='left'>
+            <div style='font-weight: bold; color: #2c3e50; margin-bottom: 5px;'>👔 Company Expert</div>
+            <div style='color: #34495e; line-height: 1.4;'>{response}</div>
+        </div>
+        """
+
+        # Add sources if available
+        if sources and sources.strip():
+            sources_html = f"""
+            <div style='margin: 5px 10px; padding: 8px; background-color: #ecf0f1; border-radius: 5px; margin-right: 50px; font-size: 10px;' align='left'>
+                <div style='font-weight: bold; color: #7f8c8d; margin-bottom: 3px;'>📋 Based on:</div>
+                <div style='color: #95a5a6;'>{sources.replace(chr(10), "<br>")}</div>
+            </div>
+            """
+            response_html += sources_html
+
+        self.chat_display.append(response_html)
+
+        # Scroll to bottom
+        cursor = self.chat_display.textCursor()
+        cursor.movePosition(cursor.End)
+        self.chat_display.setTextCursor(cursor)
 
     def show_error(self, error_message):
-        """Display error message."""
-        self.response_display.setPlainText(f"Error: {error_message}")
-        self.sources_display.clear()
-        self.progress_bar.setVisible(False)
+        """Display error message in chat format."""
+        error_html = f"""
+        <div style='margin: 10px; padding: 15px; background-color: #fee; border-radius: 10px; margin-right: 50px; border-left: 4px solid #e74c3c;' align='left'>
+            <div style='font-weight: bold; color: #c0392b; margin-bottom: 5px;'>⚠️ System Error</div>
+            <div style='color: #e74c3c; line-height: 1.4;'>{error_message}</div>
+        </div>
+        """
+        self.chat_display.append(error_html)
+
+        # Scroll to bottom
+        cursor = self.chat_display.textCursor()
+        cursor.movePosition(cursor.End)
+        self.chat_display.setTextCursor(cursor)
 
 
 class SettingsWidget(QWidget):
