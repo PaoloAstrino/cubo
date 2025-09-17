@@ -11,3 +11,4 @@ tokenizers>=0.15.0
 numpy>=1.21.0
 protobuf>=3.20.0
 cryptography>=40.0.0
+PySide6>=6.5.0

@@ -3,3 +3,4 @@ pytest  # For unit testing
 pytest-cov  # For test coverage
 pyinstaller  # For building executables
 flake8  # For code linting
+PySide6>=6.5.0  # For desktop GUI development
