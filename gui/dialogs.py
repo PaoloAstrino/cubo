@@ -108,7 +108,7 @@ class AboutDialog(QDialog):
 
         # Logo placeholder
         logo_label = QLabel("CUBO")
-        logo_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #007acc;")
+        logo_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #cccccc;")
         layout.addWidget(logo_label, alignment=Qt.AlignCenter)
 
         # Version info
@@ -155,7 +155,7 @@ class ModelSelectionDialog(QDialog):
 
         # Welcome header
         welcome_label = QLabel("🤖 Welcome to CUBO!")
-        welcome_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #007acc; margin-bottom: 10px;")
+        welcome_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #cccccc; margin-bottom: 10px;")
         welcome_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(welcome_label)
 
@@ -179,18 +179,18 @@ class ModelSelectionDialog(QDialog):
         self.model_list.setSelectionMode(QListWidget.SingleSelection)
         self.model_list.setStyleSheet("""
             QListWidget {
-                border: 1px solid #ccc;
+                border: none;
                 border-radius: 5px;
                 padding: 5px;
                 font-size: 12px;
             }
             QListWidget::item {
                 padding: 8px;
-                border-bottom: 1px solid #eee;
+                border-bottom: none;
             }
             QListWidget::item:selected {
-                background-color: #007acc;
-                color: white;
+                background-color: #555555;
+                color: #000000;
             }
         """)
         model_layout.addWidget(self.model_list)

@@ -4,12 +4,14 @@ from typing import List, Dict, Any
 from colorama import Fore, Style
 from src.config import config
 from src.logger import logger
+from src.service_manager import get_service_manager
 
 class ResponseGenerator:
     """Handles response generation using Ollama LLM for CUBO."""
 
     def __init__(self):
         self.messages = []
+        self.service_manager = get_service_manager()
         self.system_prompt = "You are an AI assistant that answers queries strictly based on the provided context from documents. Do not use any external knowledge, assumptions, or invented information. If the context does not contain relevant information to answer the query, respond with: 'The provided documents do not contain information to answer this query.'"
 
     def initialize_conversation(self):
@@ -18,10 +20,10 @@ class ResponseGenerator:
 
     def generate_response(self, query: str, context: str, messages: List[Dict[str, str]] = None) -> str:
         """Generate a response using the LLM."""
-        if messages is None:
-            messages = self.messages
+        def _generate_operation():
+            if messages is None:
+                messages = self.messages
 
-        try:
             print(Fore.BLUE + "Generating response..." + Style.RESET_ALL)
             start = time.time()
 
@@ -42,7 +44,4 @@ class ResponseGenerator:
 
             return assistant_content
 
-        except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            print(Fore.RED + f"Response generation error: {e}" + Style.RESET_ALL)
-            return "Sorry, I encountered an error generating the response."
+        return self.service_manager.execute_sync('llm_generation', _generate_operation)

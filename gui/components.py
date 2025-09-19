@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QListWidget, QListWidgetItem, QProgressBar,
     QComboBox, QSpinBox, QGroupBox, QFormLayout, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QFileDialog,
-    QMessageBox, QScrollArea, QFrame, QLineEdit
+    QMessageBox, QScrollArea, QFrame, QLineEdit, QStackedWidget
 )
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QFont, QPixmap, QIcon
@@ -31,56 +31,191 @@ class DocumentWidget(QWidget):
     def init_ui(self):
         """Initialize the document management interface."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        # Header
-        header = QLabel("Document Management")
-        header.setFont(QFont("Arial", 14, QFont.Bold))
-        layout.addWidget(header)
+        # Create stacked widget for different states
+        self.stacked_widget = QStackedWidget()
+        layout.addWidget(self.stacked_widget)
 
-        # Upload section
-        upload_group = QGroupBox("Upload Documents")
-        upload_layout = QHBoxLayout(upload_group)
+        # Page 0: Full upload area (when no documents)
+        self.create_upload_page()
 
-        self.upload_btn = QPushButton("📁 Upload Document")
-        self.upload_btn.clicked.connect(self.upload_document)
-        upload_layout.addWidget(self.upload_btn)
+        # Page 1: Upload + List area (when documents exist)
+        self.create_list_page()
 
-        self.drag_label = QLabel("Or drag and drop files here")
-        self.drag_label.setAlignment(Qt.AlignCenter)
-        self.drag_label.setStyleSheet("border: 2px dashed #aaa; padding: 20px;")
-        upload_layout.addWidget(self.drag_label)
-
-        layout.addWidget(upload_group)
-
-        # Documents list
-        list_group = QGroupBox("Loaded Documents")
-        list_layout = QVBoxLayout(list_group)
-
-        self.document_list = QListWidget()
-        self.document_list.setMinimumHeight(200)
-        list_layout.addWidget(self.document_list)
-
-        # Action buttons
-        btn_layout = QHBoxLayout()
-        self.delete_btn = QPushButton("🗑️ Delete Selected")
-        self.delete_btn.clicked.connect(self.delete_document)
-        self.delete_btn.setEnabled(False)
-        btn_layout.addWidget(self.delete_btn)
-
-        self.refresh_btn = QPushButton("🔄 Refresh")
-        self.refresh_btn.clicked.connect(self.refresh_documents)
-        btn_layout.addWidget(self.refresh_btn)
-
-        list_layout.addLayout(btn_layout)
-        layout.addWidget(list_group)
+        # Start with upload page
+        self.stacked_widget.setCurrentIndex(0)
 
         # Progress bar (hidden by default)
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
-        # Connect signals
-        self.document_list.itemSelectionChanged.connect(self.on_selection_changed)
+    def create_upload_page(self):
+        """Create the full-screen upload page."""
+        upload_page = QWidget()
+        upload_layout = QVBoxLayout(upload_page)
+        upload_layout.setContentsMargins(20, 20, 20, 20)
+
+        # Centered upload area
+        upload_widget = QWidget()
+        upload_widget.setStyleSheet("""
+            QWidget {
+                background-color: #1a1a1a;
+                border-radius: 10px;
+            }
+        """)
+        upload_inner_layout = QVBoxLayout(upload_widget)
+        upload_inner_layout.setAlignment(Qt.AlignCenter)
+
+        # Upload icon/label
+        upload_icon = QLabel("📁")
+        upload_icon.setFont(QFont("Arial", 48))
+        upload_icon.setAlignment(Qt.AlignCenter)
+        upload_icon.setStyleSheet("color: #cccccc; margin-bottom: 10px;")
+        upload_inner_layout.addWidget(upload_icon)
+
+        upload_title = QLabel("Upload Documents")
+        upload_title.setFont(QFont("Arial", 18, QFont.Bold))
+        upload_title.setAlignment(Qt.AlignCenter)
+        upload_title.setStyleSheet("color: #cccccc; margin-bottom: 10px;")
+        upload_inner_layout.addWidget(upload_title)
+
+        upload_subtitle = QLabel("Drag and drop files here or click to browse")
+        upload_subtitle.setFont(QFont("Arial", 12))
+        upload_subtitle.setAlignment(Qt.AlignCenter)
+        upload_subtitle.setStyleSheet("color: #888888; margin-bottom: 20px;")
+        upload_inner_layout.addWidget(upload_subtitle)
+
+        # Upload button
+        self.upload_btn = QPushButton("Choose Files")
+        self.upload_btn.setFont(QFont("Arial", 12, QFont.Bold))
+        self.upload_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #555555;
+                color: #000000;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 24px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #666666;
+                opacity: 0.8;
+            }
+        """)
+        self.upload_btn.clicked.connect(self.upload_document)
+        upload_inner_layout.addWidget(self.upload_btn)
+
+        # Supported formats
+        formats_label = QLabel("Supported: PDF, DOCX, TXT")
+        formats_label.setFont(QFont("Arial", 10))
+        formats_label.setAlignment(Qt.AlignCenter)
+        formats_label.setStyleSheet("color: #666666; margin-top: 10px;")
+        upload_inner_layout.addWidget(formats_label)
+
+        upload_layout.addStretch()
+        upload_layout.addWidget(upload_widget)
+        upload_layout.addStretch()
+
+        self.stacked_widget.addWidget(upload_page)
+
+    def create_list_page(self):
+        """Create the page with upload section and document list."""
+        list_page = QWidget()
+        list_layout = QVBoxLayout(list_page)
+        list_layout.setContentsMargins(10, 10, 10, 10)
+        list_layout.setSpacing(0)  # Remove spacing between sections
+
+        # Top 50%: Compact upload section
+        upload_group = QGroupBox("Add Documents")
+        upload_group.setStyleSheet("""
+            QGroupBox {
+                border: none;
+                margin-top: 5px;
+                font-weight: bold;
+                padding-top: 5px;
+                background-color: #1a1a1a;
+                border-radius: 5px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        upload_layout = QVBoxLayout(upload_group)
+        upload_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.upload_btn_list = QPushButton("📁 Upload Document")
+        self.upload_btn_list.clicked.connect(self.upload_document)
+        self.upload_btn_list.setStyleSheet("""
+            QPushButton {
+                background-color: #555555;
+                color: #000000;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #666666;
+                opacity: 0.8;
+            }
+        """)
+        upload_layout.addWidget(self.upload_btn_list)
+
+        self.drag_label = QLabel("Or drag and drop files here")
+        self.drag_label.setAlignment(Qt.AlignCenter)
+        self.drag_label.setStyleSheet("""
+            QLabel {
+                padding: 8px;
+                border-radius: 3px;
+                color: #888888;
+                font-size: 11px;
+            }
+        """)
+        upload_layout.addWidget(self.drag_label)
+
+        # Set stretch factor to make upload section take 50% of space
+        list_layout.addWidget(upload_group, stretch=1)
+
+        # Bottom 50%: Documents list starting from middle
+        list_group = QGroupBox("Loaded Documents")
+        list_group.setStyleSheet("""
+            QGroupBox {
+                border: none;
+                margin-top: 0px;
+                font-weight: bold;
+                padding-top: 5px;
+                background-color: #1a1a1a;
+                border-radius: 5px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        list_inner_layout = QVBoxLayout(list_group)
+        list_inner_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.document_list = QListWidget()
+        self.document_list.setStyleSheet("""
+            QListWidget {
+                border: none;
+                background-color: #1a1a1a;
+                color: #cccccc;
+                selection-background-color: #555555;
+                selection-color: #000000;
+            }
+        """)
+        list_inner_layout.addWidget(self.document_list)
+
+        # Set stretch factor to make document list take 50% of space
+        list_layout.addWidget(list_group, stretch=1)
+
+        self.stacked_widget.addWidget(list_page)
 
     def upload_document(self):
         """Handle document upload."""
@@ -103,28 +238,14 @@ class DocumentWidget(QWidget):
             self.document_list.addItem(item)
             self.document_uploaded.emit(filepath)
 
-    def delete_document(self):
-        """Delete selected document."""
-        current_item = self.document_list.currentItem()
-        if current_item:
-            filepath = current_item.data(Qt.UserRole)
-            self.documents.remove(filepath)
-            self.document_list.takeItem(self.document_list.row(current_item))
-            self.document_deleted.emit(filepath)
-
-    def refresh_documents(self):
-        """Refresh the document list."""
-        # This would trigger re-processing of documents
-        self.document_list.clear()
-        for doc in self.documents:
-            filename = Path(doc).name
-            item = QListWidgetItem(f"📄 {filename}")
-            item.setData(Qt.UserRole, doc)
-            self.document_list.addItem(item)
+            # Switch to list page after first document
+            if len(self.documents) == 1:
+                self.stacked_widget.setCurrentIndex(1)
 
     def on_selection_changed(self):
         """Handle document selection change."""
-        self.delete_btn.setEnabled(self.document_list.currentItem() is not None)
+        # No action needed since delete button was removed
+        pass
 
     def set_processing_progress(self, visible, value=None):
         """Show/hide processing progress."""
@@ -141,6 +262,7 @@ class QueryWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.conversation_history = []
+        self.typing_indicator_position = None
         self.init_ui()
 
     def init_ui(self):
@@ -148,32 +270,19 @@ class QueryWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Header with expert persona
-        header_layout = QHBoxLayout()
-        avatar_label = QLabel("👔")
-        avatar_label.setFont(QFont("Arial", 24))
-        header_layout.addWidget(avatar_label)
-
-        header_text = QLabel("Company Expert Assistant")
-        header_text.setFont(QFont("Arial", 16, QFont.Bold))
-        header_text.setStyleSheet("color: #2c3e50;")
-        header_layout.addWidget(header_text)
-
-        header_layout.addStretch()
-        status_label = QLabel("🟢 Online - Ready to help")
-        status_label.setStyleSheet("color: #27ae60; font-size: 10px;")
-        header_layout.addWidget(status_label)
-
-        layout.addLayout(header_layout)
+        # Simple clean header
+        header = QLabel("Chat")
+        header.setFont(QFont("Arial", 14, QFont.Bold))
+        header.setStyleSheet("color: #cccccc; padding: 5px;")
+        layout.addWidget(header)
 
         # Chat history area (main chat window)
         chat_group = QGroupBox()
         chat_group.setStyleSheet("""
             QGroupBox {
-                border: 1px solid #bdc3c7;
-                border-radius: 8px;
+                border: none;
                 margin-top: 5px;
-                background-color: #f8f9fa;
+                background-color: #1a1a1a;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
@@ -188,7 +297,8 @@ class QueryWidget(QWidget):
         self.chat_display.setStyleSheet("""
             QTextEdit {
                 border: none;
-                background-color: #f8f9fa;
+                background-color: #1a1a1a;
+                color: #cccccc;
                 font-size: 11px;
                 line-height: 1.4;
             }
@@ -202,37 +312,40 @@ class QueryWidget(QWidget):
         input_layout = QHBoxLayout()
 
         self.query_input = QLineEdit()
-        self.query_input.setPlaceholderText("Ask me anything about your company documents...")
+        self.query_input.setPlaceholderText("Ask a question about your documents...")
         self.query_input.setStyleSheet("""
             QLineEdit {
-                border: 2px solid #3498db;
+                border: none;
                 border-radius: 20px;
                 padding: 8px 15px;
                 font-size: 12px;
-                background-color: white;
+                background-color: #1a1a1a;
+                color: #cccccc;
             }
             QLineEdit:focus {
-                border-color: #2980b9;
+                border: none;
             }
         """)
         self.query_input.returnPressed.connect(self.submit_query)
         input_layout.addWidget(self.query_input)
 
-        self.submit_btn = QPushButton("� Send")
+        self.submit_btn = QPushButton("Send")
         self.submit_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3498db;
-                color: white;
+                background-color: #555555;
+                color: #000000;
                 border: none;
-                border-radius: 20px;
+                border-radius: 10px;
                 padding: 8px 20px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #666666;
+                opacity: 0.8;
             }
             QPushButton:pressed {
-                background-color: #21618c;
+                background-color: #444444;
+                opacity: 0.6;
             }
         """)
         self.submit_btn.clicked.connect(self.submit_query)
@@ -240,111 +353,267 @@ class QueryWidget(QWidget):
 
         layout.addLayout(input_layout)
 
-        # Welcome message
-        self.add_welcome_message()
-
-    def add_welcome_message(self):
-        """Add initial welcome message from the expert."""
-        welcome_html = """
-        <div style='margin: 10px; padding: 15px; background-color: #e8f4fd; border-radius: 10px; border-left: 4px solid #3498db;'>
-            <div style='font-weight: bold; color: #2c3e50; margin-bottom: 5px;'>👔 Company Expert</div>
-            <div style='color: #34495e; line-height: 1.4;'>
-                Hello! I'm your company knowledge expert. I've analyzed all the documents you've uploaded and I'm ready to help with any questions about your business, processes, or data.<br><br>
-                <b>What can I help you with today?</b>
-            </div>
-        </div>
-        """
-        self.chat_display.append(welcome_html)
-
     def submit_query(self):
         """Submit the query and add it to chat."""
         query = self.query_input.text().strip()
         if not query:
             return
 
-        # Add user message to chat
+        # Clear input immediately
+        self.query_input.clear()
+
+        # Add user message to chat immediately (right-aligned)
         user_html = f"""
-        <div style='margin: 10px; padding: 10px; background-color: #dcf8c6; border-radius: 10px; margin-left: 50px; border-left: 4px solid #27ae60;' align='right'>
-            <div style='font-weight: bold; color: #2c3e50; margin-bottom: 3px;'>You</div>
-            <div style='color: #34495e;'>{query}</div>
+        <div style='text-align: right; margin: 10px 0;'>
+            <div style='
+                display: inline-block;
+                padding: 10px 15px;
+                background-color: #2a2a2a;
+                border-radius: 10px;
+                color: #cccccc;
+                max-width: 70%;
+                word-wrap: break-word;
+                text-align: right;
+            '>
+                <div style='font-weight: bold; margin-bottom: 3px;'>You</div>
+                <div>{query}</div>
+            </div>
         </div>
         """
         self.chat_display.append(user_html)
+        self.conversation_history.append(user_html)
 
-        # Clear input
-        self.query_input.clear()
-
-        # Show typing indicator
+        # Show typing indicator with spinning cube
         self.show_typing_indicator()
 
-        # Emit signal
+        # Emit signal for processing
         self.query_submitted.emit(query)
 
     def show_typing_indicator(self):
-        """Show typing indicator."""
-        typing_html = """
-        <div style='margin: 10px; padding: 8px; background-color: #f0f0f0; border-radius: 10px; margin-right: 50px;' align='left'>
-            <div style='color: #7f8c8d; font-style: italic;'>👔 Company Expert is typing...</div>
+        """Show typing indicator with spinning cube."""
+        self.typing_indicator_html = f"""
+        <div style='text-align: left; margin: 10px 0;' id='typing-indicator'>
+            <span style='display: inline-block; vertical-align: middle; margin-right: 8px;'>
+                <span style='
+                    display: inline-block;
+                    width: 16px;
+                    height: 16px;
+                    background: #ffffff;
+                    border-radius: 4px;
+                    animation: spin 1.2s linear infinite;
+                '></span>
+            </span>
+            <span style='color: #cccccc; font-style: italic;'>Generating response...</span>
         </div>
+        <style>
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+        </style>
         """
-        self.chat_display.append(typing_html)
+        self.chat_display.append(self.typing_indicator_html)
 
         # Scroll to bottom
         cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.End)
+        cursor.movePosition(cursor.MoveOperation.End)
         self.chat_display.setTextCursor(cursor)
 
     def display_results(self, response, sources):
         """Display query results in chat format."""
-        # Remove typing indicator (replace last message)
-        current_text = self.chat_display.toHtml()
-        # Simple way: clear and rebuild (could be optimized)
-        self.chat_display.clear()
-        self.add_welcome_message()
+        # Replace typing indicator with actual response
+        if hasattr(self, 'typing_indicator_html'):
+            # Get current HTML content
+            current_html = self.chat_display.toHtml()
 
-        # Re-add conversation history
-        for msg in self.conversation_history:
-            self.chat_display.append(msg)
+            # Replace the typing indicator with the response
+            if self.typing_indicator_html in current_html:
+                # Create the response HTML
+                response_html = f"""
+                <div style='text-align: left; margin: 10px 0;'>
+                    <span style='display: inline-block; vertical-align: top; margin-right: 8px;'>
+                        <span style='
+                            display: inline-block;
+                            width: 16px;
+                            height: 16px;
+                            background: #ffffff;
+                            border-radius: 4px;
+                        '></span>
+                    </span>
+                    <span style='
+                        display: inline-block;
+                        padding: 12px 16px;
+                        background-color: #2a2a2a;
+                        border-radius: 10px;
+                        color: #cccccc;
+                        line-height: 1.4;
+                        max-width: 70%;
+                        word-wrap: break-word;
+                    '>{response}</span>
+                </div>
+                """
 
-        # Add the expert's response
+                # Add sources if available
+                if sources and sources.strip():
+                    sources_html = f"""
+                    <div style='text-align: left; margin: 5px 0 10px 24px;'>
+                        <div style='
+                            display: inline-block;
+                            padding: 6px 12px;
+                            background-color: #333333;
+                            border-radius: 5px;
+                            font-size: 10px;
+                            max-width: 70%;
+                            word-wrap: break-word;
+                        '>
+                            <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
+                            <div style='color: #999999;'>{sources.replace(chr(10), "<br>")}</div>
+                        </div>
+                    </div>
+                    """
+                    response_html += sources_html
+
+                # Replace typing indicator with response
+                new_html = current_html.replace(self.typing_indicator_html, response_html)
+                self.chat_display.setHtml(new_html)
+
+                # Clean up
+                delattr(self, 'typing_indicator_html')
+            else:
+                # Fallback: just append the response
+                self._append_response(response, sources)
+        else:
+            # No typing indicator to replace, just append
+            self._append_response(response, sources)
+
+        # Scroll to bottom
+        cursor = self.chat_display.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.chat_display.setTextCursor(cursor)
+
+    def _append_response(self, response, sources):
+        """Helper method to append response when no typing indicator to replace."""
         response_html = f"""
-        <div style='margin: 10px; padding: 15px; background-color: #e8f4fd; border-radius: 10px; margin-right: 50px; border-left: 4px solid #3498db;' align='left'>
-            <div style='font-weight: bold; color: #2c3e50; margin-bottom: 5px;'>👔 Company Expert</div>
-            <div style='color: #34495e; line-height: 1.4;'>{response}</div>
+        <div style='text-align: left; margin: 10px 0;'>
+            <span style='display: inline-block; vertical-align: top; margin-right: 8px;'>
+                <span style='
+                    display: inline-block;
+                    width: 16px;
+                    height: 16px;
+                    background: #ffffff;
+                    border-radius: 4px;
+                '></span>
+            </span>
+            <span style='
+                display: inline-block;
+                padding: 12px 16px;
+                background-color: #2a2a2a;
+                border-radius: 10px;
+                color: #cccccc;
+                line-height: 1.4;
+                max-width: 70%;
+                word-wrap: break-word;
+            '>{response}</span>
         </div>
         """
 
         # Add sources if available
         if sources and sources.strip():
             sources_html = f"""
-            <div style='margin: 5px 10px; padding: 8px; background-color: #ecf0f1; border-radius: 5px; margin-right: 50px; font-size: 10px;' align='left'>
-                <div style='font-weight: bold; color: #7f8c8d; margin-bottom: 3px;'>📋 Based on:</div>
-                <div style='color: #95a5a6;'>{sources.replace(chr(10), "<br>")}</div>
+            <div style='text-align: left; margin: 5px 0 10px 24px;'>
+                <div style='
+                    display: inline-block;
+                    padding: 6px 12px;
+                    background-color: #333333;
+                    border-radius: 5px;
+                    font-size: 10px;
+                    max-width: 70%;
+                    word-wrap: break-word;
+                '>
+                    <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
+                    <div style='color: #999999;'>{sources.replace(chr(10), "<br>")}</div>
+                </div>
             </div>
             """
             response_html += sources_html
 
         self.chat_display.append(response_html)
 
-        # Scroll to bottom
-        cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.End)
-        self.chat_display.setTextCursor(cursor)
-
     def show_error(self, error_message):
         """Display error message in chat format."""
-        error_html = f"""
-        <div style='margin: 10px; padding: 15px; background-color: #fee; border-radius: 10px; margin-right: 50px; border-left: 4px solid #e74c3c;' align='left'>
-            <div style='font-weight: bold; color: #c0392b; margin-bottom: 5px;'>⚠️ System Error</div>
-            <div style='color: #e74c3c; line-height: 1.4;'>{error_message}</div>
-        </div>
-        """
-        self.chat_display.append(error_html)
+        # Replace typing indicator with error if it exists
+        if hasattr(self, 'typing_indicator_html'):
+            # Get current HTML content
+            current_html = self.chat_display.toHtml()
+
+            # Create error HTML
+            error_html = f"""
+            <div style='text-align: left; margin: 10px 0;'>
+                <div style='
+                    display: inline-block;
+                    padding: 12px 16px;
+                    background-color: #2a2a2a;
+                    border-radius: 10px;
+                    color: #cccccc;
+                    max-width: 70%;
+                    word-wrap: break-word;
+                    text-align: left;
+                '>
+                    <div style='font-weight: bold; margin-bottom: 5px;'>⚠️ Error</div>
+                    <div style='line-height: 1.4;'>{error_message}</div>
+                </div>
+            </div>
+            """
+
+            # Replace typing indicator with error
+            if self.typing_indicator_html in current_html:
+                new_html = current_html.replace(self.typing_indicator_html, error_html)
+                self.chat_display.setHtml(new_html)
+                delattr(self, 'typing_indicator_html')
+            else:
+                # Fallback: just append the error
+                self.chat_display.append(error_html)
+        else:
+            # No typing indicator, just append error
+            error_html = f"""
+            <div style='text-align: right; margin: 10px 0;'>
+                <div style='
+                    display: inline-block;
+                    padding: 12px 16px;
+                    background-color: #2a2a2a;
+                    border-radius: 10px;
+                    color: #cccccc;
+                    max-width: 70%;
+                    word-wrap: break-word;
+                    text-align: left;
+                '>
+                    <div style='font-weight: bold; margin-bottom: 5px;'>⚠️ Error</div>
+                    <div style='line-height: 1.4;'>{error_message}</div>
+                </div>
+            </div>
+            """
+            self.chat_display.append(error_html)
+
+        self.conversation_history.append(error_html)
 
         # Scroll to bottom
         cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.End)
+        cursor.movePosition(cursor.MoveOperation.End)
         self.chat_display.setTextCursor(cursor)
+
+        # Reset typing indicator position
+        self.typing_indicator_position = None
+
+        # Scroll to bottom
+        cursor = self.chat_display.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.chat_display.setTextCursor(cursor)
+
+    def clear_chat(self):
+        """Clear the chat display."""
+        self.chat_display.clear()
+        self.conversation_history.clear()
+        self.typing_indicator_position = None
 
 
 class SettingsWidget(QWidget):

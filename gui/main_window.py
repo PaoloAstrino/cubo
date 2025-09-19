@@ -4,353 +4,327 @@ A professional, personalizable desktop interface for the CUBO RAG system.
 """
 
 import sys
-import os
 from pathlib import Path
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QSplitter, QStatusBar, QToolBar, QMenuBar, QMenu,
+    QMessageBox
+)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
 
 # Add src to path for backend imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTabWidget, QStatusBar, QMenuBar, QToolBar, QSplitter,
-    QLabel, QProgressBar, QMessageBox, QDialog
-)
-from PySide6.QtCore import Qt, QThread, Signal, QTimer
-from PySide6.QtGui import QAction, QIcon, QFont
-
-from .components import DocumentWidget, QueryWidget
-from .themes import ThemeManager
-from .dialogs import ErrorDialog, InfoDialog, ProgressDialog, ModelSelectionDialog
-
-# Backend imports
-from src.config import config
-from src.document_loader import DocumentLoader
-from src.retriever import DocumentRetriever
-from src.generator import ResponseGenerator
-from src.logger import logger
+from gui.components import DocumentWidget, QueryWidget
+from src.service_manager import get_service_manager
 
 
 class CUBOGUI(QMainWindow):
-    """Main application window for CUBO desktop GUI."""
+    """Main application window for CUBO."""
 
     def __init__(self):
         super().__init__()
-        self.theme_manager = ThemeManager()
+        self.service_manager = get_service_manager()
         self.init_ui()
-        self.init_status_bar()
-        self.check_model_selection()
-        self.init_backend()
 
     def init_ui(self):
-        """Initialize the main user interface."""
+        """Initialize the user interface."""
         self.setWindowTitle("CUBO - Enterprise RAG System")
-        self.setMinimumSize(1000, 700)
+        self.setGeometry(100, 100, 1200, 800)
 
         # Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Main horizontal layout
+        # Create main layout
         main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # Create splitter for left sidebar and main content
+        # Create splitter for resizable panels
         splitter = QSplitter(Qt.Horizontal)
         main_layout.addWidget(splitter)
 
-        # Left sidebar - Document upload
+        # Document widget (left panel)
         self.document_widget = DocumentWidget()
+        self.document_widget.setMinimumWidth(300)
+        self.document_widget.setMaximumWidth(400)
         splitter.addWidget(self.document_widget)
 
-        # Right side - Chat/Query interface
+        # Query widget (right panel)
         self.query_widget = QueryWidget()
+        self.query_widget.setMinimumWidth(500)
         splitter.addWidget(self.query_widget)
 
-        # Set splitter proportions (30% left, 70% right)
-        splitter.setSizes([300, 700])
+        # Set splitter proportions
+        splitter.setSizes([350, 850])
 
         # Connect signals
-        self.connect_signals()
-
-    def init_backend(self):
-        """Initialize backend components."""
-        try:
-            # Get selected model from config
-            selected_model = config.get("llm_model", "llama3.2")
-
-            # Initialize document loader
-            self.document_loader = DocumentLoader()
-
-            # Initialize retriever with selected model
-            self.retriever = DocumentRetriever(selected_model)
-
-            # Initialize generator with selected model
-            self.generator = ResponseGenerator()
-
-            self.status_label.setText("Ready - Backend initialized")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize backend: {e}")
-            ErrorDialog("Backend Error", f"Failed to initialize backend: {str(e)}", str(e)).exec()
-            self.status_label.setText("Error - Backend initialization failed")
-
-    def connect_signals(self):
-        """Connect UI signals to backend operations."""
-        # Document management signals
         self.document_widget.document_uploaded.connect(self.on_document_uploaded)
-        self.document_widget.document_deleted.connect(self.on_document_deleted)
-
-        # Query signals
         self.query_widget.query_submitted.connect(self.on_query_submitted)
 
-    def on_document_uploaded(self, filepath):
-        """Handle document upload."""
-        try:
-            self.status_label.setText(f"Processing document: {Path(filepath).name}")
-            self.document_tab.set_processing_progress(True)
+        # Create toolbar
+        self.init_toolbar()
 
-            # Load and process document
-            documents = self.document_loader.load_documents([filepath])
-            self.retriever.add_documents(documents)
+        # Create status bar
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage("Ready")
 
-            self.status_label.setText("Document processed successfully")
-            InfoDialog("Success", f"Document '{Path(filepath).name}' has been processed and added to the knowledge base.").exec()
+        # Create menu bar
+        self.init_menu_bar()
 
-        except Exception as e:
-            logger.error(f"Failed to process document {filepath}: {e}")
-            ErrorDialog("Document Processing Error", f"Failed to process document: {str(e)}", str(e)).exec()
-            self.status_label.setText("Error processing document")
+    def init_toolbar(self):
+        """Initialize the toolbar."""
+        toolbar = self.addToolBar("Main Toolbar")
+        toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        finally:
-            self.document_widget.set_processing_progress(False)
+        # Clear chat
+        clear_action = QAction("🗑️ Clear Chat", self)
+        clear_action.triggered.connect(self.clear_chat)
+        toolbar.addAction(clear_action)
 
-    def on_document_deleted(self, filepath):
-        """Handle document deletion."""
-        try:
-            # Note: In a full implementation, you'd need to rebuild the vector database
-            # For now, just show a message
-            InfoDialog("Document Removed", f"Document '{Path(filepath).name}' has been removed from the interface. "
-                                          "Note: Vector database rebuild required for complete removal.").exec()
-            self.status_label.setText("Document removed from interface")
+        # Clear session
+        clear_session_action = QAction("🔄 New Session", self)
+        clear_session_action.triggered.connect(self.clear_session)
+        toolbar.addAction(clear_session_action)
 
-        except Exception as e:
-            logger.error(f"Failed to delete document {filepath}: {e}")
-            ErrorDialog("Document Deletion Error", f"Failed to delete document: {str(e)}", str(e)).exec()
-
-    def on_query_submitted(self, query):
-        """Handle query submission."""
-        try:
-            self.status_label.setText("Processing query...")
-
-            # Retrieve relevant documents
-            relevant_docs = self.retriever.retrieve_top_documents(query, top_k=3)
-
-            # Generate response
-            context = "\n\n".join(relevant_docs) if relevant_docs else "No relevant documents found."
-            response = self.generator.generate_response(query, context)
-
-            # Format sources
-            sources_text = ""
-            if relevant_docs:
-                sources_text = "Source documents:\n" + "\n".join([
-                    f"• Document chunk {i+1} (found in search)"
-                    for i, doc in enumerate(relevant_docs)
-                ])
-            else:
-                sources_text = "No relevant documents found."
-
-            # Display results
-            self.query_widget.display_results(response, sources_text)
-            self.status_label.setText("Query completed successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to process query '{query}': {e}")
-            self.query_widget.show_error(str(e))
-            ErrorDialog("Query Error", f"Failed to process query: {str(e)}", str(e)).exec()
-            self.status_label.setText("Error processing query")
-
-    def on_settings_changed(self, settings):
-        """Handle settings change."""
-        try:
-            # Update config
-            config.update(settings)
-
-            # Reinitialize components with new settings
-            if 'llm_model' in settings:
-                self.generator = ResponseGenerator()
-
-            if 'chunk_size' in settings or 'chunk_overlap' in settings:
-                # Would need to rebuild retriever with new chunking settings
-                pass
-
-            self.status_label.setText("Settings updated successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to update settings: {e}")
-            ErrorDialog("Settings Error", f"Failed to update settings: {str(e)}", str(e)).exec()
-
-    def init_menus(self):
-        """Initialize menu bar."""
+    def init_menu_bar(self):
+        """Initialize the menu bar."""
         menubar = self.menuBar()
 
         # File menu
         file_menu = menubar.addMenu("File")
+
+        upload_action = QAction("Upload Documents", self)
+        upload_action.triggered.connect(self.upload_documents)
+        file_menu.addAction(upload_action)
+
+        file_menu.addSeparator()
+
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # View menu
         view_menu = menubar.addMenu("View")
-        theme_menu = view_menu.addMenu("Theme")
 
-        for theme_name in self.theme_manager.get_available_themes():
-            theme_action = QAction(theme_name.title(), self)
-            theme_action.triggered.connect(lambda checked, t=theme_name: self.change_theme(t))
-            theme_menu.addAction(theme_action)
+        clear_chat_action = QAction("Clear Chat", self)
+        clear_chat_action.triggered.connect(self.clear_chat)
+        view_menu.addAction(clear_chat_action)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
+
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
-    def init_toolbar(self):
-        """Initialize toolbar."""
-        toolbar = self.addToolBar("Main")
-        toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    def clear_chat(self):
+        """Clear the chat display."""
+        self.query_widget.clear_chat()
 
-        # Add toolbar actions
-        upload_action = QAction("Upload Document", self)
-        upload_action.triggered.connect(lambda: self.tab_widget.setCurrentWidget(self.document_tab))
-        toolbar.addAction(upload_action)
+    def clear_session(self):
+        """Clear current session and start fresh."""
+        reply = QMessageBox.question(
+            self, "New Session",
+            "This will clear all loaded documents from the current session.\n"
+            "Documents will remain cached in the database for future use.\n\n"
+            "Continue?",
+            QMessageBox.Yes | QMessageBox.No
+        )
 
-        query_action = QAction("New Query", self)
-        query_action.triggered.connect(lambda: self.tab_widget.setCurrentWidget(self.query_tab))
-        toolbar.addAction(query_action)
+        if reply == QMessageBox.Yes:
+            try:
+                from src.retriever import DocumentRetriever
+                from src.model_loader import ModelLoader
 
-        toolbar.addSeparator()
+                model_loader = ModelLoader()
+                model = model_loader.load_embedding_model()
+                retriever = DocumentRetriever(model)
 
-        settings_action = QAction("Settings", self)
-        settings_action.triggered.connect(lambda: self.tab_widget.setCurrentWidget(self.settings_tab))
-        toolbar.addAction(settings_action)
+                # Clear current session tracking
+                retriever.clear_current_session()
 
-    def init_status_bar(self):
-        """Initialize status bar."""
-        self.status_bar = self.statusBar()
+                # Clear document list in UI
+                self.document_widget.clear_documents()
 
-        # Status indicators
-        self.status_label = QLabel("Ready")
-        self.status_bar.addWidget(self.status_label)
+                # Clear chat
+                self.query_widget.clear_chat()
 
-        self.status_bar.addPermanentWidget(QLabel("CUBO v1.0"))
+                # Update status
+                self.status_bar.showMessage("New session started")
 
-        # Progress bar (hidden by default)
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        self.status_bar.addPermanentWidget(self.progress_bar)
+                # Debug info
+                debug_info = retriever.debug_collection_info()
+                print(f"Session cleared. DB status: {debug_info}")
 
-    def check_model_selection(self):
-        """Check if model is selected and show selection dialog if needed."""
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to clear session: {e}")
+
+    def upload_documents(self):
+        """Upload documents."""
+        self.document_widget.upload_documents()
+
+    def on_document_uploaded(self, filepath):
+        """Handle document upload."""
         try:
-            # Get current selected model from config
-            current_model = config.get("llm_model", "")
+            self.status_bar.showMessage(f"Processing {Path(filepath).name}...")
 
-            # Check if we have available models
-            available_models = self.get_available_ollama_models()
+            # Use service manager for async document processing
+            from src.document_loader import DocumentLoader
+            from src.retriever import DocumentRetriever
+            from src.model_loader import ModelLoader
 
-            if not available_models:
-                # No models available - show error and continue with default
-                ErrorDialog(
-                    "No Ollama Models Found",
-                    "No Ollama models were found on your system.\n\n"
-                    "Please install Ollama and pull models using:\n"
-                    "ollama pull llama3.2\n\n"
-                    "The application will continue with default settings."
-                ).exec()
-                return
+            # Get backend components
+            document_loader = DocumentLoader()
+            model_loader = ModelLoader()
+            model = model_loader.load_embedding_model()
+            retriever = DocumentRetriever(model)
 
-            # If no model selected or current model not available, show dialog
-            if not current_model or current_model not in available_models:
-                dialog = ModelSelectionDialog(current_model, self)
-                if dialog.exec() == QDialog.Accepted:
-                    selected_model = dialog.get_selected_model()
-                    if selected_model:
-                        config.set("llm_model", selected_model)
-                        config.save()
-                        self.status_label.setText(f"Model selected: {selected_model}")
-                    else:
-                        # User cancelled, use first available model
-                        config.set("llm_model", available_models[0])
-                        config.save()
-                        self.status_label.setText(f"Using default model: {available_models[0]}")
+            # Process document asynchronously using service manager
+            def process_document():
+                try:
+                    # Check if document is already loaded
+                    if retriever.is_document_loaded(filepath):
+                        return filepath, False  # Already loaded
+
+                    # Load and chunk the document
+                    documents = document_loader.load_document(filepath)
+
+                    if not documents:
+                        raise ValueError("No content could be extracted from the document")
+
+                    # Add to retriever (with caching)
+                    success = retriever.add_document(filepath, documents)
+                    return filepath, success
+
+                except Exception as e:
+                    raise e
+
+            # Submit async task
+            future = self.service_manager.execute_async('document_processing', process_document)
+
+            # Handle completion
+            def on_complete(result):
+                filepath, success = result
+                filename = Path(filepath).name
+
+                if success:
+                    self.status_bar.showMessage(f"Ready - {filename} processed and cached")
+                    # Debug info
+                    debug_info = retriever.debug_collection_info()
+                    print(f"Document processed: {debug_info}")
                 else:
-                    # Dialog rejected, use first available model
-                    config.set("llm_model", available_models[0])
-                    config.save()
-                    self.status_label.setText(f"Using default model: {available_models[0]}")
-            else:
-                self.status_label.setText(f"Using model: {current_model}")
+                    self.status_bar.showMessage(f"Ready - {filename} already loaded (using cache)")
+
+            def on_error(error):
+                filename = Path(filepath).name
+                self.status_bar.showMessage(f"Error processing {filename}")
+                QMessageBox.critical(self, "Processing Error", f"Failed to process {filename}: {error}")
+
+            # Set up callbacks
+            future.add_done_callback(lambda f: on_complete(f.result()) if not f.exception() else on_error(f.exception()))
 
         except Exception as e:
-            logger.error(f"Error in model selection: {e}")
-            ErrorDialog("Model Selection Error", f"Failed to check models: {str(e)}").exec()
+            self.status_bar.showMessage("Error uploading document")
+            QMessageBox.critical(self, "Upload Error", f"Failed to start processing: {e}")
 
-    def get_available_ollama_models(self):
-        """Get list of available Ollama models."""
+    def on_query_submitted(self, query):
+        """Handle query submission."""
         try:
-            import subprocess
-            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')
-                if len(lines) > 1:  # Skip header
-                    models = []
-                    for line in lines[1:]:
-                        parts = line.split()
-                        if parts:
-                            models.append(parts[0])  # First column is model name
-                    return models
-            return []
-        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
-            return []
+            self.status_bar.showMessage("Processing...")
 
-    def change_theme(self, theme_name):
-        """Change application theme."""
-        self.theme_manager.set_theme(theme_name)
-        self.update_theme()
+            # Check if we have any documents loaded
+            from src.retriever import DocumentRetriever
+            from src.model_loader import ModelLoader
 
-    def update_theme(self):
-        """Update UI with current theme."""
-        theme = self.theme_manager.get_current_theme()
-        # Apply theme styles to widgets
-        self.setStyleSheet(theme.get_stylesheet())
+            model_loader = ModelLoader()
+            model = model_loader.load_embedding_model()
+            retriever = DocumentRetriever(model)
+
+            if not retriever.get_loaded_documents():
+                QMessageBox.warning(self, "No Documents",
+                    "Please upload some documents first before asking questions.")
+                self.status_bar.showMessage("Ready")
+                return
+
+            # Use service manager for async query processing
+            from src.generator import ResponseGenerator
+
+            generator = ResponseGenerator()
+
+            def process_query():
+                try:
+                    # Retrieve relevant documents (only from current session)
+                    relevant_docs_data = retriever.retrieve_top_documents(query, top_k=3)
+
+                    # Extract document text from results
+                    relevant_docs = [doc_data['document'] for doc_data in relevant_docs_data]
+
+                    # Build context from retrieved documents
+                    context = "\n\n".join(relevant_docs) if relevant_docs else ""
+
+                    # Generate response
+                    response = generator.generate_response(query, context=context)
+
+                    # Extract sources from metadata
+                    sources = []
+                    for doc_data in relevant_docs_data:
+                        filename = doc_data['metadata'].get('filename', 'Unknown')
+                        if filename not in sources:
+                            sources.append(filename)
+
+                    return response, sources
+
+                except Exception as e:
+                    raise e
+
+            # Submit async task
+            future = self.service_manager.execute_async('llm_generation', process_query)
+
+            # Handle completion
+            def on_complete(result):
+                response, sources = result
+                # Update UI
+                self.query_widget.display_results(response, sources)
+                self.status_bar.showMessage("Ready")
+
+            def on_error(error):
+                self.status_bar.showMessage("Error")
+                QMessageBox.critical(self, "Query Error", f"Failed to process query: {error}")
+
+            # Set up callbacks
+            future.add_done_callback(lambda f: on_complete(f.result()) if not f.exception() else on_error(f.exception()))
+
+        except Exception as e:
+            self.status_bar.showMessage("Error")
+            QMessageBox.critical(self, "Query Error", f"Failed to process query: {e}")
 
     def show_about(self):
         """Show about dialog."""
-        QMessageBox.about(
-            self,
-            "About CUBO",
+        QMessageBox.about(self, "About CUBO",
             "CUBO - Enterprise RAG System\n\n"
-            "A professional, offline document analysis and Q&A system\n"
-            "powered by local LLMs and vector search.\n\n"
+            "A professional, offline document analysis\n"
+            "and Q&A system powered by local LLMs\n"
+            "and vector search.\n\n"
+            "Features:\n"
+            "• Document caching for faster loading\n"
+            "• Session-based retrieval\n"
+            "• Persistent vector storage\n"
+            "• Error recovery and health monitoring\n\n"
             "Version 1.0"
         )
 
-    def load_settings(self):
-        """Load user settings from config."""
-        # Load theme preference
-        # Load window geometry
-        # Load other personalization settings
-        pass
-
-    def save_settings(self):
-        """Save user settings to config."""
-        # Save theme preference
-        # Save window geometry
-        # Save other personalization settings
-        pass
-
     def closeEvent(self, event):
-        """Handle application close event."""
-        self.save_settings()
+        """Handle application close."""
+        # Shutdown service manager gracefully
+        try:
+            self.service_manager.shutdown(wait=True)
+        except Exception as e:
+            print(f"Error shutting down service manager: {e}")
+
         event.accept()
 
 
@@ -360,9 +334,6 @@ def main():
     app.setApplicationName("CUBO")
     app.setApplicationVersion("1.0")
     app.setOrganizationName("CUBO")
-
-    # Set application icon
-    # app.setWindowIcon(QIcon("resources/icon.png"))
 
     # Create and show main window
     window = CUBOGUI()
