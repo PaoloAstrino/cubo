@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QDialogButtonBox, QMessageBox, QProgressDialog,
     QFileDialog, QInputDialog, QComboBox, QListWidget, QListWidgetItem,
-    QGroupBox
+    QGroupBox, QFormLayout, QSpinBox, QCheckBox, QLineEdit
 )
 from PySide6.QtCore import Qt, QThread, Signal
 import subprocess
@@ -62,7 +62,7 @@ class ConfirmDialog(QMessageBox):
 
 
 class SettingsDialog(QDialog):
-    """Advanced settings dialog."""
+    """Advanced settings dialog with chunking configuration."""
 
     def __init__(self, current_settings=None, parent=None):
         super().__init__(parent)
@@ -73,13 +73,68 @@ class SettingsDialog(QDialog):
         """Initialize the settings dialog."""
         self.setWindowTitle("Advanced Settings")
         self.setModal(True)
-        self.resize(500, 400)
+        self.resize(600, 500)
 
         layout = QVBoxLayout(self)
 
-        # Settings content would go here
-        label = QLabel("Advanced settings will be implemented here.")
-        layout.addWidget(label)
+        # Chunking Settings Section
+        chunking_group = QGroupBox("Document Chunking")
+        chunking_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        chunking_layout = QFormLayout(chunking_group)
+
+        # Chunking method selection
+        self.chunking_method = QComboBox()
+        self.chunking_method.addItems(["Character-based (Legacy)", "Sentence Window (Recommended)"])
+        self.chunking_method.setCurrentText(
+            "Sentence Window (Recommended)" if self.current_settings.get("chunking", {}).get("method") == "sentence_window" 
+            else "Character-based (Legacy)"
+        )
+        chunking_layout.addRow("Chunking Method:", self.chunking_method)
+
+        # Sentence window settings
+        self.use_sentence_window = QCheckBox("Use Sentence Window Retrieval")
+        self.use_sentence_window.setChecked(self.current_settings.get("chunking", {}).get("use_sentence_window", True))
+        chunking_layout.addRow(self.use_sentence_window)
+
+        self.window_size = QSpinBox()
+        self.window_size.setRange(1, 7)
+        self.window_size.setValue(self.current_settings.get("chunking", {}).get("window_size", 3))
+        self.window_size.setSuffix(" sentences")
+        chunking_layout.addRow("Window Size:", self.window_size)
+
+        # Tokenizer path (read-only, shows local model path)
+        self.tokenizer_path = QLineEdit()
+        self.tokenizer_path.setText(self.current_settings.get("chunking", {}).get("tokenizer_name", 
+            r"c:\Users\paolo\Desktop\cubo\models\embeddinggemma-300m"))
+        self.tokenizer_path.setReadOnly(True)
+        self.tokenizer_path.setToolTip("Using local embedding model as tokenizer")
+        chunking_layout.addRow("Tokenizer:", self.tokenizer_path)
+
+        layout.addWidget(chunking_group)
+
+        # Retrieval Settings Section
+        retrieval_group = QGroupBox("Retrieval Settings")
+        retrieval_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        retrieval_layout = QFormLayout(retrieval_group)
+
+        # Top-k results
+        self.top_k = QSpinBox()
+        self.top_k.setRange(1, 20)
+        self.top_k.setValue(self.current_settings.get("retrieval", {}).get("top_k", 3))
+        retrieval_layout.addRow("Top-K Results:", self.top_k)
+
+        layout.addWidget(retrieval_group)
+
+        # Performance Settings Section
+        perf_group = QGroupBox("Performance")
+        perf_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        perf_layout = QVBoxLayout(perf_group)
+
+        self.use_gpu = QCheckBox("Use GPU (if available)")
+        self.use_gpu.setChecked(self.current_settings.get("performance", {}).get("use_gpu", True))
+        perf_layout.addWidget(self.use_gpu)
+
+        layout.addWidget(perf_group)
 
         # Buttons
         buttons = QDialogButtonBox(
@@ -89,6 +144,39 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+        # Connect signals for dynamic updates
+        self.chunking_method.currentTextChanged.connect(self.on_chunking_method_changed)
+        self.use_sentence_window.toggled.connect(self.on_sentence_window_toggled)
+
+    def on_chunking_method_changed(self):
+        """Enable/disable sentence window settings based on method."""
+        is_sentence_window = "Sentence Window" in self.chunking_method.currentText()
+        self.use_sentence_window.setEnabled(is_sentence_window)
+        self.window_size.setEnabled(is_sentence_window and self.use_sentence_window.isChecked())
+        self.tokenizer_path.setEnabled(is_sentence_window and self.use_sentence_window.isChecked())
+
+    def on_sentence_window_toggled(self):
+        """Enable/disable window size when sentence window is toggled."""
+        self.window_size.setEnabled(self.use_sentence_window.isChecked())
+        self.tokenizer_path.setEnabled(self.use_sentence_window.isChecked())
+
+    def get_settings(self):
+        """Get current settings as dictionary."""
+        return {
+            "chunking": {
+                "method": "sentence_window" if "Sentence Window" in self.chunking_method.currentText() else "character",
+                "use_sentence_window": self.use_sentence_window.isChecked(),
+                "window_size": self.window_size.value(),
+                "tokenizer_name": self.tokenizer_path.text()
+            },
+            "retrieval": {
+                "top_k": self.top_k.value()
+            },
+            "performance": {
+                "use_gpu": self.use_gpu.isChecked()
+            }
+        }
 
 
 class AboutDialog(QDialog):

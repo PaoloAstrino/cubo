@@ -1,5 +1,4 @@
 import torch
-from sentence_transformers import SentenceTransformer
 from colorama import Fore, Style
 from src.config import config
 from src.logger import logger
@@ -23,9 +22,10 @@ class ModelManager:
             logger.info("Using CPU (CUDA not available)")
         return device
 
-    def load_model(self) -> SentenceTransformer:
+    def load_model(self):
         """Load the embedding model with GPU fallback."""
         try:
+            from sentence_transformers import SentenceTransformer
             print(Fore.BLUE + "Loading embedding model..." + Style.RESET_ALL)
             import time
             start = time.time()
@@ -41,6 +41,7 @@ class ModelManager:
                 logger.warning(f"GPU loading failed: {e}. Retrying with CPU.")
                 self.device = 'cpu'
                 try:
+                    from sentence_transformers import SentenceTransformer
                     self.model = SentenceTransformer(config.get("model_path"), device=self.device)
                     print(Fore.GREEN + f"Model loaded on CPU in {time.time() - start:.2f} seconds." + Style.RESET_ALL)
                     logger.info("Embedding model loaded on CPU after GPU failure.")
@@ -54,7 +55,7 @@ class ModelManager:
                 print(Fore.RED + f"Error loading model: {e}" + Style.RESET_ALL)
                 raise
 
-    def get_model(self) -> SentenceTransformer:
+    def get_model(self):
         """Get the loaded model, loading it if necessary."""
         if self.model is None:
             self.load_model()

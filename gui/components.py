@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QTextEdit, QListWidget, QListWidgetItem, QProgressBar,
     QComboBox, QSpinBox, QGroupBox, QFormLayout, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QFileDialog,
-    QMessageBox, QScrollArea, QFrame, QLineEdit, QStackedWidget
+    QMessageBox, QScrollArea, QFrame, QLineEdit, QStackedWidget,
+    QCheckBox
 )
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QFont, QPixmap, QIcon
@@ -518,7 +519,7 @@ class QueryWidget(QWidget):
         """
 
         # Add sources if available
-        if sources and sources.strip():
+        if sources and len(sources) > 0:
             sources_html = f"""
             <div style='text-align: left; margin: 5px 0 10px 24px;'>
                 <div style='
@@ -531,7 +532,7 @@ class QueryWidget(QWidget):
                     word-wrap: break-word;
                 '>
                     <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
-                    <div style='color: #999999;'>{sources.replace(chr(10), "<br>")}</div>
+                    <div style='color: #999999;'>{", ".join(sources)}</div>
                 </div>
             </div>
             """
@@ -634,6 +635,29 @@ class SettingsWidget(QWidget):
         header.setFont(QFont("Arial", 14, QFont.Bold))
         layout.addWidget(header)
 
+        # Document Processing Settings
+        doc_group = QGroupBox("Document Processing")
+        doc_layout = QFormLayout(doc_group)
+
+        # Note: Sentence window chunking is used by default for optimal quality
+        info_label = QLabel("Documents are automatically processed using optimized sentence window chunking for best retrieval quality.")
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #666; font-style: italic;")
+        doc_layout.addRow(info_label)
+
+        layout.addWidget(doc_group)
+
+        # Retrieval Settings
+        retrieval_group = QGroupBox("Retrieval Settings")
+        retrieval_layout = QFormLayout(retrieval_group)
+
+        self.top_k = QSpinBox()
+        self.top_k.setRange(1, 20)
+        self.top_k.setValue(3)
+        retrieval_layout.addRow("Top-K Results:", self.top_k)
+
+        layout.addWidget(retrieval_group)
+
         # LLM Settings
         llm_group = QGroupBox("Language Model Settings")
         llm_layout = QFormLayout(llm_group)
@@ -649,24 +673,6 @@ class SettingsWidget(QWidget):
         llm_layout.addRow("Temperature (x0.1):", self.temperature_spin)
 
         layout.addWidget(llm_group)
-
-        # Document Processing Settings
-        doc_group = QGroupBox("Document Processing")
-        doc_layout = QFormLayout(doc_group)
-
-        self.chunk_size_spin = QSpinBox()
-        self.chunk_size_spin.setRange(100, 2000)
-        self.chunk_size_spin.setValue(500)
-        self.chunk_size_spin.setSingleStep(50)
-        doc_layout.addRow("Chunk Size:", self.chunk_size_spin)
-
-        self.chunk_overlap_spin = QSpinBox()
-        self.chunk_overlap_spin.setRange(0, 200)
-        self.chunk_overlap_spin.setValue(50)
-        self.chunk_overlap_spin.setSingleStep(10)
-        doc_layout.addRow("Chunk Overlap:", self.chunk_overlap_spin)
-
-        layout.addWidget(doc_group)
 
         # Performance Settings
         perf_group = QGroupBox("Performance")
@@ -687,8 +693,7 @@ class SettingsWidget(QWidget):
         # Connect signals
         self.model_combo.currentTextChanged.connect(self.on_settings_changed)
         self.temperature_spin.valueChanged.connect(self.on_settings_changed)
-        self.chunk_size_spin.valueChanged.connect(self.on_settings_changed)
-        self.chunk_overlap_spin.valueChanged.connect(self.on_settings_changed)
+        self.top_k.valueChanged.connect(self.on_settings_changed)
         self.use_gpu_check.toggled.connect(self.on_settings_changed)
 
     def on_settings_changed(self):
@@ -699,15 +704,28 @@ class SettingsWidget(QWidget):
     def get_settings(self):
         """Get current settings as dictionary."""
         return {
+            "chunking": {
+                "method": "sentence_window",
+                "use_sentence_window": True,
+                "window_size": 3,
+                "chunk_size": 500,
+                "chunk_overlap": 50
+            },
+            "retrieval": {
+                "top_k": self.top_k.value()
+            },
             "llm_model": self.model_combo.currentText(),
             "temperature": self.temperature_spin.value() / 10.0,
-            "chunk_size": self.chunk_size_spin.value(),
-            "chunk_overlap": self.chunk_overlap_spin.value(),
             "use_gpu": self.use_gpu_check.isChecked()
         }
 
     def set_settings(self, settings):
         """Set settings from dictionary."""
+        # Retrieval settings
+        if "retrieval" in settings and "top_k" in settings["retrieval"]:
+            self.top_k.setValue(settings["retrieval"]["top_k"])
+
+        # LLM settings
         if "llm_model" in settings:
             index = self.model_combo.findText(settings["llm_model"])
             if index >= 0:
@@ -715,12 +733,6 @@ class SettingsWidget(QWidget):
 
         if "temperature" in settings:
             self.temperature_spin.setValue(int(settings["temperature"] * 10))
-
-        if "chunk_size" in settings:
-            self.chunk_size_spin.setValue(settings["chunk_size"])
-
-        if "chunk_overlap" in settings:
-            self.chunk_overlap_spin.setValue(settings["chunk_overlap"])
 
         if "use_gpu" in settings:
             self.use_gpu_check.setChecked(settings["use_gpu"])

@@ -13,8 +13,8 @@ class DocumentLoader:
     def __init__(self):
         self.supported_extensions = config.get("supported_extensions", [".txt", ".docx", ".pdf"])
 
-    def load_single_document(self, file_path: str) -> List[str]:
-        """Load and process a single document file."""
+    def load_single_document(self, file_path: str, chunking_config: dict = None) -> List[dict]:
+        """Load and process a single document file with configurable chunking."""
         Utils.validate_file_size(file_path, config.get("max_file_size_mb", 10))
 
         text = ""
@@ -37,8 +37,25 @@ class DocumentLoader:
 
             if text:
                 text = Utils.clean_text(text)
-                chunks = Utils.chunk_text(text)  # Uses adaptive chunking based on text length
-                logger.info(f"Loaded and chunked {os.path.basename(file_path)} into {len(chunks)} chunks.")
+
+                # Always use sentence window chunking for optimal quality
+                cfg = {
+                    "method": "sentence_window",
+                    "window_size": 3,
+                    "tokenizer_name": None
+                }
+                # Allow overriding window_size if provided
+                if chunking_config and "window_size" in chunking_config:
+                    cfg["window_size"] = chunking_config["window_size"]
+
+                # Use sentence window chunking
+                chunks = Utils.create_sentence_window_chunks(
+                    text,
+                    window_size=cfg["window_size"],
+                    tokenizer_name=cfg["tokenizer_name"]
+                )
+
+                logger.info(f"Loaded and chunked {os.path.basename(file_path)} into {len(chunks)} chunks using {cfg['method']} method.")
                 return chunks
             else:
                 logger.warning(f"No text content found in {file_path}")

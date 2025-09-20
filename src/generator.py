@@ -21,23 +21,30 @@ class ResponseGenerator:
     def generate_response(self, query: str, context: str, messages: List[Dict[str, str]] = None) -> str:
         """Generate a response using the LLM."""
         def _generate_operation():
+            # Use provided messages or initialize new conversation
             if messages is None:
-                messages = self.messages
+                if not self.messages:
+                    self.initialize_conversation()
+                conversation_messages = self.messages.copy()  # Don't modify the original
+            else:
+                conversation_messages = messages.copy() if messages else []
 
             print(Fore.BLUE + "Generating response..." + Style.RESET_ALL)
             start = time.time()
 
             # Add user message with context
             user_content = f"Context: {context}\n\nQuestion: {query}"
-            messages.append({"role": "user", "content": user_content})
+            conversation_messages.append({"role": "user", "content": user_content})
 
             # Generate response using Ollama
             model_name = config.get("selected_llm_model") or config.get("llm_model")
-            response = ollama.chat(model=model_name, messages=messages)
+            response = ollama.chat(model=model_name, messages=conversation_messages)
             assistant_content = response['message']['content']
 
-            # Add assistant message to history
-            messages.append({"role": "assistant", "content": assistant_content})
+            # Add assistant message to history (only if using instance messages)
+            if messages is None:
+                conversation_messages.append({"role": "assistant", "content": assistant_content})
+                self.messages = conversation_messages
 
             print(Fore.GREEN + f"Response generated in {time.time() - start:.2f} seconds." + Style.RESET_ALL)
             logger.info("Response generated successfully")

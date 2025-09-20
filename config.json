@@ -11,5 +11,17 @@
   "log_file": "./logs/cubo_log.txt",
   "vector_db_path": "./chroma_db",
   "embedding_batch_size": 32,
-  "llm_model": "llama3.2:latest"
+  "llm_model": "llama3.2:latest",
+  "chunking": {
+    "method": "sentence_window",
+    "use_sentence_window": true,
+    "window_size": 3,
+    "tokenizer_name": "./models/embeddinggemma-300m"
+  },
+  "retrieval": {
+    "top_k": 3
+  },
+  "performance": {
+    "use_gpu": true
+  }
 }

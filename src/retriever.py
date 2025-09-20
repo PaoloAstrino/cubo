@@ -19,9 +19,12 @@ from src.service_manager import get_service_manager
 class DocumentRetriever:
     """Handles document retrieval using ChromaDB and sentence transformers."""
 
-    def __init__(self, model: SentenceTransformer):
+    def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True, window_size: int = 3, top_k: int = 3):
         self.model = model
         self.service_manager = get_service_manager()
+        self.use_sentence_window = True  # Always use sentence window for optimal quality
+        self.window_size = window_size
+        self.top_k = top_k
         
         self.client = chromadb.PersistentClient(
             path=config.get("chroma_db_path", "./chroma_db")
@@ -39,10 +42,16 @@ class DocumentRetriever:
         # Cache file path for testing
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
         
-        # Load existing cache if it exists
-        self._load_cache()
+        # Initialize postprocessors if using sentence windows
+        if self.use_sentence_window:
+            from .postprocessor import WindowReplacementPostProcessor, LocalReranker
+            self.window_postprocessor = WindowReplacementPostProcessor()
+            self.reranker = LocalReranker(model, top_n=2)
+        else:
+            self.window_postprocessor = None
+            self.reranker = None
 
-        logger.info("Document retriever initialized")
+        logger.info(f"Document retriever initialized (sentence_window={use_sentence_window})")
 
     def _get_file_hash(self, filepath: str) -> str:
         """Get hash of file content for caching."""
@@ -58,13 +67,13 @@ class DocumentRetriever:
         filename = self._get_filename_from_path(filepath)
         return filename in self.current_documents
 
-    def add_document(self, filepath: str, chunks: List[str]) -> bool:
+    def add_document(self, filepath: str, chunks: List[dict]) -> bool:
         """
         Add document chunks to the database with metadata.
 
         Args:
             filepath: Path to the document
-            chunks: List of text chunks
+            chunks: List of chunk dicts (from sentence window or character chunking)
 
         Returns:
             bool: True if added, False if already exists
@@ -81,49 +90,75 @@ class DocumentRetriever:
             file_hash = self._get_file_hash(filepath)
 
             # Check if document with same hash already exists
-            existing_docs = self.service_manager.execute_sync(
-                'database_operation',
-                lambda: self.collection.get(where={"file_hash": file_hash})
-            )
+            existing_docs = self.collection.get(where={"file_hash": file_hash})
 
-            if existing_docs['ids']:
+            if existing_docs.get('ids'):
                 logger.info(f"Document {filename} with same content already exists in database")
                 # Still add to current session tracking
                 self.current_documents.add(filename)
                 return False
 
-            # Generate embeddings for chunks
-            logger.info(f"Generating embeddings for {filename} ({len(chunks)} chunks)")
-            embeddings = self.service_manager.execute_sync(
-                'embedding_generation',
-                lambda: self.model.encode(chunks).tolist()
-            )
+            # Prepare texts for embedding (use 'text' field for sentence window, or chunk itself for character)
+            texts = []
+            metadatas = []
+            
+            for i, chunk in enumerate(chunks):
+                if isinstance(chunk, dict):
+                    # Sentence window chunk
+                    text = chunk["text"]
+                    metadata = {
+                        "filename": filename,
+                        "file_hash": file_hash,
+                        "filepath": filepath,
+                        "chunk_index": i,
+                        "sentence_index": chunk.get("sentence_index", i),
+                        "window": chunk.get("window", ""),
+                        "window_start": chunk.get("window_start", i),
+                        "window_end": chunk.get("window_end", i),
+                        "sentence_token_count": chunk.get("sentence_token_count", 0),
+                        "window_token_count": chunk.get("window_token_count", 0)
+                    }
+                else:
+                    # Character-based chunk (backward compatibility)
+                    text = chunk
+                    metadata = {
+                        "filename": filename,
+                        "file_hash": file_hash,
+                        "filepath": filepath,
+                        "chunk_index": i,
+                        "token_count": len(chunk.split())  # Approximate
+                    }
+                
+                texts.append(text)
+                metadatas.append(metadata)
 
-            # Create IDs and metadata
-            chunk_ids = [f"{filename}_chunk_{i}" for i in range(len(chunks))]
-            metadatas = [{
-                "filename": filename,
-                "file_hash": file_hash,
-                "filepath": filepath,
-                "chunk_index": i,
-                "total_chunks": len(chunks)
-            } for i in range(len(chunks))]
+            # Generate embeddings for chunks
+            logger.info(f"Generating embeddings for {filename} ({len(texts)} chunks)")
+            embeddings = self.model.encode(texts).tolist()
+
+            # Create deterministic IDs
+            chunk_ids = []
+            for i, metadata in enumerate(metadatas):
+                if self.use_sentence_window and "sentence_index" in metadata:
+                    # Use sentence-based ID for sentence windows
+                    sentence_idx = metadata["sentence_index"]
+                    chunk_ids.append(f"{filename}_s{sentence_idx}")
+                else:
+                    # Use chunk index for character-based
+                    chunk_ids.append(f"{filename}_chunk_{i}")
 
             # Add to collection
-            self.service_manager.execute_sync(
-                'database_operation',
-                lambda: self.collection.add(
-                    embeddings=embeddings,
-                    documents=chunks,
-                    metadatas=metadatas,
-                    ids=chunk_ids
-                )
+            self.collection.add(
+                embeddings=embeddings,
+                documents=texts,
+                metadatas=metadatas,
+                ids=chunk_ids
             )
 
             # Track as loaded in current session
             self.current_documents.add(filename)
 
-            logger.info(f"Successfully added {filename} with {len(chunks)} chunks")
+            logger.info(f"Successfully added {filename} with {len(chunk_ids)} chunks")
             return True
 
         return self.service_manager.execute_sync('document_processing', _add_document_operation)
@@ -225,13 +260,14 @@ class DocumentRetriever:
             logger.error(f"Error removing document {filepath}: {e}")
             return False
 
-    def retrieve_top_documents(self, query: str, top_k: int = 3) -> List[Dict]:
+    def retrieve_top_documents(self, query: str, top_k: int = 6) -> List[Dict]:
         """
         Retrieve top-k most relevant document chunks for the current session.
+        Includes postprocessing for sentence window retrieval.
 
         Args:
             query: Search query
-            top_k: Number of results to return
+            top_k: Number of results to return (gets more candidates for reranking)
 
         Returns:
             List of dictionaries with document, metadata, and similarity
@@ -242,38 +278,45 @@ class DocumentRetriever:
                 return []
 
             # Generate query embedding
-            query_embedding = self.service_manager.execute_sync(
-                'embedding_generation',
-                lambda: self.model.encode([query]).tolist()[0]
-            )
+            query_embedding = self.model.encode([query]).tolist()[0]
+
+            # Get more candidates for reranking if using sentence windows
+            initial_top_k = min(top_k * 2, 10) if self.use_sentence_window else top_k
 
             # Query only chunks from currently loaded documents
-            results = self.service_manager.execute_sync(
-                'database_operation',
-                lambda: self.collection.query(
-                    query_embeddings=[query_embedding],
-                    n_results=top_k,
-                    where={"filename": {"$in": list(self.current_documents)}},  # Only current docs
-                    include=['documents', 'metadatas', 'distances']
-                )
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=initial_top_k,
+                where={"filename": {"$in": list(self.current_documents)}},  # Only current docs
+                include=['documents', 'metadatas', 'distances']
             )
 
             # Format results
-            top_docs = []
+            candidates = []
             if results['documents'] and results['metadatas'] and results['distances']:
                 for i, (doc, metadata, distance) in enumerate(zip(
                     results['documents'][0],
                     results['metadatas'][0],
                     results['distances'][0]
                 )):
-                    top_docs.append({
+                    candidates.append({
                         "document": doc,
                         "metadata": metadata,
                         "similarity": 1 - distance  # Convert distance to similarity
                     })
 
-            logger.info(f"Retrieved {len(top_docs)} chunks from {len(self.current_documents)} current documents")
-            return top_docs
+            # Apply postprocessing for sentence windows
+            if self.use_sentence_window and self.window_postprocessor:
+                candidates = self.window_postprocessor.postprocess_results(candidates)
+
+            # Apply reranking if available
+            if self.use_sentence_window and self.reranker and len(candidates) > top_k:
+                candidates = self.reranker.rerank(query, candidates)
+
+            # Return top results
+            final_results = candidates[:top_k]
+            logger.info(f"Retrieved {len(final_results)} chunks from {len(self.current_documents)} current documents")
+            return final_results
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
 

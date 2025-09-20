@@ -1,6 +1,22 @@
 """
 CUBO Desktop GUI - Main Application Window
-A professional, personalizable desktop interface for the CUBO RAG system.
+            # Initialize model loader and load embedding model (this is the heavy import)
+            try:
+                # Import model_loader only when needed to avoid circular imports
+                import importlib
+                model_loader_module = importlib.import_module('src.model_loader')
+                ModelLoader = model_loader_module.ModelManager
+                self.model_loader = ModelLoader()
+                self.model = self.model_loader.load_model()
+                logger.info("Embedding model loaded successfully")
+            except Exception as model_error:
+                logger.error(f"Failed to load embedding model: {model_error}")
+                QMessageBox.warning(self, "Model Loading Warning", 
+                    f"Failed to load embedding model: {model_error}\n\n"
+                    "The application will start but document processing may not work. "
+                    "Please check your model installation and try restarting.")
+                self.model = None
+                self.model_loader = None, personalizable desktop interface for the CUBO RAG system.
 """
 
 import sys
@@ -26,7 +42,65 @@ class CUBOGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.service_manager = get_service_manager()
+        
+        # Initialize backend components
+        self._init_backend()
+        
         self.init_ui()
+
+    def _init_backend(self):
+        """Initialize backend components on startup."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            logger.info("Initializing backend components...")
+            
+            # Initialize document loader first (doesn't depend on heavy ML libraries)
+            from src.document_loader import DocumentLoader
+            self.document_loader = DocumentLoader()
+            logger.info("Document loader initialized")
+            
+            # Initialize model loader and load embedding model (this is the heavy import)
+            try:
+                # Import model_loader only when needed to avoid circular imports
+                import importlib
+                model_loader_module = importlib.import_module('src.model_loader')
+                ModelLoader = model_loader_module.ModelManager
+                self.model_loader = ModelLoader()
+                self.model = self.model_loader.load_model()
+                logger.info("Embedding model loaded successfully")
+            except Exception as model_error:
+                logger.error(f"Failed to load embedding model: {model_error}")
+                QMessageBox.warning(self, "Model Loading Warning", 
+                    f"Failed to load embedding model: {model_error}\n\n"
+                    "The application will start but document processing may not work. "
+                    "Please check your model installation and try restarting.")
+                self.model = None
+                self.model_loader = None
+            
+            # Initialize retriever (only if model loaded successfully)
+            if self.model:
+                try:
+                    from src.retriever import DocumentRetriever
+                    self.retriever = DocumentRetriever(self.model)
+                    logger.info("Document retriever initialized")
+                except Exception as retriever_error:
+                    logger.error(f"Failed to initialize retriever: {retriever_error}")
+                    self.retriever = None
+            else:
+                self.retriever = None
+                logger.warning("Document retriever not initialized due to model loading failure")
+            
+            logger.info("Backend components initialization completed")
+            
+        except Exception as e:
+            logger.error(f"Backend initialization failed: {e}", exc_info=True)
+            QMessageBox.critical(self, "Backend Error", f"Failed to initialize backend components: {e}")
+            # Set components to None so the app can still run
+            self.model = None
+            self.document_loader = None
+            self.retriever = None
 
     def init_ui(self):
         """Initialize the user interface."""
@@ -114,6 +188,13 @@ class CUBOGUI(QMainWindow):
         clear_chat_action.triggered.connect(self.clear_chat)
         view_menu.addAction(clear_chat_action)
 
+        # Settings menu
+        settings_menu = menubar.addMenu("Settings")
+
+        advanced_settings_action = QAction("Advanced Settings...", self)
+        advanced_settings_action.triggered.connect(self.show_advanced_settings)
+        settings_menu.addAction(advanced_settings_action)
+
         # Help menu
         help_menu = menubar.addMenu("Help")
 
@@ -137,15 +218,13 @@ class CUBOGUI(QMainWindow):
 
         if reply == QMessageBox.Yes:
             try:
-                from src.retriever import DocumentRetriever
-                from src.model_loader import ModelLoader
-
-                model_loader = ModelLoader()
-                model = model_loader.load_embedding_model()
-                retriever = DocumentRetriever(model)
-
+                # Check if backend is initialized
+                if not self.retriever:
+                    QMessageBox.critical(self, "Backend Error", "Backend components not initialized.")
+                    return
+                
                 # Clear current session tracking
-                retriever.clear_current_session()
+                self.retriever.clear_current_session()
 
                 # Clear document list in UI
                 self.document_widget.clear_documents()
@@ -157,7 +236,7 @@ class CUBOGUI(QMainWindow):
                 self.status_bar.showMessage("New session started")
 
                 # Debug info
-                debug_info = retriever.debug_collection_info()
+                debug_info = self.retriever.debug_collection_info()
                 print(f"Session cleared. DB status: {debug_info}")
 
             except Exception as e:
@@ -169,38 +248,48 @@ class CUBOGUI(QMainWindow):
 
     def on_document_uploaded(self, filepath):
         """Handle document upload."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
+            # Check if backend is initialized
+            if not self.model or not self.document_loader or not self.retriever:
+                error_msg = "Backend components not initialized. Please restart the application."
+                logger.error(error_msg)
+                QMessageBox.critical(self, "Backend Error", error_msg)
+                return
+            
             self.status_bar.showMessage(f"Processing {Path(filepath).name}...")
-
-            # Use service manager for async document processing
-            from src.document_loader import DocumentLoader
-            from src.retriever import DocumentRetriever
-            from src.model_loader import ModelLoader
-
-            # Get backend components
-            document_loader = DocumentLoader()
-            model_loader = ModelLoader()
-            model = model_loader.load_embedding_model()
-            retriever = DocumentRetriever(model)
 
             # Process document asynchronously using service manager
             def process_document():
                 try:
+                    logger.info(f"Starting document processing for: {filepath}")
+                    
                     # Check if document is already loaded
-                    if retriever.is_document_loaded(filepath):
+                    if self.retriever.is_document_loaded(filepath):
+                        logger.info(f"Document already loaded: {filepath}")
                         return filepath, False  # Already loaded
 
                     # Load and chunk the document
-                    documents = document_loader.load_document(filepath)
+                    logger.info(f"Loading and chunking document: {filepath}")
+                    documents = self.document_loader.load_single_document(filepath)
 
                     if not documents:
-                        raise ValueError("No content could be extracted from the document")
+                        error_msg = "No content could be extracted from the document"
+                        logger.error(f"{error_msg}: {filepath}")
+                        raise ValueError(error_msg)
+
+                    logger.info(f"Document chunked into {len(documents)} chunks: {filepath}")
 
                     # Add to retriever (with caching)
-                    success = retriever.add_document(filepath, documents)
+                    logger.info(f"Adding document to retriever: {filepath}")
+                    success = self.retriever.add_document(filepath, documents)
+                    logger.info(f"Document addition result: {success} for {filepath}")
                     return filepath, success
 
                 except Exception as e:
+                    logger.error(f"Document processing failed for {filepath}: {e}", exc_info=True)
                     raise e
 
             # Submit async task
@@ -214,14 +303,24 @@ class CUBOGUI(QMainWindow):
                 if success:
                     self.status_bar.showMessage(f"Ready - {filename} processed and cached")
                     # Debug info
-                    debug_info = retriever.debug_collection_info()
+                    debug_info = self.retriever.debug_collection_info()
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Document processed successfully: {debug_info}")
                     print(f"Document processed: {debug_info}")
                 else:
                     self.status_bar.showMessage(f"Ready - {filename} already loaded (using cache)")
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Document already loaded (using cache): {filename}")
 
             def on_error(error):
                 filename = Path(filepath).name
                 self.status_bar.showMessage(f"Error processing {filename}")
+                # Add proper logging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Document processing failed for {filename}: {error}", exc_info=True)
                 QMessageBox.critical(self, "Processing Error", f"Failed to process {filename}: {error}")
 
             # Set up callbacks
@@ -229,22 +328,30 @@ class CUBOGUI(QMainWindow):
 
         except Exception as e:
             self.status_bar.showMessage("Error uploading document")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to start document processing: {e}", exc_info=True)
             QMessageBox.critical(self, "Upload Error", f"Failed to start processing: {e}")
 
     def on_query_submitted(self, query):
         """Handle query submission."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
+            # Check if backend is initialized
+            if not self.retriever:
+                error_msg = "Backend components not initialized. Please restart the application."
+                logger.error(error_msg)
+                QMessageBox.critical(self, "Backend Error", error_msg)
+                return
+            
             self.status_bar.showMessage("Processing...")
 
-            # Check if we have any documents loaded
-            from src.retriever import DocumentRetriever
-            from src.model_loader import ModelLoader
+            # Load current settings
+            settings = self.load_settings()
 
-            model_loader = ModelLoader()
-            model = model_loader.load_embedding_model()
-            retriever = DocumentRetriever(model)
-
-            if not retriever.get_loaded_documents():
+            if not self.retriever.get_loaded_documents():
                 QMessageBox.warning(self, "No Documents",
                     "Please upload some documents first before asking questions.")
                 self.status_bar.showMessage("Ready")
@@ -258,7 +365,8 @@ class CUBOGUI(QMainWindow):
             def process_query():
                 try:
                     # Retrieve relevant documents (only from current session)
-                    relevant_docs_data = retriever.retrieve_top_documents(query, top_k=3)
+                    top_k = settings.get("retrieval", {}).get("top_k", 3)
+                    relevant_docs_data = self.retriever.retrieve_top_documents(query, top_k=top_k)
 
                     # Extract document text from results
                     relevant_docs = [doc_data['document'] for doc_data in relevant_docs_data]
@@ -302,6 +410,48 @@ class CUBOGUI(QMainWindow):
             self.status_bar.showMessage("Error")
             QMessageBox.critical(self, "Query Error", f"Failed to process query: {e}")
 
+    def show_advanced_settings(self):
+        """Show advanced settings dialog."""
+        try:
+            # Load current settings from config
+            current_settings = self.load_settings()
+
+            # Create and show settings dialog
+            from gui.dialogs import SettingsDialog
+            dialog = SettingsDialog(current_settings, self)
+
+            if dialog.exec() == dialog.Accepted:
+                new_settings = dialog.get_settings()
+                self.save_settings(new_settings)
+                QMessageBox.information(self, "Settings Updated",
+                    "Settings have been updated. Some changes may require\n"
+                    "restarting the application or reloading documents.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Settings Error", f"Failed to open settings: {e}")
+
+    def load_settings(self):
+        """Load settings from config file."""
+        try:
+            import json
+            config_path = Path(__file__).parent.parent / "config.json"
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+        return {}
+
+    def save_settings(self, settings):
+        """Save settings to config file."""
+        try:
+            import json
+            config_path = Path(__file__).parent.parent / "config.json"
+            with open(config_path, 'w') as f:
+                json.dump(settings, f, indent=2)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+
     def show_about(self):
         """Show about dialog."""
         QMessageBox.about(self, "About CUBO",
@@ -330,16 +480,36 @@ class CUBOGUI(QMainWindow):
 
 def main():
     """Main application entry point."""
+    # Configure logging
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),  # Console output
+            logging.FileHandler('logs/cubo_gui.log', mode='a')  # File output
+        ]
+    )
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Starting CUBO GUI application")
+    
     app = QApplication(sys.argv)
     app.setApplicationName("CUBO")
     app.setApplicationVersion("1.0")
     app.setOrganizationName("CUBO")
 
-    # Create and show main window
-    window = CUBOGUI()
-    window.show()
-
-    return app.exec()
+    try:
+        # Create and show main window
+        logger.info("Creating main window")
+        window = CUBOGUI()
+        window.show()
+        logger.info("Main window shown, starting event loop")
+        
+        return app.exec()
+    except Exception as e:
+        logger.error(f"Application startup failed: {e}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":

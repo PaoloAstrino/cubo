@@ -1,9 +1,15 @@
 import os
 import re
 import time
-from typing import List
+from typing import List, Optional
 from collections import defaultdict
 from src.logger import logger
+
+# Try to import transformers for token counting
+try:
+    from transformers import AutoTokenizer
+except ImportError:
+    AutoTokenizer = None
 
 class Utils:
     """Utility functions for CUBO."""
@@ -110,6 +116,89 @@ class Utils:
             return chunks
         except Exception as e:
             logger.error(f"Error chunking text: {e}")
+            raise
+
+    @staticmethod
+    def _split_into_sentences(text: str) -> List[str]:
+        """Lightweight sentence splitter using regex."""
+        text = re.sub(r'\s+', ' ', text.strip())
+        # Split after terminal punctuation followed by space
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        return [s.strip() for s in sentences if s.strip()]
+
+    @staticmethod
+    def _token_count(text: str, tokenizer=None) -> int:
+        """Return approximate token count; use HF tokenizer if provided, else fallback to word count."""
+        if tokenizer:
+            try:
+                return len(tokenizer.encode(text, add_special_tokens=False))
+            except Exception:
+                pass
+        # Fallback: approximate by words
+        return max(1, len(text.split()))
+
+    @staticmethod
+    def create_sentence_window_chunks(
+        text: str,
+        window_size: int = 3,
+        tokenizer_name: Optional[str] = None
+    ) -> List[dict]:
+        """
+        Create sentence window chunks: single sentences with window metadata.
+        Each chunk contains one sentence for matching, plus surrounding context window.
+
+        Args:
+            text: Input text to chunk
+            window_size: Number of sentences in the context window (odd numbers work best)
+            tokenizer_name: Path to HF tokenizer for accurate token counting
+
+        Returns:
+            List of dicts with 'text', 'window', and metadata
+        """
+        try:
+            sentences = Utils._split_into_sentences(text)
+            if not sentences:
+                return []
+
+            # Load tokenizer if provided
+            tokenizer = None
+            if tokenizer_name and AutoTokenizer is not None:
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                except Exception as e:
+                    logger.warning(f"Could not load tokenizer {tokenizer_name}: {e}")
+
+            chunks = []
+            n = len(sentences)
+
+            for i, sentence in enumerate(sentences):
+                # Calculate window bounds (symmetric around current sentence)
+                half_window = window_size // 2
+                start = max(0, i - half_window)
+                end = min(n, i + half_window + 1)
+
+                # Create window text
+                window_sentences = sentences[start:end]
+                window_text = " ".join(window_sentences)
+
+                # Calculate token counts
+                sentence_tokens = Utils._token_count(sentence, tokenizer)
+                window_tokens = Utils._token_count(window_text, tokenizer)
+
+                chunks.append({
+                    "text": sentence,  # Single sentence for embedding/matching
+                    "window": window_text,  # Full window for context
+                    "sentence_index": i,
+                    "window_start": start,
+                    "window_end": end - 1,
+                    "sentence_token_count": sentence_tokens,
+                    "window_token_count": window_tokens
+                })
+
+            logger.info(f"Created {len(chunks)} sentence window chunks with window_size={window_size}")
+            return chunks
+        except Exception as e:
+            logger.error(f"Error creating sentence window chunks: {e}")
             raise
 
 class Metrics:
