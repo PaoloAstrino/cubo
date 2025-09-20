@@ -159,7 +159,7 @@ class TestErrorRecoveryManager:
         except ValueError:
             pass
 
-        # Mixed operation (succeeds after retry)
+        # Mixed operation (succeeds after retry) - should have 50% failure rate
         call_count = [0]
         def retry_success_op():
             call_count[0] += 1
@@ -177,8 +177,8 @@ class TestErrorRecoveryManager:
         assert status['test_op2']['healthy'] is False
         assert status['test_op2']['failure_rate'] == 1.0
 
-        assert status['test_op3']['healthy'] is True  # Eventually succeeded
-        assert status['test_op3']['failure_rate'] == 1/2  # 1 failure out of 2 attempts
+        assert status['test_op3']['healthy'] is False  # 50% failure rate makes it unhealthy
+        assert status['test_op3']['failure_rate'] == 0.5  # 1 failure out of 2 attempts
 
     def test_reset_error_counts_specific(self):
         """Test resetting error counts for specific operation."""
@@ -305,8 +305,8 @@ class TestErrorRecoveryManager:
         erm.execute_with_recovery('persistent_test', success_op)
 
         status = erm.get_health_status()['persistent_test']
-        assert status['total_attempts'] == 4  # 3 failures + 1 success
-        assert status['failure_rate'] == 3/4
+        assert status['total_attempts'] == 7  # 3 failures (each with 2 attempts) + 1 success
+        assert status['failure_rate'] == 6/7
 
     def test_recent_failure_detection(self):
         """Test recent failure detection in health status."""

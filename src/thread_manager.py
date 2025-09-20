@@ -113,15 +113,16 @@ class ThreadManager:
         """
         def retry_wrapper():
             last_exception = None
+            current_retry_delay = retry_delay  # Local copy for modification
             for attempt in range(max_retries + 1):
                 try:
                     return fn(*args, **kwargs)
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries:
-                        logger.warning(f"Task attempt {attempt + 1} failed: {e}. Retrying in {retry_delay}s...")
-                        time.sleep(retry_delay)
-                        retry_delay *= 1.5  # Exponential backoff
+                        logger.warning(f"Task attempt {attempt + 1} failed: {e}. Retrying in {current_retry_delay}s...")
+                        time.sleep(current_retry_delay)
+                        current_retry_delay *= 1.5  # Exponential backoff
                     else:
                         logger.error(f"Task failed after {max_retries + 1} attempts: {e}")
                         raise last_exception

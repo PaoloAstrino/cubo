@@ -65,7 +65,7 @@ def test_retrieve_success(mock_model, temp_db_path):
     """Test successful retrieval."""
     with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3, "similarity_threshold": 0.5}):
         # Mock the collection query method before creating the retriever
-        mock_result = {'documents': [['Relevant document']], 'distances': [[0.3]]}
+        mock_result = {'documents': [['Relevant document']], 'distances': [[0.3]], 'metadatas': [[{'filename': 'test_doc_0.txt'}]]}
         with patch('chromadb.api.models.Collection.Collection.query', return_value=mock_result) as mock_query:
             retriever = DocumentRetriever(mock_model)
             retriever.collection = retriever.client.get_or_create_collection("test_retrieve")
@@ -76,7 +76,7 @@ def test_retrieve_success(mock_model, temp_db_path):
             result = retriever.retrieve_top_documents("test query")
             mock_query.assert_called_once()
             assert len(result) == 1
-            assert result[0] == "Relevant document"
+            assert result[0]['document'] == "Relevant document"
 
 def test_cache_persistence(mock_model, temp_db_path):
     """Test that cache is persisted to disk."""

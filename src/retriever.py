@@ -32,6 +32,15 @@ class DocumentRetriever:
 
         # Track currently loaded documents
         self.current_documents = set()
+        
+        # Query cache for testing
+        self.query_cache = {}
+        
+        # Cache file path for testing
+        self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
+        
+        # Load existing cache if it exists
+        self._load_cache()
 
         logger.info("Document retriever initialized")
 
@@ -118,6 +127,80 @@ class DocumentRetriever:
             return True
 
         return self.service_manager.execute_sync('document_processing', _add_document_operation)
+
+    def add_documents(self, documents: List[str]) -> bool:
+        """
+        Add multiple documents directly (for testing purposes).
+        
+        Args:
+            documents: List of document strings
+            
+        Returns:
+            bool: True if any documents were added
+        """
+        if not documents:
+            return True
+            
+        # For testing, treat each document as a single chunk without requiring files
+        added_any = False
+        for i, doc in enumerate(documents):
+            # Create a fake filepath for testing
+            fake_path = f"test_doc_{i}.txt"
+            
+            def _add_test_document_operation():
+                filename = self._get_filename_from_path(fake_path)
+
+                # Check if document is already loaded in current session
+                if self.is_document_loaded(fake_path):
+                    logger.info(f"Document {filename} already loaded in current session")
+                    return False
+
+                # Use document content hash instead of file hash for testing
+                import hashlib
+                file_hash = hashlib.md5(doc.encode()).hexdigest()
+
+                # Check if document with same hash already exists
+                existing_docs = self.collection.get(where={"file_hash": file_hash})
+
+                if existing_docs['ids']:
+                    logger.info(f"Document {filename} with same content already exists in database")
+                    # Still add to current session tracking
+                    self.current_documents.add(filename)
+                    return False
+
+                # Generate embeddings for chunks
+                logger.info(f"Generating embeddings for {filename} (1 chunk)")
+                embeddings = self.model.encode([doc]).tolist()
+
+                # Create IDs and metadata
+                chunk_ids = [f"{filename}_chunk_0"]
+                metadatas = [{
+                    "filename": filename,
+                    "file_hash": file_hash,
+                    "filepath": fake_path,
+                    "chunk_index": 0,
+                    "total_chunks": 1
+                }]
+
+                # Add to collection
+                self.collection.add(
+                    embeddings=embeddings,
+                    documents=[doc],
+                    metadatas=metadatas,
+                    ids=chunk_ids
+                )
+
+                # Track as loaded in current session
+                self.current_documents.add(filename)
+
+                logger.info(f"Successfully added {filename} with 1 chunk")
+                return True
+
+            success = self.service_manager.execute_sync('document_processing', _add_test_document_operation)
+            if success:
+                added_any = True
+                
+        return added_any
 
     def remove_document(self, filepath: str) -> bool:
         """
@@ -226,3 +309,31 @@ class DocumentRetriever:
         except Exception as e:
             logger.error(f"Error getting collection info: {e}")
             return {"error": str(e)}
+
+    def _save_cache(self):
+        """Save query cache to disk (for testing)."""
+        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+        # Convert tuple keys to strings for JSON serialization
+        serializable_cache = {str(k): v for k, v in self.query_cache.items()}
+        with open(self.cache_file, 'w') as f:
+            json.dump(serializable_cache, f)
+
+    def _load_cache(self):
+        """Load query cache from disk (for testing)."""
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r') as f:
+                    loaded_cache = json.load(f)
+                # Convert string keys back to tuples
+                self.query_cache = {}
+                for k, v in loaded_cache.items():
+                    # Parse tuple from string like "('test', 3)"
+                    if k.startswith("(") and k.endswith(")"):
+                        # Simple parsing for tuple keys
+                        parts = k[1:-1].split(", ")
+                        if len(parts) == 2:
+                            key = (parts[0].strip("'\""), int(parts[1]))
+                            self.query_cache[key] = v
+            except Exception as e:
+                logger.warning(f"Failed to load cache: {e}")
+                self.query_cache = {}

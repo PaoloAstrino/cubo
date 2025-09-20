@@ -68,12 +68,12 @@ jobs:
           from gui.main_window import CUBOGUI
           from PySide6.QtWidgets import QApplication
           import sys
-          
+
           # Create minimal QApplication for testing
           app = QApplication.instance()
           if app is None:
               app = QApplication(sys.argv)
-          
+
           try:
               # Test GUI initialization with service manager
               gui = CUBOGUI()
@@ -100,9 +100,9 @@ jobs:
           # Comprehensive test of backend reliability features
           from src.service_manager import get_service_manager
           import time
-          
+
           sm = get_service_manager()
-          
+
           # Test error recovery with retry
           call_count = [0]
           def failing_operation():
@@ -110,18 +110,18 @@ jobs:
               if call_count[0] < 3:
                   raise ValueError('Temporary failure')
               return 'success'
-          
+
           result = sm.execute_sync('document_processing', failing_operation)
           assert result == 'success'
           assert call_count[0] == 3
           print('Error recovery with retry: PASSED')
-          
+
           # Test async execution
           future = sm.execute_async('llm_generation', lambda: 'async_result')
           async_result = future.result(timeout=5)
           assert async_result == 'async_result'
           print('Async execution: PASSED')
-          
+
           # Test health monitoring
           status = sm.get_system_status()
           assert 'threads' in status
@@ -129,13 +129,13 @@ jobs:
           assert 'errors' in status
           assert status['health']['overall_status'] in ['healthy', 'warning', 'critical']
           print('Health monitoring: PASSED')
-          
+
           # Test thread pool management
           thread_status = status['threads']
           assert 'active_tasks' in thread_status
           assert 'max_workers' in thread_status
           print('Thread pool management: PASSED')
-          
+
           sm.shutdown(wait=True)
           print('Backend reliability validation: ALL PASSED')
           "

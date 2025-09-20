@@ -159,6 +159,10 @@ class TestHealthMonitor:
     def test_overall_status_determination(self):
         """Test overall status calculation logic."""
         hm = HealthMonitor()
+        
+        # Clear default checks for isolated testing
+        hm.health_checks.clear()
+        hm.status_history.clear()
 
         # Test healthy overall
         def healthy_check():
