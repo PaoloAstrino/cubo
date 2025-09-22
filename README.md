@@ -1,14 +1,44 @@
-# CUBO - AI Document Assistant
+# CUBO - AI Document Assistant v1.1.0
 
 [![CI/CD](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml)
 
-A modular Retrieval-Augmented Generation system using embedding models and Large Language Models (LLMs).
+A modular Retrieval-Augmented Generation system using embedding models and Large Language Models (LLMs) with a modern desktop interface.
+
+## What's New in v1.1.0
+
+- **Sentence Window Retrieval**: Advanced chunking with context windows for improved retrieval quality
+- **Desktop GUI**: Modern PySide6-based interface with drag-and-drop document upload
+- **Enhanced Responsiveness**: Optimized backend initialization and document processing
+- **Improved User Experience**: Real-time progress indicators and responsive chat interface
+
+## Changelog
+
+### v1.1.0 (September 2025)
+
+- ✨ **Sentence Window Retrieval**: Implemented advanced chunking with configurable context windows for better retrieval quality
+- 🖥️ **Desktop GUI**: Added modern PySide6-based interface with drag-and-drop document upload
+- ⚡ **Enhanced Responsiveness**: Optimized backend initialization to prevent GUI freezing during document processing
+- 🎨 **UI Improvements**: Lightened drag-and-drop area styling and added progress indicators
+- 🔧 **Architecture**: Added postprocessor module for enhanced retrieval with WindowReplacementPostProcessor and LocalReranker
+- 🐛 **Bug Fixes**: Resolved circular import issues and improved error handling
+
+### v1.0.0 (Initial Release)
+
+- 🚀 **Core RAG System**: Modular Retrieval-Augmented Generation with embedding models and LLMs
+- 📄 **Multi-format Support**: Support for .txt, .docx, .pdf, and .md document formats
+- 🔍 **Vector Search**: ChromaDB integration for efficient document retrieval
+- 🤖 **Ollama Integration**: Local LLM generation with configurable models
+- 🛡️ **Security Features**: Path sanitization, file size limits, and rate limiting
+- 📊 **Comprehensive Logging**: Detailed logging with configurable levels
+- ⚙️ **Configuration Management**: JSON-based configuration with environment variable overrides
+- 🧪 **Testing Framework**: Unit tests with pytest and CI/CD pipeline
 
 ## Features
 
 - **Modular Architecture**: Clean separation of concerns with dedicated modules
-- **Multi-format Support**: Supports .txt, .docx, and .pdf files
-- **Smart Chunking**: Intelligent text chunking with overlap for better retrieval
+- **Multi-format Support**: Supports .txt, .docx, .pdf, and .md files
+- **Sentence Window Chunking**: Intelligent text chunking with configurable context windows for better retrieval
+- **Desktop GUI**: Modern PySide6-based interface with drag-and-drop functionality
 - **Device Auto-detection**: Automatically uses GPU (CUDA) if available, falls back to CPU
 - **Security Features**: Path sanitization, file size limits, and rate limiting
 - **Comprehensive Logging**: Detailed logging with configurable levels
@@ -26,12 +56,20 @@ cubo/
 │   ├── document_loader.py # Document loading and processing
 │   ├── retriever.py       # Document retrieval logic
 │   ├── generator.py       # Response generation
-│   ├── utils.py           # Utility functions
+│   ├── utils.py           # Utility functions with sentence window chunking
+│   ├── postprocessor.py   # Postprocessing for enhanced retrieval
 │   └── main.py           # Main entry point
+├── gui/                   # Desktop GUI application
+│   ├── __init__.py       # GUI package initialization
+│   ├── main_window.py    # Main application window
+│   ├── components.py     # Reusable UI components
+│   └── README.md         # GUI documentation
 ├── data/                  # Document storage
 ├── models/                # Model storage
 ├── logs/                  # Log files
 ├── config.json           # Configuration file
+├── main.py              # CLI entry point
+├── launch_gui.py        # GUI launcher
 ├── requirements.txt      # Python runtime dependencies
 ├── requirements-dev.txt # Development dependencies
 └── README.md            # This file
@@ -121,7 +159,23 @@ export CUBO_MODEL_PATH="/secure/path/to/model"
 
 ## Usage
 
-### Interactive Mode
+### Desktop GUI Mode (Recommended)
+
+Launch the modern desktop interface:
+
+```bash
+python launch_gui.py
+```
+
+**GUI Features:**
+
+- Drag and drop documents for instant upload
+- Real-time chat interface for asking questions
+- Progress indicators during document processing
+- Source attribution for transparent answers
+- Document management with upload/remove capabilities
+
+### Interactive CLI Mode
 
 ```bash
 python -m src.main
@@ -240,16 +294,74 @@ CUBO is designed for privacy-conscious organizations needing secure, offline AI 
 ### Key Enterprise Benefits
 
 - **Data Privacy**: 100% offline operation - no data leaves your network
+- **User-Friendly Interface**: Desktop GUI makes AI assistance accessible to non-technical users
 - **Cost Effective**: One-time purchase vs. ongoing cloud API costs
 - **Customizable**: Modular architecture allows enterprise-specific modifications
 - **Scalable**: Handles large document collections with efficient vector search
 - **Auditable**: Comprehensive logging for compliance and monitoring
+- **Responsive**: Optimized performance with sentence window retrieval for better accuracy
 
 ## Requirements
 
 - Python 3.8+
 - Ollama (for LLM generation)
 - CUDA-compatible GPU (optional, for GPU acceleration)
+- PySide6 (for GUI interface)
+
+### Dependencies
+
+**Core Dependencies:**
+
+- `sentence-transformers`: For document embedding and semantic search
+- `torch`: PyTorch for model inference
+- `transformers`: Hugging Face transformers for model loading
+- `ollama`: Python client for Ollama LLM API
+- `chromadb`: Vector database for document storage and retrieval
+- `tokenizers`: Fast tokenization for text processing
+
+**Document Processing:**
+
+- `python-docx`: Microsoft Word document support
+- `PyPDF2`: PDF document processing
+
+**GUI Interface:**
+
+- `PySide6`: Qt6-based desktop application framework
+
+**Security & Utilities:**
+
+- `cryptography`: Data encryption and security
+- `colorama`: Cross-platform colored terminal output
+- `psutil`: System monitoring and resource management
+- `numpy`: Numerical computing for similarity calculations
+- PySide6 (for GUI interface)
+
+### Dependencies
+
+**Core Dependencies:**
+
+- `sentence-transformers`: For document embedding and semantic search
+- `torch`: PyTorch for model inference
+- `transformers`: Hugging Face transformers for model loading
+- `ollama`: Python client for Ollama LLM API
+- `chromadb`: Vector database for document storage and retrieval
+- `tokenizers`: Fast tokenization for text processing
+
+**Document Processing:**
+
+- `python-docx`: Microsoft Word document support
+- `PyPDF2`: PDF document processing
+
+**GUI Interface:**
+
+- `PySide6`: Qt6-based desktop application framework
+
+**Security & Utilities:**
+
+- `cryptography`: Data encryption and security
+- `colorama`: Cross-platform colored terminal output
+- `psutil`: System monitoring and resource management
+- `numpy`: Numerical computing for similarity calculations
 
 ## Troubleshooting
 

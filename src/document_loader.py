@@ -11,7 +11,7 @@ class DocumentLoader:
     """Handles loading and processing of various document types for CUBO."""
 
     def __init__(self):
-        self.supported_extensions = config.get("supported_extensions", [".txt", ".docx", ".pdf"])
+        self.supported_extensions = config.get("supported_extensions", [".txt", ".docx", ".pdf", ".md"])
 
     def load_single_document(self, file_path: str, chunking_config: dict = None) -> List[dict]:
         """Load and process a single document file with configurable chunking."""
@@ -21,7 +21,7 @@ class DocumentLoader:
         file_ext = os.path.splitext(file_path)[1].lower()
 
         try:
-            if file_ext == '.txt':
+            if file_ext in ['.txt', '.md']:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     text = f.read()
             elif file_ext == '.docx':

@@ -16,6 +16,9 @@ from PySide6.QtGui import QFont, QPixmap, QIcon
 
 from pathlib import Path
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentWidget(QWidget):
@@ -27,6 +30,7 @@ class DocumentWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.documents = []  # List of loaded documents
+        self.supported_extensions = {'.pdf', '.docx', '.txt', '.md'}
         self.init_ui()
 
     def init_ui(self):
@@ -71,48 +75,49 @@ class DocumentWidget(QWidget):
 
         # Upload icon/label
         upload_icon = QLabel("📁")
-        upload_icon.setFont(QFont("Arial", 48))
+        upload_icon.setFont(QFont("Arial", 36))
         upload_icon.setAlignment(Qt.AlignCenter)
-        upload_icon.setStyleSheet("color: #cccccc; margin-bottom: 10px;")
+        upload_icon.setStyleSheet("color: #cccccc; margin-bottom: 15px;")
         upload_inner_layout.addWidget(upload_icon)
 
         upload_title = QLabel("Upload Documents")
-        upload_title.setFont(QFont("Arial", 18, QFont.Bold))
+        upload_title.setFont(QFont("Arial", 16, QFont.Bold))
         upload_title.setAlignment(Qt.AlignCenter)
-        upload_title.setStyleSheet("color: #cccccc; margin-bottom: 10px;")
+        upload_title.setStyleSheet("color: #cccccc; margin-bottom: 8px;")
         upload_inner_layout.addWidget(upload_title)
 
-        upload_subtitle = QLabel("Drag and drop files here or click to browse")
-        upload_subtitle.setFont(QFont("Arial", 12))
+        upload_subtitle = QLabel("Select files or folders - we'll handle both!")
+        upload_subtitle.setFont(QFont("Arial", 11))
         upload_subtitle.setAlignment(Qt.AlignCenter)
         upload_subtitle.setStyleSheet("color: #888888; margin-bottom: 20px;")
         upload_inner_layout.addWidget(upload_subtitle)
 
-        # Upload button
-        self.upload_btn = QPushButton("Choose Files")
-        self.upload_btn.setFont(QFont("Arial", 12, QFont.Bold))
+        # Unified upload button
+        self.upload_btn = QPushButton("📄📁 Select Files or Folders")
+        self.upload_btn.setFont(QFont("Arial", 11, QFont.Bold))
         self.upload_btn.setStyleSheet("""
             QPushButton {
                 background-color: #555555;
                 color: #000000;
                 border: none;
                 border-radius: 8px;
-                padding: 12px 24px;
-                font-size: 14px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #666666;
                 opacity: 0.8;
             }
         """)
-        self.upload_btn.clicked.connect(self.upload_document)
+        self.upload_btn.clicked.connect(self.unified_upload)
         upload_inner_layout.addWidget(self.upload_btn)
 
         # Supported formats
-        formats_label = QLabel("Supported: PDF, DOCX, TXT")
-        formats_label.setFont(QFont("Arial", 10))
+        formats_label = QLabel("Supported: PDF, DOCX, TXT, MD")
+        formats_label.setFont(QFont("Arial", 9))
         formats_label.setAlignment(Qt.AlignCenter)
-        formats_label.setStyleSheet("color: #666666; margin-top: 10px;")
+        formats_label.setStyleSheet("color: #666666; margin-top: 12px;")
         upload_inner_layout.addWidget(formats_label)
 
         upload_layout.addStretch()
@@ -148,8 +153,8 @@ class DocumentWidget(QWidget):
         upload_layout = QVBoxLayout(upload_group)
         upload_layout.setContentsMargins(10, 10, 10, 10)
 
-        self.upload_btn_list = QPushButton("📁 Upload Document")
-        self.upload_btn_list.clicked.connect(self.upload_document)
+        self.upload_btn_list = QPushButton("📄📁 Add Files/Folders")
+        self.upload_btn_list.clicked.connect(self.unified_upload)
         self.upload_btn_list.setStyleSheet("""
             QPushButton {
                 background-color: #555555;
@@ -166,7 +171,7 @@ class DocumentWidget(QWidget):
         """)
         upload_layout.addWidget(self.upload_btn_list)
 
-        self.drag_label = QLabel("Or drag and drop files here")
+        self.drag_label = QLabel("Or drag and drop files/folders here")
         self.drag_label.setAlignment(Qt.AlignCenter)
         self.drag_label.setStyleSheet("""
             QLabel {
@@ -218,30 +223,222 @@ class DocumentWidget(QWidget):
 
         self.stacked_widget.addWidget(list_page)
 
-    def upload_document(self):
-        """Handle document upload."""
-        file_dialog = QFileDialog()
-        file_dialog.setFileMode(QFileDialog.ExistingFiles)
-        file_dialog.setNameFilter("Documents (*.pdf *.docx *.txt)")
+    def unified_upload(self):
+        """Unified upload method that handles both files and folders."""
+        try:
+            file_dialog = QFileDialog()
+            
+            # Allow selection of both files and directories
+            file_dialog.setFileMode(QFileDialog.ExistingFiles)
+            file_dialog.setOption(QFileDialog.ShowDirsOnly, False)  # Allow both files and folders
+            file_dialog.setNameFilter("All Files (*);;Documents (*.pdf *.docx *.txt *.md)")
+            
+            if file_dialog.exec():
+                selected_paths = file_dialog.selectedFiles()
+                
+                if not selected_paths:
+                    return
+                    
+                # Check if any selected item is a directory
+                folders = []
+                files = []
+                
+                for path in selected_paths:
+                    try:
+                        if os.path.isdir(path):
+                            folders.append(path)
+                        elif os.path.isfile(path):
+                            # Only add supported file types
+                            if Path(path).suffix.lower() in self.supported_extensions:
+                                files.append(path)
+                        else:
+                            logger.warning(f"Skipping invalid path: {path}")
+                    except (OSError, ValueError) as e:
+                        logger.error(f"Error checking path {path}: {e}")
+                        QMessageBox.warning(
+                            self, 
+                            "Path Error", 
+                            f"Could not access path: {path}\n\nError: {str(e)}"
+                        )
+                        continue
+                
+                # Process folders first (they might contain many files)
+                for folder in folders:
+                    try:
+                        self.process_folder(folder)
+                    except Exception as e:
+                        logger.error(f"Error processing folder {folder}: {e}")
+                        QMessageBox.critical(
+                            self,
+                            "Folder Processing Error",
+                            f"Failed to process folder: {folder}\n\nError: {str(e)}"
+                        )
+                
+                # Then process individual files
+                if files:
+                    try:
+                        self.process_files(files)
+                    except Exception as e:
+                        logger.error(f"Error processing files: {e}")
+                        QMessageBox.critical(
+                            self,
+                            "File Processing Error",
+                            f"Failed to process some files.\n\nError: {str(e)}"
+                        )
+                
+                # If no valid files/folders were found
+                if not folders and not files:
+                    QMessageBox.warning(
+                        self, 
+                        "No Valid Files", 
+                        "No supported document files (.pdf, .docx, .txt, .md) were found in your selection."
+                    )
+        except Exception as e:
+            logger.error(f"Unexpected error in unified upload: {e}")
+            QMessageBox.critical(
+                self,
+                "Upload Error",
+                f"An unexpected error occurred during upload.\n\nError: {str(e)}"
+            )
 
-        if file_dialog.exec():
-            filenames = file_dialog.selectedFiles()
-            for filename in filenames:
-                self.add_document(filename)
+    def process_folder(self, folder_path):
+        """Process a folder recursively for supported documents."""
+        try:
+            folder_name = Path(folder_path).name
+            
+            # Show scanning message
+            QMessageBox.information(
+                self, 
+                "Folder Processing", 
+                f"Scanning folder '{folder_name}' for documents...\n\n"
+                "This may take a moment for large folders."
+            )
+            
+            # Recursively find all supported files
+            supported_files = []
+            skipped_files = 0
+            try:
+                for root, dirs, files in os.walk(folder_path):
+                    for file in files:
+                        file_ext = Path(file).suffix.lower()
+                        if file_ext in self.supported_extensions:
+                            full_path = os.path.join(root, file)
+                            supported_files.append(full_path)
+                        else:
+                            # Log skipped files for debugging
+                            logger.debug(f"Skipping unsupported file: {file} (extension: {file_ext})")
+                            skipped_files += 1
+                            
+                if skipped_files > 0:
+                    logger.info(f"Skipped {skipped_files} unsupported files during folder scan")
+                    
+            except (OSError, PermissionError) as e:
+                logger.error(f"Error scanning folder {folder_path}: {e}")
+                QMessageBox.critical(
+                    self,
+                    "Folder Access Error",
+                    f"Cannot access folder: {folder_path}\n\nError: {str(e)}"
+                )
+                return
+            
+            if not supported_files:
+                QMessageBox.warning(
+                    self, 
+                    "No Documents Found", 
+                    f"No supported documents (.pdf, .docx, .txt, .md) found in folder '{folder_name}'."
+                )
+                return
+            
+            # Confirm with user for large uploads
+            if len(supported_files) > 10:
+                skip_info = f" ({skipped_files} unsupported files skipped)" if skipped_files > 0 else ""
+                reply = QMessageBox.question(
+                    self,
+                    "Confirm Upload",
+                    f"Found {len(supported_files)} supported documents in folder '{folder_name}'{skip_info}.\n\n"
+                    "Do you want to upload all of them?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+                
+                if reply != QMessageBox.Yes:
+                    return
+            elif skipped_files > 0:
+                # Show info about skipped files for smaller uploads too
+                QMessageBox.information(
+                    self,
+                    "Files Found",
+                    f"Found {len(supported_files)} supported documents.\n"
+                    f"Skipped {skipped_files} unsupported files."
+                )
+            
+            # Process the files
+            self.process_files(supported_files)
+            
+        except Exception as e:
+            logger.error(f"Unexpected error processing folder {folder_path}: {e}")
+            QMessageBox.critical(
+                self,
+                "Folder Processing Error",
+                f"Failed to process folder: {folder_path}\n\nError: {str(e)}"
+            )
+
+    def process_files(self, file_paths):
+        """Process multiple files."""
+        if not file_paths:
+            return
+            
+        try:
+            # Show progress for bulk uploads
+            if len(file_paths) > 5:
+                self.set_processing_progress(True, 0)
+                
+            for i, filepath in enumerate(file_paths):
+                try:
+                    self.add_document(filepath)
+                except Exception as e:
+                    logger.error(f"Error adding document {filepath}: {e}")
+                    # Continue processing other files but show warning
+                    QMessageBox.warning(
+                        self,
+                        "Document Error",
+                        f"Failed to add document: {Path(filepath).name}\n\nError: {str(e)}\n\nContinuing with other files..."
+                    )
+                
+                # Update progress
+                if len(file_paths) > 5:
+                    progress = int((i + 1) / len(file_paths) * 100)
+                    self.set_processing_progress(True, progress)
+            
+            # Hide progress when done
+            if len(file_paths) > 5:
+                self.set_processing_progress(False)
+                
+        except Exception as e:
+            logger.error(f"Unexpected error in process_files: {e}")
+            QMessageBox.critical(
+                self,
+                "Processing Error",
+                f"An error occurred while processing files.\n\nError: {str(e)}"
+            )
 
     def add_document(self, filepath):
         """Add a document to the list."""
-        if filepath not in self.documents:
-            self.documents.append(filepath)
-            filename = Path(filepath).name
-            item = QListWidgetItem(f"📄 {filename}")
-            item.setData(Qt.UserRole, filepath)
-            self.document_list.addItem(item)
-            self.document_uploaded.emit(filepath)
+        try:
+            if filepath not in self.documents:
+                self.documents.append(filepath)
+                filename = Path(filepath).name
+                item = QListWidgetItem(f"📄 {filename}")
+                item.setData(Qt.UserRole, filepath)
+                self.document_list.addItem(item)
+                self.document_uploaded.emit(filepath)
 
-            # Switch to list page after first document
-            if len(self.documents) == 1:
-                self.stacked_widget.setCurrentIndex(1)
+                # Switch to list page after first document
+                if len(self.documents) == 1:
+                    self.stacked_widget.setCurrentIndex(1)
+        except Exception as e:
+            logger.error(f"Error adding document to GUI: {filepath} - {e}")
+            raise  # Re-raise to let caller handle it
 
     def on_selection_changed(self):
         """Handle document selection change."""
@@ -424,11 +621,10 @@ class QueryWidget(QWidget):
         """Display query results in chat format."""
         # Replace typing indicator with actual response
         if hasattr(self, 'typing_indicator_html'):
-            # Get current HTML content
-            current_html = self.chat_display.toHtml()
+            try:
+                # Get current HTML content
+                current_html = self.chat_display.toHtml()
 
-            # Replace the typing indicator with the response
-            if self.typing_indicator_html in current_html:
                 # Create the response HTML
                 response_html = f"""
                 <div style='text-align: left; margin: 10px 0;'>
@@ -448,40 +644,73 @@ class QueryWidget(QWidget):
                         border-radius: 10px;
                         color: #cccccc;
                         line-height: 1.4;
-                        max-width: 70%;
+                        width: fit-content;
+                        max-width: 80%;
                         word-wrap: break-word;
                     '>{response}</span>
                 </div>
                 """
 
                 # Add sources if available
-                if sources and sources.strip():
-                    sources_html = f"""
-                    <div style='text-align: left; margin: 5px 0 10px 24px;'>
-                        <div style='
-                            display: inline-block;
-                            padding: 6px 12px;
-                            background-color: #333333;
-                            border-radius: 5px;
-                            font-size: 10px;
-                            max-width: 70%;
-                            word-wrap: break-word;
-                        '>
-                            <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
-                            <div style='color: #999999;'>{sources.replace(chr(10), "<br>")}</div>
+                if sources:
+                    # Handle sources as string or list
+                    if isinstance(sources, list):
+                        sources_text = ", ".join(sources)
+                    else:
+                        sources_text = str(sources).strip()
+
+                    if sources_text:
+                        sources_html = f"""
+                        <div style='text-align: left; margin: 5px 0 10px 24px;'>
+                            <div style='
+                                display: inline-block;
+                                padding: 6px 12px;
+                                background-color: #333333;
+                                border-radius: 5px;
+                                font-size: 10px;
+                                max-width: 70%;
+                                word-wrap: break-word;
+                            '>
+                                <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
+                                <div style='color: #999999;'>{sources_text.replace(chr(10), "<br>")}</div>
+                            </div>
                         </div>
-                    </div>
-                    """
-                    response_html += sources_html
+                        """
+                        response_html += sources_html
 
-                # Replace typing indicator with response
-                new_html = current_html.replace(self.typing_indicator_html, response_html)
-                self.chat_display.setHtml(new_html)
+                # Try to find and replace the typing indicator more reliably
+                typing_marker = 'id=\'typing-indicator\''
+                if typing_marker in current_html:
+                    # Find the start of the typing indicator div
+                    start_pos = current_html.find('<div style=\'text-align: left; margin: 10px 0;\' id=\'typing-indicator\'>')
+                    if start_pos != -1:
+                        # Find the end of the style block that follows
+                        # Look for the closing </style> tag after the typing indicator
+                        style_start_pos = current_html.find('<style>', start_pos)
+                        if style_start_pos != -1:
+                            style_end_pos = current_html.find('</style>', style_start_pos)
+                            if style_end_pos != -1:
+                                end_pos = style_end_pos + 8  # Include </style>
 
-                # Clean up
-                delattr(self, 'typing_indicator_html')
-            else:
-                # Fallback: just append the response
+                                # Replace the typing indicator section with response
+                                before = current_html[:start_pos]
+                                after = current_html[end_pos:]
+                                new_html = before + response_html + after
+
+                                self.chat_display.setHtml(new_html)
+                                delattr(self, 'typing_indicator_html')
+                                # Scroll to bottom and return
+                                cursor = self.chat_display.textCursor()
+                                cursor.movePosition(cursor.MoveOperation.End)
+                                self.chat_display.setTextCursor(cursor)
+                                return
+
+                # Fallback: clear and rebuild the chat
+                self._rebuild_chat_with_response(response, sources)
+
+            except Exception as e:
+                logger.error(f"Error replacing typing indicator: {e}")
+                # Ultimate fallback: just append
                 self._append_response(response, sources)
         else:
             # No typing indicator to replace, just append
@@ -491,6 +720,31 @@ class QueryWidget(QWidget):
         cursor = self.chat_display.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
         self.chat_display.setTextCursor(cursor)
+
+    def _rebuild_chat_with_response(self, response, sources):
+        """Rebuild the entire chat with the new response."""
+        try:
+            # Store current conversation history
+            current_history = self.conversation_history.copy()
+
+            # Clear the chat
+            self.chat_display.clear()
+
+            # Rebuild conversation history
+            for message in current_history:
+                self.chat_display.append(message)
+
+            # Add the new response
+            self._append_response(response, sources)
+
+            # Clean up typing indicator
+            if hasattr(self, 'typing_indicator_html'):
+                delattr(self, 'typing_indicator_html')
+
+        except Exception as e:
+            logger.error(f"Error rebuilding chat: {e}")
+            # Final fallback: just append
+            self._append_response(response, sources)
 
     def _append_response(self, response, sources):
         """Helper method to append response when no typing indicator to replace."""
@@ -512,31 +766,39 @@ class QueryWidget(QWidget):
                 border-radius: 10px;
                 color: #cccccc;
                 line-height: 1.4;
-                max-width: 70%;
+                width: fit-content;
+                max-width: 80%;
                 word-wrap: break-word;
             '>{response}</span>
         </div>
         """
 
         # Add sources if available
-        if sources and len(sources) > 0:
-            sources_html = f"""
-            <div style='text-align: left; margin: 5px 0 10px 24px;'>
-                <div style='
-                    display: inline-block;
-                    padding: 6px 12px;
-                    background-color: #333333;
-                    border-radius: 5px;
-                    font-size: 10px;
-                    max-width: 70%;
-                    word-wrap: break-word;
-                '>
-                    <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
-                    <div style='color: #999999;'>{", ".join(sources)}</div>
+        if sources:
+            # Handle sources as string or list
+            if isinstance(sources, list):
+                sources_text = ", ".join(sources)
+            else:
+                sources_text = str(sources).strip()
+
+            if sources_text:
+                sources_html = f"""
+                <div style='text-align: left; margin: 5px 0 10px 24px;'>
+                    <div style='
+                        display: inline-block;
+                        padding: 6px 12px;
+                        background-color: #333333;
+                        border-radius: 5px;
+                        font-size: 10px;
+                        max-width: 70%;
+                        word-wrap: break-word;
+                    '>
+                        <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
+                        <div style='color: #999999;'>{sources_text.replace(chr(10), "<br>")}</div>
+                    </div>
                 </div>
-            </div>
-            """
-            response_html += sources_html
+                """
+                response_html += sources_html
 
         self.chat_display.append(response_html)
 

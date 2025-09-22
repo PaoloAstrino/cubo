@@ -1,10 +1,10 @@
 {
-  "model_path": "C:/Users/paolo/Desktop/cubo/models/embeddinggemma-300m",
+  "model_path": "./models/embeddinggemma-300m",
   "top_k": 3,
   "chunk_size": 1000,
   "chunk_overlap": 200,
   "data_folder": "./data",
-  "supported_extensions": [".txt", ".docx", ".pdf"],
+  "supported_extensions": [".txt", ".docx", ".pdf", ".md"],
   "max_file_size_mb": 10,
   "rate_limit_seconds": 1,
   "log_level": "INFO",
@@ -16,12 +16,18 @@
     "method": "sentence_window",
     "use_sentence_window": true,
     "window_size": 3,
-    "tokenizer_name": "C:/Users/paolo/Desktop/cubo/models/embeddinggemma-300m"
+    "tokenizer_name": "./models/embeddinggemma-300m"
   },
   "retrieval": {
     "top_k": 3
   },
   "performance": {
     "use_gpu": true
+  },
+  "evaluation": {
+    "llm_provider": "gemini",
+    "gemini_api_key": "AIzaSyAbrcBCNPzzVuKgYzuLZFZ6kY4l4_bSakM",
+    "gemini_model": "gemini-1.5-flash",
+    "ollama_model": "llama3.2:latest"
   }
 }

@@ -28,7 +28,7 @@ class Config:
             "chunk_size": 1000,
             "chunk_overlap": 200,
             "data_folder": "./data",
-            "supported_extensions": [".txt", ".docx", ".pdf"],
+            "supported_extensions": [".txt", ".docx", ".pdf", ".md"],
             "max_file_size_mb": 10,
             "rate_limit_seconds": 1,
             "log_level": "INFO",
