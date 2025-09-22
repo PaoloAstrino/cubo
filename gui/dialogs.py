@@ -104,8 +104,7 @@ class SettingsDialog(QDialog):
 
         # Tokenizer path (read-only, shows local model path)
         self.tokenizer_path = QLineEdit()
-        self.tokenizer_path.setText(self.current_settings.get("chunking", {}).get("tokenizer_name", 
-            r"c:\Users\paolo\Desktop\cubo\models\embeddinggemma-300m"))
+        self.tokenizer_path.setText(self.current_settings.get("chunking", {}).get("tokenizer_name", ""))
         self.tokenizer_path.setReadOnly(True)
         self.tokenizer_path.setToolTip("Using local embedding model as tokenizer")
         chunking_layout.addRow("Tokenizer:", self.tokenizer_path)

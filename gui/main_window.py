@@ -59,8 +59,21 @@ class CUBOGUI(QMainWindow):
             # Initialize document loader first (doesn't depend on heavy ML libraries)
             from src.document_loader import DocumentLoader
             self.document_loader = DocumentLoader()
-            logger.info("Document loader initialized")
-            
+            # Get model path from config and validate it
+            from src.config import config
+            import os
+            model_path = config.get("model_path")
+            logger.info(f"Configuration loaded. Model path: {model_path}")
+
+            if not model_path or not os.path.isdir(model_path):
+                error_msg = f"Model path '{model_path}' configured in 'config.json' is invalid or does not exist."
+                logger.critical(error_msg)
+                QMessageBox.critical(self, "Fatal Configuration Error", 
+                    f"{error_msg}\n\nPlease correct the 'model_path' in your config.json file and restart the application.")
+                sys.exit(1) # Exit the application
+
+            logger.info(f"Validated model path. Attempting to load model from: {model_path}")
+
             # Initialize model loader and load embedding model (this is the heavy import)
             try:
                 # Import model_loader only when needed to avoid circular imports

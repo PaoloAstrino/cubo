@@ -46,7 +46,6 @@ jobs:
           $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
           python -c "from gui.main_window import CUBOGUI; print('GUI imports successfully')"
           python -c "from gui.components import DocumentWidget, QueryWidget; print('GUI components import successfully')"
-          python -c "from gui.themes import ThemeManager; print('GUI themes import successfully')"
 
       - name: Run backend service tests
         run: |

@@ -62,7 +62,7 @@ class DocumentWidget(QWidget):
         upload_widget = QWidget()
         upload_widget.setStyleSheet("""
             QWidget {
-                background-color: #1a1a1a;
+                background-color: #252525;
                 border-radius: 10px;
             }
         """)
@@ -136,7 +136,7 @@ class DocumentWidget(QWidget):
                 margin-top: 5px;
                 font-weight: bold;
                 padding-top: 5px;
-                background-color: #1a1a1a;
+                background-color: #252525;
                 border-radius: 5px;
             }
             QGroupBox::title {
