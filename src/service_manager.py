@@ -5,7 +5,7 @@ Orchestrates thread management, error recovery, and health monitoring for backen
 
 import time
 import logging
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, List
 from contextlib import contextmanager
 
 from .thread_manager import ThreadManager
@@ -235,9 +235,63 @@ class ServiceManager:
         """Query database asynchronously with error recovery."""
         return self.execute_async('database_operation', query_func, *args, **kwargs)
 
-    def generate_response_async(self, query: str, context: str, generator_func: Callable, *args, **kwargs):
-        """Generate LLM response asynchronously with error recovery."""
-        return self.execute_async('llm_generation', generator_func, query, context, *args, **kwargs)
+    def generate_response_async(self, query: str, context: str, generator_func: Callable,
+                                sources: List[str], *args, **kwargs):
+        """Generate LLM response asynchronously with error recovery and automatic data saving."""
+        import time
+        start_time = time.time()
+
+        # First execute the generation
+        future = self.execute_async('llm_generation', generator_func, query, context, *args, **kwargs)
+
+        # Add data saving callback after generation completes
+        def on_generation_complete(f):
+            if not f.exception():
+                try:
+                    # Extract result from future (which is just the response string)
+                    response = f.result()
+                    # Calculate actual response time
+                    response_time = time.time() - start_time
+                    # Save query data with provided sources and calculated response_time
+                    self._save_query_data(query, response, sources, response_time)
+                except Exception as e:
+                    logger.error(f"Failed to save query data after generation: {e}")
+
+        future.add_done_callback(on_generation_complete)
+        return future
+
+    def _save_query_data(self, question: str, answer: str, sources: List[str], response_time: float):
+        """Save query data without evaluation in background thread."""
+        try:
+            def save_data():
+                try:
+                    # Import data saving function
+                    from evaluation.integration import save_query_data_sync
+                    
+                    # Save data without evaluation
+                    success = save_query_data_sync(
+                        question=question,
+                        answer=answer,
+                        contexts=sources,
+                        response_time=response_time
+                    )
+                    
+                    if success:
+                        logger.info(f"Query data saved successfully: {question[:50]}...")
+                    else:
+                        logger.error(f"Failed to save query data: {question[:50]}...")
+                    
+                    return success
+                    
+                except Exception as e:
+                    logger.error(f"Background data saving failed: {e}")
+                    return False
+
+            # Execute data saving in background (non-blocking)
+            self.execute_async('data_saving', save_data, with_retry=False)
+            
+        except Exception as e:
+            logger.error(f"Failed to schedule evaluation: {e}")
 
 
 # Global service manager instance

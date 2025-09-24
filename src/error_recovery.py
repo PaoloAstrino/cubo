@@ -25,7 +25,7 @@ class ErrorRecoveryManager:
     Provides retry logic, fallback strategies, and error classification.
     """
 
-    def __init__(self):
+    def __init__(self, recent_failure_threshold: int = 300):
         self.recovery_configs = {
             'document_processing': {
                 'strategy': RecoveryStrategy.RETRY,
@@ -56,6 +56,7 @@ class ErrorRecoveryManager:
 
         self.error_counts = {}
         self.last_errors = {}
+        self.recent_failure_threshold = recent_failure_threshold
 
     def execute_with_recovery(
         self,
@@ -199,8 +200,8 @@ class ErrorRecoveryManager:
             recent_failure = False
 
             if counts['last_failure']:
-                # Consider recent if within last 5 minutes
-                recent_failure = (time.time() - counts['last_failure']) < 300
+                # Consider recent if within last 'recent_failure_threshold' seconds
+                recent_failure = (time.time() - counts['last_failure']) < self.recent_failure_threshold
 
             status[operation_type] = {
                 'healthy': failure_rate < 0.5 and not recent_failure,

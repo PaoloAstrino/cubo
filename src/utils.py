@@ -214,10 +214,11 @@ class Metrics:
 
     def record_count(self, operation: str):
         """Record operation count."""
-        if f"{operation}_count" not in self.metrics:
-            self.metrics[f"{operation}_count"] = 0
-        self.metrics[f"{operation}_count"] += 1
-        logger.info(f"METRICS: {operation} count: {self.metrics[f'{operation}_count']}")
+        count_key = f"{operation}_count"
+        if count_key not in self.metrics:
+            self.metrics[count_key] = 0
+        self.metrics[count_key] += 1
+        logger.info(f"METRICS: {operation} count: {self.metrics[count_key]}")
 
     def get_average_time(self, operation: str) -> float:
         """Get average time for an operation."""

@@ -6,6 +6,7 @@ Launch the CUBO desktop GUI application.
 
 import sys
 import os
+from typing import List 
 from pathlib import Path
 
 # Add src to path for backend imports

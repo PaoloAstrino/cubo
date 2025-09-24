@@ -16,6 +16,10 @@ class Logger:
         if log_dir and not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
+        # Prevent adding duplicate handlers if already configured
+        if self.logger and self.logger.handlers:
+            return
+
         # Setup logging
         logging.basicConfig(
             level=getattr(logging, config.get("log_level", "INFO")),

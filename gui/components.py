@@ -75,19 +75,19 @@ class DocumentWidget(QWidget):
 
         # Upload icon/label
         upload_icon = QLabel("📁")
-        upload_icon.setFont(QFont("Arial", 36))
+        upload_icon.setFont(QFont("Arial", 24))
         upload_icon.setAlignment(Qt.AlignCenter)
         upload_icon.setStyleSheet("color: #cccccc; margin-bottom: 15px;")
         upload_inner_layout.addWidget(upload_icon)
 
         upload_title = QLabel("Upload Documents")
-        upload_title.setFont(QFont("Arial", 16, QFont.Bold))
+        upload_title.setFont(QFont("Arial", 14, QFont.Bold))
         upload_title.setAlignment(Qt.AlignCenter)
         upload_title.setStyleSheet("color: #cccccc; margin-bottom: 8px;")
         upload_inner_layout.addWidget(upload_title)
 
         upload_subtitle = QLabel("Select files or folders - we'll handle both!")
-        upload_subtitle.setFont(QFont("Arial", 11))
+        upload_subtitle.setFont(QFont("Arial", 12))
         upload_subtitle.setAlignment(Qt.AlignCenter)
         upload_subtitle.setStyleSheet("color: #888888; margin-bottom: 20px;")
         upload_inner_layout.addWidget(upload_subtitle)
@@ -115,7 +115,7 @@ class DocumentWidget(QWidget):
 
         # Supported formats
         formats_label = QLabel("Supported: PDF, DOCX, TXT, MD")
-        formats_label.setFont(QFont("Arial", 9))
+        formats_label.setFont(QFont("Arial", 10))
         formats_label.setAlignment(Qt.AlignCenter)
         formats_label.setStyleSheet("color: #666666; margin-top: 12px;")
         upload_inner_layout.addWidget(formats_label)
@@ -131,7 +131,7 @@ class DocumentWidget(QWidget):
         list_page = QWidget()
         list_layout = QVBoxLayout(list_page)
         list_layout.setContentsMargins(10, 10, 10, 10)
-        list_layout.setSpacing(0)  # Remove spacing between sections
+        list_layout.setSpacing(10)  # Add spacing between sections
 
         # Top 50%: Compact upload section
         upload_group = QGroupBox("Add Documents")
@@ -178,7 +178,7 @@ class DocumentWidget(QWidget):
                 padding: 8px;
                 border-radius: 3px;
                 color: #888888;
-                font-size: 11px;
+                font-size: 12px;
             }
         """)
         upload_layout.addWidget(self.drag_label)
@@ -214,6 +214,9 @@ class DocumentWidget(QWidget):
                 color: #cccccc;
                 selection-background-color: #555555;
                 selection-color: #000000;
+            }
+            QListWidget::item {
+                padding: 5px 0px; /* Add vertical padding */
             }
         """)
         list_inner_layout.addWidget(self.document_list)
@@ -469,7 +472,7 @@ class QueryWidget(QWidget):
         layout.setSpacing(10)
 
         # Simple clean header
-        header = QLabel("Chat")
+        header = QLabel("Cubo is ready to assist you!")
         header.setFont(QFont("Arial", 14, QFont.Bold))
         header.setStyleSheet("color: #cccccc; padding: 5px;")
         layout.addWidget(header)
@@ -497,7 +500,7 @@ class QueryWidget(QWidget):
                 border: none;
                 background-color: #1a1a1a;
                 color: #cccccc;
-                font-size: 11px;
+                font-size: 12px;
                 line-height: 1.4;
             }
         """)
@@ -562,16 +565,16 @@ class QueryWidget(QWidget):
 
         # Add user message to chat immediately (right-aligned)
         user_html = f"""
-        <div style='text-align: right; margin: 10px 0;'>
+        <div align="right" style='margin: 10px 0;'>
             <div style='
-                display: inline-block;
+                display: inline-block; /* Necessary for block properties like padding */
                 padding: 10px 15px;
                 background-color: #2a2a2a;
                 border-radius: 10px;
                 color: #cccccc;
                 max-width: 70%;
                 word-wrap: break-word;
-                text-align: right;
+                text-align: left;
             '>
                 <div style='font-weight: bold; margin-bottom: 3px;'>You</div>
                 <div>{query}</div>
@@ -619,102 +622,11 @@ class QueryWidget(QWidget):
 
     def display_results(self, response, sources):
         """Display query results in chat format."""
-        # Replace typing indicator with actual response
-        if hasattr(self, 'typing_indicator_html'):
-            try:
-                # Get current HTML content
-                current_html = self.chat_display.toHtml()
+        print(f"DEBUG: display_results called with response length: {len(response) if response else 0}")
 
-                # Create the response HTML
-                response_html = f"""
-                <div style='text-align: left; margin: 10px 0;'>
-                    <span style='display: inline-block; vertical-align: top; margin-right: 8px;'>
-                        <span style='
-                            display: inline-block;
-                            width: 16px;
-                            height: 16px;
-                            background: #ffffff;
-                            border-radius: 4px;
-                        '></span>
-                    </span>
-                    <span style='
-                        display: inline-block;
-                        padding: 12px 16px;
-                        background-color: #2a2a2a;
-                        border-radius: 10px;
-                        color: #cccccc;
-                        line-height: 1.4;
-                        width: fit-content;
-                        max-width: 80%;
-                        word-wrap: break-word;
-                    '>{response}</span>
-                </div>
-                """
-
-                # Add sources if available
-                if sources:
-                    # Handle sources as string or list
-                    if isinstance(sources, list):
-                        sources_text = ", ".join(sources)
-                    else:
-                        sources_text = str(sources).strip()
-
-                    if sources_text:
-                        sources_html = f"""
-                        <div style='text-align: left; margin: 5px 0 10px 24px;'>
-                            <div style='
-                                display: inline-block;
-                                padding: 6px 12px;
-                                background-color: #333333;
-                                border-radius: 5px;
-                                font-size: 10px;
-                                max-width: 70%;
-                                word-wrap: break-word;
-                            '>
-                                <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
-                                <div style='color: #999999;'>{sources_text.replace(chr(10), "<br>")}</div>
-                            </div>
-                        </div>
-                        """
-                        response_html += sources_html
-
-                # Try to find and replace the typing indicator more reliably
-                typing_marker = 'id=\'typing-indicator\''
-                if typing_marker in current_html:
-                    # Find the start of the typing indicator div
-                    start_pos = current_html.find('<div style=\'text-align: left; margin: 10px 0;\' id=\'typing-indicator\'>')
-                    if start_pos != -1:
-                        # Find the end of the style block that follows
-                        # Look for the closing </style> tag after the typing indicator
-                        style_start_pos = current_html.find('<style>', start_pos)
-                        if style_start_pos != -1:
-                            style_end_pos = current_html.find('</style>', style_start_pos)
-                            if style_end_pos != -1:
-                                end_pos = style_end_pos + 8  # Include </style>
-
-                                # Replace the typing indicator section with response
-                                before = current_html[:start_pos]
-                                after = current_html[end_pos:]
-                                new_html = before + response_html + after
-
-                                self.chat_display.setHtml(new_html)
-                                delattr(self, 'typing_indicator_html')
-                                # Scroll to bottom and return
-                                cursor = self.chat_display.textCursor()
-                                cursor.movePosition(cursor.MoveOperation.End)
-                                self.chat_display.setTextCursor(cursor)
-                                return
-
-                # Fallback: clear and rebuild the chat
-                self._rebuild_chat_with_response(response, sources)
-
-            except Exception as e:
-                logger.error(f"Error replacing typing indicator: {e}")
-                # Ultimate fallback: just append
-                self._append_response(response, sources)
-        else:
-            # No typing indicator to replace, just append
-            self._append_response(response, sources)
+        # To reliably remove the typing indicator, we rebuild the chat from history
+        # and then append the new response. This is more robust than HTML replacement.
+        self._rebuild_chat_with_response(response, sources)
 
         # Scroll to bottom
         cursor = self.chat_display.textCursor()
@@ -748,27 +660,29 @@ class QueryWidget(QWidget):
 
     def _append_response(self, response, sources):
         """Helper method to append response when no typing indicator to replace."""
+        print(f"DEBUG: _append_response called with response: {response[:100] if response else 'None'}...")
+        
         response_html = f"""
-        <div style='text-align: left; margin: 10px 0;'>
+        <div align="left" style='margin: 10px 0;'>
             <span style='display: inline-block; vertical-align: top; margin-right: 8px;'>
                 <span style='
                     display: inline-block;
                     width: 16px;
                     height: 16px;
-                    background: #ffffff;
-                    border-radius: 4px;
+                    background: #ffffff; /* White cube */
+                    border-radius: 4px; /* Slightly rounded corners for cube */
                 '></span>
             </span>
             <span style='
                 display: inline-block;
                 padding: 12px 16px;
-                background-color: #2a2a2a;
+                background-color: #1a1a1a;
                 border-radius: 10px;
                 color: #cccccc;
                 line-height: 1.4;
-                width: fit-content;
                 max-width: 80%;
                 word-wrap: break-word;
+                text-align: left;
             '>{response}</span>
         </div>
         """
@@ -783,7 +697,7 @@ class QueryWidget(QWidget):
 
             if sources_text:
                 sources_html = f"""
-                <div style='text-align: left; margin: 5px 0 10px 24px;'>
+                <div align="left" style='margin: 5px 0 10px 24px;'>
                     <div style='
                         display: inline-block;
                         padding: 6px 12px;
@@ -792,6 +706,7 @@ class QueryWidget(QWidget):
                         font-size: 10px;
                         max-width: 70%;
                         word-wrap: break-word;
+                        text-align: left;
                     '>
                         <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
                         <div style='color: #999999;'>{sources_text.replace(chr(10), "<br>")}</div>
@@ -799,6 +714,9 @@ class QueryWidget(QWidget):
                 </div>
                 """
                 response_html += sources_html
+
+        # Append to history before updating display
+        self.conversation_history.append(response_html)
 
         self.chat_display.append(response_html)
 

@@ -54,6 +54,10 @@ class AdvancedEvaluator:
         results.update(self.evaluate_response_efficiency(answer, response_time))
         results.update(self.evaluate_information_completeness(question, answer, contexts))
 
+        # Groundedness evaluation
+        groundedness_score = await self.evaluate_groundedness(contexts, answer)
+        results['groundedness_score'] = groundedness_score
+
         # LLM-based advanced metrics (if available)
         if self.ollama_client or self.gemini_client:
             llm_metrics = await self.evaluate_llm_based_metrics(question, answer, contexts)
@@ -326,57 +330,134 @@ class AdvancedEvaluator:
             logger.error(f"Ollama scoring failed: {e}")
             return 3.0
 
-class PerformanceAnalyzer:
-    """Analyze system performance trends and patterns."""
+    async def evaluate_groundedness(self, contexts: List[str], answer: str) -> float:
+        """
+        Evaluate how well the answer is grounded in the provided contexts.
+        
+        Groundedness measures whether the answer is supported by the contexts
+        and doesn't contain unsupported claims (hallucinations).
+        
+        Returns:
+            Float between 0-1, where 1.0 means fully grounded
+        """
+        if not contexts or not answer:
+            return 0.0
+            
+        if not self.ollama_client and not self.gemini_client:
+            # Fallback heuristic evaluation
+            return self._evaluate_groundedness_heuristic(contexts, answer)
+        
+        try:
+            # Combine contexts for evaluation
+            context_text = ' '.join(contexts[:3])  # Use first 3 contexts to avoid token limits
+            
+            groundedness_prompt = f"""
+            Evaluate how well this answer is grounded in the provided contexts.
+            
+            Contexts: {context_text}
+            
+            Answer: {answer}
+            
+            Rate the groundedness on a scale of 1-5:
+            1 = Answer contains significant unsupported claims or hallucinations
+            2 = Answer has some unsupported information but mostly grounded
+            3 = Answer is reasonably grounded with minor gaps
+            4 = Answer is well-grounded with good support from contexts
+            5 = Answer is perfectly grounded and fully supported by contexts
+            
+            Consider:
+            - Does the answer make claims not supported by contexts?
+            - Are key facts and information backed by the provided contexts?
+            - Does the answer stay within the bounds of the given information?
+            
+            Rate only with a number (1-5):
+            """
+            
+            score = await self._get_llm_score(groundedness_prompt)
+            
+            # Convert 1-5 scale to 0-1 scale
+            return (score - 1) / 4.0
+            
+        except Exception as e:
+            logger.error(f"LLM groundedness evaluation failed: {e}")
+            # Fallback to heuristic
+            return self._evaluate_groundedness_heuristic(contexts, answer)
+    
+    def _evaluate_groundedness_heuristic(self, contexts: List[str], answer: str) -> float:
+        """
+        Heuristic groundedness evaluation when LLM is not available.
+        
+        Returns:
+            Float between 0-1
+        """
+        if not contexts or not answer:
+            return 0.0
+            
+        # Simple heuristic: check for keyword overlap
+        context_text = ' '.join(contexts).lower()
+        answer_words = set(answer.lower().split())
+        context_words = set(context_text.split())
+        
+        # Calculate overlap
+        overlap = len(answer_words.intersection(context_words))
+        total_answer_words = len(answer_words)
+        
+        if total_answer_words == 0:
+            return 0.0
+            
+        overlap_ratio = overlap / total_answer_words
+        
+        # Boost score if answer is concise and overlaps well
+        if overlap_ratio > 0.3:
+            return min(1.0, overlap_ratio * 1.2)  # Slight boost for good overlap
+        
 
-    def __init__(self, database):
-        self.db = database
+class PerformanceAnalyzer:
+    """Analyze performance trends and patterns in evaluation data."""
+
+    def __init__(self, db):
+        """
+        Initialize performance analyzer.
+
+        Args:
+            db: EvaluationDatabase instance
+        """
+        self.db = db
 
     def analyze_performance_trends(self, days: int = 30) -> Dict[str, Any]:
-        """Analyze performance trends over time."""
-        trends = self.db.get_trends(days)
+        """
+        Analyze performance trends over the specified number of days.
 
-        # Add advanced analysis
-        analysis = {
-            'trends': trends,
-            'insights': self._generate_insights(trends),
-            'recommendations': self._generate_recommendations(trends)
-        }
+        Args:
+            days: Number of days to analyze
 
-        return analysis
+        Returns:
+            Dictionary with trend analysis
+        """
+        try:
+            # Get metrics summary for the period
+            summary = self.db.get_metrics_summary(days)
 
-    def _generate_insights(self, trends: Dict) -> List[str]:
-        """Generate insights from trend data."""
-        insights = []
+            # Get trend data
+            trends = self.db.get_trends(days)
 
-        if 'trends' in trends:
-            trend_data = trends['trends']
+            # Combine into comprehensive analysis
+            analysis = {
+                'summary': summary,
+                'trends': trends,
+                'recommendations': self._generate_recommendations(trends)
+            }
 
-            # Answer relevance trends
-            if 'avg_answer_relevance' in trend_data:
-                ar_trend = trend_data['avg_answer_relevance']
-                if ar_trend['direction'] == 'improving':
-                    insights.append("Answer relevance is improving over time")
-                elif ar_trend['direction'] == 'declining':
-                    insights.append("Answer relevance is declining - investigate recent changes")
+            return analysis
 
-            # Response time trends
-            if 'avg_response_time' in trend_data:
-                rt_trend = trend_data['avg_response_time']
-                if rt_trend['direction'] == 'improving':
-                    insights.append("Response times are improving")
-                elif rt_trend['direction'] == 'declining':
-                    insights.append("Response times are increasing - check system performance")
-
-        if 'daily_stats' in trends:
-            daily = trends['daily_stats']
-            if daily:
-                # Error rate analysis
-                error_rates = [day.get('error_count', 0) / max(day.get('query_count', 1), 1) for day in daily]
-                avg_error_rate = np.mean(error_rates)
-                if avg_error_rate > 0.1:
-                    insights.append(f"High error rate detected: {avg_error_rate:.1%} of queries failing")
-        return insights
+        except Exception as e:
+            logger.error(f"Performance trend analysis failed: {e}")
+            return {
+                'error': str(e),
+                'summary': {},
+                'trends': {},
+                'recommendations': []
+            }
 
     def _generate_recommendations(self, trends: Dict) -> List[str]:
         """Generate recommendations based on trends."""

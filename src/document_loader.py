@@ -62,43 +62,46 @@ class DocumentLoader:
                 return []
 
         except Exception as e:
-            logger.warning(f"Failed to load {file_path}: {e}")
-            print(Fore.YELLOW + f"Warning: Skipping {os.path.basename(file_path)} due to error: {e}" + Style.RESET_ALL)
+            logger.error(f"Failed to load {file_path}: {e}")
             return []
 
-    def load_documents_from_folder(self, folder_path: str) -> List[str]:
-        """Load all supported documents from a folder."""
+    def load_documents_from_folder(self, folder_path: str) -> List[dict]: # Changed return type to List[dict]
+        """Load all supported documents from a folder, including subfolders."""
         documents = []
 
         if not os.path.exists(folder_path):
             raise FileNotFoundError(f"Folder '{folder_path}' does not exist.")
 
-        files = [f for f in os.listdir(folder_path)
-                if any(f.lower().endswith(ext) for ext in self.supported_extensions)]
+        # Recursively find all supported files
+        supported_files = []
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                file_ext = os.path.splitext(file)[1].lower()
+                if file_ext in self.supported_extensions:
+                    supported_files.append(os.path.join(root, file))
 
-        if not files:
-            print(Fore.YELLOW + f"No supported files {self.supported_extensions} found in the specified folder." + Style.RESET_ALL)
+        if not supported_files:
+            logger.warning(f"No supported files {self.supported_extensions} found in the specified folder or its subfolders.")
             return []
 
-        print(Fore.BLUE + f"Loading {len(files)} documents..." + Style.RESET_ALL)
+        logger.info(f"Loading {len(supported_files)} documents from {folder_path}...")
 
-        for file in files:
-            file_path = os.path.join(folder_path, file)
+        for file_path in supported_files:
             chunks = self.load_single_document(file_path)
             documents.extend(chunks)
 
-        print(Fore.GREEN + f"Total documents loaded and chunked into {len(documents)} chunks." + Style.RESET_ALL)
+        logger.info(f"Total documents loaded and chunked into {len(documents)} chunks.")
         return documents
 
     def load_documents(self, file_paths: List[str]) -> List[str]:
         """Load multiple documents from a list of file paths."""
         documents = []
 
-        print(Fore.BLUE + f"Loading {len(file_paths)} documents..." + Style.RESET_ALL)
+        logger.info(f"Loading {len(file_paths)} documents...")
 
         for file_path in file_paths:
             chunks = self.load_single_document(file_path)
             documents.extend(chunks)
 
-        print(Fore.GREEN + f"Total documents loaded and chunked into {len(documents)} chunks." + Style.RESET_ALL)
+        logger.info(f"Total documents loaded and chunked into {len(documents)} chunks.")
         return documents

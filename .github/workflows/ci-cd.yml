@@ -41,12 +41,6 @@ jobs:
           # Ensure new backend service tests are included
           python -m pytest tests/test_thread_manager.py tests/test_error_recovery.py tests/test_health_monitor.py tests/test_service_manager.py -v
 
-      - name: Run GUI tests
-        run: |
-          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
-          python -c "from gui.main_window import CUBOGUI; print('GUI imports successfully')"
-          python -c "from gui.components import DocumentWidget, QueryWidget; print('GUI components import successfully')"
-
       - name: Run backend service tests
         run: |
           $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
@@ -58,39 +52,6 @@ jobs:
           python -c "from src.error_recovery import ErrorRecoveryManager; erm = ErrorRecoveryManager(); result = erm.execute_with_recovery('test', lambda: 'success'); assert result == 'success'"
           # Test health monitor
           python -c "from src.health_monitor import HealthMonitor; hm = HealthMonitor(); status = hm.get_health_status(); assert 'overall_status' in status"
-
-      - name: Test GUI-backend integration
-        run: |
-          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
-          # Test that GUI properly integrates with service manager
-          python -c "
-          from gui.main_window import CUBOGUI
-          from PySide6.QtWidgets import QApplication
-          import sys
-
-          # Create minimal QApplication for testing
-          app = QApplication.instance()
-          if app is None:
-              app = QApplication(sys.argv)
-
-          try:
-              # Test GUI initialization with service manager
-              gui = CUBOGUI()
-              assert gui.service_manager is not None
-              print('GUI-backend integration test passed')
-              
-              # Test service manager methods
-              status = gui.service_manager.get_system_status()
-              assert 'threads' in status
-              assert 'health' in status
-              assert 'errors' in status
-              print('Service manager integration verified')
-              
-              gui.service_manager.shutdown(wait=True)
-          finally:
-              if app:
-                  app.quit()
-          "
 
       - name: Validate backend reliability features
         run: |

@@ -14,8 +14,12 @@ class Config:
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from JSON file or use defaults."""
         if os.path.exists(self.config_path):
-            with open(self.config_path, 'r') as f:
-                return json.load(f)
+            try:
+                with open(self.config_path, 'r') as f:
+                    return json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"Warning: config.json is malformed ({e}). Using default configuration.")
+                return self._get_default_config()
         else:
             return self._get_default_config()
 
@@ -54,8 +58,11 @@ class Config:
 
     def save(self) -> None:
         """Save configuration to file."""
-        with open(self.config_path, 'w') as f:
-            json.dump(self._config, f, indent=4)
+        try:
+            with open(self.config_path, 'w') as f:
+                json.dump(self._config, f, indent=4)
+        except IOError as e:
+            print(f"Error saving configuration to {self.config_path}: {e}")
 
     @property
     def all(self) -> Dict[str, Any]:

@@ -11,6 +11,7 @@ import datetime
 from typing import Dict, Any, Optional, List
 import uuid
 from dataclasses import asdict
+from pathlib import Path
 
 from evaluation.database import EvaluationDatabase, QueryEvaluation
 from evaluation.metrics import AdvancedEvaluator
@@ -41,7 +42,9 @@ class EvaluationIntegrator:
         try:
             # Load configuration
             import json
-            with open('config.json', 'r') as f:
+            # Corrected path to config.json
+            config_path = Path(__file__).parent.parent.parent / 'config.json'
+            with open(config_path, 'r') as f:
                 config = json.load(f)
 
             eval_config = config.get('evaluation', {})
@@ -140,7 +143,7 @@ class EvaluationIntegrator:
                 # For now, using placeholder logic
                 evaluation.answer_relevance_score = self._compute_answer_relevance(question, answer)
                 evaluation.context_relevance_score = self._compute_context_relevance(question, contexts)
-                evaluation.groundedness_score = self._compute_groundedness(contexts, answer)
+                evaluation.groundedness_score = advanced_metrics.get('groundedness_score', self._compute_groundedness(contexts, answer))
 
                 # Extract LLM metrics if available
                 llm_metrics = advanced_metrics.get('llm_metrics')
@@ -303,3 +306,59 @@ def evaluate_query_sync(question: str, answer: str, contexts: List[str],
     except Exception as e:
         logger.error(f"Query evaluation failed: {e}")
         return None
+
+
+def save_query_data_sync(question: str, answer: str, contexts: List[str],
+                        response_time: float, model_used: str = "llama3.2:latest",
+                        error_occurred: bool = False, error_message: Optional[str] = None) -> bool:
+    """
+    Save query data without running evaluation.
+
+    This stores basic query information in the database without computing metrics.
+    Evaluation can be run later manually.
+
+    Returns True if data was saved successfully, False otherwise.
+    """
+    try:
+        integrator = get_evaluation_integrator()
+        import datetime
+
+        # Create basic evaluation record without metrics
+        evaluation = QueryEvaluation(
+            timestamp=datetime.datetime.now().isoformat(),
+            session_id=integrator.session_id,
+            question=question,
+            answer=answer,
+            response_time=response_time,
+            contexts=contexts,
+            context_metadata=[],
+            model_used=model_used,
+            embedding_model="embeddinggemma-300m",
+            retrieval_method="sentence_window",
+            chunking_method="sentence_window",
+            answer_relevance_score=None,  # Not computed yet
+            context_relevance_score=None,  # Not computed yet
+            groundedness_score=None,  # Not computed yet
+            answer_length=len(answer) if answer else 0,
+            context_count=len(contexts),
+            total_context_length=sum(len(ctx) for ctx in contexts),
+            average_context_similarity=0.0,
+            answer_confidence=0.0,
+            has_answer=bool(answer and not answer.startswith("Error")),
+            is_fallback_response=answer and "unable to generate" in answer.lower(),
+            error_occurred=error_occurred,
+            error_message=error_message,
+            user_rating=None,
+            user_feedback=None,
+            llm_metrics=None  # Will be set when evaluation runs
+        )
+
+        # Store in database
+        integrator.db.store_evaluation(evaluation)
+
+        logger.info(f"Query data saved (no evaluation): {question[:50]}...")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to save query data: {e}")
+        return False

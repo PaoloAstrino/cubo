@@ -17,12 +17,13 @@ class SecurityManager:
             # Ensure it's 32 bytes for Fernet
             key = key_env.encode()
             if len(key) != 32:
+                logger.warning("CUBO_ENCRYPTION_KEY is not 32 bytes. Hashing to derive a 32-byte key.")
                 key = hashlib.sha256(key).digest()
             return key
         else:
-            # Generate a new key (in production, store securely)
-            logger.warning("No encryption key found in environment. Using generated key.")
-            return Fernet.generate_key()
+            error_msg = "CUBO_ENCRYPTION_KEY environment variable not set. Encryption/decryption will not work. Please set a secure, persistent key."
+            logger.critical(error_msg)
+            raise ValueError(error_msg)
 
     def encrypt_data(self, data: str) -> str:
         """Encrypt sensitive data."""

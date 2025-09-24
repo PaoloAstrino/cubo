@@ -81,6 +81,31 @@ result = evaluate_query_sync(
 )
 ```
 
+### 4. Batch Evaluation of Saved Data
+
+To evaluate saved query data that hasn't been evaluated yet:
+
+```bash
+# Evaluate all saved queries that need evaluation
+python evaluation/evaluate_saved_data.py
+
+# Evaluate only the last 10 queries
+python evaluation/evaluate_saved_data.py --limit 10
+
+# Evaluate queries from a specific session
+python evaluation/evaluate_saved_data.py --session "abc123"
+
+# Enable verbose logging
+python evaluation/evaluate_saved_data.py --verbose
+```
+
+This script will:
+
+- Find queries in the database that have no evaluation metrics
+- Run comprehensive evaluation using Gemini Flash
+- Update the database with the results
+- Provide progress logging
+
 ## Database Schema
 
 The evaluation database stores comprehensive data:

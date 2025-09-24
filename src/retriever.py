@@ -46,7 +46,11 @@ class DocumentRetriever:
         if self.use_sentence_window:
             from .postprocessor import WindowReplacementPostProcessor, LocalReranker
             self.window_postprocessor = WindowReplacementPostProcessor()
-            self.reranker = LocalReranker(model, top_n=2)
+            if self.model:
+                self.reranker = LocalReranker(self.model)
+            else:
+                self.reranker = None
+                logger.warning("Embedding model not available, reranker will not be initialized.")
         else:
             self.window_postprocessor = None
             self.reranker = None

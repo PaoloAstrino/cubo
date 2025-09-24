@@ -32,56 +32,53 @@ class CUBOApp:
 
     def setup_wizard(self):
         """Setup wizard for initial configuration and model checks."""
-        print(Fore.BLUE + "Welcome to CUBO Setup Wizard!" + Style.RESET_ALL)
+        logger.info("Welcome to CUBO Setup Wizard!")
         
         # Security validation
         if not security_manager.validate_environment():
-            print(Fore.YELLOW + "Warning: Some security environment variables are missing." + Style.RESET_ALL)
+            logger.warning("Some security environment variables are missing.")
         
         # Check if config.json exists
         try:
             if not os.path.exists("config.json"):
-                print(Fore.YELLOW + "Config file not found. Creating default config.json..." + Style.RESET_ALL)
+                logger.warning("Config file not found. Creating default config.json...")
                 config.save()  # This will create it with defaults
-                print(Fore.GREEN + "Default config created." + Style.RESET_ALL)
+                logger.info("Default config created.")
             else:
-                print(Fore.GREEN + "Config file found." + Style.RESET_ALL)
+                logger.info("Config file found.")
         except Exception as e:
-            print(Fore.RED + f"Error handling config file: {e}" + Style.RESET_ALL)
-            logger.error(f"Config error: {e}")
+            logger.error(f"Error handling config file: {e}")
             return
         
         # Check model path
         try:
             model_path = config.get("model_path")
             if not os.path.exists(model_path):
-                print(Fore.YELLOW + f"Model path '{model_path}' not found." + Style.RESET_ALL)
-                new_path = input(Fore.YELLOW + "Enter the correct path to the embedding model (or press Enter to skip): " + Style.RESET_ALL)
+                logger.warning(f"Model path '{model_path}' not found.")
+                new_path = input("Enter the correct path to the embedding model (or press Enter to skip): ")
                 if new_path:
                     config.set("model_path", new_path)
                     config.save()
-                    print(Fore.GREEN + "Model path updated." + Style.RESET_ALL)
+                    logger.info("Model path updated.")
                 else:
-                    print(Fore.RED + "Warning: Model not found. The application may not work properly." + Style.RESET_ALL)
+                    logger.warning("Model not found. The application may not work properly.")
             else:
-                print(Fore.GREEN + "Model path verified." + Style.RESET_ALL)
+                logger.info("Model path verified.")
         except Exception as e:
-            print(Fore.RED + f"Error checking model path: {e}" + Style.RESET_ALL)
-            logger.error(f"Model path error: {e}")
+            logger.error(f"Error checking model path: {e}")
             return
         
         # Check data folder
         try:
             data_folder = config.get("data_folder")
             if not os.path.exists(data_folder):
-                print(Fore.YELLOW + f"Data folder '{data_folder}' not found. Creating it..." + Style.RESET_ALL)
+                logger.warning(f"Data folder '{data_folder}' not found. Creating it...")
                 os.makedirs(data_folder, exist_ok=True)
-                print(Fore.GREEN + "Data folder created." + Style.RESET_ALL)
+                logger.info("Data folder created.")
             else:
-                print(Fore.GREEN + "Data folder exists." + Style.RESET_ALL)
+                logger.info("Data folder exists.")
         except Exception as e:
-            print(Fore.RED + f"Error handling data folder: {e}" + Style.RESET_ALL)
-            logger.error(f"Data folder error: {e}")
+            logger.error(f"Error handling data folder: {e}")
             return
         
         # Check logs folder
@@ -89,39 +86,38 @@ class CUBOApp:
             log_file = config.get("log_file")
             log_dir = os.path.dirname(log_file)
             if log_dir and not os.path.exists(log_dir):
-                print(Fore.YELLOW + f"Logs folder '{log_dir}' not found. Creating it..." + Style.RESET_ALL)
+                logger.warning(f"Logs folder '{log_dir}' not found. Creating it...")
                 os.makedirs(log_dir, exist_ok=True)
-                print(Fore.GREEN + "Logs folder created." + Style.RESET_ALL)
+                logger.info("Logs folder created.")
             else:
-                print(Fore.GREEN + "Logs folder exists." + Style.RESET_ALL)
+                logger.info("Logs folder exists.")
         except Exception as e:
-            print(Fore.RED + f"Error handling logs folder: {e}" + Style.RESET_ALL)
-            logger.error(f"Logs folder error: {e}")
+            logger.error(f"Error handling logs folder: {e}")
             return
         
         # LLM Model Selection
         try:
-            print(Fore.BLUE + "Checking available Ollama models..." + Style.RESET_ALL)
+            logger.info("Checking available Ollama models...")
             available_models = self.get_available_ollama_models()
             if available_models:
-                print(Fore.GREEN + f"Found {len(available_models)} Ollama models:" + Style.RESET_ALL)
+                logger.info(f"Found {len(available_models)} Ollama models:")
                 for i, model in enumerate(available_models, 1):
-                    print(f"{i}. {model}")
+                    logger.info(f"{i}. {model}")
                 
                 current_model = config.get("selected_llm_model", "llama3.2")
-                print(Fore.CYAN + f"Current selected model: {current_model}" + Style.RESET_ALL)
+                logger.info(f"Current selected model: {current_model}")
                 
                 # Auto-select if only one model available
                 if len(available_models) == 1:
                     if current_model != available_models[0]:
                         config.set("selected_llm_model", available_models[0])
                         config.save()
-                        print(Fore.GREEN + f"Auto-selected only available model: {available_models[0]}" + Style.RESET_ALL)
+                        logger.info(f"Auto-selected only available model: {available_models[0]}")
                     else:
-                        print(Fore.GREEN + "Only one model available and already selected." + Style.RESET_ALL)
+                        logger.info("Only one model available and already selected.")
                 else:
                     # Multiple models - let user choose
-                    choice = input(Fore.YELLOW + "Select a model by number (or press Enter to keep current): " + Style.RESET_ALL)
+                    choice = input("Select a model by number (or press Enter to keep current): ")
                     if choice.strip():
                         try:
                             index = int(choice) - 1
@@ -129,36 +125,34 @@ class CUBOApp:
                                 selected_model = available_models[index]
                                 config.set("selected_llm_model", selected_model)
                                 config.save()
-                                print(Fore.GREEN + f"LLM model updated to: {selected_model}" + Style.RESET_ALL)
+                                logger.info(f"LLM model updated to: {selected_model}")
                             else:
-                                print(Fore.RED + "Invalid selection. Keeping current model." + Style.RESET_ALL)
+                                logger.warning("Invalid selection. Keeping current model.")
                         except ValueError:
-                            print(Fore.RED + "Invalid input. Keeping current model." + Style.RESET_ALL)
+                            logger.warning("Invalid input. Keeping current model.")
                     else:
-                        print(Fore.GREEN + "Keeping current model." + Style.RESET_ALL)
+                        logger.info("Keeping current model.")
             else:
-                print(Fore.YELLOW + "No Ollama models found. Please install and pull models using 'ollama pull <model_name>'" + Style.RESET_ALL)
-                print(Fore.YELLOW + "You can change the selected model later in config.json" + Style.RESET_ALL)
+                logger.warning("No Ollama models found. Please install and pull models using 'ollama pull <model_name>'")
+                logger.warning("You can change the selected model later in config.json")
         except Exception as e:
-            print(Fore.RED + f"Error checking Ollama models: {e}" + Style.RESET_ALL)
-            logger.error(f"Ollama check error: {e}")
+            logger.error(f"Error checking Ollama models: {e}")
         
         # Optional config tweaks
         try:
-            tweak = input(Fore.YELLOW + "Do you want to tweak configuration? (y/n): " + Style.RESET_ALL).lower()
+            tweak = input("Do you want to tweak configuration? (y/n): ").lower()
             if tweak == 'y':
-                print(Fore.CYAN + "Current config:" + Style.RESET_ALL)
+                logger.info("Current config:")
                 for key, value in config.all.items():
-                    print(f"{key}: {value}")
-                key_to_change = input(Fore.YELLOW + "Enter key to change (or press Enter to skip): " + Style.RESET_ALL)
+                    logger.info(f"{key}: {value}")
+                key_to_change = input("Enter key to change (or press Enter to skip): ")
                 if key_to_change in config.all:
-                    new_value = input(Fore.YELLOW + f"Enter new value for {key_to_change}: " + Style.RESET_ALL)
+                    new_value = input(f"Enter new value for {key_to_change}: ")
                     config.set(key_to_change, new_value)
                     config.save()
-                    print(Fore.GREEN + "Config updated." + Style.RESET_ALL)
+                    logger.info("Config updated.")
         except Exception as e:
-            print(Fore.RED + f"Error during config tweak: {e}" + Style.RESET_ALL)
-            logger.error(f"Config tweak error: {e}")
+            logger.error(f"Error during config tweak: {e}")
 
     def get_available_ollama_models(self):
         """Get list of available Ollama models."""
@@ -181,34 +175,32 @@ class CUBOApp:
     def initialize_components(self):
         """Initialize model and components."""
         # Load model
-        print(Fore.BLUE + "Loading embedding model... (this may take a few minutes)" + Style.RESET_ALL)
+        logger.info("Loading embedding model... (this may take a few minutes)")
         start_time = time.time()
         try:
             self.model = model_manager.get_model()
-            print(Fore.GREEN + f"Model loaded successfully in {time.time() - start_time:.2f} seconds." + Style.RESET_ALL)
+            logger.info(f"Model loaded successfully in {time.time() - start_time:.2f} seconds.")
         except Exception as e:
-            print(Fore.RED + f"Failed to load model: {e}" + Style.RESET_ALL)
-            logger.error(f"Model loading error: {e}")
+            logger.error(f"Failed to load model: {e}")
             return False
 
         # Initialize components
         self.doc_loader = DocumentLoader()
         self.retriever = DocumentRetriever(self.model)
         self.generator = ResponseGenerator()
-        self.generator.initialize_conversation()
+
         return True
 
     def interactive_mode(self):
         """Run the RAG system in interactive mode."""
-        print(Fore.BLUE + "Initializing RAG system..." + Style.RESET_ALL)
+        logger.info("Initializing RAG system...")
 
         # Get data folder
-        data_folder_input = input(Fore.YELLOW + f"Enter path to data folder (default: {config.get('data_folder')}): " + Style.RESET_ALL) or config.get("data_folder")
+        data_folder_input = input(f"Enter path to data folder (default: {config.get('data_folder')}): ") or config.get("data_folder")
         data_folder_input = security_manager.sanitize_input(data_folder_input)
         try:
             data_folder = Utils.sanitize_path(data_folder_input, os.getcwd())
         except ValueError as e:
-            print(Fore.RED + f"Invalid path: {e}" + Style.RESET_ALL)
             logger.error(f"Invalid path: {e}")
             return
 
@@ -217,38 +209,38 @@ class CUBOApp:
 
         # Load documents
         if not os.path.exists(data_folder):
-            print(Fore.RED + f"Error: Folder '{data_folder}' does not exist." + Style.RESET_ALL)
+            logger.error(f"Error: Folder '{data_folder}' does not exist.")
             return
 
         files = [f for f in os.listdir(data_folder) if any(f.endswith(ext) for ext in config.get("supported_extensions"))]
         if not files:
-            print(Fore.RED + f"No supported files {config.get('supported_extensions')} found in the specified folder." + Style.RESET_ALL)
+            logger.error(f"No supported files {config.get('supported_extensions')} found in the specified folder.")
             return
 
         # File selection
-        print(Fore.CYAN + "Available files:" + Style.RESET_ALL)
+        logger.info("Available files:")
         for i, f in enumerate(files, 1):
-            print(f"{i}. {f}")
+            logger.info(f"{i}. {f}")
 
         try:
-            choice = int(input(Fore.YELLOW + "Select file number: " + Style.RESET_ALL)) - 1
+            choice = int(input("Select file number: ")) - 1
             if choice < 0 or choice >= len(files):
-                print(Fore.RED + "Invalid choice." + Style.RESET_ALL)
+                logger.error("Invalid choice.")
                 return
             selected_file = files[choice]
-            print(Fore.BLUE + "Loading and chunking selected document..." + Style.RESET_ALL)
+            logger.info("Loading and chunking selected document...")
             start = time.time()
             file_path = os.path.join(data_folder, selected_file)
             documents = self.doc_loader.load_single_document(file_path)
-            print(Fore.GREEN + f"Document loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds." + Style.RESET_ALL)
+            logger.info(f"Document loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds.")
         except ValueError as e:
-            print(Fore.RED + f"Error: {e}" + Style.RESET_ALL)
+            logger.error(f"Error: {e}")
             return
         except Exception as e:
-            print(Fore.RED + f"Unexpected error: {e}" + Style.RESET_ALL)
+            logger.error(f"Unexpected error: {e}")
             return
 
-        print(Fore.GREEN + "Documents loaded. Starting conversation. Type 'exit' to quit." + Style.RESET_ALL)
+        logger.info("Documents loaded. Starting conversation. Type 'exit' to quit.")
 
         # Add to vector DB
         self.retriever.add_documents(documents)
@@ -259,9 +251,9 @@ class CUBOApp:
             if current_time - last_query_time < config.get("rate_limit_seconds", 1):
                 time.sleep(config.get("rate_limit_seconds", 1) - (current_time - last_query_time))
 
-            query = input(Fore.YELLOW + "\nEnter your query: " + Style.RESET_ALL)
+            query = input("\nEnter your query: ")
             if query.lower() == 'exit':
-                print(Fore.BLUE + "Exiting conversation." + Style.RESET_ALL)
+                logger.info("Exiting conversation.")
                 logger.info("Conversation ended.")
                 break
 
@@ -274,53 +266,53 @@ class CUBOApp:
             security_manager.audit_log("query_processed", details={"query_hash": security_manager.hash_sensitive_data(query)})
 
             # Display results
-            print(Fore.CYAN + "Retrieved Documents:" + Style.RESET_ALL)
+            logger.info("Retrieved Documents:")
             for i, doc in enumerate(top_docs, 1):
-                print(f"{i}. {doc[:200]}...")
-            print(Fore.CYAN + "Response:" + Style.RESET_ALL)
-            print(response)
+                logger.info(f"{i}. {doc[:200]}...")
+            logger.info("Response:")
+            logger.info(response)
 
             last_query_time = time.time()
             logger.info(f"Processed query: {query}")
 
     def command_line_mode(self, args):
         """Run the RAG system in command-line mode."""
-        print(Fore.BLUE + "Initializing RAG system..." + Style.RESET_ALL)
+        logger.info("Initializing RAG system...")
 
         try:
             data_folder = Utils.sanitize_path(args.data_folder, os.getcwd())
         except ValueError as e:
-            print(Fore.RED + f"Invalid path: {e}" + Style.RESET_ALL)
+            logger.error(f"Invalid path: {e}")
             return
 
         if not self.initialize_components():
             return
 
         # Load documents
-        print(Fore.BLUE + "Loading and chunking all documents..." + Style.RESET_ALL)
+        logger.info("Loading and chunking all documents...")
         start = time.time()
         documents = self.doc_loader.load_documents_from_folder(data_folder)
-        print(Fore.GREEN + f"Documents loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds." + Style.RESET_ALL)
+        logger.info(f"Documents loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds.")
 
         # Add to vector DB
         self.retriever.add_documents(documents)
 
         # Process query
-        print(Fore.BLUE + "Retrieving top documents..." + Style.RESET_ALL)
+        logger.info("Retrieving top documents...")
         start = time.time()
         top_docs = self.retriever.retrieve_top_documents(args.query)
-        print(Fore.GREEN + f"Retrieved in {time.time() - start:.2f} seconds." + Style.RESET_ALL)
+        logger.info(f"Retrieved in {time.time() - start:.2f} seconds.")
 
         context = "\n".join(top_docs)
         response = self.generator.generate_response(args.query, context)
 
         # Output results
-        print(Fore.CYAN + "Query:" + Style.RESET_ALL, args.query)
-        print(Fore.CYAN + "Retrieved Documents:" + Style.RESET_ALL)
+        logger.info(f"Query: {args.query}")
+        logger.info("Retrieved Documents:")
         for i, doc in enumerate(top_docs, 1):
-            print(f"{i}. {doc[:200]}...")
-        print(Fore.CYAN + "Generated Response:" + Style.RESET_ALL)
-        print(response)
+            logger.info(f"{i}. {doc[:200]}...")
+        logger.info("Generated Response:")
+        logger.info(response)
 
     def main(self):
         """Main entry point."""
@@ -340,7 +332,7 @@ class CUBOApp:
             else:
                 self.interactive_mode()
         except Exception as e:
-            print(Fore.RED + f"An error occurred: {e}" + Style.RESET_ALL)
+            logger.error(f"An error occurred: {e}")
         finally:
             duration = time.time() - start_time
             metrics.record_time("main_execution", duration)
@@ -353,7 +345,7 @@ if __name__ == "__main__":
         app = CUBOApp()
         app.main()
     except Exception as e:
-        print(Fore.RED + f"An error occurred: {e}" + Style.RESET_ALL)
+        logger.error(f"An error occurred: {e}")
         import traceback
         traceback.print_exc()
         input("Press Enter to exit...")  # Keep terminal open for debugging

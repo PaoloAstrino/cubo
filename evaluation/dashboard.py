@@ -359,7 +359,7 @@ class EvaluationDashboard(QWidget):
 
                 # Response time
                 rt_item = QTableWidgetItem(f"{eval_data.response_time:.2f}s" if eval_data.response_time else "--")
-                self.recent_table.setItem(row, 4, rt_item)
+                self.recent_table.setItem(row, 5, rt_item)
 
                 # Status
                 status = "✅ Success" if not eval_data.error_occurred else "❌ Error"
@@ -368,7 +368,7 @@ class EvaluationDashboard(QWidget):
                     status_item.setBackground(QColor(255, 182, 193))  # Light red
                 else:
                     status_item.setBackground(QColor(144, 238, 144))  # Light green
-                self.recent_table.setItem(row, 5, status_item)
+                self.recent_table.setItem(row, 6, status_item)
 
             self.recent_table.resizeColumnsToContents()
 
@@ -454,11 +454,11 @@ Worst Day: {summary.get('worst_day', 'N/A')}
                 self, "Export Evaluation Data", f"evaluation_data_{days}days.{format_type}", file_filter
             )
 
+            from evaluation.integration import get_evaluation_integrator
+            integrator = get_evaluation_integrator()
+
             if filename:
-                if format_type == "csv":
-                    self.db.export_to_csv(filename, days)
-                else:  # JSON
-                    self.export_to_json(filename, days)
+                integrator.export_evaluation_data(filename, days, format_type)
 
                 QMessageBox.information(self, "Export Complete",
                                       f"Data exported successfully to {filename}")
@@ -466,24 +466,7 @@ Worst Day: {summary.get('worst_day', 'N/A')}
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export data: {e}")
 
-    def export_to_json(self, filename: str, days: int):
-        """Export data to JSON format."""
-        evaluations = self.db.get_evaluations_by_date_range(
-            (datetime.now() - timedelta(days=days)).isoformat(),
-            datetime.now().isoformat()
-        )
 
-        data = {
-            'export_info': {
-                'generated_at': datetime.now().isoformat(),
-                'days': days,
-                'total_records': len(evaluations)
-            },
-            'evaluations': [asdict(eval) for eval in evaluations]
-        }
-
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
 
     def _color_code_score(self, item: QTableWidgetItem, score: float):
         """Color code table items based on score."""

@@ -24,7 +24,7 @@ class ThreadManager:
         self.active_futures = set()  # Use set to prevent duplicates
         self._shutdown = False
 
-        logger.info(f"ThreadManager initialized with {max_workers} max workers")
+        logger.info(f"ThreadManager initialized with {max_workers} max workers and prefix '{thread_name_prefix}'")
 
     def submit_task(
         self,

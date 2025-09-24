@@ -38,10 +38,25 @@ class HealthMonitor:
     Provides status reporting and alerting capabilities.
     """
 
-    def __init__(self):
+    def __init__(self,
+                 memory_warning_threshold: float = 80.0,
+                 memory_critical_threshold: float = 90.0,
+                 cpu_warning_threshold: float = 85.0,
+                 cpu_critical_threshold: float = 95.0,
+                 disk_warning_threshold: float = 90.0,
+                 disk_critical_threshold: float = 95.0,
+                 disk_check_path: str = '/'):
         self.health_checks: Dict[str, HealthCheck] = {}
         self.alert_callbacks: List[Callable[[str, HealthStatus, Dict], None]] = []
         self.status_history: Dict[str, List[Dict]] = {}
+
+        self.memory_warning_threshold = memory_warning_threshold
+        self.memory_critical_threshold = memory_critical_threshold
+        self.cpu_warning_threshold = cpu_warning_threshold
+        self.cpu_critical_threshold = cpu_critical_threshold
+        self.disk_warning_threshold = disk_warning_threshold
+        self.disk_critical_threshold = disk_critical_threshold
+        self.disk_check_path = disk_check_path
 
         # Add default system health checks
         self.add_health_check("system_memory", self._check_system_memory, interval=60.0)
@@ -219,10 +234,10 @@ class HealthMonitor:
         memory = psutil.virtual_memory()
         usage_percent = memory.percent
 
-        if usage_percent > 90:
+        if usage_percent > self.memory_critical_threshold:
             status = HealthStatus.CRITICAL
             message = f"Memory usage critical: {usage_percent:.1f}%"
-        elif usage_percent > 80:
+        elif usage_percent > self.memory_warning_threshold:
             status = HealthStatus.WARNING
             message = f"Memory usage high: {usage_percent:.1f}%"
         else:
@@ -241,10 +256,10 @@ class HealthMonitor:
         """Check system CPU usage."""
         cpu_percent = psutil.cpu_percent(interval=1)
 
-        if cpu_percent > 95:
+        if cpu_percent > self.cpu_critical_threshold:
             status = HealthStatus.CRITICAL
             message = f"CPU usage critical: {cpu_percent:.1f}%"
-        elif cpu_percent > 85:
+        elif cpu_percent > self.cpu_warning_threshold:
             status = HealthStatus.WARNING
             message = f"CPU usage high: {cpu_percent:.1f}%"
         else:
@@ -260,13 +275,13 @@ class HealthMonitor:
 
     def _check_disk_space(self) -> Dict[str, Any]:
         """Check disk space usage."""
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage(self.disk_check_path)
         usage_percent = disk.percent
 
-        if usage_percent > 95:
+        if usage_percent > self.disk_critical_threshold:
             status = HealthStatus.CRITICAL
             message = f"Disk space critical: {usage_percent:.1f}%"
-        elif usage_percent > 90:
+        elif usage_percent > self.disk_warning_threshold:
             status = HealthStatus.WARNING
             message = f"Disk space low: {usage_percent:.1f}%"
         else:

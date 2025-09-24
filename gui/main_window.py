@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QPushButton, QSplitter, QStatusBar, QToolBar, QMenuBar, QMenu,
     QMessageBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction
 
 # Add src to path for backend imports
@@ -39,9 +39,15 @@ from src.service_manager import get_service_manager
 class CUBOGUI(QMainWindow):
     """Main application window for CUBO."""
 
+    # Signal for updating UI with results
+    update_results_signal = Signal(str, list)
+
     def __init__(self):
         super().__init__()
         self.service_manager = get_service_manager()
+        
+        # Connect signal to slot
+        self.update_results_signal.connect(self._update_ui_with_results)
         
         # Initialize backend components
         self._init_backend()
@@ -117,7 +123,7 @@ class CUBOGUI(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface."""
-        self.setWindowTitle("CUBO - Enterprise RAG System")
+        self.setWindowTitle("CUBO")
         self.setGeometry(100, 100, 1200, 800)
 
         # Create central widget
@@ -129,23 +135,15 @@ class CUBOGUI(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Create splitter for resizable panels
-        splitter = QSplitter(Qt.Horizontal)
-        main_layout.addWidget(splitter)
-
         # Document widget (left panel)
         self.document_widget = DocumentWidget()
-        self.document_widget.setMinimumWidth(300)
-        self.document_widget.setMaximumWidth(400)
-        splitter.addWidget(self.document_widget)
+        self.document_widget.setFixedWidth(350) # Fixed width
+        main_layout.addWidget(self.document_widget)
 
         # Query widget (right panel)
         self.query_widget = QueryWidget()
-        self.query_widget.setMinimumWidth(500)
-        splitter.addWidget(self.query_widget)
-
-        # Set splitter proportions
-        splitter.setSizes([350, 850])
+        self.query_widget.setFixedWidth(850) # Fixed width
+        main_layout.addWidget(self.query_widget)
 
         # Connect signals
         self.document_widget.document_uploaded.connect(self.on_document_uploaded)
@@ -167,16 +165,6 @@ class CUBOGUI(QMainWindow):
         toolbar = self.addToolBar("Main Toolbar")
         toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        # Clear chat
-        clear_action = QAction("🗑️ Clear Chat", self)
-        clear_action.triggered.connect(self.clear_chat)
-        toolbar.addAction(clear_action)
-
-        # Clear session
-        clear_session_action = QAction("🔄 New Session", self)
-        clear_session_action.triggered.connect(self.clear_session)
-        toolbar.addAction(clear_session_action)
-
     def init_menu_bar(self):
         """Initialize the menu bar."""
         menubar = self.menuBar()
@@ -197,10 +185,6 @@ class CUBOGUI(QMainWindow):
         # View menu
         view_menu = menubar.addMenu("View")
 
-        clear_chat_action = QAction("Clear Chat", self)
-        clear_chat_action.triggered.connect(self.clear_chat)
-        view_menu.addAction(clear_chat_action)
-
         # Settings menu
         settings_menu = menubar.addMenu("Settings")
 
@@ -215,45 +199,9 @@ class CUBOGUI(QMainWindow):
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
-    def clear_chat(self):
-        """Clear the chat display."""
-        self.query_widget.clear_chat()
 
-    def clear_session(self):
-        """Clear current session and start fresh."""
-        reply = QMessageBox.question(
-            self, "New Session",
-            "This will clear all loaded documents from the current session.\n"
-            "Documents will remain cached in the database for future use.\n\n"
-            "Continue?",
-            QMessageBox.Yes | QMessageBox.No
-        )
 
-        if reply == QMessageBox.Yes:
-            try:
-                # Check if backend is initialized
-                if not self.retriever:
-                    QMessageBox.critical(self, "Backend Error", "Backend components not initialized.")
-                    return
-                
-                # Clear current session tracking
-                self.retriever.clear_current_session()
 
-                # Clear document list in UI
-                self.document_widget.clear_documents()
-
-                # Clear chat
-                self.query_widget.clear_chat()
-
-                # Update status
-                self.status_bar.showMessage("New session started")
-
-                # Debug info
-                debug_info = self.retriever.debug_collection_info()
-                print(f"Session cleared. DB status: {debug_info}")
-
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to clear session: {e}")
 
     def upload_documents(self):
         """Upload documents."""
@@ -370,58 +318,82 @@ class CUBOGUI(QMainWindow):
                 self.status_bar.showMessage("Ready")
                 return
 
-            # Use service manager for async query processing
+            # Use service manager for async query processing with automatic data saving
             from src.generator import ResponseGenerator
 
             generator = ResponseGenerator()
 
-            def process_query():
-                try:
-                    # Retrieve relevant documents (only from current session)
-                    top_k = settings.get("retrieval", {}).get("top_k", 3)
-                    relevant_docs_data = self.retriever.retrieve_top_documents(query, top_k=top_k)
+            # Get retrieval settings and retrieve documents
+            top_k = settings.get("retrieval", {}).get("top_k", 3)
+            relevant_docs_data = self.retriever.retrieve_top_documents(query, top_k=top_k)
 
-                    # Extract document text from results
-                    relevant_docs = [doc_data['document'] for doc_data in relevant_docs_data]
+            # Extract document text and build context
+            relevant_docs = [doc_data['document'] for doc_data in relevant_docs_data]
+            context = "\n\n".join(relevant_docs) if relevant_docs else ""
 
-                    # Build context from retrieved documents
-                    context = "\n\n".join(relevant_docs) if relevant_docs else ""
+            # Extract sources from metadata
+            sources = []
+            for doc_data in relevant_docs_data:
+                filename = doc_data['metadata'].get('filename', 'Unknown')
+                if filename not in sources:
+                    sources.append(filename)
 
-                    # Generate response
-                    response = generator.generate_response(query, context=context)
-
-                    # Extract sources from metadata
-                    sources = []
-                    for doc_data in relevant_docs_data:
-                        filename = doc_data['metadata'].get('filename', 'Unknown')
-                        if filename not in sources:
-                            sources.append(filename)
-
-                    return response, sources
-
-                except Exception as e:
-                    raise e
-
-            # Submit async task
-            future = self.service_manager.execute_async('llm_generation', process_query)
+            # Use generate_response_async which automatically saves data to evaluation database
+            future = self.service_manager.generate_response_async(
+                query=query,
+                context=context,
+                generator_func=lambda q, c: generator.generate_response(q, context=c),
+                sources=relevant_docs  # Pass actual document content, not just filenames
+            )
+            print(f"DEBUG: Future created with data saving: {future}")
 
             # Handle completion
-            def on_complete(result):
-                response, sources = result
-                # Update UI
-                self.query_widget.display_results(response, sources)
-                self.status_bar.showMessage("Ready")
+            def on_complete(response):
+                print(f"DEBUG: on_complete called with response type: {type(response)}")
+                print(f"DEBUG: Response length: {len(response) if response else 0}")
+                # Data is automatically saved by generate_response_async
+                print("DEBUG: Data automatically saved to evaluation database")
+                # Update UI in main thread using signal
+                print("DEBUG: Emitting update_results_signal")
+                self.update_results_signal.emit(response, sources)
+                print("DEBUG: Signal emitted")
 
             def on_error(error):
-                self.status_bar.showMessage("Error")
-                QMessageBox.critical(self, "Query Error", f"Failed to process query: {error}")
+                print(f"DEBUG: on_error called with error: {error}")
+                # Update UI in main thread
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: self._handle_query_error(error))
 
             # Set up callbacks
+            print("DEBUG: Setting up future callbacks")
             future.add_done_callback(lambda f: on_complete(f.result()) if not f.exception() else on_error(f.exception()))
+            print("DEBUG: Callbacks set up successfully")
 
         except Exception as e:
             self.status_bar.showMessage("Error")
             QMessageBox.critical(self, "Query Error", f"Failed to process query: {e}")
+
+    def _update_ui_with_results(self, response, sources):
+        """Update UI with query results (called in main thread)."""
+        try:
+            print(f"DEBUG: Updating UI with response (length: {len(response) if response else 0})")
+            print(f"DEBUG: Sources: {sources}")
+            self.query_widget.display_results(response, sources)
+            self.status_bar.showMessage("Ready")
+            print("DEBUG: UI update completed successfully")
+        except Exception as e:
+            print(f"Error updating UI with results: {e}")
+            import traceback
+            traceback.print_exc()
+            self.status_bar.showMessage("Error displaying results")
+
+    def _handle_query_error(self, error):
+        """Handle query error (called in main thread)."""
+        try:
+            self.status_bar.showMessage("Error")
+            QMessageBox.critical(self, "Query Error", f"Failed to process query: {error}")
+        except Exception as e:
+            print(f"Error handling query error: {e}")
 
     def show_advanced_settings(self):
         """Show advanced settings dialog."""
