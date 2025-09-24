@@ -41,6 +41,7 @@ class DocumentRetriever:
         
         # Cache file path for testing
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
+        self._load_cache()  # Load existing cache from disk
         
         # Initialize postprocessors if using sentence windows
         if self.use_sentence_window:

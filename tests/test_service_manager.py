@@ -12,7 +12,6 @@ from src.health_monitor import HealthStatus
 
 
 class TestServiceManager:
-    """Test cases for ServiceManager class."""
 
     def test_initialization(self):
         """Test ServiceManager initialization."""
@@ -305,7 +304,7 @@ class TestServiceManager:
         def response_generator(query, context):
             return f"Response to {query} with {context}"
 
-        future = sm.generate_response_async("test query", "test context", response_generator)
+        future = sm.generate_response_async("test query", "test context", response_generator, ["source1", "source2"])
         result = future.result(timeout=5)
         assert result == "Response to test query with test context"
 
