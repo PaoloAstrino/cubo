@@ -221,7 +221,12 @@ class EvaluationDatabase:
                     FROM evaluations
                     WHERE timestamp >= ? AND error_occurred = 0 AND {metric} IS NOT NULL
                 ''', (cutoff_date,)).fetchone()
-                score_distributions[metric] = dict(dist)
+                score_distributions[metric] = {
+                    'excellent': dist[0],
+                    'good': dist[1], 
+                    'fair': dist[2],
+                    'poor': dist[3]
+                }
 
             # Top performing queries
             top_queries = conn.execute('''
@@ -247,10 +252,27 @@ class EvaluationDatabase:
                 'total_queries': total_queries,
                 'successful_queries': successful_queries,
                 'success_rate': successful_queries / max(total_queries, 1),
-                'average_scores': dict(scores) if scores else {},
+                'average_scores': {
+                    'avg_answer_relevance': scores[0] if scores else None,
+                    'avg_context_relevance': scores[1] if scores else None,
+                    'avg_groundedness': scores[2] if scores else None,
+                    'avg_response_time': scores[3] if scores else None
+                } if scores else {},
                 'score_distributions': score_distributions,
-                'top_performing_queries': [dict(row) for row in top_queries],
-                'common_errors': [dict(row) for row in error_types],
+                'top_performing_queries': [
+                    {
+                        'question': row[0],
+                        'answer_relevance_score': row[1],
+                        'context_relevance_score': row[2],
+                        'groundedness_score': row[3]
+                    } for row in top_queries
+                ],
+                'common_errors': [
+                    {
+                        'error_message': row[0],
+                        'count': row[1]
+                    } for row in error_types
+                ],
                 'generated_at': datetime.now().isoformat()
             }
 

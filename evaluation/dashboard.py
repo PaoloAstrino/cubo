@@ -8,9 +8,14 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import json
+import logging
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -30,9 +35,16 @@ class EvaluationDashboard(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.db = EvaluationDatabase()
-        self.analyzer = PerformanceAnalyzer(self.db)
-        self.current_metrics = {}
+        try:
+            self.db = EvaluationDatabase()
+            self.analyzer = PerformanceAnalyzer(self.db)
+            self.current_metrics = {}
+            logger.info("Dashboard components initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize dashboard components: {e}")
+            QMessageBox.critical(self, "Initialization Error",
+                               f"Failed to initialize dashboard: {e}")
+            raise
         self.init_ui()
         self.load_data()
 

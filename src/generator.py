@@ -1,10 +1,11 @@
 import ollama
 import time
-from typing import List, Dict, Any
+from typing import List, Dict
 from colorama import Fore, Style
 from src.config import config
 from src.logger import logger
 from src.service_manager import get_service_manager
+
 
 class ResponseGenerator:
     """Handles response generation using Ollama LLM for CUBO."""
@@ -12,7 +13,11 @@ class ResponseGenerator:
     def __init__(self):
         self.messages = []
         self.service_manager = get_service_manager()
-        self.system_prompt = "You are an AI assistant that answers queries strictly based on the provided context from documents. Do not use any external knowledge, assumptions, or invented information. If the context does not contain relevant information to answer the query, respond with: 'The provided documents do not contain information to answer this query.'"
+        self.system_prompt = ("You are an AI assistant that answers queries strictly based on the "
+                              "provided context from documents. Do not use any external knowledge, "
+                              "assumptions, or invented information. If the context does not contain "
+                              "relevant information to answer the query, respond with: 'The provided "
+                              "documents do not contain information to answer this query.'")
 
     def initialize_conversation(self):
         """Initialize the conversation with system prompt."""

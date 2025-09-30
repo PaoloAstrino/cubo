@@ -219,9 +219,9 @@ class HealthMonitor:
 
         # Trigger alert if status changed to warning/critical or recovered
         if (current_status in [HealthStatus.WARNING, HealthStatus.CRITICAL] and
-            previous_status not in [HealthStatus.WARNING, HealthStatus.CRITICAL]) or \
-           (current_status == HealthStatus.HEALTHY and
-            previous_status in [HealthStatus.WARNING, HealthStatus.CRITICAL]):
+                previous_status not in [HealthStatus.WARNING, HealthStatus.CRITICAL]) or \
+                (current_status == HealthStatus.HEALTHY and
+                 previous_status in [HealthStatus.WARNING, HealthStatus.CRITICAL]):
 
             for callback in self.alert_callbacks:
                 try:

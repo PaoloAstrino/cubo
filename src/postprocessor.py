@@ -42,11 +42,19 @@ class LocalReranker:
         self.model = model
         self.top_n = top_n
 
-    def rerank(self, query: str, candidates: List[Dict]) -> List[Dict]:
+    def rerank(self, query: str, candidates: List[Dict], max_results: int = None) -> List[Dict]:
         """
         Rerank candidates using semantic similarity to query.
+        
+        Args:
+            query: Search query
+            candidates: List of candidate documents
+            max_results: Maximum number of results to return (None = return all)
         """
-        if len(candidates) <= self.top_n:
+        if not max_results:
+            max_results = len(candidates)
+            
+        if len(candidates) <= max_results:
             return candidates
 
         try:
@@ -65,16 +73,16 @@ class LocalReranker:
                     similarity = self._cosine_similarity(query_embedding, doc_embedding)
                     scored_candidates.append((candidate, similarity))
 
-            # Sort by similarity (descending) and return top_n
+            # Sort by similarity (descending) and return top results
             scored_candidates.sort(key=lambda x: x[1], reverse=True)
-            reranked = [candidate for candidate, _ in scored_candidates[:self.top_n]]
+            reranked = [candidate for candidate, _ in scored_candidates[:max_results]]
 
-            logger.debug(f"Reranked {len(candidates)} candidates to top {self.top_n}")
+            logger.debug(f"Reranked {len(candidates)} candidates to top {max_results}")
             return reranked
 
         except Exception as e:
             logger.warning(f"Reranking failed, returning original candidates: {e}")
-            return candidates[:self.top_n]
+            return candidates[:max_results]
 
     def _cosine_similarity(self, a, b):
         """Calculate cosine similarity between two vectors."""

@@ -34,6 +34,17 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
+      - name: Test Dolphin integration (optional)
+        run: |
+          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
+          # Test Dolphin download script (without actually downloading)
+          python -c "import sys; sys.path.insert(0, '.'); from download_dolphin import download_dolphin_model, test_dolphin_model; print('Dolphin scripts import successfully')"
+          # Test enhanced document processor initialization
+          python -c "from src.enhanced_document_processor import EnhancedDocumentProcessor; from src.config import config; print('Enhanced processor imports successfully')"
+          # Test Dolphin processor import
+          python -c "from src.dolphin_processor import DolphinProcessor; print('Dolphin processor imports successfully')"
+        continue-on-error: true # Don't fail if Dolphin model not available in CI
+
       - name: Run tests
         run: |
           $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
@@ -52,6 +63,40 @@ jobs:
           python -c "from src.error_recovery import ErrorRecoveryManager; erm = ErrorRecoveryManager(); result = erm.execute_with_recovery('test', lambda: 'success'); assert result == 'success'"
           # Test health monitor
           python -c "from src.health_monitor import HealthMonitor; hm = HealthMonitor(); status = hm.get_health_status(); assert 'overall_status' in status"
+
+      - name: Test enhanced document processing
+        run: |
+          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
+          # Test automatic enhanced processing detection
+          python -c "
+          from src.document_loader import DocumentLoader
+          from src.config import config
+          import tempfile
+          import os
+
+          # Test document loader initialization
+          dl = DocumentLoader()
+          print('Document loader initialized successfully')
+
+          # Test automatic enhanced processing detection
+          dolphin_enabled = config.get('dolphin', {}).get('enabled', False)
+          has_enhanced_processor = dl.enhanced_processor is not None
+          print(f'Dolphin enabled in config: {dolphin_enabled}')
+          print(f'Enhanced processor available: {has_enhanced_processor}')
+
+          # Test with a simple text file
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+              f.write('This is a test document for enhanced processing.')
+              temp_file = f.name
+
+          try:
+              chunks = dl.load_single_document(temp_file)
+              print(f'Successfully processed document into {len(chunks)} chunks')
+              assert len(chunks) > 0, 'Should produce at least one chunk'
+              print('Enhanced document processing: PASSED')
+          finally:
+              os.unlink(temp_file)
+          "
 
       - name: Validate backend reliability features
         run: |
@@ -136,10 +181,15 @@ jobs:
       - name: Build executable
         run: |
           pip install pyinstaller
+          # Build with enhanced processing support
           pyinstaller --onefile --exclude-module tensorflow --exclude-module tf_keras --exclude-module sklearn src/main.py --name cubo
+          # Also build the GUI launcher
+          pyinstaller --onefile --exclude-module tensorflow --exclude-module tf_keras --exclude-module sklearn launch_gui.py --name cubo-gui
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cubo-exe
-          path: dist/cubo.exe
+          name: cubo-executables
+          path: |
+            dist/cubo.exe
+            dist/cubo-gui.exe

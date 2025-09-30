@@ -19,12 +19,27 @@ from src.service_manager import get_service_manager
 class DocumentRetriever:
     """Handles document retrieval using ChromaDB and sentence transformers."""
 
-    def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True, window_size: int = 3, top_k: int = 3):
+    def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True, 
+                 use_auto_merging: bool = False, auto_merge_for_complex: bool = True,
+                 window_size: int = 3, top_k: int = 3):
         self.model = model
         self.service_manager = get_service_manager()
-        self.use_sentence_window = True  # Always use sentence window for optimal quality
+        self.use_sentence_window = use_sentence_window
+        self.use_auto_merging = use_auto_merging
+        self.auto_merge_for_complex = auto_merge_for_complex
         self.window_size = window_size
         self.top_k = top_k
+        
+        # Initialize auto-merging retriever if enabled
+        self.auto_merging_retriever = None
+        if self.use_auto_merging:
+            try:
+                from .custom_auto_merging import AutoMergingRetriever
+                self.auto_merging_retriever = AutoMergingRetriever(self.model)
+                logger.info("Custom auto-merging retriever initialized")
+            except ImportError as e:
+                logger.warning(f"Auto-merging retrieval not available: {e}")
+                self.use_auto_merging = False
         
         self.client = chromadb.PersistentClient(
             path=config.get("chroma_db_path", "./chroma_db")
@@ -56,7 +71,7 @@ class DocumentRetriever:
             self.window_postprocessor = None
             self.reranker = None
 
-        logger.info(f"Document retriever initialized (sentence_window={use_sentence_window})")
+        logger.info(f"Document retriever initialized (sentence_window={use_sentence_window}, auto_merging={use_auto_merging})")
 
     def _get_file_hash(self, filepath: str) -> str:
         """Get hash of file content for caching."""
@@ -268,15 +283,45 @@ class DocumentRetriever:
     def retrieve_top_documents(self, query: str, top_k: int = 6) -> List[Dict]:
         """
         Retrieve top-k most relevant document chunks for the current session.
-        Includes postprocessing for sentence window retrieval.
+        Smart selection between sentence window and auto-merging retrieval.
 
         Args:
             query: Search query
-            top_k: Number of results to return (gets more candidates for reranking)
+            top_k: Number of results to return
 
         Returns:
             List of dictionaries with document, metadata, and similarity
         """
+        # Analyze query complexity to choose retrieval method
+        is_complex = self._analyze_query_complexity(query)
+        
+        if self.auto_merge_for_complex and is_complex and self.use_auto_merging and self.auto_merging_retriever:
+            # Use auto-merging for complex queries
+            logger.info("Using auto-merging retrieval for complex query")
+            return self._retrieve_auto_merging(query, top_k)
+        else:
+            # Use sentence window retrieval
+            logger.info("Using sentence window retrieval")
+            return self._retrieve_sentence_window(query, top_k)
+    
+    def _analyze_query_complexity(self, query: str) -> bool:
+        """Determine if query needs complex retrieval."""
+        complex_indicators = [
+            'why', 'how', 'explain', 'compare', 'analyze',
+            'relationship', 'difference', 'benefits', 'impact',
+            'advantages', 'disadvantages', 'vs', 'versus'
+        ]
+        
+        query_lower = query.lower()
+        # Check for complex keywords
+        has_complex_keywords = any(indicator in query_lower for indicator in complex_indicators)
+        # Check for long queries
+        is_long_query = len(query.split()) > 12
+        
+        return has_complex_keywords or is_long_query
+    
+    def _retrieve_sentence_window(self, query: str, top_k: int) -> List[Dict]:
+        """Retrieve using sentence window method."""
         def _retrieve_operation():
             if not self.current_documents:
                 logger.warning("No documents loaded in current session")
@@ -316,14 +361,43 @@ class DocumentRetriever:
 
             # Apply reranking if available
             if self.use_sentence_window and self.reranker and len(candidates) > top_k:
-                candidates = self.reranker.rerank(query, candidates)
+                # Rerank but keep all candidates (don't limit to reranker.top_n)
+                reranked = self.reranker.rerank(query, candidates, max_results=len(candidates))
+                if reranked:
+                    candidates = reranked
 
             # Return top results
             final_results = candidates[:top_k]
-            logger.info(f"Retrieved {len(final_results)} chunks from {len(self.current_documents)} current documents")
+            logger.info(f"Retrieved {len(final_results)} chunks using sentence window")
             return final_results
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
+    
+    def _retrieve_auto_merging(self, query: str, top_k: int) -> List[Dict]:
+        """Retrieve using auto-merging method."""
+        try:
+            if not self.auto_merging_retriever:
+                logger.warning("Auto-merging retriever not available, falling back to sentence window")
+                return self._retrieve_sentence_window(query, top_k)
+
+            # Get results from auto-merging retriever
+            results = self.auto_merging_retriever.retrieve(query, top_k=top_k)
+
+            # Convert to CUBO format
+            formatted_results = []
+            for result in results:
+                formatted_results.append({
+                    "document": result.get('document', ''),
+                    "metadata": result.get('metadata', {}),
+                    "similarity": result.get('similarity', 1.0)
+                })
+
+            logger.info(f"Retrieved {len(formatted_results)} chunks using auto-merging")
+            return formatted_results
+
+        except Exception as e:
+            logger.error(f"Auto-merging retrieval failed: {e}, falling back to sentence window")
+            return self._retrieve_sentence_window(query, top_k)
 
     def get_loaded_documents(self) -> List[str]:
         """Get list of currently loaded document filenames."""

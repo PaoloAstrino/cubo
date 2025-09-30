@@ -24,7 +24,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QSplitter, QStatusBar, QToolBar, QMenuBar, QMenu,
-    QMessageBox
+    QMessageBox, QComboBox
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction
@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from gui.components import DocumentWidget, QueryWidget
 from src.service_manager import get_service_manager
+from src.logger import logger
 
 
 class CUBOGUI(QMainWindow):
@@ -102,8 +103,18 @@ class CUBOGUI(QMainWindow):
             if self.model:
                 try:
                     from src.retriever import DocumentRetriever
-                    self.retriever = DocumentRetriever(self.model)
-                    logger.info("Document retriever initialized")
+                    # Initialize with both retrieval methods enabled
+                    self.retriever = DocumentRetriever(
+                        self.model, 
+                        use_sentence_window=True,
+                        use_auto_merging=True,
+                        auto_merge_for_complex=True
+                    )
+                    logger.info("Document retriever initialized with dual retrieval support")
+                    
+                    # Auto-load all documents from data directory
+                    self._auto_load_documents()
+                    
                 except Exception as retriever_error:
                     logger.error(f"Failed to initialize retriever: {retriever_error}")
                     self.retriever = None
@@ -120,6 +131,70 @@ class CUBOGUI(QMainWindow):
             self.model = None
             self.document_loader = None
             self.retriever = None
+
+    def _auto_load_documents(self):
+        """Automatically load all documents from the data directory at startup."""
+        import os
+        from pathlib import Path
+        import logging
+        from src.config import config
+        
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Get data directory path
+            data_dir = Path(__file__).parent.parent / "data"
+            
+            if not data_dir.exists():
+                logger.info("Data directory not found, skipping auto-load")
+                return
+            
+            # Get all supported file extensions
+            supported_extensions = self.document_loader.supported_extensions
+            
+            # Find all supported files
+            document_files = []
+            for ext in supported_extensions:
+                document_files.extend(data_dir.glob(f"**/*{ext}"))
+            
+            if not document_files:
+                logger.info("No documents found in data directory")
+                return
+            
+            logger.info(f"Auto-loading {len(document_files)} documents from {data_dir}")
+            
+            # Load each document
+            loaded_count = 0
+            for filepath in document_files:
+                try:
+                    filepath_str = str(filepath)
+                    logger.info(f"Auto-loading document: {filepath.name}")
+                    
+                    # Load and chunk the document
+                    documents = self.document_loader.load_single_document(filepath_str)
+                    
+                    if documents:
+                        # Add to retriever
+                        success = self.retriever.add_document(filepath_str, documents)
+                        if success:
+                            loaded_count += 1
+                            logger.info(f"Successfully auto-loaded: {filepath.name}")
+                        else:
+                            logger.warning(f"Failed to add to retriever: {filepath.name}")
+                    else:
+                        logger.warning(f"No content extracted from: {filepath.name}")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to auto-load {filepath.name}: {e}")
+            
+            logger.info(f"Auto-loading completed: {loaded_count}/{len(document_files)} documents loaded")
+            
+            # Update status if any documents were loaded
+            if loaded_count > 0:
+                self.status_bar.showMessage(f"Ready - {loaded_count} documents auto-loaded")
+            
+        except Exception as e:
+            logger.error(f"Auto-loading failed: {e}")
 
     def init_ui(self):
         """Initialize the user interface."""
@@ -160,10 +235,48 @@ class CUBOGUI(QMainWindow):
         # Create menu bar
         self.init_menu_bar()
 
-    def init_toolbar(self):
-        """Initialize the toolbar."""
-        toolbar = self.addToolBar("Main Toolbar")
-        toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    def change_retrieval_method(self):
+        """Change the retrieval method."""
+        if not self.retriever:
+            QMessageBox.warning(self, "No Retriever", "Document retriever not initialized.")
+            return
+            
+        method = self.retrieval_combo.currentText()
+        
+        try:
+            if method == "Smart (Auto-select)":
+                use_sentence_window = True
+                use_auto_merging = True
+                auto_merge_for_complex = True
+            elif method == "Sentence Window Only":
+                use_sentence_window = True
+                use_auto_merging = False
+                auto_merge_for_complex = False
+            else:  # Auto-Merging Only
+                use_sentence_window = False
+                use_auto_merging = True
+                auto_merge_for_complex = False
+            
+            # Reinitialize retriever with new method
+            from src.retriever import DocumentRetriever
+            self.retriever = DocumentRetriever(
+                self.model, 
+                use_sentence_window=use_sentence_window,
+                use_auto_merging=use_auto_merging,
+                auto_merge_for_complex=auto_merge_for_complex
+            )
+            
+            # Reload documents with new retriever
+            self._auto_load_documents()
+            
+            self.status_bar.showMessage(f"Switched to {method} retrieval")
+            logger.info(f"Retrieval method changed to: {method}")
+            
+        except Exception as e:
+            logger.error(f"Failed to change retrieval method: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to change retrieval method: {e}")
+            # Reset combo box to previous state
+            self.retrieval_combo.setCurrentText("Smart (Auto-select)")
 
     def init_menu_bar(self):
         """Initialize the menu bar."""
@@ -233,6 +346,7 @@ class CUBOGUI(QMainWindow):
                         return filepath, False  # Already loaded
 
                     # Load and chunk the document
+                    from src.config import config
                     logger.info(f"Loading and chunking document: {filepath}")
                     documents = self.document_loader.load_single_document(filepath)
 
@@ -324,7 +438,7 @@ class CUBOGUI(QMainWindow):
             generator = ResponseGenerator()
 
             # Get retrieval settings and retrieve documents
-            top_k = settings.get("retrieval", {}).get("top_k", 3)
+            top_k = settings.get("retrieval", {}).get("top_k", 6)
             relevant_docs_data = self.retriever.retrieve_top_documents(query, top_k=top_k)
 
             # Extract document text and build context

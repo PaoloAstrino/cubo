@@ -36,7 +36,12 @@ class Config:
             "max_file_size_mb": 10,
             "rate_limit_seconds": 1,
             "log_level": "INFO",
-            "log_file": "./logs/rag_log.txt"
+            "log_file": "./logs/rag_log.txt",
+            "vector_db_path": "./chroma_db",
+            "auto_merging_chunk_sizes": [2048, 512, 128],
+            "auto_merging_collection_name": "cubo_auto_merging",
+            "auto_merging_candidate_multiplier": 3,
+            "auto_merging_parent_similarity_threshold": 0.1
         }
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -68,6 +73,7 @@ class Config:
     def all(self) -> Dict[str, Any]:
         """Get all configuration values."""
         return self._config.copy()
+
 
 # Global config instance
 config = Config()

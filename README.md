@@ -1,17 +1,26 @@
-# CUBO - AI Document Assistant v1.1.0
+# CUBO - AI Document Assistant v1.2.0
 
 [![CI/CD](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml)
 
 A modular Retrieval-Augmented Generation system using embedding models and Large Language Models (LLMs) with a modern desktop interface.
 
-## What's New in v1.1.0
+## What's New in v1.2.0
 
-- **Sentence Window Retrieval**: Advanced chunking with context windows for improved retrieval quality
-- **Desktop GUI**: Modern PySide6-based interface with drag-and-drop document upload
-- **Enhanced Responsiveness**: Optimized backend initialization and document processing
-- **Improved User Experience**: Real-time progress indicators and responsive chat interface
+- **Automatic Enhanced Processing**: Dolphin vision-language model integration for superior PDF/image parsing (works transparently)
+- **Seamless User Experience**: No technical choices required - system automatically uses best available processing
+- **Improved Document Understanding**: Better semantic embeddings with EmbeddingGemma-300M integration
+- **Enterprise-Ready**: Production-ready document processing without user configuration complexity
 
 ## Changelog
+
+### v1.2.0 (September 2025)
+
+- 🐬 **Dolphin Integration**: Added ByteDance/Dolphin vision-language model for superior PDF and image document parsing
+- ⚡ **Automatic Enhanced Processing**: System automatically uses enhanced processing when Dolphin is available (transparent to users)
+- 🧠 **EmbeddingGemma Integration**: Seamless integration with EmbeddingGemma-300M for high-quality semantic embeddings
+- 🎯 **User Experience**: Removed technical configuration options - users get best processing automatically
+- 🔧 **Architecture**: Enhanced document processor combining vision parsing with semantic embeddings
+- 📄 **Document Support**: Improved handling of PDFs, images, and complex documents with automatic fallback
 
 ### v1.1.0 (September 2025)
 
@@ -39,6 +48,8 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - **Multi-format Support**: Supports .txt, .docx, .pdf, and .md files
 - **Sentence Window Chunking**: Intelligent text chunking with configurable context windows for better retrieval
 - **Desktop GUI**: Modern PySide6-based interface with drag-and-drop functionality
+- **Enhanced Document Processing**: Automatic Dolphin vision-language model for superior PDF/image parsing when available
+- **Dual Retrieval System**: Sentence window + auto-merging retrieval with automatic method selection
 - **Device Auto-detection**: Automatically uses GPU (CUDA) if available, falls back to CPU
 - **Security Features**: Path sanitization, file size limits, and rate limiting
 - **Comprehensive Logging**: Detailed logging with configurable levels
@@ -118,10 +129,28 @@ cubo/
    - Ensure model files are in `models/` folder
 
 5. **Run Setup Wizard**:
+
    ```bash
    python src/main.py
    ```
+
    Follow the prompts to verify paths and models.
+
+6. **Optional: Enable Enhanced Document Processing** (Dolphin):
+
+   For superior PDF and image processing, download ByteDance/Dolphin (automatically used when available):
+
+   ```bash
+   # Download the 400MB Dolphin model
+   python download_dolphin.py --download
+
+   # Test the installation
+   python download_dolphin.py --test
+
+   # Enable in config.json (set "dolphin.enabled": true)
+   # The system will automatically use enhanced processing when Dolphin is available
+   ```
+   ```
 
 ### Offline Installation
 

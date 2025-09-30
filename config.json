@@ -19,7 +19,11 @@
     "tokenizer_name": "./models/embeddinggemma-300m"
   },
   "retrieval": {
-    "top_k": 3
+    "top_k": 3,
+    "auto_merging_chunk_sizes": [2048, 512, 128],
+    "auto_merging_collection_name": "cubo_auto_merging",
+    "auto_merging_candidate_multiplier": 3,
+    "auto_merging_parent_similarity_threshold": 0.1
   },
   "performance": {
     "use_gpu": true
@@ -29,5 +33,12 @@
     "gemini_api_key": "AIzaSyAbrcBCNPzzVuKgYzuLZFZ6kY4l4_bSakM",
     "gemini_model": "gemini-1.5-flash",
     "ollama_model": "llama3.2:latest"
+  },
+  "dolphin": {
+    "model_path": "./models/dolphin",
+    "enabled": true,
+    "pdf_dpi": 300,
+    "max_pages": 50,
+    "vision_prompt": "You are an expert document analyzer. Extract all text, tables, and structured information from this document image. Maintain the original formatting and structure as much as possible. If there are tables, represent them in markdown format. Be thorough and accurate."
   }
 }
