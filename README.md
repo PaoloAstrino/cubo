@@ -150,6 +150,9 @@ cubo/
    # Enable in config.json (set "dolphin.enabled": true)
    # The system will automatically use enhanced processing when Dolphin is available
    ```
+
+   ```
+
    ```
 
 ### Offline Installation

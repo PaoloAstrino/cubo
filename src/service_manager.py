@@ -54,6 +54,7 @@ class ServiceManager:
         Returns:
             Future object
         """
+
         def wrapped_operation():
             return self.error_recovery.execute_with_recovery(
                 operation_type, operation, *args, **kwargs
@@ -218,11 +219,13 @@ class ServiceManager:
     def _handle_health_alert(self, check_name: str, status: HealthStatus, details: Dict):
         """Handle health alerts."""
         if status in [HealthStatus.WARNING, HealthStatus.CRITICAL]:
-            logger.warning(f"Health alert - {check_name}: {status.value} - {details.get('message', '')}")
+            logger.warning(f"Health alert - {check_name}: {status.value} - "
+                           f"{details.get('message', '')}")
         elif status == HealthStatus.HEALTHY:
             logger.info(f"Health recovered - {check_name}: {details.get('message', '')}")
 
     # Convenience methods for common operations
+
     def process_document_async(self, filepath: str, processor_func: Callable, *args, **kwargs):
         """Process a document asynchronously with error recovery."""
         return self.execute_async('document_processing', processor_func, filepath, *args, **kwargs)
@@ -242,9 +245,11 @@ class ServiceManager:
         start_time = time.time()
 
         # First execute the generation
-        future = self.execute_async('llm_generation', generator_func, query, context, *args, **kwargs)
+        future = self.execute_async('llm_generation', generator_func, query, context,
+                                    *args, **kwargs)
 
         # Add data saving callback after generation completes
+
         def on_generation_complete(f):
             if not f.exception():
                 try:
@@ -260,14 +265,16 @@ class ServiceManager:
         future.add_done_callback(on_generation_complete)
         return future
 
-    def _save_query_data(self, question: str, answer: str, sources: List[str], response_time: float):
+    def _save_query_data(self, question: str, answer: str, sources: List[str],
+                         response_time: float):
         """Save query data without evaluation in background thread."""
         try:
+
             def save_data():
                 try:
                     # Import data saving function
                     from evaluation.integration import save_query_data_sync
-                    
+
                     # Save data without evaluation
                     success = save_query_data_sync(
                         question=question,
@@ -275,21 +282,21 @@ class ServiceManager:
                         contexts=sources,
                         response_time=response_time
                     )
-                    
+
                     if success:
                         logger.info(f"Query data saved successfully: {question[:50]}...")
                     else:
                         logger.error(f"Failed to save query data: {question[:50]}...")
-                    
+
                     return success
-                    
+
                 except Exception as e:
                     logger.error(f"Background data saving failed: {e}")
                     return False
 
             # Execute data saving in background (non-blocking)
             self.execute_async('data_saving', save_data, with_retry=False)
-            
+
         except Exception as e:
             logger.error(f"Failed to schedule evaluation: {e}")
 
@@ -297,12 +304,14 @@ class ServiceManager:
 # Global service manager instance
 _service_manager = None
 
+
 def get_service_manager() -> ServiceManager:
     """Get the global service manager instance."""
     global _service_manager
     if _service_manager is None:
         _service_manager = ServiceManager()
     return _service_manager
+
 
 def shutdown_service_manager():
     """Shutdown the global service manager."""

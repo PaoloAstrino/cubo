@@ -2,11 +2,12 @@
 Postprocessors for enhancing retrieval results in sentence window retrieval.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict
 import logging
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
 
 class WindowReplacementPostProcessor:
     """Replaces single sentence text with full window context."""
@@ -35,6 +36,7 @@ class WindowReplacementPostProcessor:
 
         return processed_results
 
+
 class LocalReranker:
     """Simple reranker using local embedding model."""
 
@@ -45,7 +47,7 @@ class LocalReranker:
     def rerank(self, query: str, candidates: List[Dict], max_results: int = None) -> List[Dict]:
         """
         Rerank candidates using semantic similarity to query.
-        
+
         Args:
             query: Search query
             candidates: List of candidate documents
@@ -53,7 +55,7 @@ class LocalReranker:
         """
         if not max_results:
             max_results = len(candidates)
-            
+
         if len(candidates) <= max_results:
             return candidates
 

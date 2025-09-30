@@ -79,7 +79,7 @@ class DocumentLoader:
                 )
 
                 logger.info(f"Loaded and chunked {os.path.basename(file_path)} into "
-                           f"{len(chunks)} chunks using {cfg['method']} method.")
+                            f"{len(chunks)} chunks using {cfg['method']} method.")
                 return chunks
             else:
                 logger.warning(f"No text content found in {file_path}")
@@ -130,7 +130,7 @@ class DocumentLoader:
                 )
 
                 logger.info(f"Loaded and chunked {os.path.basename(file_path)} into "
-                           f"{len(chunks)} chunks using {cfg['method']} method.")
+                            f"{len(chunks)} chunks using {cfg['method']} method.")
                 return chunks
             else:
                 logger.warning(f"No text content found in {file_path}")
@@ -159,8 +159,10 @@ class DocumentLoader:
             logger.warning(f"No supported files {self.supported_extensions} found in the specified folder or its subfolders.")
             return []
 
-        processing_method = "enhanced" if self.enhanced_processor and config.get("dolphin", {}).get("enabled", False) else "standard"
-        logger.info(f"Loading {len(supported_files)} documents from {folder_path} using {processing_method} processing...")
+        processing_method = "enhanced" if (self.enhanced_processor and
+                                           config.get("dolphin", {}).get("enabled", False)) else "standard"
+        logger.info(f"Loading {len(supported_files)} documents from {folder_path} "
+                    f"using {processing_method} processing...")
 
         for file_path in supported_files:
             chunks = self.load_single_document(file_path)
@@ -173,8 +175,10 @@ class DocumentLoader:
         """Load multiple documents from a list of file paths."""
         documents = []
 
-        processing_method = "enhanced" if self.enhanced_processor and config.get("dolphin", {}).get("enabled", False) else "standard"
-        logger.info(f"Loading {len(file_paths)} documents using {processing_method} processing...")
+        processing_method = "enhanced" if (self.enhanced_processor and
+                                           config.get("dolphin", {}).get("enabled", False)) else "standard"
+        logger.info(f"Loading {len(file_paths)} documents "
+                    f"using {processing_method} processing...")
 
         for file_path in file_paths:
             chunks = self.load_single_document(file_path)

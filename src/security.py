@@ -4,6 +4,7 @@ import secrets
 from cryptography.fernet import Fernet
 from src.logger import logger
 
+
 class SecurityManager:
     """Security utilities for CUBO: encryption, auditing, and secret management."""
 
@@ -21,7 +22,8 @@ class SecurityManager:
                 key = hashlib.sha256(key).digest()
             return key
         else:
-            error_msg = "CUBO_ENCRYPTION_KEY environment variable not set. Encryption/decryption will not work. Please set a secure, persistent key."
+            error_msg = ("CUBO_ENCRYPTION_KEY environment variable not set. "
+                         "Encryption/decryption will not work. Please set a secure, persistent key.")
             logger.critical(error_msg)
             raise ValueError(error_msg)
 
@@ -81,6 +83,7 @@ class SecurityManager:
         if len(sanitized) > max_length:
             sanitized = sanitized[:max_length] + "..."
         return sanitized.strip()
+
 
 # Global security manager instance
 security_manager = SecurityManager()

@@ -25,6 +25,7 @@ class ResponseGenerator:
 
     def generate_response(self, query: str, context: str, messages: List[Dict[str, str]] = None) -> str:
         """Generate a response using the LLM."""
+
         def _generate_operation():
             # Use provided messages or initialize new conversation
             if messages is None:

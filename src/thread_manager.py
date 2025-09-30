@@ -4,9 +4,8 @@ Manages thread pools for async operations with proper lifecycle management.
 """
 
 import time
-import weakref
 from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError
-from typing import Callable, Any, Optional
+from typing import Callable, Optional
 from contextlib import contextmanager
 import logging
 
@@ -24,7 +23,8 @@ class ThreadManager:
         self.active_futures = set()  # Use set to prevent duplicates
         self._shutdown = False
 
-        logger.info(f"ThreadManager initialized with {max_workers} max workers and prefix '{thread_name_prefix}'")
+        logger.info(f"ThreadManager initialized with {max_workers} max workers and "
+                    f"prefix '{thread_name_prefix}'")
 
     def submit_task(
         self,
@@ -49,6 +49,7 @@ class ThreadManager:
             raise RuntimeError("ThreadManager is shutting down")
 
         # Create a wrapper to handle timeouts and cleanup
+
         def task_wrapper():
             try:
                 if timeout:
@@ -84,6 +85,7 @@ class ThreadManager:
         self.active_futures.add(future)
 
         # Remove from tracking when done
+
         def cleanup_future(f):
             self.active_futures.discard(f)
             if f.exception():
@@ -111,6 +113,7 @@ class ThreadManager:
             retry_delay: Delay between retries in seconds
             timeout: Optional timeout per attempt
         """
+
         def retry_wrapper():
             last_exception = None
             current_retry_delay = retry_delay  # Local copy for modification
@@ -120,7 +123,8 @@ class ThreadManager:
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries:
-                        logger.warning(f"Task attempt {attempt + 1} failed: {e}. Retrying in {current_retry_delay}s...")
+                        logger.warning(f"Task attempt {attempt + 1} failed: {e}. "
+                                       f"Retrying in {current_retry_delay}s...")
                         time.sleep(current_retry_delay)
                         current_retry_delay *= 1.5  # Exponential backoff
                     else:

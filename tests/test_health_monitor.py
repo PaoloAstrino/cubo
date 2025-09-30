@@ -131,30 +131,39 @@ class TestHealthMonitor:
         """Test getting status for all health checks."""
         hm = HealthMonitor()
 
-        # Add a test check
-        def test_check():
-            return {
-                'status': HealthStatus.WARNING.value,
-                'message': 'Test warning',
-                'timestamp': time.time()
-            }
+        # Mock system checks to return healthy status
+        with patch('psutil.virtual_memory') as mock_memory, \
+             patch('psutil.cpu_percent') as mock_cpu, \
+             patch('psutil.disk_usage') as mock_disk:
 
-        hm.add_health_check('warning_check', test_check)
+            mock_memory.return_value = MagicMock(percent=50.0, available=8*1024**3)
+            mock_cpu.return_value = 30.0
+            mock_disk.return_value = MagicMock(percent=50.0, free=100*1024**3)
 
-        status = hm.get_health_status()
+            # Add a test check
+            def test_check():
+                return {
+                    'status': HealthStatus.WARNING.value,
+                    'message': 'Test warning',
+                    'timestamp': time.time()
+                }
 
-        assert 'overall_status' in status
-        assert 'checks' in status
-        assert 'timestamp' in status
+            hm.add_health_check('warning_check', test_check)
 
-        # Should have overall warning status due to warning check
-        assert status['overall_status'] == HealthStatus.WARNING.value
+            status = hm.get_health_status()
 
-        # Check all default checks are present
-        assert 'system_memory' in status['checks']
-        assert 'system_cpu' in status['checks']
-        assert 'disk_space' in status['checks']
-        assert 'warning_check' in status['checks']
+            assert 'overall_status' in status
+            assert 'checks' in status
+            assert 'timestamp' in status
+
+            # Should have overall warning status due to warning check
+            assert status['overall_status'] == HealthStatus.WARNING.value
+
+            # Check all default checks are present
+            assert 'system_memory' in status['checks']
+            assert 'system_cpu' in status['checks']
+            assert 'disk_space' in status['checks']
+            assert 'warning_check' in status['checks']
 
     def test_overall_status_determination(self):
         """Test overall status calculation logic."""

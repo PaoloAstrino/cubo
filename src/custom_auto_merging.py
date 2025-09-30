@@ -16,6 +16,7 @@ from src.logger import logger
 from src.config import config
 from src.utils import Utils
 
+
 class HierarchicalChunker:
     """Creates hierarchical chunks at multiple levels."""
 
@@ -146,7 +147,7 @@ class AutoMergingRetriever:
 
         # Use config for collection name and db path
         self.collection_name = config.get("auto_merging_collection_name", "cubo_auto_merging")
-        
+
         # Configurable parameters
         self.candidate_multiplier = config.get("auto_merging_candidate_multiplier", 3)
         self.parent_similarity_threshold = config.get("auto_merging_parent_similarity_threshold", 0.1)
@@ -202,7 +203,7 @@ class AutoMergingRetriever:
                 'end_pos': chunk['end_pos'],
                 'child_ids': json.dumps(chunk['child_ids'])
             }
-            
+
             # Only add parent_id if it's not None
             if chunk['parent_id'] is not None:
                 metadata['parent_id'] = chunk['parent_id']
@@ -344,4 +345,3 @@ class AutoMergingRetriever:
             logger.info("Cleared all auto-merging documents")
         except Exception as e:
             logger.error(f"Failed to clear documents: {e}")
-

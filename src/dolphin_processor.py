@@ -4,15 +4,15 @@ Dolphin Processor for CUBO
 Integrates ByteDance/Dolphin vision-language model with EmbeddingGemma-300M
 """
 
-import os
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from PIL import Image
 import torch
 from transformers import AutoTokenizer, AutoModelForVision2Seq, AutoProcessor
 
 logger = logging.getLogger(__name__)
+
 
 class DolphinProcessor:
     """Wrapper for ByteDance/Dolphin vision-language model."""
@@ -101,7 +101,7 @@ class DolphinProcessor:
             return ""
 
     def process_document_pages(self, images: List[Image.Image],
-                             page_prompts: Optional[List[str]] = None) -> List[str]:
+                               page_prompts: Optional[List[str]] = None) -> List[str]:
         """
         Process multiple document pages.
 
@@ -168,7 +168,7 @@ class DolphinProcessor:
             if line.isupper() or (len(line) < 50 and line.endswith(':')):
                 current_section = line.rstrip(':')
                 structured["sections"].append(current_section)
-            elif '|' in line and ('---' in lines[lines.index(line)+1] if lines.index(line)+1 < len(lines) else False):
+            elif '|' in line and ('---' in lines[lines.index(line) + 1] if lines.index(line) + 1 < len(lines) else False):
                 # Likely a table
                 structured["tables"].append(line)
 

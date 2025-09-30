@@ -6,9 +6,8 @@ A portable Retrieval-Augmented Generation system using embedding models and LLMs
 
 import argparse
 import os
-import sys
 import time
-from colorama import Fore, Style, init
+from colorama import init
 from src.config import config
 from src.logger import logger
 from src.model_loader import model_manager
@@ -20,6 +19,7 @@ from src.security import security_manager
 
 # Initialize colorama
 init()
+
 
 class CUBOApp:
     """Main application class for CUBO AI Document Assistant."""
@@ -33,11 +33,11 @@ class CUBOApp:
     def setup_wizard(self):
         """Setup wizard for initial configuration and model checks."""
         logger.info("Welcome to CUBO Setup Wizard!")
-        
+
         # Security validation
         if not security_manager.validate_environment():
             logger.warning("Some security environment variables are missing.")
-        
+
         # Check if config.json exists
         try:
             if not os.path.exists("config.json"):
@@ -49,7 +49,7 @@ class CUBOApp:
         except Exception as e:
             logger.error(f"Error handling config file: {e}")
             return
-        
+
         # Check model path
         try:
             model_path = config.get("model_path")
@@ -67,7 +67,7 @@ class CUBOApp:
         except Exception as e:
             logger.error(f"Error checking model path: {e}")
             return
-        
+
         # Check data folder
         try:
             data_folder = config.get("data_folder")
@@ -80,7 +80,7 @@ class CUBOApp:
         except Exception as e:
             logger.error(f"Error handling data folder: {e}")
             return
-        
+
         # Check logs folder
         try:
             log_file = config.get("log_file")
@@ -94,7 +94,7 @@ class CUBOApp:
         except Exception as e:
             logger.error(f"Error handling logs folder: {e}")
             return
-        
+
         # LLM Model Selection
         try:
             logger.info("Checking available Ollama models...")
@@ -103,10 +103,10 @@ class CUBOApp:
                 logger.info(f"Found {len(available_models)} Ollama models:")
                 for i, model in enumerate(available_models, 1):
                     logger.info(f"{i}. {model}")
-                
+
                 current_model = config.get("selected_llm_model", "llama3.2")
                 logger.info(f"Current selected model: {current_model}")
-                
+
                 # Auto-select if only one model available
                 if len(available_models) == 1:
                     if current_model != available_models[0]:
@@ -137,7 +137,7 @@ class CUBOApp:
                 logger.warning("You can change the selected model later in config.json")
         except Exception as e:
             logger.error(f"Error checking Ollama models: {e}")
-        
+
         # Optional config tweaks
         try:
             tweak = input("Do you want to tweak configuration? (y/n): ").lower()
@@ -196,7 +196,8 @@ class CUBOApp:
         logger.info("Initializing RAG system...")
 
         # Get data folder
-        data_folder_input = input(f"Enter path to data folder (default: {config.get('data_folder')}): ") or config.get("data_folder")
+        data_folder_input = input(f"Enter path to data folder "
+                                  f"(default: {config.get('data_folder')}): ") or config.get("data_folder")
         data_folder_input = security_manager.sanitize_input(data_folder_input)
         try:
             data_folder = Utils.sanitize_path(data_folder_input, os.getcwd())
@@ -320,7 +321,7 @@ class CUBOApp:
         try:
             # Run setup wizard
             self.setup_wizard()
-            
+
             parser = argparse.ArgumentParser(description="CUBO - AI Document Assistant using embedding model and Llama LLM.")
             parser.add_argument('--data_folder', help="Path to the folder containing documents.")
             parser.add_argument('--query', help="The query to process.")
@@ -339,6 +340,7 @@ class CUBOApp:
             import traceback
             traceback.print_exc()
             input("Press Enter to exit...")  # Keep terminal open for debugging
+
 
 if __name__ == "__main__":
     try:

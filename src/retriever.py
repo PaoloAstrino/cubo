@@ -3,9 +3,8 @@ CUBO Document Retriever
 Handles document embedding, storage, and retrieval with ChromaDB.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict
 import chromadb
-from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 import hashlib
 import os
@@ -19,7 +18,7 @@ from src.service_manager import get_service_manager
 class DocumentRetriever:
     """Handles document retrieval using ChromaDB and sentence transformers."""
 
-    def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True, 
+    def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True,
                  use_auto_merging: bool = False, auto_merge_for_complex: bool = True,
                  window_size: int = 3, top_k: int = 3):
         self.model = model
@@ -29,7 +28,7 @@ class DocumentRetriever:
         self.auto_merge_for_complex = auto_merge_for_complex
         self.window_size = window_size
         self.top_k = top_k
-        
+
         # Initialize auto-merging retriever if enabled
         self.auto_merging_retriever = None
         if self.use_auto_merging:
@@ -40,7 +39,7 @@ class DocumentRetriever:
             except ImportError as e:
                 logger.warning(f"Auto-merging retrieval not available: {e}")
                 self.use_auto_merging = False
-        
+
         self.client = chromadb.PersistentClient(
             path=config.get("chroma_db_path", "./chroma_db")
         )
@@ -50,14 +49,14 @@ class DocumentRetriever:
 
         # Track currently loaded documents
         self.current_documents = set()
-        
+
         # Query cache for testing
         self.query_cache = {}
-        
+
         # Cache file path for testing
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
         self._load_cache()  # Load existing cache from disk
-        
+
         # Initialize postprocessors if using sentence windows
         if self.use_sentence_window:
             from .postprocessor import WindowReplacementPostProcessor, LocalReranker
@@ -98,6 +97,7 @@ class DocumentRetriever:
         Returns:
             bool: True if added, False if already exists
         """
+
         def _add_document_operation():
             filename = self._get_filename_from_path(filepath)
 
@@ -121,7 +121,7 @@ class DocumentRetriever:
             # Prepare texts for embedding (use 'text' field for sentence window, or chunk itself for character)
             texts = []
             metadatas = []
-            
+
             for i, chunk in enumerate(chunks):
                 if isinstance(chunk, dict):
                     # Sentence window chunk
@@ -148,7 +148,7 @@ class DocumentRetriever:
                         "chunk_index": i,
                         "token_count": len(chunk.split())  # Approximate
                     }
-                
+
                 texts.append(text)
                 metadatas.append(metadata)
 
@@ -186,22 +186,22 @@ class DocumentRetriever:
     def add_documents(self, documents: List[str]) -> bool:
         """
         Add multiple documents directly (for testing purposes).
-        
+
         Args:
             documents: List of document strings
-            
+
         Returns:
             bool: True if any documents were added
         """
         if not documents:
             return True
-            
+
         # For testing, treat each document as a single chunk without requiring files
         added_any = False
         for i, doc in enumerate(documents):
             # Create a fake filepath for testing
             fake_path = f"test_doc_{i}.txt"
-            
+
             def _add_test_document_operation():
                 filename = self._get_filename_from_path(fake_path)
 
@@ -254,7 +254,7 @@ class DocumentRetriever:
             success = self.service_manager.execute_sync('document_processing', _add_test_document_operation)
             if success:
                 added_any = True
-                
+
         return added_any
 
     def remove_document(self, filepath: str) -> bool:
@@ -294,7 +294,7 @@ class DocumentRetriever:
         """
         # Analyze query complexity to choose retrieval method
         is_complex = self._analyze_query_complexity(query)
-        
+
         if self.auto_merge_for_complex and is_complex and self.use_auto_merging and self.auto_merging_retriever:
             # Use auto-merging for complex queries
             logger.info("Using auto-merging retrieval for complex query")
@@ -303,7 +303,7 @@ class DocumentRetriever:
             # Use sentence window retrieval
             logger.info("Using sentence window retrieval")
             return self._retrieve_sentence_window(query, top_k)
-    
+
     def _analyze_query_complexity(self, query: str) -> bool:
         """Determine if query needs complex retrieval."""
         complex_indicators = [
@@ -311,17 +311,18 @@ class DocumentRetriever:
             'relationship', 'difference', 'benefits', 'impact',
             'advantages', 'disadvantages', 'vs', 'versus'
         ]
-        
+
         query_lower = query.lower()
         # Check for complex keywords
         has_complex_keywords = any(indicator in query_lower for indicator in complex_indicators)
         # Check for long queries
         is_long_query = len(query.split()) > 12
-        
+
         return has_complex_keywords or is_long_query
-    
+
     def _retrieve_sentence_window(self, query: str, top_k: int) -> List[Dict]:
         """Retrieve using sentence window method."""
+
         def _retrieve_operation():
             if not self.current_documents:
                 logger.warning("No documents loaded in current session")
@@ -372,7 +373,7 @@ class DocumentRetriever:
             return final_results
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
-    
+
     def _retrieve_auto_merging(self, query: str, top_k: int) -> List[Dict]:
         """Retrieve using auto-merging method."""
         try:

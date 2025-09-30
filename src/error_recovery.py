@@ -50,7 +50,8 @@ class ErrorRecoveryManager:
                 'max_retries': 2,
                 'retry_delay': 3.0,
                 'timeout': 180.0,  # 3 minutes
-                'fallback_response': "I apologize, but I'm unable to generate a response at this time. Please try again."
+                'fallback_response': ("I apologize, but I'm unable to generate a response at this time. "
+                                      "Please try again.")
             }
         }
 

@@ -1,8 +1,7 @@
-from sentence_transformers import SentenceTransformer
 import torch
-from colorama import Fore, Style
 from src.config import config
 from src.logger import logger
+
 
 class ModelManager:
     """Manages the loading and configuration of CUBO's embedding model."""
@@ -59,6 +58,7 @@ class ModelManager:
         if self.model is None:
             self.load_model()
         return self.model
+
 
 # Global model manager instance
 model_manager = ModelManager()

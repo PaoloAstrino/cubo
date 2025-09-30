@@ -162,7 +162,8 @@ class HealthMonitor:
             check_status = status_info['status']['status']
             if check_status == HealthStatus.CRITICAL.value:
                 overall_status = HealthStatus.CRITICAL
-            elif check_status == HealthStatus.WARNING.value and overall_status == HealthStatus.HEALTHY:
+            elif (check_status == HealthStatus.WARNING.value and
+                  overall_status == HealthStatus.HEALTHY):
                 overall_status = HealthStatus.WARNING
 
         return {
@@ -200,7 +201,8 @@ class HealthMonitor:
         thread.join(check.timeout)
 
         if not completed[0]:
-            raise TimeoutError(f"Health check '{check.name}' timed out after {check.timeout} seconds")
+            raise TimeoutError(f"Health check '{check.name}' timed out after "
+                               f"{check.timeout} seconds")
 
         if exception[0]:
             raise exception[0]

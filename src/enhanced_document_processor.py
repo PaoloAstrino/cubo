@@ -4,18 +4,17 @@ Enhanced Document Processor for CUBO
 Combines Dolphin vision parsing with EmbeddingGemma-300M semantic embeddings
 """
 
-import os
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from PIL import Image
-import numpy as np
 
 from .dolphin_processor import DolphinProcessor
 from .model_loader import ModelManager
 from .utils import Utils
 
 logger = logging.getLogger(__name__)
+
 
 class EnhancedDocumentProcessor:
     """
@@ -75,7 +74,7 @@ class EnhancedDocumentProcessor:
 
             # Combine and chunk content
             full_content = "\n\n".join(f"--- Page {i+1} ---\n{content}"
-                                     for i, content in enumerate(page_contents))
+                                       for i, content in enumerate(page_contents))
 
             # Create chunks with embeddings
             chunks = self._create_enhanced_chunks(full_content, pdf_path)

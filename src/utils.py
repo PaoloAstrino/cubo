@@ -1,6 +1,5 @@
 import os
 import re
-import time
 from typing import List, Optional
 from collections import defaultdict
 from src.logger import logger
@@ -10,6 +9,7 @@ try:
     from transformers import AutoTokenizer
 except ImportError:
     AutoTokenizer = None
+
 
 class Utils:
     """Utility functions for CUBO."""
@@ -85,7 +85,7 @@ class Utils:
         """Split text into overlapping chunks with adaptive sizing based on text length."""
         try:
             text_length = len(text)
-            
+
             # Adaptive chunk sizing based on text length
             if chunk_size is None:
                 if text_length < 1000:
@@ -94,7 +94,7 @@ class Utils:
                     chunk_size = 500
                 else:
                     chunk_size = 1000
-            
+
             if overlap is None:
                 if text_length < 1000:
                     overlap = 50
@@ -102,7 +102,7 @@ class Utils:
                     overlap = 100
                 else:
                     overlap = 200
-            
+
             chunks = []
             start = 0
             while start < len(text):
@@ -201,6 +201,7 @@ class Utils:
             logger.error(f"Error creating sentence window chunks: {e}")
             raise
 
+
 class Metrics:
     """Basic performance monitoring for enterprise dashboards."""
 
@@ -228,6 +229,7 @@ class Metrics:
     def get_count(self, operation: str) -> int:
         """Get count for an operation."""
         return self.metrics.get(f"{operation}_count", 0)
+
 
 # Global metrics instance
 metrics = Metrics()

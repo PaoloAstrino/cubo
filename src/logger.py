@@ -2,6 +2,7 @@ import logging
 import os
 from src.config import config
 
+
 class Logger:
     """Logger class for CUBO."""
 
@@ -35,6 +36,7 @@ class Logger:
     def get_logger(self):
         """Get the logger instance."""
         return self.logger
+
 
 # Global logger instance
 logger_instance = Logger()
