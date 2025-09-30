@@ -13,6 +13,7 @@ import json
 from src.logger import logger
 from src.config import config
 from src.service_manager import get_service_manager
+from src.model_inference_threading import get_model_inference_threading
 
 
 class DocumentRetriever:
@@ -23,6 +24,7 @@ class DocumentRetriever:
                  window_size: int = 3, top_k: int = 3):
         self.model = model
         self.service_manager = get_service_manager()
+        self.inference_threading = get_model_inference_threading()
         self.use_sentence_window = use_sentence_window
         self.use_auto_merging = use_auto_merging
         self.auto_merge_for_complex = auto_merge_for_complex
@@ -154,7 +156,7 @@ class DocumentRetriever:
 
             # Generate embeddings for chunks
             logger.info(f"Generating embeddings for {filename} ({len(texts)} chunks)")
-            embeddings = self.model.encode(texts).tolist()
+            embeddings = self.inference_threading.generate_embeddings_threaded(texts, self.model)
 
             # Create deterministic IDs
             chunk_ids = []
@@ -225,7 +227,7 @@ class DocumentRetriever:
 
                 # Generate embeddings for chunks
                 logger.info(f"Generating embeddings for {filename} (1 chunk)")
-                embeddings = self.model.encode([doc]).tolist()
+                embeddings = self.inference_threading.generate_embeddings_threaded([doc], self.model)
 
                 # Create IDs and metadata
                 chunk_ids = [f"{filename}_chunk_0"]
@@ -329,7 +331,8 @@ class DocumentRetriever:
                 return []
 
             # Generate query embedding
-            query_embedding = self.model.encode([query]).tolist()[0]
+            query_embeddings = self.inference_threading.generate_embeddings_threaded([query], self.model)
+            query_embedding = query_embeddings[0] if query_embeddings else []
 
             # Get more candidates for reranking if using sentence windows
             initial_top_k = min(top_k * 2, 10) if self.use_sentence_window else top_k

@@ -20,6 +20,7 @@ CUBO Desktop GUI - Main Application Window
 """
 
 import sys
+import logging
 from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -52,7 +53,7 @@ class CUBOGUI(QMainWindow):
         
         # Initialize backend components
         self._init_backend()
-        
+
         self.init_ui()
 
     def _init_backend(self):
@@ -320,11 +321,11 @@ class CUBOGUI(QMainWindow):
         """Upload documents."""
         self.document_widget.upload_documents()
 
-    def on_document_uploaded(self, filepath):
-        """Handle document upload."""
+    def on_document_uploaded(self, filepaths):
+        """Handle document upload with async processing."""
         import logging
         logger = logging.getLogger(__name__)
-        
+
         try:
             # Check if backend is initialized
             if not self.model or not self.document_loader or not self.retriever:
@@ -332,81 +333,60 @@ class CUBOGUI(QMainWindow):
                 logger.error(error_msg)
                 QMessageBox.critical(self, "Backend Error", error_msg)
                 return
-            
-            self.status_bar.showMessage(f"Processing {Path(filepath).name}...")
 
-            # Process document asynchronously using service manager
-            def process_document():
-                try:
-                    logger.info(f"Starting document processing for: {filepath}")
-                    
-                    # Check if document is already loaded
-                    if self.retriever.is_document_loaded(filepath):
-                        logger.info(f"Document already loaded: {filepath}")
-                        return filepath, False  # Already loaded
+            # Convert single filepath to list if needed
+            if isinstance(filepaths, str):
+                filepaths = [filepaths]
 
-                    # Load and chunk the document
-                    from src.config import config
-                    logger.info(f"Loading and chunking document: {filepath}")
-                    documents = self.document_loader.load_single_document(filepath)
-
-                    if not documents:
-                        error_msg = "No content could be extracted from the document"
-                        logger.error(f"{error_msg}: {filepath}")
-                        raise ValueError(error_msg)
-
-                    logger.info(f"Document chunked into {len(documents)} chunks: {filepath}")
-
-                    # Add to retriever (with caching)
-                    logger.info(f"Adding document to retriever: {filepath}")
-                    success = self.retriever.add_document(filepath, documents)
-                    logger.info(f"Document addition result: {success} for {filepath}")
-                    return filepath, success
-
-                except Exception as e:
-                    logger.error(f"Document processing failed for {filepath}: {e}", exc_info=True)
-                    raise e
-
-            # Submit async task
-            future = self.service_manager.execute_async('document_processing', process_document)
-
-            # Handle completion
-            def on_complete(result):
-                filepath, success = result
-                filename = Path(filepath).name
-
-                if success:
-                    self.status_bar.showMessage(f"Ready - {filename} processed and cached")
-                    # Debug info
-                    debug_info = self.retriever.debug_collection_info()
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.info(f"Document processed successfully: {debug_info}")
-                    print(f"Document processed: {debug_info}")
-                else:
-                    self.status_bar.showMessage(f"Ready - {filename} already loaded (using cache)")
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.info(f"Document already loaded (using cache): {filename}")
-
-            def on_error(error):
-                filename = Path(filepath).name
-                self.status_bar.showMessage(f"Error processing {filename}")
-                # Add proper logging
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Document processing failed for {filename}: {error}", exc_info=True)
-                QMessageBox.critical(self, "Processing Error", f"Failed to process {filename}: {error}")
-
-            # Set up callbacks
-            future.add_done_callback(lambda f: on_complete(f.result()) if not f.exception() else on_error(f.exception()))
+            # Process documents synchronously
+            self._process_documents_synchronously(filepaths)
 
         except Exception as e:
-            self.status_bar.showMessage("Error uploading document")
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to start document processing: {e}", exc_info=True)
-            QMessageBox.critical(self, "Upload Error", f"Failed to start processing: {e}")
+            logger.error(f"Document upload failed: {e}", exc_info=True)
+            QMessageBox.critical(self, "Upload Error", f"Failed to process documents: {e}")
+
+    def _process_documents_synchronously(self, filepaths):
+        """Fallback synchronous processing."""
+        logger = logging.getLogger(__name__)
+
+        try:
+            total_files = len(filepaths)
+            processed_count = 0
+
+            for filepath in filepaths:
+                filename = Path(filepath).name
+                self.status_bar.showMessage(f"Processing {filename}...")
+
+                # Check if document is already loaded
+                if self.retriever.is_document_loaded(filepath):
+                    logger.info(f"Document already loaded: {filepath}")
+                    processed_count += 1
+                    continue
+
+                # Load and chunk the document
+                documents = self.document_loader.load_single_document(filepath)
+
+                if not documents:
+                    logger.warning(f"No content extracted from {filename}")
+                    continue
+
+                # Add to retriever
+                success = self.retriever.add_document(filepath, documents)
+                if success:
+                    processed_count += 1
+                    logger.info(f"Processed {filename}: {len(documents)} chunks")
+
+            self.status_bar.showMessage(f"Processed {processed_count}/{total_files} documents")
+
+            # Update the document list in the UI
+            try:
+                self.document_widget.update_document_list()
+            except Exception as e:
+                logger.error(f"Failed to update document list: {e}")
+
+        except Exception as e:
+            logger.error(f"Synchronous processing failed: {e}")
+            QMessageBox.critical(self, "Processing Error", f"Failed to process documents: {e}")
 
     def on_query_submitted(self, query):
         """Handle query submission."""
