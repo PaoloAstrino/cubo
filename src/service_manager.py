@@ -63,7 +63,8 @@ class ServiceManager:
         if with_retry:
             return self.thread_manager.submit_task_with_retry(
                 wrapped_operation,
-                max_retries=self.error_recovery.recovery_configs.get(operation_type, {}).get('max_retries', 1)
+                max_retries=self.error_recovery.recovery_configs
+                .get(operation_type, {}).get('max_retries', 1)
             )
         else:
             return self.thread_manager.submit_task(wrapped_operation)

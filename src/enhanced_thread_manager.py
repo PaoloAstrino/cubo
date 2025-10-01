@@ -8,7 +8,7 @@ import threading
 import queue
 import time
 import psutil
-from typing import Callable, Any, Dict, List, Optional
+from typing import Callable, Any, Dict, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ class EnhancedThreadManager:
         """Remove completed tasks from tracking."""
         with self.task_lock:
             completed = [tid for tid, info in self.active_tasks.items()
-                        if info['future'].done()]
+                         if info['future'].done()]
             for tid in completed:
                 del self.active_tasks[tid]
 
@@ -191,6 +191,7 @@ class EnhancedThreadManager:
 
 # Global instance
 _enhanced_thread_manager = None
+
 
 def get_enhanced_thread_manager() -> EnhancedThreadManager:
     """Get the global enhanced thread manager instance."""

@@ -5,7 +5,7 @@ Provides threaded model inference with proper GPU/CPU utilization.
 
 import torch
 import threading
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable
 import time
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -36,7 +36,7 @@ class ModelInferenceThreading:
         if self.gpu_available:
             self.total_gpu_memory = torch.cuda.get_device_properties(0).total_memory
             logger.info(f"GPU detected: {torch.cuda.get_device_name(0)} "
-                       f"({self.total_gpu_memory / 1024**3:.1f}GB)")
+                        f"({self.total_gpu_memory / 1024**3:.1f}GB)")
 
         # Performance tracking
         self.inference_stats = {
@@ -46,9 +46,11 @@ class ModelInferenceThreading:
             'total_dolphin_time': 0.0
         }
 
-    def generate_embeddings_threaded(self, texts: List[str],
-                                   embedding_model,
-                                   batch_size: int = 8) -> List[List[float]]:
+    def generate_embeddings_threaded(
+        self, texts: List[str],
+        embedding_model,
+        batch_size: int = 8
+    ) -> List[List[float]]:
         """
         Generate embeddings using threaded batching.
 
@@ -96,7 +98,7 @@ class ModelInferenceThreading:
         self.inference_stats['total_embedding_time'] += total_time
 
         logger.info(f"Threaded embedding completed: {len(all_embeddings)} embeddings "
-                   f"in {total_time:.2f}s ({len(texts)/total_time:.1f} texts/sec)")
+                    f"in {total_time:.2f}s ({len(texts)/total_time:.1f} texts/sec)")
 
         return all_embeddings
 
@@ -121,9 +123,11 @@ class ModelInferenceThreading:
                 logger.error(f"Batch embedding failed: {e}")
                 return [[] for _ in text_batch]
 
-    def run_dolphin_inference_threaded(self, images_or_texts: List[Any],
-                                     dolphin_processor,
-                                     batch_size: int = 1) -> List[Dict[str, Any]]:
+    def run_dolphin_inference_threaded(
+        self, images_or_texts: List[Any],
+        dolphin_processor,
+        batch_size: int = 1
+    ) -> List[Dict[str, Any]]:
         """
         Run Dolphin inference with threading.
 
@@ -141,9 +145,8 @@ class ModelInferenceThreading:
         start_time = time.time()
         logger.info(f"Starting threaded Dolphin inference for {len(images_or_texts)} items")
 
-        # For Dolphin, use smaller batches due to GPU memory
         batches = [images_or_texts[i:i + batch_size]
-                  for i in range(0, len(images_or_texts), batch_size)]
+                   for i in range(0, len(images_or_texts), batch_size)]
 
         all_results = []
         with ThreadPoolExecutor(max_workers=min(self.max_concurrent, 2)) as executor:
@@ -169,7 +172,7 @@ class ModelInferenceThreading:
         self.inference_stats['total_dolphin_time'] += total_time
 
         logger.info(f"Threaded Dolphin inference completed: {len(all_results)} results "
-                   f"in {total_time:.2f}s")
+                    f"in {total_time:.2f}s")
 
         return all_results
 
@@ -224,8 +227,10 @@ class ModelInferenceThreading:
         except Exception as e:
             logger.error(f"GPU memory management failed: {e}")
 
-    def run_inference_threaded(self, inference_fn: Callable, inputs: List[Any],
-                              batch_size: int = 4, use_gpu: bool = False) -> List[Any]:
+    def run_inference_threaded(
+        self, inference_fn: Callable, inputs: List[Any],
+        batch_size: int = 4, use_gpu: bool = False
+    ) -> List[Any]:
         """
         Generic threaded inference function.
 
@@ -262,8 +267,10 @@ class ModelInferenceThreading:
 
         return all_results
 
-    def _run_batch_inference(self, inference_fn: Callable, batch: List[Any],
-                           use_gpu: bool) -> List[Any]:
+    def _run_batch_inference(
+        self, inference_fn: Callable, batch: List[Any],
+        use_gpu: bool
+    ) -> List[Any]:
         """Run inference on a batch."""
         results = []
 
@@ -305,6 +312,7 @@ class ModelInferenceThreading:
 
 # Global instance
 _model_inference_threading = None
+
 
 def get_model_inference_threading() -> ModelInferenceThreading:
     """Get the global model inference threading instance."""

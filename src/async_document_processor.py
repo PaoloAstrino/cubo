@@ -3,7 +3,7 @@ Async Document Processor for CUBO
 Provides background document processing with progress tracking.
 """
 
-from PySide6.QtCore import QThread, Signal, QObject
+from PySide6.QtCore import Signal, QObject
 from typing import List, Dict, Any, Optional
 import time
 import logging
@@ -53,7 +53,7 @@ class DocumentProcessorWorker(QObject):
             all_chunks = []
             total_files = len(self.file_paths)
 
-            self.progress_updated.emit(0, f"Initializing processors...")
+            self.progress_updated.emit(0, "Initializing processors...")
 
             # Initialize processors
             self._initialize_processors()
@@ -166,9 +166,11 @@ class BatchDocumentProcessor:
     def __init__(self, thread_manager=None):
         self.thread_manager = thread_manager
 
-    def process_documents_batch(self, file_paths: List[str],
-                               processor_type: str = "auto",
-                               batch_size: int = 5) -> List[Dict[str, Any]]:
+    def process_documents_batch(
+        self, file_paths: List[str],
+        processor_type: str = "auto",
+        batch_size: int = 5
+    ) -> List[Dict[str, Any]]:
         """
         Process documents in batches for better resource utilization.
 

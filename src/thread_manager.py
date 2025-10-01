@@ -48,43 +48,55 @@ class ThreadManager:
         if self._shutdown:
             raise RuntimeError("ThreadManager is shutting down")
 
-        # Create a wrapper to handle timeouts and cleanup
+        task_wrapper = self._create_task_wrapper(fn, args, kwargs, timeout)
+        future = self.executor.submit(task_wrapper)
+        self._track_future(future)
 
+        return future
+
+    def _create_task_wrapper(
+        self, fn: Callable, args: tuple, kwargs: dict,
+        timeout: Optional[float]
+    ) -> Callable:
+        """Create a wrapper function that handles timeouts and exceptions."""
         def task_wrapper():
             try:
                 if timeout:
-                    # Use a separate thread for timeout handling
-                    import threading
-                    result = [None]
-                    exception = [None]
-
-                    def run_with_timeout():
-                        try:
-                            result[0] = fn(*args, **kwargs)
-                        except Exception as e:
-                            exception[0] = e
-
-                    thread = threading.Thread(target=run_with_timeout, daemon=True)
-                    thread.start()
-                    thread.join(timeout)
-
-                    if thread.is_alive():
-                        raise TimeoutError(f"Task timed out after {timeout} seconds")
-                    if exception[0]:
-                        raise exception[0]
-                    return result[0]
+                    return self._run_with_timeout(fn, args, kwargs, timeout)
                 else:
                     return fn(*args, **kwargs)
             except Exception as e:
                 logger.error(f"Task execution failed: {e}")
                 raise
 
-        future = self.executor.submit(task_wrapper)
+        return task_wrapper
 
-        # Track the future
+    def _run_with_timeout(self, fn: Callable, args: tuple, kwargs: dict, timeout: float):
+        """Run a function with timeout handling."""
+        import threading
+
+        result = [None]
+        exception = [None]
+
+        def run_with_timeout():
+            try:
+                result[0] = fn(*args, **kwargs)
+            except Exception as e:
+                exception[0] = e
+
+        thread = threading.Thread(target=run_with_timeout, daemon=True)
+        thread.start()
+        thread.join(timeout)
+
+        if thread.is_alive():
+            raise TimeoutError(f"Task timed out after {timeout} seconds")
+        if exception[0]:
+            raise exception[0]
+        return result[0]
+
+    def _track_future(self, future: Future) -> None:
+        """Track a future and set up cleanup when done."""
         self.active_futures.add(future)
-
-        # Remove from tracking when done
 
         def cleanup_future(f):
             self.active_futures.discard(f)
@@ -92,8 +104,6 @@ class ThreadManager:
                 logger.error(f"Task completed with exception: {f.exception()}")
 
         future.add_done_callback(cleanup_future)
-
-        return future
 
     def submit_task_with_retry(
         self,

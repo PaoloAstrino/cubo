@@ -25,9 +25,10 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QSplitter, QStatusBar, QToolBar, QMenuBar, QMenu,
-    QMessageBox, QComboBox
+    QMessageBox, QComboBox, QProgressBar, QTextEdit, QDialog
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread
+import logging
 from PySide6.QtGui import QAction
 
 # Add src to path for backend imports
@@ -38,35 +39,42 @@ from src.service_manager import get_service_manager
 from src.logger import logger
 
 
-class CUBOGUI(QMainWindow):
-    """Main application window for CUBO."""
-
-    # Signal for updating UI with results
-    update_results_signal = Signal(str, list)
-
-    def __init__(self):
-        super().__init__()
-        self.service_manager = get_service_manager()
+class BackendInitializationWorker(QThread):
+    """Worker thread for backend initialization to prevent GUI freezing."""
+    
+    # Signals for progress updates
+    progress_update = Signal(int, str)  # value, message
+    log_message = Signal(str)
+    initialization_complete = Signal()
+    initialization_error = Signal(str)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
         
-        # Connect signal to slot
-        self.update_results_signal.connect(self._update_ui_with_results)
-        
-        # Initialize backend components
-        self._init_backend()
-
-        self.init_ui()
-
-    def _init_backend(self):
-        """Initialize backend components on startup."""
+    def run(self):
+        """Run the backend initialization in a separate thread."""
+        try:
+            self._initialize_backend()
+            self.initialization_complete.emit()
+        except Exception as e:
+            self.initialization_error.emit(str(e))
+    
+    def _initialize_backend(self):
+        """Initialize backend components with progress updates."""
         import logging
         logger = logging.getLogger(__name__)
         
         try:
+            self.log_message.emit("Initializing backend components...")
             logger.info("Initializing backend components...")
-            
+
             # Initialize document loader first (doesn't depend on heavy ML libraries)
+            self.progress_update.emit(15, "Loading document loader...")
             from src.document_loader import DocumentLoader
-            self.document_loader = DocumentLoader()
+            self.parent.document_loader = DocumentLoader()
+            self.log_message.emit("Document loader initialized")
+
             # Get model path from config and validate it
             from src.config import config
             import os
@@ -76,11 +84,10 @@ class CUBOGUI(QMainWindow):
             if not model_path or not os.path.isdir(model_path):
                 error_msg = f"Model path '{model_path}' configured in 'config.json' is invalid or does not exist."
                 logger.critical(error_msg)
-                QMessageBox.critical(self, "Fatal Configuration Error", 
-                    f"{error_msg}\n\nPlease correct the 'model_path' in your config.json file and restart the application.")
-                sys.exit(1) # Exit the application
+                raise Exception(error_msg)
 
-            logger.info(f"Validated model path. Attempting to load model from: {model_path}")
+            self.progress_update.emit(25, "Loading Dolphin model...")
+            self.log_message.emit("Validated model path. Attempting to load model from: " + model_path)
 
             # Initialize model loader and load embedding model (this is the heavy import)
             try:
@@ -88,50 +95,264 @@ class CUBOGUI(QMainWindow):
                 import importlib
                 model_loader_module = importlib.import_module('src.model_loader')
                 ModelLoader = model_loader_module.ModelManager
-                self.model_loader = ModelLoader()
-                self.model = self.model_loader.load_model()
+                self.parent.model_loader = ModelLoader()
+                self.progress_update.emit(50, "Loading embedding model...")
+                self.parent.model = self.parent.model_loader.load_model()
+                self.log_message.emit("Embedding model loaded successfully")
                 logger.info("Embedding model loaded successfully")
             except Exception as model_error:
                 logger.error(f"Failed to load embedding model: {model_error}")
-                QMessageBox.warning(self, "Model Loading Warning", 
-                    f"Failed to load embedding model: {model_error}\n\n"
-                    "The application will start but document processing may not work. "
-                    "Please check your model installation and try restarting.")
-                self.model = None
-                self.model_loader = None
-            
+                self.parent.model = None
+                self.parent.model_loader = None
+                self.log_message.emit(f"Warning: Failed to load embedding model: {model_error}")
+
             # Initialize retriever (only if model loaded successfully)
-            if self.model:
+            if self.parent.model:
                 try:
+                    self.progress_update.emit(75, "Initializing document retriever...")
                     from src.retriever import DocumentRetriever
                     # Initialize with both retrieval methods enabled
-                    self.retriever = DocumentRetriever(
-                        self.model, 
+                    self.parent.retriever = DocumentRetriever(
+                        self.parent.model,
                         use_sentence_window=True,
                         use_auto_merging=True,
                         auto_merge_for_complex=True
                     )
+                    self.log_message.emit("Document retriever initialized with dual retrieval support")
                     logger.info("Document retriever initialized with dual retrieval support")
-                    
-                    # Auto-load all documents from data directory
-                    self._auto_load_documents()
-                    
+
                 except Exception as retriever_error:
                     logger.error(f"Failed to initialize retriever: {retriever_error}")
-                    self.retriever = None
+                    self.parent.retriever = None
+                    self.log_message.emit(f"Warning: Failed to initialize retriever: {retriever_error}")
             else:
-                self.retriever = None
+                self.parent.retriever = None
+                self.log_message.emit("Document retriever not initialized due to model loading failure")
                 logger.warning("Document retriever not initialized due to model loading failure")
-            
+
+            self.progress_update.emit(100, "Initialization complete!")
+            self.log_message.emit("Backend components initialization completed")
             logger.info("Backend components initialization completed")
-            
+
         except Exception as e:
             logger.error(f"Backend initialization failed: {e}", exc_info=True)
-            QMessageBox.critical(self, "Backend Error", f"Failed to initialize backend components: {e}")
-            # Set components to None so the app can still run
-            self.model = None
-            self.document_loader = None
-            self.retriever = None
+            raise
+
+
+class LoadingLogHandler(logging.Handler):
+    """Custom logging handler that sends messages to the loading dialog."""
+
+    def __init__(self, loading_dialog):
+        super().__init__()
+        self.loading_dialog = loading_dialog
+        self.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+
+    def emit(self, record):
+        if self.loading_dialog:
+            message = self.format(record)
+            # Log messages are no longer displayed in the loading dialog
+            pass
+
+
+class LoadingDialog(QDialog):
+    """Loading overlay that shows initialization progress and recent logs."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
+        self.setFixedSize(600, 300)
+
+        # Set window icon
+        from PySide6.QtGui import QIcon
+        from pathlib import Path
+        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
+        # Create layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Title
+        title_label = QLabel("Initializing CUBO")
+        title_label.setStyleSheet("""
+            font-size: 16px;
+            font-weight: bold;
+            color: #cccccc;
+            margin-bottom: 10px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        """)
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid rgba(102, 102, 102, 0.3);
+                border-radius: 8px;
+                text-align: center;
+                background: rgba(255, 255, 255, 0.1);
+                height: 20px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #888888,
+                    stop:0.5 #aaaaaa,
+                    stop:1 #cccccc);
+                border-radius: 6px;
+            }
+            QProgressBar::chunk:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #666666,
+                    stop:0.5 #888888,
+                    stop:1 #aaaaaa);
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+
+        # Status label
+        self.status_label = QLabel("Starting initialization...")
+        self.status_label.setStyleSheet("""
+            color: #cccccc;
+            margin: 8px 0px;
+            font-size: 12px;
+        """)
+        self.status_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.status_label)
+
+        # Style the entire dialog with a more coherent design
+        self.setStyleSheet("""
+            LoadingDialog {
+                background-color: #1a1a1a;
+                border: 2px solid #333333;
+                border-radius: 15px;
+            }
+        """)
+
+    def update_progress(self, value: int, message: str):
+        """Update progress bar and status message."""
+        self.progress_bar.setValue(value)
+        self.status_label.setText(message)
+
+
+class CUBOGUI(QMainWindow):
+    """Main application window for CUBO."""
+
+    # Signal for updating UI with results
+    update_results_signal = Signal(str, list)
+
+    def __init__(self):
+        super().__init__()
+
+        # Initialize backend flag
+        self._backend_initialized = False
+
+        # Initialize components to None initially
+        self.model = None
+        self.model_loader = None
+        self.document_loader = None
+        self.retriever = None
+
+        # Initialize UI first (but don't show main window yet)
+        self.init_ui()
+
+        # Create loading overlay as the only visible window during initialization
+        self.loading_dialog = LoadingDialog()
+        self.loading_dialog.show()
+
+        # Set up logging to the loading dialog
+        self.log_handler = LoadingLogHandler(self.loading_dialog)
+        logging.getLogger().addHandler(self.log_handler)
+        logging.getLogger().setLevel(logging.INFO)
+
+        # Initialize service manager
+        self.service_manager = get_service_manager()
+        
+        # Connect signal to slot
+        self.update_results_signal.connect(self._update_ui_with_results)
+
+        # Start backend initialization in a separate thread
+        self._start_backend_initialization()
+
+    def _start_backend_initialization(self):
+        """Start the backend initialization in a separate thread."""
+        # Create worker thread
+        self.init_worker = BackendInitializationWorker(self)
+        
+        # Connect signals
+        self.init_worker.progress_update.connect(self.loading_dialog.update_progress)
+        # Log messages are no longer displayed in the loading dialog
+        # self.init_worker.log_message.connect(self.loading_dialog.add_log_message)
+        self.init_worker.initialization_complete.connect(self._on_initialization_complete)
+        self.init_worker.initialization_error.connect(self._on_initialization_error)
+        
+        # Start the thread
+        self.init_worker.start()
+
+    def _on_initialization_complete(self):
+        """Called when backend initialization completes successfully."""
+        # Mark as initialized
+        self._backend_initialized = True
+
+        # Update progress to show completion
+        self.loading_dialog.update_progress(100, "Initialization complete!")
+        # Log messages are no longer displayed in the loading dialog
+        # self.loading_dialog.add_log_message("Backend components initialization completed")
+
+        # Remove the loading log handler
+        if hasattr(self, 'log_handler'):
+            logging.getLogger().removeHandler(self.log_handler)
+            self.log_handler = None
+
+        # Clean up worker
+        if hasattr(self, 'init_worker'):
+            self.init_worker.deleteLater()
+            self.init_worker = None
+
+        # Show the main window
+        self._show_main_window()
+
+    def _show_main_window(self):
+        """Hide loading overlay and show the main window."""
+        if hasattr(self, 'loading_dialog') and self.loading_dialog:
+            self.loading_dialog.hide()
+            self.loading_dialog.deleteLater()
+            self.loading_dialog = None
+        
+        # Now show the main window
+        self.show()
+
+    def _on_initialization_error(self, error_msg):
+        """Called when backend initialization fails."""
+        QMessageBox.critical(self, "Backend Error", f"Failed to initialize backend components: {error_msg}")
+        
+        # Set components to None so the app can still run
+        self.model = None
+        self.document_loader = None
+        self.retriever = None
+
+        # Hide loading dialog
+        if hasattr(self, 'loading_dialog') and self.loading_dialog:
+            self.loading_dialog.hide()
+            self.loading_dialog.deleteLater()
+            self.loading_dialog = None
+
+        # Remove the loading log handler
+        if hasattr(self, 'log_handler'):
+            logging.getLogger().removeHandler(self.log_handler)
+            self.log_handler = None
+
+        # Clean up worker
+        if hasattr(self, 'init_worker'):
+            self.init_worker.deleteLater()
+            self.init_worker = None
+
+        # Signal that initialization failed
+        if hasattr(self, '_init_event_loop'):
+            self._init_event_loop.exit(1)  # Error
 
     def _auto_load_documents(self):
         """Automatically load all documents from the data directory at startup."""
@@ -202,6 +423,13 @@ class CUBOGUI(QMainWindow):
         self.setWindowTitle("CUBO")
         self.setGeometry(100, 100, 1200, 800)
 
+        # Set window icon
+        from PySide6.QtGui import QIcon
+        from pathlib import Path
+        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
         # Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -225,16 +453,10 @@ class CUBOGUI(QMainWindow):
         self.document_widget.document_uploaded.connect(self.on_document_uploaded)
         self.query_widget.query_submitted.connect(self.on_query_submitted)
 
-        # Create toolbar
-        self.init_toolbar()
-
         # Create status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
-
-        # Create menu bar
-        self.init_menu_bar()
 
     def change_retrieval_method(self):
         """Change the retrieval method."""
@@ -579,10 +801,11 @@ def main():
     app.setOrganizationName("CUBO")
 
     try:
-        # Create and show main window
+        # Create main window (loading dialog will be shown during initialization)
         logger.info("Creating main window")
         window = CUBOGUI()
-        window.show()
+        
+        # The constructor already started initialization, just wait for it to complete
         logger.info("Main window shown, starting event loop")
         
         return app.exec()

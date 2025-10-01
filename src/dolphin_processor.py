@@ -29,8 +29,9 @@ class DolphinProcessor:
         self.tokenizer = None
         self.processor = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._model_loaded = False
 
-        self._load_model()
+        # Don't load model immediately - load lazily when needed
 
     def _load_model(self):
         """Load the Dolphin model from local directory."""
@@ -50,6 +51,12 @@ class DolphinProcessor:
             logger.error(f"Failed to load Dolphin model: {e}")
             raise
 
+    def _ensure_model_loaded(self):
+        """Lazy load the model if not already loaded."""
+        if not self._model_loaded:
+            self._load_model()
+            self._model_loaded = True
+
     def process_image(self, image: Image.Image, prompt: str = None) -> str:
         """
         Process an image with Dolphin model.
@@ -61,6 +68,9 @@ class DolphinProcessor:
         Returns:
             Extracted text/content from the image
         """
+        # Lazy load model if needed
+        self._ensure_model_loaded()
+
         if prompt is None:
             prompt = (
                 "You are an expert document analyzer. Extract all text, tables, "
@@ -176,8 +186,13 @@ class DolphinProcessor:
 
     def is_available(self) -> bool:
         """Check if Dolphin model is available and loaded."""
-        return (
-            self.model is not None and
-            self.tokenizer is not None and
-            self.processor is not None
-        )
+        try:
+            # Trigger lazy loading if not loaded yet
+            self._ensure_model_loaded()
+            return (
+                self.model is not None and
+                self.tokenizer is not None and
+                self.processor is not None
+            )
+        except Exception:
+            return False

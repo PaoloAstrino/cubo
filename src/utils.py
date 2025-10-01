@@ -4,11 +4,8 @@ from typing import List, Optional
 from collections import defaultdict
 from src.logger import logger
 
-# Try to import transformers for token counting
-try:
-    from transformers import AutoTokenizer
-except ImportError:
-    AutoTokenizer = None
+# Lazy import for transformers - only import when needed
+AutoTokenizer = None
 
 
 class Utils:
@@ -162,8 +159,11 @@ class Utils:
 
             # Load tokenizer if provided
             tokenizer = None
-            if tokenizer_name and AutoTokenizer is not None:
+            if tokenizer_name:
                 try:
+                    # Lazy import of transformers
+                    if AutoTokenizer is None:
+                        from transformers import AutoTokenizer
                     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
                 except Exception as e:
                     logger.warning(f"Could not load tokenizer {tokenizer_name}: {e}")

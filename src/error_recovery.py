@@ -50,8 +50,10 @@ class ErrorRecoveryManager:
                 'max_retries': 2,
                 'retry_delay': 3.0,
                 'timeout': 180.0,  # 3 minutes
-                'fallback_response': ("I apologize, but I'm unable to generate a response at this time. "
-                                      "Please try again.")
+                'fallback_response': (
+                    "I apologize, but I'm unable to generate a response at this time. "
+                    "Please try again."
+                )
             }
         }
 
@@ -202,15 +204,16 @@ class ErrorRecoveryManager:
 
             if counts['last_failure']:
                 # Consider recent if within last 'recent_failure_threshold' seconds
-                recent_failure = (time.time() - counts['last_failure']) < self.recent_failure_threshold
+                recent_failure = (
+                    (time.time() - counts['last_failure']) < self.recent_failure_threshold
+                )
 
             status[operation_type] = {
                 'healthy': failure_rate < 0.5 and not recent_failure,
                 'failure_rate': failure_rate,
                 'total_attempts': counts['total_attempts'],
                 'recent_failure': recent_failure,
-                'last_error': self.last_errors.get(operation_type)
-            }
+                'last_error': self.last_errors.get(operation_type)}
 
         return status
 
