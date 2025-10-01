@@ -343,7 +343,7 @@ class EvaluationDatabase:
 
     def get_queries_needing_evaluation(self, session_id: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Get queries that haven't been evaluated yet (metrics are NULL).
+        Get queries that haven't been evaluated yet (metrics are NULL or 0.0).
 
         Args:
             session_id: Only return queries from this session (optional)
@@ -356,7 +356,7 @@ class EvaluationDatabase:
             query = '''
                 SELECT id, question, answer, contexts, response_time, model_used, session_id
                 FROM evaluations
-                WHERE answer_relevance_score IS NULL
+                WHERE answer_relevance_score IS NULL OR answer_relevance_score = 0.0
             '''
 
             params = []

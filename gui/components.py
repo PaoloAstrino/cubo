@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class DocumentWidget(QWidget):
     """Widget for document management - upload, list, and manage documents."""
 
-    document_uploaded = Signal(str)  # Signal emitted when document is uploaded
+    document_uploaded = Signal(list)  # Signal emitted when document(s) are uploaded
     document_deleted = Signal(str)   # Signal emitted when document is deleted
 
     def __init__(self):
@@ -396,9 +396,12 @@ class DocumentWidget(QWidget):
             if len(file_paths) > 5:
                 self.set_processing_progress(True, 0)
                 
+            processed_files = []
+            
             for i, filepath in enumerate(file_paths):
                 try:
                     self.add_document(filepath)
+                    processed_files.append(filepath)
                 except Exception as e:
                     logger.error(f"Error adding document {filepath}: {e}")
                     # Continue processing other files but show warning
@@ -417,6 +420,11 @@ class DocumentWidget(QWidget):
             if len(file_paths) > 5:
                 self.set_processing_progress(False)
                 
+            # Emit all processed files at once
+            if processed_files:
+                logger.info(f"Emitting document_uploaded signal with {len(processed_files)} files: {[Path(fp).name for fp in processed_files]}")
+                self.document_uploaded.emit(processed_files)
+                
         except Exception as e:
             logger.error(f"Unexpected error in process_files: {e}")
             QMessageBox.critical(
@@ -434,7 +442,7 @@ class DocumentWidget(QWidget):
                 item = QListWidgetItem(f"📄 {filename}")
                 item.setData(Qt.UserRole, filepath)
                 self.document_list.addItem(item)
-                self.document_uploaded.emit(filepath)
+                # Note: Signal emission moved to process_files to handle bulk uploads
 
                 # Switch to list page after first document
                 if len(self.documents) == 1:

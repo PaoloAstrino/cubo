@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from docx import Document
 from PyPDF2 import PdfReader
 from src.config import config
@@ -26,68 +26,92 @@ class DocumentLoader:
     def load_single_document(self, file_path: str, chunking_config: dict = None) -> List[dict]:
         """Load and process a single document file with automatic enhanced processing when available."""
 
-        # Automatically use enhanced processing if available and enabled in config
-        if self.enhanced_processor and config.get("dolphin", {}).get("enabled", False):
-            try:
-                logger.info(f"Using enhanced processing for {file_path}")
-                return self.enhanced_processor.process_document(file_path)
-            except Exception as e:
-                logger.warning(f"Enhanced processing failed, falling back to standard: {e}")
-                # Fall through to standard processing
-                logger.warning(f"Enhanced processing failed, falling back to standard: {e}")
-                # Fall through to standard processing
+        # Try enhanced processing first if available
+        if self._should_use_enhanced_processing():
+            result = self._try_enhanced_processing(file_path)
+            if result is not None:
+                return result
 
-        # Standard processing
-        Utils.validate_file_size(file_path, config.get("max_file_size_mb", 10))
+        # Fall back to standard processing
+        return self._load_and_process_standard(file_path, chunking_config)
 
-        text = ""
-        file_ext = os.path.splitext(file_path)[1].lower()
+    def _should_use_enhanced_processing(self) -> bool:
+        """Check if enhanced processing should be used."""
+        return (self.enhanced_processor and
+                config.get("dolphin", {}).get("enabled", False))
 
+    def _try_enhanced_processing(self, file_path: str) -> Optional[List[dict]]:
+        """Try enhanced processing, return None if it fails."""
         try:
-            if file_ext in ['.txt', '.md']:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    text = f.read()
-            elif file_ext == '.docx':
-                doc = Document(file_path)
-                text = '\n'.join([para.text for para in doc.paragraphs])
-            elif file_ext == '.pdf':
-                reader = PdfReader(file_path)
-                text = ''
-                for page in reader.pages:
-                    text += page.extract_text()
-            else:
-                raise ValueError(f"Unsupported file type: {file_ext}")
+            logger.info(f"Using enhanced processing for {file_path}")
+            return self.enhanced_processor.process_document(file_path)
+        except Exception as e:
+            logger.warning(f"Enhanced processing failed, falling back to standard: {e}")
+            return None
 
-            if text:
-                text = Utils.clean_text(text)
+    def _load_and_process_standard(self, file_path: str, chunking_config: dict = None) -> List[dict]:
+        """Load and process document using standard processing."""
+        try:
+            # Validate file size
+            Utils.validate_file_size(file_path, config.get("max_file_size_mb", 10))
 
-                # Always use sentence window chunking for optimal quality
-                cfg = {
-                    "method": "sentence_window",
-                    "window_size": 3,
-                    "tokenizer_name": None
-                }
-                # Allow overriding window_size if provided
-                if chunking_config and "window_size" in chunking_config:
-                    cfg["window_size"] = chunking_config["window_size"]
-
-                # Use sentence window chunking
-                chunks = Utils.create_sentence_window_chunks(
-                    text,
-                    window_size=cfg["window_size"],
-                    tokenizer_name=cfg["tokenizer_name"]
-                )
-
-                logger.info(f"Loaded and chunked {os.path.basename(file_path)} into "
-                            f"{len(chunks)} chunks using {cfg['method']} method.")
-                return chunks
-            else:
+            # Load text content
+            text = self._load_text_from_file(file_path)
+            if not text:
                 logger.warning(f"No text content found in {file_path}")
                 return []
+
+            # Process and chunk text
+            return self._process_and_chunk_text(text, file_path, chunking_config)
 
         except Exception as e:
             logger.error(f"Failed to load {file_path}: {e}")
             return []
+
+    def _load_text_from_file(self, file_path: str) -> str:
+        """Load text content from different file types."""
+        file_ext = os.path.splitext(file_path)[1].lower()
+
+        if file_ext in ['.txt', '.md']:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        elif file_ext == '.docx':
+            doc = Document(file_path)
+            return '\n'.join([para.text for para in doc.paragraphs])
+        elif file_ext == '.pdf':
+            reader = PdfReader(file_path)
+            text = ''
+            for page in reader.pages:
+                text += page.extract_text()
+            return text
+        else:
+            raise ValueError(f"Unsupported file type: {file_ext}")
+
+    def _process_and_chunk_text(self, text: str, file_path: str, chunking_config: dict = None) -> List[dict]:
+        """Process text and create chunks."""
+        text = Utils.clean_text(text)
+
+        # Always use sentence window chunking for optimal quality
+        cfg = {
+            "method": "sentence_window",
+            "window_size": 3,
+            "tokenizer_name": None
+        }
+
+        # Allow overriding window_size if provided
+        if chunking_config and "window_size" in chunking_config:
+            cfg["window_size"] = chunking_config["window_size"]
+
+        # Use sentence window chunking
+        chunks = Utils.create_sentence_window_chunks(
+            text,
+            window_size=cfg["window_size"],
+            tokenizer_name=cfg["tokenizer_name"]
+        )
+
+        logger.info(f"Loaded and chunked {os.path.basename(file_path)} into "
+                    f"{len(chunks)} chunks using {cfg['method']} method.")
+        return chunks
         """Load and process a single document file with configurable chunking."""
         Utils.validate_file_size(file_path, config.get("max_file_size_mb", 10))
 

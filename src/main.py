@@ -34,23 +34,46 @@ class CUBOApp:
         """Setup wizard for initial configuration and model checks."""
         logger.info("Welcome to CUBO Setup Wizard!")
 
-        # Security validation
+        if not self._validate_security_environment():
+            return
+
+        if not self._setup_config_file():
+            return
+
+        if not self._validate_model_path():
+            return
+
+        if not self._setup_data_folder():
+            return
+
+        if not self._setup_logs_folder():
+            return
+
+        self._configure_llm_model()
+        self._optional_config_tweaks()
+
+    def _validate_security_environment(self) -> bool:
+        """Validate security environment variables."""
         if not security_manager.validate_environment():
             logger.warning("Some security environment variables are missing.")
+        return True
 
-        # Check if config.json exists
+    def _setup_config_file(self) -> bool:
+        """Ensure config.json exists."""
         try:
             if not os.path.exists("config.json"):
                 logger.warning("Config file not found. Creating default config.json...")
-                config.save()  # This will create it with defaults
+                config.save()
                 logger.info("Default config created.")
             else:
                 logger.info("Config file found.")
+            return True
         except Exception as e:
             logger.error(f"Error handling config file: {e}")
-            return
+            return False
 
-        # Check model path
+    def _validate_model_path(self) -> bool:
+        """Validate and setup model path."""
         try:
             model_path = config.get("model_path")
             if not os.path.exists(model_path):
@@ -64,11 +87,13 @@ class CUBOApp:
                     logger.warning("Model not found. The application may not work properly.")
             else:
                 logger.info("Model path verified.")
+            return True
         except Exception as e:
             logger.error(f"Error checking model path: {e}")
-            return
+            return False
 
-        # Check data folder
+    def _setup_data_folder(self) -> bool:
+        """Ensure data folder exists."""
         try:
             data_folder = config.get("data_folder")
             if not os.path.exists(data_folder):
@@ -77,11 +102,13 @@ class CUBOApp:
                 logger.info("Data folder created.")
             else:
                 logger.info("Data folder exists.")
+            return True
         except Exception as e:
             logger.error(f"Error handling data folder: {e}")
-            return
+            return False
 
-        # Check logs folder
+    def _setup_logs_folder(self) -> bool:
+        """Ensure logs folder exists."""
         try:
             log_file = config.get("log_file")
             log_dir = os.path.dirname(log_file)
@@ -91,68 +118,92 @@ class CUBOApp:
                 logger.info("Logs folder created.")
             else:
                 logger.info("Logs folder exists.")
+            return True
         except Exception as e:
             logger.error(f"Error handling logs folder: {e}")
-            return
+            return False
 
-        # LLM Model Selection
+    def _configure_llm_model(self):
+        """Configure LLM model selection."""
         try:
             logger.info("Checking available Ollama models...")
             available_models = self.get_available_ollama_models()
             if available_models:
-                logger.info(f"Found {len(available_models)} Ollama models:")
-                for i, model in enumerate(available_models, 1):
-                    logger.info(f"{i}. {model}")
-
-                current_model = config.get("selected_llm_model", "llama3.2")
-                logger.info(f"Current selected model: {current_model}")
-
-                # Auto-select if only one model available
-                if len(available_models) == 1:
-                    if current_model != available_models[0]:
-                        config.set("selected_llm_model", available_models[0])
-                        config.save()
-                        logger.info(f"Auto-selected only available model: {available_models[0]}")
-                    else:
-                        logger.info("Only one model available and already selected.")
-                else:
-                    # Multiple models - let user choose
-                    choice = input("Select a model by number (or press Enter to keep current): ")
-                    if choice.strip():
-                        try:
-                            index = int(choice) - 1
-                            if 0 <= index < len(available_models):
-                                selected_model = available_models[index]
-                                config.set("selected_llm_model", selected_model)
-                                config.save()
-                                logger.info(f"LLM model updated to: {selected_model}")
-                            else:
-                                logger.warning("Invalid selection. Keeping current model.")
-                        except ValueError:
-                            logger.warning("Invalid input. Keeping current model.")
-                    else:
-                        logger.info("Keeping current model.")
+                self._display_available_models(available_models)
+                self._handle_model_selection(available_models)
             else:
                 logger.warning("No Ollama models found. Please install and pull models using 'ollama pull <model_name>'")
                 logger.warning("You can change the selected model later in config.json")
         except Exception as e:
             logger.error(f"Error checking Ollama models: {e}")
 
-        # Optional config tweaks
+    def _display_available_models(self, available_models):
+        """Display available Ollama models."""
+        logger.info(f"Found {len(available_models)} Ollama models:")
+        for i, model in enumerate(available_models, 1):
+            logger.info(f"{i}. {model}")
+
+    def _handle_model_selection(self, available_models):
+        """Handle user model selection."""
+        current_model = config.get("selected_llm_model", "llama3.2")
+        logger.info(f"Current selected model: {current_model}")
+
+        if len(available_models) == 1:
+            self._auto_select_single_model(available_models[0], current_model)
+        else:
+            self._prompt_model_selection(available_models)
+
+    def _auto_select_single_model(self, model, current_model):
+        """Auto-select when only one model is available."""
+        if current_model != model:
+            config.set("selected_llm_model", model)
+            config.save()
+            logger.info(f"Auto-selected only available model: {model}")
+        else:
+            logger.info("Only one model available and already selected.")
+
+    def _prompt_model_selection(self, available_models):
+        """Prompt user to select from multiple models."""
+        choice = input("Select a model by number (or press Enter to keep current): ")
+        if choice.strip():
+            try:
+                index = int(choice) - 1
+                if 0 <= index < len(available_models):
+                    selected_model = available_models[index]
+                    config.set("selected_llm_model", selected_model)
+                    config.save()
+                    logger.info(f"LLM model updated to: {selected_model}")
+                else:
+                    logger.warning("Invalid selection. Keeping current model.")
+            except ValueError:
+                logger.warning("Invalid input. Keeping current model.")
+        else:
+            logger.info("Keeping current model.")
+
+    def _optional_config_tweaks(self):
+        """Handle optional configuration tweaks."""
         try:
             tweak = input("Do you want to tweak configuration? (y/n): ").lower()
             if tweak == 'y':
-                logger.info("Current config:")
-                for key, value in config.all.items():
-                    logger.info(f"{key}: {value}")
-                key_to_change = input("Enter key to change (or press Enter to skip): ")
-                if key_to_change in config.all:
-                    new_value = input(f"Enter new value for {key_to_change}: ")
-                    config.set(key_to_change, new_value)
-                    config.save()
-                    logger.info("Config updated.")
+                self._display_current_config()
+                self._handle_config_change()
         except Exception as e:
             logger.error(f"Error during config tweak: {e}")
+
+    def _display_current_config(self):
+        """Display current configuration."""
+        logger.info("Current config:")
+        for key, value in config.all.items():
+            logger.info(f"{key}: {value}")
+
+    def _handle_config_change(self):
+        """Handle user config change request."""
+        key_to_change = input("Enter key to change (or press Enter to skip): ")
+        if key_to_change in config.all:
+            new_value = input(f"Enter new value for {key_to_change}: ")
+            config.set(key_to_change, new_value)
+            config.save()
+            logger.info("Config updated.")
 
     def get_available_ollama_models(self):
         """Get list of available Ollama models."""
@@ -195,52 +246,86 @@ class CUBOApp:
         """Run the RAG system in interactive mode."""
         logger.info("Initializing RAG system...")
 
-        # Get data folder
-        data_folder_input = input(f"Enter path to data folder "
-                                  f"(default: {config.get('data_folder')}): ") or config.get("data_folder")
-        data_folder_input = security_manager.sanitize_input(data_folder_input)
-        try:
-            data_folder = Utils.sanitize_path(data_folder_input, os.getcwd())
-        except ValueError as e:
-            logger.error(f"Invalid path: {e}")
+        data_folder = self._get_data_folder_input()
+        if not data_folder:
             return
 
         if not self.initialize_components():
             return
 
-        # Load documents
+        documents = self._load_selected_document(data_folder)
+        if not documents:
+            return
+
+        self._run_interactive_conversation(documents)
+
+    def _get_data_folder_input(self) -> str:
+        """Get and validate data folder input from user."""
+        data_folder_input = input(f"Enter path to data folder "
+                                  f"(default: {config.get('data_folder')}): ") or config.get("data_folder")
+        data_folder_input = security_manager.sanitize_input(data_folder_input)
+        try:
+            return Utils.sanitize_path(data_folder_input, os.getcwd())
+        except ValueError as e:
+            logger.error(f"Invalid path: {e}")
+            return None
+
+    def _load_selected_document(self, data_folder: str) -> list:
+        """Load and validate documents, let user select one."""
         if not os.path.exists(data_folder):
             logger.error(f"Error: Folder '{data_folder}' does not exist.")
-            return
+            return None
 
-        files = [f for f in os.listdir(data_folder) if any(f.endswith(ext) for ext in config.get("supported_extensions"))]
+        files = self._get_supported_files(data_folder)
+        if not files:
+            return None
+
+        selected_file = self._prompt_file_selection(files)
+        if not selected_file:
+            return None
+
+        return self._load_document_chunks(data_folder, selected_file)
+
+    def _get_supported_files(self, data_folder: str) -> list:
+        """Get list of supported files in the data folder."""
+        files = [f for f in os.listdir(data_folder)
+                 if any(f.endswith(ext) for ext in config.get("supported_extensions"))]
         if not files:
             logger.error(f"No supported files {config.get('supported_extensions')} found in the specified folder.")
-            return
+        return files
 
-        # File selection
+    def _prompt_file_selection(self, files: list) -> str:
+        """Display files and get user selection."""
         logger.info("Available files:")
         for i, f in enumerate(files, 1):
             logger.info(f"{i}. {f}")
 
         try:
             choice = int(input("Select file number: ")) - 1
-            if choice < 0 or choice >= len(files):
+            if 0 <= choice < len(files):
+                return files[choice]
+            else:
                 logger.error("Invalid choice.")
-                return
-            selected_file = files[choice]
+                return None
+        except ValueError:
+            logger.error("Invalid input. Please enter a number.")
+            return None
+
+    def _load_document_chunks(self, data_folder: str, selected_file: str) -> list:
+        """Load and chunk the selected document."""
+        try:
             logger.info("Loading and chunking selected document...")
             start = time.time()
             file_path = os.path.join(data_folder, selected_file)
             documents = self.doc_loader.load_single_document(file_path)
             logger.info(f"Document loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds.")
-        except ValueError as e:
-            logger.error(f"Error: {e}")
-            return
+            return documents
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            return
+            logger.error(f"Unexpected error loading document: {e}")
+            return None
 
+    def _run_interactive_conversation(self, documents: list):
+        """Run the interactive conversation loop."""
         logger.info("Documents loaded. Starting conversation. Type 'exit' to quit.")
 
         # Add to vector DB
@@ -248,33 +333,51 @@ class CUBOApp:
 
         last_query_time = 0
         while True:
-            current_time = time.time()
-            if current_time - last_query_time < config.get("rate_limit_seconds", 1):
-                time.sleep(config.get("rate_limit_seconds", 1) - (current_time - last_query_time))
-
-            query = input("\nEnter your query: ")
-            if query.lower() == 'exit':
-                logger.info("Exiting conversation.")
-                logger.info("Conversation ended.")
+            self._handle_rate_limiting(last_query_time)
+            query = self._get_user_query()
+            if not query:
                 break
 
-            # Retrieve and generate
-            top_docs = self.retriever.retrieve_top_documents(query)
-            context = "\n".join(top_docs)
-            response = self.generator.generate_response(query, context)
-
-            # Audit log the query
-            security_manager.audit_log("query_processed", details={"query_hash": security_manager.hash_sensitive_data(query)})
-
-            # Display results
-            logger.info("Retrieved Documents:")
-            for i, doc in enumerate(top_docs, 1):
-                logger.info(f"{i}. {doc[:200]}...")
-            logger.info("Response:")
-            logger.info(response)
-
+            self._process_query(query)
             last_query_time = time.time()
-            logger.info(f"Processed query: {query}")
+
+    def _handle_rate_limiting(self, last_query_time: float):
+        """Handle rate limiting between queries."""
+        current_time = time.time()
+        rate_limit = config.get("rate_limit_seconds", 1)
+        if current_time - last_query_time < rate_limit:
+            time.sleep(rate_limit - (current_time - last_query_time))
+
+    def _get_user_query(self) -> str:
+        """Get query input from user."""
+        query = input("\nEnter your query: ")
+        if query.lower() == 'exit':
+            logger.info("Exiting conversation.")
+            return None
+        return query
+
+    def _process_query(self, query: str):
+        """Process a single query and display results."""
+        # Retrieve and generate
+        top_docs = self.retriever.retrieve_top_documents(query)
+        context = "\n".join(top_docs)
+        response = self.generator.generate_response(query, context)
+
+        # Audit log the query
+        security_manager.audit_log("query_processed",
+                                   details={"query_hash": security_manager.hash_sensitive_data(query)})
+
+        # Display results
+        self._display_query_results(top_docs, response, query)
+
+    def _display_query_results(self, top_docs: list, response: str, query: str):
+        """Display query results to user."""
+        logger.info("Retrieved Documents:")
+        for i, doc in enumerate(top_docs, 1):
+            logger.info(f"{i}. {doc[:200]}...")
+        logger.info("Response:")
+        logger.info(response)
+        logger.info(f"Processed query: {query}")
 
     def command_line_mode(self, args):
         """Run the RAG system in command-line mode."""

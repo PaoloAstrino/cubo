@@ -42,8 +42,8 @@ class EvaluationIntegrator:
         try:
             # Load configuration
             import json
-            # Corrected path to config.json
-            config_path = Path(__file__).parent.parent.parent / 'config.json'
+            # Corrected path to config.json (two levels up to project root)
+            config_path = Path(__file__).parent.parent / 'config.json'
             with open(config_path, 'r') as f:
                 config = json.load(f)
 
@@ -132,18 +132,21 @@ class EvaluationIntegrator:
         )
 
         # Compute advanced metrics
-        if not error_occurred and self.generator and self.retriever:
+        if not error_occurred:
             try:
                 # Run comprehensive evaluation
                 advanced_metrics = await self.evaluator.evaluate_comprehensive(
                     question, answer, contexts, response_time
                 )
 
-                # Extract RAG triad scores (these would come from separate evaluation)
-                # For now, using placeholder logic
-                evaluation.answer_relevance_score = self._compute_answer_relevance(question, answer)
-                evaluation.context_relevance_score = self._compute_context_relevance(question, contexts)
+                # Extract RAG triad scores using LLM evaluation
+                logger.debug(f"Evaluating query: {question[:50]}...")
+                evaluation.answer_relevance_score = await self.evaluator.evaluate_answer_relevance(question, answer)
+                logger.debug(f"Answer relevance score: {evaluation.answer_relevance_score}")
+                evaluation.context_relevance_score = await self.evaluator.evaluate_context_relevance(question, contexts)
+                logger.debug(f"Context relevance score: {evaluation.context_relevance_score}")
                 evaluation.groundedness_score = advanced_metrics.get('groundedness_score', self._compute_groundedness(contexts, answer))
+                logger.debug(f"Groundedness score: {evaluation.groundedness_score}")
 
                 # Extract LLM metrics if available
                 llm_metrics = advanced_metrics.get('llm_metrics')

@@ -83,37 +83,50 @@ class Utils:
         try:
             text_length = len(text)
 
-            # Adaptive chunk sizing based on text length
-            if chunk_size is None:
-                if text_length < 1000:
-                    chunk_size = 200
-                elif text_length < 5000:
-                    chunk_size = 500
-                else:
-                    chunk_size = 1000
+            # Get adaptive chunk parameters
+            chunk_size, overlap = Utils._get_adaptive_chunk_params(text_length, chunk_size, overlap)
 
-            if overlap is None:
-                if text_length < 1000:
-                    overlap = 50
-                elif text_length < 5000:
-                    overlap = 100
-                else:
-                    overlap = 200
-
-            chunks = []
-            start = 0
-            while start < len(text):
-                end = start + chunk_size
-                chunk = text[start:end]
-                chunks.append(chunk)
-                start = end - overlap
-                if start >= len(text):
-                    break
+            chunks = Utils._create_overlapping_chunks(text, chunk_size, overlap)
             logger.info(f"Text chunked into {len(chunks)} chunks")
             return chunks
         except Exception as e:
             logger.error(f"Error chunking text: {e}")
             raise
+
+    @staticmethod
+    def _get_adaptive_chunk_params(text_length: int, chunk_size: int = None, overlap: int = None) -> tuple:
+        """Determine adaptive chunk size and overlap based on text length."""
+        if chunk_size is None:
+            if text_length < 1000:
+                chunk_size = 200
+            elif text_length < 5000:
+                chunk_size = 500
+            else:
+                chunk_size = 1000
+
+        if overlap is None:
+            if text_length < 1000:
+                overlap = 50
+            elif text_length < 5000:
+                overlap = 100
+            else:
+                overlap = 200
+
+        return chunk_size, overlap
+
+    @staticmethod
+    def _create_overlapping_chunks(text: str, chunk_size: int, overlap: int) -> List[str]:
+        """Create overlapping chunks from text."""
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + chunk_size
+            chunk = text[start:end]
+            chunks.append(chunk)
+            start = end - overlap
+            if start >= len(text):
+                break
+        return chunks
 
     @staticmethod
     def _split_into_sentences(text: str) -> List[str]:

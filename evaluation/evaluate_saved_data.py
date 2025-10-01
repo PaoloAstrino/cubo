@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-CUBO Evaluation Script
+CUBO Evalu        # Get queries that need evaluation (where metrics are NULL or 0.0 - indicating failed evaluation)
+        queries_to_evaluate = db.get_queries_needing_evaluation(session_id=session_id, limit=limit)ion Script
 Run evaluations on saved query data that hasn't been evaluated yet.
 """
 

@@ -103,6 +103,153 @@ class AdvancedEvaluator:
                 'length': len(answer),
                 'word_count': word_count,
                 'sentence_count': sentence_count,
+                'avg_sentence_length': avg_sentence_length,
+                'readability_score': readability_score,
+                'has_structure': has_structure,
+                'has_examples': has_examples,
+                'has_conclusion': has_conclusion
+            }
+        }
+
+    async def evaluate_answer_relevance(self, question: str, answer: str) -> float:
+        """
+        Evaluate how relevant the answer is to the question.
+        
+        Answer relevance measures whether the answer actually addresses the question asked.
+        
+        Returns:
+            Float between 0-1, where 1.0 means perfectly relevant
+        """
+        if not question or not answer:
+            return 0.0
+            
+        if not self.ollama_client and not self.gemini_client:
+            # Fallback heuristic evaluation
+            return self._evaluate_answer_relevance_heuristic(question, answer)
+        
+        try:
+            relevance_prompt = f"""
+            Evaluate how well this answer addresses the question.
+            
+            Question: {question}
+            
+            Answer: {answer}
+            
+            Rate the answer relevance on a scale of 1-5:
+            1 = Answer does not address the question at all
+            2 = Answer partially addresses the question but misses key points
+            3 = Answer addresses the main question but could be more complete
+            4 = Answer fully addresses the question with good detail
+            5 = Answer perfectly addresses the question comprehensively
+            
+            Consider:
+            - Does the answer directly answer what was asked?
+            - Is the answer complete and accurate?
+            - Does the answer stay on topic?
+            
+            Rate only with a number (1-5):
+            """
+            
+            score = await self._get_llm_score(relevance_prompt)
+            
+            # Convert 1-5 scale to 0-1 scale
+            return (score - 1) / 4.0
+            
+        except Exception as e:
+            logger.error(f"LLM answer relevance evaluation failed: {e}")
+            # Fallback to heuristic
+            return self._evaluate_answer_relevance_heuristic(question, answer)
+
+    async def evaluate_context_relevance(self, question: str, contexts: List[str]) -> float:
+        """
+        Evaluate how relevant the retrieved contexts are to the question.
+        
+        Context relevance measures whether the retrieved information is useful for answering the question.
+        
+        Returns:
+            Float between 0-1, where 1.0 means perfectly relevant contexts
+        """
+        if not question or not contexts:
+            return 0.0
+            
+        if not self.ollama_client and not self.gemini_client:
+            # Fallback heuristic evaluation
+            return self._evaluate_context_relevance_heuristic(question, contexts)
+        
+        try:
+            # Combine contexts for evaluation
+            context_text = ' '.join(contexts[:3])  # Use first 3 contexts to avoid token limits
+            
+            relevance_prompt = f"""
+            Evaluate how relevant these retrieved contexts are to the question.
+            
+            Question: {question}
+            
+            Retrieved Contexts: {context_text}
+            
+            Rate the context relevance on a scale of 1-5:
+            1 = Contexts are completely irrelevant to the question
+            2 = Contexts have some tangential relevance but miss the main topic
+            3 = Contexts are somewhat relevant but could be better
+            4 = Contexts are highly relevant and useful for answering
+            5 = Contexts are perfectly relevant and contain exactly the needed information
+            
+            Consider:
+            - Do the contexts contain information that helps answer the question?
+            - Are the contexts on the right topic?
+            - Is the information in contexts sufficient to answer the question?
+            
+            Rate only with a number (1-5):
+            """
+            
+            score = await self._get_llm_score(relevance_prompt)
+            
+            # Convert 1-5 scale to 0-1 scale
+            return (score - 1) / 4.0
+            
+        except Exception as e:
+            logger.error(f"LLM context relevance evaluation failed: {e}")
+            # Fallback to heuristic
+            return self._evaluate_context_relevance_heuristic(question, contexts)
+
+    def _evaluate_answer_relevance_heuristic(self, question: str, answer: str) -> float:
+        """Evaluate answer quality metrics."""
+        if not answer or answer.startswith("Error"):
+            return {
+                'answer_quality': {
+                    'length': 0,
+                    'word_count': 0,
+                    'sentence_count': 0,
+                    'avg_sentence_length': 0,
+                    'readability_score': 0,
+                    'has_structure': False,
+                    'has_examples': False,
+                    'has_conclusion': False
+                }
+            }
+
+        # Basic text metrics
+        word_count = len(answer.split())
+        sentences = re.split(r'[.!?]+', answer)
+        sentence_count = len([s for s in sentences if s.strip()])
+
+        # Readability (simplified)
+        avg_word_length = np.mean([len(word) for word in answer.split()])
+        avg_sentence_length = word_count / max(sentence_count, 1)
+
+        # Flesch Reading Ease (simplified approximation)
+        readability_score = max(0, min(100, 206.835 - 1.015 * avg_sentence_length - 84.6 * avg_word_length))
+
+        # Content structure analysis
+        has_structure = bool(re.search(r'\d+\.|\•|- |\(|\)', answer))  # Lists, bullets
+        has_examples = bool(re.search(r'(?:for example|such as|e\.g\.|example)', answer.lower()))
+        has_conclusion = bool(re.search(r'(?:in conclusion|therefore|thus|summary)', answer.lower()))
+
+        return {
+            'answer_quality': {
+                'length': len(answer),
+                'word_count': word_count,
+                'sentence_count': sentence_count,
                 'avg_sentence_length': round(avg_sentence_length, 1),
                 'readability_score': round(readability_score, 1),
                 'has_structure': has_structure,
@@ -299,22 +446,33 @@ class AdvancedEvaluator:
             return 3.0  # Neutral score
 
     async def _get_gemini_score(self, prompt: str) -> float:
-        """Get score from Gemini Flash."""
+        """Get score from Gemini."""
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-
-            # Extract numerical score from response
-            text = response.text.strip()
-            # Look for a number between 1-5
-            import re
-            match = re.search(r'(\d+(?:\.\d+)?)', text)
-            if match:
-                score = float(match.group(1))
-                return max(1.0, min(5.0, score))  # Clamp to 1-5 range
-            else:
-                logger.warning(f"Could not extract numerical score from Gemini response: {text}")
-                return 3.0
+            # Try different model names in order of preference (free tier first)
+            model_names = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
+            
+            for model_name in model_names:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    response = model.generate_content(prompt)
+                    
+                    # Extract numerical score from response
+                    text = response.text.strip()
+                    logger.debug(f"Gemini response for prompt: {prompt[:100]}... -> {text}")
+                    # Look for a number between 1-5
+                    import re
+                    match = re.search(r'(\d+(?:\.\d+)?)', text)
+                    if match:
+                        score = float(match.group(1))
+                        logger.debug(f"Extracted score: {score}")
+                        return max(1.0, min(5.0, score))  # Clamp to 1-5 range
+                except Exception as e:
+                    logger.debug(f"Failed with model {model_name}: {e}")
+                    continue
+            
+            # If all models failed, raise the last error
+            raise Exception(f"All Gemini models failed")
+            
         except Exception as e:
             logger.error(f"Gemini scoring failed: {e}")
             return 3.0
@@ -484,3 +642,35 @@ class PerformanceAnalyzer:
         recommendations.append("Review low-performing queries to identify improvement areas")
 
         return recommendations
+
+    def _evaluate_answer_relevance_heuristic(self, question: str, answer: str) -> float:
+        """Heuristic answer relevance evaluation when LLM is not available."""
+        if not answer or answer.startswith("Error"):
+            return 0.0
+
+        # Simple keyword overlap
+        question_words = set(question.lower().split())
+        answer_words = set(answer.lower().split())
+
+        overlap = len(question_words.intersection(answer_words))
+        coverage = overlap / max(len(question_words), 1)
+
+        return min(coverage * 1.5, 1.0)  # Boost slightly, cap at 1.0
+
+    def _evaluate_context_relevance_heuristic(self, question: str, contexts: List[str]) -> float:
+        """Heuristic context relevance evaluation when LLM is not available."""
+        if not contexts:
+            return 0.0
+
+        question_words = set(question.lower().split())
+        total_overlap = 0
+
+        for context in contexts:
+            context_words = set(context.lower().split())
+            overlap = len(question_words.intersection(context_words))
+            total_overlap += overlap
+
+        avg_overlap = total_overlap / len(contexts)
+        max_possible = len(question_words)
+
+        return min(avg_overlap / max(max_possible, 1) * 2.0, 1.0)  # Boost and cap

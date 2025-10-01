@@ -9,18 +9,32 @@ class SecurityManager:
     """Security utilities for CUBO: encryption, auditing, and secret management."""
 
     def __init__(self):
-        self.encryption_key = self._get_or_create_key()
+        self._encryption_key = None
+
+    def _get_encryption_key(self) -> bytes:
+        """Get encryption key, initializing it lazily."""
+        if self._encryption_key is None:
+            self._encryption_key = self._get_or_create_key()
+        return self._encryption_key
 
     def _get_or_create_key(self) -> bytes:
         """Get encryption key from environment or create one."""
         key_env = os.getenv('CUBO_ENCRYPTION_KEY')
         if key_env:
-            # Ensure it's 32 bytes for Fernet
-            key = key_env.encode()
-            if len(key) != 32:
-                logger.warning("CUBO_ENCRYPTION_KEY is not 32 bytes. Hashing to derive a 32-byte key.")
-                key = hashlib.sha256(key).digest()
-            return key
+            # Fernet keys should be 32 bytes, base64 encoded (44 characters)
+            key_str = key_env.encode()
+            if len(key_str) == 44:
+                # Assume it's a proper base64-encoded Fernet key
+                try:
+                    # Validate by attempting to create Fernet instance
+                    Fernet(key_str)
+                    return key_str
+                except Exception:
+                    logger.warning("CUBO_ENCRYPTION_KEY appears to be base64 but is invalid. Hashing to derive a 32-byte key.")
+                    return hashlib.sha256(key_str).digest()
+            else:
+                logger.warning("CUBO_ENCRYPTION_KEY is not 44 bytes (base64 encoded). Hashing to derive a 32-byte key.")
+                return hashlib.sha256(key_str).digest()
         else:
             error_msg = ("CUBO_ENCRYPTION_KEY environment variable not set. "
                          "Encryption/decryption will not work. Please set a secure, persistent key.")
@@ -30,7 +44,7 @@ class SecurityManager:
     def encrypt_data(self, data: str) -> str:
         """Encrypt sensitive data."""
         try:
-            f = Fernet(self.encryption_key)
+            f = Fernet(self._get_encryption_key())
             encrypted = f.encrypt(data.encode())
             return encrypted.decode()
         except Exception as e:
@@ -40,7 +54,7 @@ class SecurityManager:
     def decrypt_data(self, encrypted_data: str) -> str:
         """Decrypt sensitive data."""
         try:
-            f = Fernet(self.encryption_key)
+            f = Fernet(self._get_encryption_key())
             decrypted = f.decrypt(encrypted_data.encode())
             return decrypted.decode()
         except Exception as e:
@@ -85,5 +99,5 @@ class SecurityManager:
         return sanitized.strip()
 
 
-# Global security manager instance
+# Global security manager instance - initialized without requiring encryption key
 security_manager = SecurityManager()

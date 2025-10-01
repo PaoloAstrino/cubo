@@ -273,11 +273,8 @@ class ServiceManager:
 
             def save_data():
                 try:
-                    # Import data saving function
-                    from evaluation.integration import save_query_data_sync
-
-                    # Save data without evaluation
-                    success = save_query_data_sync(
+                    # Direct database saving without evaluation
+                    success = self._save_query_data_direct(
                         question=question,
                         answer=answer,
                         contexts=sources,
@@ -299,7 +296,165 @@ class ServiceManager:
             self.execute_async('data_saving', save_data, with_retry=False)
 
         except Exception as e:
-            logger.error(f"Failed to schedule evaluation: {e}")
+            logger.error(f"Failed to schedule data saving: {e}")
+
+    def _save_query_data_direct(self, question: str, answer: str, contexts: List[str],
+                               response_time: float) -> bool:
+        """Save query data directly to database without evaluation."""
+        try:
+            import sqlite3
+            import json
+            import datetime
+            import uuid
+
+            # Database path
+            db_path = "evaluation/evaluation.db"
+
+            # Ensure directory exists
+            import os
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+            # Create basic evaluation record
+            evaluation_data = {
+                'timestamp': datetime.datetime.now().isoformat(),
+                'session_id': str(uuid.uuid4())[:8],
+                'question': question,
+                'answer': answer,
+                'response_time': response_time,
+                'contexts': json.dumps(contexts),
+                'context_metadata': json.dumps([]),
+                'model_used': 'llama3.2:latest',
+                'embedding_model': 'embeddinggemma-300m',
+                'retrieval_method': 'sentence_window',
+                'chunking_method': 'sentence_window',
+                'answer_length': len(answer) if answer else 0,
+                'context_count': len(contexts),
+                'total_context_length': sum(len(ctx) for ctx in contexts),
+                'average_context_similarity': 0.0,
+                'answer_confidence': 0.0,
+                'has_answer': bool(answer and not answer.startswith("Error")),
+                'is_fallback_response': bool(answer and "unable to generate" in answer.lower()),
+                'error_occurred': False,
+                'error_message': None
+            }
+
+            # Insert into database
+            with sqlite3.connect(db_path) as conn:
+            # Create table if it doesn't exist (full schema with evaluation columns)
+                conn.execute('''
+                CREATE TABLE IF NOT EXISTS evaluations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    session_id TEXT,
+                    question TEXT NOT NULL,
+                    answer TEXT,
+                    response_time REAL,
+                    contexts TEXT,  -- JSON array
+                    context_metadata TEXT,  -- JSON array
+                    model_used TEXT,
+                    embedding_model TEXT,
+                    retrieval_method TEXT,
+                    chunking_method TEXT,
+
+                    -- RAG Metrics
+                    answer_relevance_score REAL,
+                    context_relevance_score REAL,
+                    groundedness_score REAL,
+
+                    -- Detailed Metrics
+                    answer_length INTEGER,
+                    context_count INTEGER,
+                    total_context_length INTEGER,
+                    average_context_similarity REAL,
+                    answer_confidence REAL,
+
+                    -- Quality Flags
+                    has_answer BOOLEAN,
+                    is_fallback_response BOOLEAN,
+                    error_occurred BOOLEAN,
+                    error_message TEXT,
+
+                    -- LLM Metrics
+                    llm_metrics TEXT,
+
+                    -- User Feedback
+                    user_rating INTEGER,
+                    user_feedback TEXT
+                    )
+                ''')
+
+            # Add missing columns if they don't exist (for backward compatibility)
+            try:
+                conn.execute('ALTER TABLE evaluations ADD COLUMN answer_relevance_score REAL')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute('ALTER TABLE evaluations ADD COLUMN context_relevance_score REAL')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute('ALTER TABLE evaluations ADD COLUMN groundedness_score REAL')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute('ALTER TABLE evaluations ADD COLUMN llm_metrics TEXT')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute('ALTER TABLE evaluations ADD COLUMN user_rating INTEGER')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                conn.execute('ALTER TABLE evaluations ADD COLUMN user_feedback TEXT')
+            except sqlite3.OperationalError:
+                pass  # Column already exists                # Insert data
+                conn.execute('''
+                    INSERT INTO evaluations (
+                        timestamp, session_id, question, answer, response_time,
+                        contexts, context_metadata, model_used, embedding_model,
+                        retrieval_method, chunking_method, answer_length,
+                        context_count, total_context_length, average_context_similarity,
+                        answer_confidence, has_answer, is_fallback_response,
+                        error_occurred, error_message,
+                        answer_relevance_score, context_relevance_score, groundedness_score,
+                        llm_metrics, user_rating, user_feedback
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    evaluation_data['timestamp'],
+                    evaluation_data['session_id'],
+                    evaluation_data['question'],
+                    evaluation_data['answer'],
+                    evaluation_data['response_time'],
+                    evaluation_data['contexts'],
+                    evaluation_data['context_metadata'],
+                    evaluation_data['model_used'],
+                    evaluation_data['embedding_model'],
+                    evaluation_data['retrieval_method'],
+                    evaluation_data['chunking_method'],
+                    evaluation_data['answer_length'],
+                    evaluation_data['context_count'],
+                    evaluation_data['total_context_length'],
+                    evaluation_data['average_context_similarity'],
+                    evaluation_data['answer_confidence'],
+                    evaluation_data['has_answer'],
+                    evaluation_data['is_fallback_response'],
+                    evaluation_data['error_occurred'],
+                    evaluation_data['error_message'],
+                    None,  # answer_relevance_score
+                    None,  # context_relevance_score
+                    None,  # groundedness_score
+                    None,  # llm_metrics
+                    None,  # user_rating
+                    None   # user_feedback
+                ))
+
+                conn.commit()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Direct data saving failed: {e}")
+            return False
 
 
 # Global service manager instance

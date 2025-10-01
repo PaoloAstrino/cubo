@@ -159,13 +159,16 @@ class LoadingDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Window)
         self.setFixedSize(600, 300)
 
-        # Set window icon
+        # Set window icon - prefer ICO for Windows compatibility
         from PySide6.QtGui import QIcon
         from pathlib import Path
-        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
+        icon_path = Path(__file__).parent.parent / "assets" / "logo.ico"
+        if not icon_path.exists():
+            # Fallback to PNG if ICO doesn't exist
+            icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -236,6 +239,9 @@ class LoadingDialog(QDialog):
         """Update progress bar and status message."""
         self.progress_bar.setValue(value)
         self.status_label.setText(message)
+        # Ensure dialog stays on top
+        self.raise_()
+        self.activateWindow()
 
 
 class CUBOGUI(QMainWindow):
@@ -262,6 +268,15 @@ class CUBOGUI(QMainWindow):
         # Create loading overlay as the only visible window during initialization
         self.loading_dialog = LoadingDialog()
         self.loading_dialog.show()
+        self.loading_dialog.raise_()
+        self.loading_dialog.activateWindow()
+        
+        # Center the loading dialog on screen
+        screen = QApplication.primaryScreen().availableGeometry()
+        dialog_geometry = self.loading_dialog.geometry()
+        x = (screen.width() - dialog_geometry.width()) // 2
+        y = (screen.height() - dialog_geometry.height()) // 2
+        self.loading_dialog.move(x, y)
 
         # Set up logging to the loading dialog
         self.log_handler = LoadingLogHandler(self.loading_dialog)
@@ -312,7 +327,7 @@ class CUBOGUI(QMainWindow):
             self.init_worker.deleteLater()
             self.init_worker = None
 
-        # Show the main window
+        # Show the main window (documents will be loaded when users upload them)
         self._show_main_window()
 
     def _show_main_window(self):
@@ -324,12 +339,47 @@ class CUBOGUI(QMainWindow):
         
         # Now show the main window
         self.show()
+        
+        # Update status bar to indicate manual document loading is required
+        self.status_bar.showMessage("Ready - Please upload documents to get started")
 
     def _on_initialization_error(self, error_msg):
-        """Called when backend initialization fails."""
-        QMessageBox.critical(self, "Backend Error", f"Failed to initialize backend components: {error_msg}")
-        
-        # Set components to None so the app can still run
+        """Called when backend initialization fails with detailed error categorization."""
+        # Categorize the error for better user feedback
+        error_str = str(error_msg).lower()
+
+        if "model" in error_str and ("load" in error_str or "not found" in error_str):
+            user_title = "Model Loading Error"
+            user_msg = "Failed to load the AI model. Please check that model files are properly installed."
+            status_msg = "Model loading failed"
+        elif "database" in error_str or "chroma" in error_str:
+            user_title = "Database Error"
+            user_msg = "Failed to initialize the document database. Check file permissions and disk space."
+            status_msg = "Database initialization failed"
+        elif "memory" in error_str or "cuda" in error_str or "gpu" in error_str:
+            user_title = "Memory/Resource Error"
+            user_msg = "Insufficient memory or GPU resources. Try closing other applications or reducing model size."
+            status_msg = "Insufficient resources"
+        elif "permission" in error_str or "access" in error_str:
+            user_title = "Permission Error"
+            user_msg = "Permission denied accessing required files. Check file permissions in the application directory."
+            status_msg = "Permission denied"
+        elif "connection" in error_str or "network" in error_str:
+            user_title = "Connection Error"
+            user_msg = "Network connection error during initialization. Check your internet connection."
+            status_msg = "Connection error"
+        else:
+            user_title = "Backend Error"
+            user_msg = f"Failed to initialize backend components: {error_msg}"
+            status_msg = "Backend initialization failed"
+
+        QMessageBox.critical(self, user_title, user_msg)
+
+        # Set status bar message
+        if hasattr(self, 'status_bar'):
+            self.status_bar.showMessage(status_msg)
+
+        # Set components to None so the app can still run in limited mode
         self.model = None
         self.document_loader = None
         self.retriever = None
@@ -355,78 +405,108 @@ class CUBOGUI(QMainWindow):
             self._init_event_loop.exit(1)  # Error
 
     def _auto_load_documents(self):
-        """Automatically load all documents from the data directory at startup."""
+        """Automatically load all documents from the data directory at startup with detailed status."""
         import os
         from pathlib import Path
         import logging
         from src.config import config
-        
+
         logger = logging.getLogger(__name__)
-        
+
         try:
             # Get data directory path
             data_dir = Path(__file__).parent.parent / "data"
-            
+
             if not data_dir.exists():
                 logger.info("Data directory not found, skipping auto-load")
+                self.status_bar.showMessage("Data directory not found")
                 return
-            
+
             # Get all supported file extensions
             supported_extensions = self.document_loader.supported_extensions
-            
+
             # Find all supported files
             document_files = []
             for ext in supported_extensions:
                 document_files.extend(data_dir.glob(f"**/*{ext}"))
-            
+
             if not document_files:
                 logger.info("No documents found in data directory")
+                self.status_bar.showMessage("No documents found in data directory")
                 return
-            
+
             logger.info(f"Auto-loading {len(document_files)} documents from {data_dir}")
-            
+            self.status_bar.showMessage(f"Auto-loading {len(document_files)} documents...")
+
             # Load each document
             loaded_count = 0
+            failed_count = 0
+            skipped_count = 0
+
             for filepath in document_files:
                 try:
                     filepath_str = str(filepath)
-                    logger.info(f"Auto-loading document: {filepath.name}")
-                    
+                    filename = filepath.name
+                    logger.info(f"Auto-loading document: {filename}")
+
+                    # Check if already loaded
+                    if self.retriever.is_document_loaded(filepath_str):
+                        logger.info(f"Document already loaded: {filename}")
+                        skipped_count += 1
+                        continue
+
+                    self.status_bar.showMessage(f"Loading {filename}...")
+
                     # Load and chunk the document
                     documents = self.document_loader.load_single_document(filepath_str)
-                    
+
                     if documents:
+                        self.status_bar.showMessage(f"Indexing {filename}...")
                         # Add to retriever
                         success = self.retriever.add_document(filepath_str, documents)
-                        if success:
+                        if success or self.retriever.is_document_loaded(filepath_str):
                             loaded_count += 1
-                            logger.info(f"Successfully auto-loaded: {filepath.name}")
+                            logger.info(f"Successfully auto-loaded: {filename}")
                         else:
-                            logger.warning(f"Failed to add to retriever: {filepath.name}")
+                            failed_count += 1
+                            logger.warning(f"Failed to add to retriever: {filename}")
                     else:
-                        logger.warning(f"No content extracted from: {filepath.name}")
-                        
+                        failed_count += 1
+                        logger.warning(f"No content extracted from: {filename}")
+
                 except Exception as e:
+                    failed_count += 1
                     logger.error(f"Failed to auto-load {filepath.name}: {e}")
-            
-            logger.info(f"Auto-loading completed: {loaded_count}/{len(document_files)} documents loaded")
-            
-            # Update status if any documents were loaded
-            if loaded_count > 0:
-                self.status_bar.showMessage(f"Ready - {loaded_count} documents auto-loaded")
-            
+
+            # Final status message
+            total_processed = loaded_count + skipped_count
+            if failed_count == 0 and skipped_count == 0:
+                self.status_bar.showMessage(f"Ready - {loaded_count} documents loaded")
+            elif failed_count == 0:
+                self.status_bar.showMessage(f"Ready - {total_processed} documents available ({skipped_count} already loaded)")
+            elif skipped_count == 0:
+                self.status_bar.showMessage(f"Ready - {loaded_count} documents loaded ({failed_count} failed)")
+            else:
+                self.status_bar.showMessage(f"Ready - {total_processed} documents available ({loaded_count} new, {skipped_count} cached, {failed_count} failed)")
+
+            logger.info(f"Auto-loading completed: {loaded_count} loaded, {skipped_count} skipped, {failed_count} failed")
+
         except Exception as e:
             logger.error(f"Auto-loading failed: {e}")
+            self.status_bar.showMessage("Auto-loading failed - check logs")
 
     def init_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle("CUBO")
         self.setGeometry(100, 100, 1200, 800)
 
-        # Set window icon
+        # Set window icon - prefer ICO for Windows compatibility
         from PySide6.QtGui import QIcon
         from pathlib import Path
-        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
+        icon_path = Path(__file__).parent.parent / "assets" / "logo.ico"
+        if not icon_path.exists():
+            # Fallback to PNG if ICO doesn't exist
+            icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -548,17 +628,13 @@ class CUBOGUI(QMainWindow):
         import logging
         logger = logging.getLogger(__name__)
 
-        try:
-            # Check if backend is initialized
-            if not self.model or not self.document_loader or not self.retriever:
-                error_msg = "Backend components not initialized. Please restart the application."
-                logger.error(error_msg)
-                QMessageBox.critical(self, "Backend Error", error_msg)
-                return
+        # Convert single filepath to list if needed
+        if isinstance(filepaths, str):
+            filepaths = [filepaths]
+            
+        logger.info(f"Document upload triggered with {len(filepaths)} files: {[Path(fp).name for fp in filepaths]}")
 
-            # Convert single filepath to list if needed
-            if isinstance(filepaths, str):
-                filepaths = [filepaths]
+        try:
 
             # Process documents synchronously
             self._process_documents_synchronously(filepaths)
@@ -568,71 +644,103 @@ class CUBOGUI(QMainWindow):
             QMessageBox.critical(self, "Upload Error", f"Failed to process documents: {e}")
 
     def _process_documents_synchronously(self, filepaths):
-        """Fallback synchronous processing."""
+        """Fallback synchronous processing with detailed status reporting."""
         logger = logging.getLogger(__name__)
 
         try:
             total_files = len(filepaths)
             processed_count = 0
+            skipped_count = 0
+            failed_count = 0
 
             for filepath in filepaths:
                 filename = Path(filepath).name
-                self.status_bar.showMessage(f"Processing {filename}...")
 
                 # Check if document is already loaded
                 if self.retriever.is_document_loaded(filepath):
                     logger.info(f"Document already loaded: {filepath}")
+                    skipped_count += 1
                     processed_count += 1
+                    self.status_bar.showMessage(f"Skipped {filename} (already loaded)")
                     continue
+
+                self.status_bar.showMessage(f"Loading {filename}...")
 
                 # Load and chunk the document
                 documents = self.document_loader.load_single_document(filepath)
 
                 if not documents:
                     logger.warning(f"No content extracted from {filename}")
+                    failed_count += 1
+                    self.status_bar.showMessage(f"Failed to extract content from {filename}")
                     continue
+
+                self.status_bar.showMessage(f"Indexing {filename} ({len(documents)} chunks)...")
 
                 # Add to retriever
                 success = self.retriever.add_document(filepath, documents)
-                if success:
+                if success or self.retriever.is_document_loaded(filepath):
                     processed_count += 1
                     logger.info(f"Processed {filename}: {len(documents)} chunks")
+                    self.status_bar.showMessage(f"Indexed {filename} successfully")
+                    
+                    # Add to document widget UI if not already present
+                    try:
+                        self.document_widget.add_document(filepath)
+                    except Exception as e:
+                        logger.warning(f"Failed to add document to UI list: {e}")
+                else:
+                    failed_count += 1
+                    logger.warning(f"Failed to index {filename}")
+                    self.status_bar.showMessage(f"Failed to index {filename}")
 
-            self.status_bar.showMessage(f"Processed {processed_count}/{total_files} documents")
-
-            # Update the document list in the UI
-            try:
-                self.document_widget.update_document_list()
-            except Exception as e:
-                logger.error(f"Failed to update document list: {e}")
+            # Final status message with detailed breakdown
+            if failed_count == 0 and skipped_count == 0:
+                self.status_bar.showMessage(f"Successfully processed {processed_count}/{total_files} documents")
+            elif failed_count == 0:
+                self.status_bar.showMessage(f"Processed {processed_count}/{total_files} documents ({skipped_count} already loaded)")
+            elif skipped_count == 0:
+                self.status_bar.showMessage(f"Processed {processed_count}/{total_files} documents ({failed_count} failed)")
+            else:
+                self.status_bar.showMessage(f"Processed {processed_count}/{total_files} documents ({skipped_count} skipped, {failed_count} failed)")
 
         except Exception as e:
             logger.error(f"Synchronous processing failed: {e}")
+            self.status_bar.showMessage("Critical error during document processing")
             QMessageBox.critical(self, "Processing Error", f"Failed to process documents: {e}")
 
     def on_query_submitted(self, query):
-        """Handle query submission."""
+        """Handle query submission with detailed status reporting."""
         import logging
         logger = logging.getLogger(__name__)
-        
+
         try:
             # Check if backend is initialized
             if not self.retriever:
                 error_msg = "Backend components not initialized. Please restart the application."
                 logger.error(error_msg)
+                self.status_bar.showMessage("Backend not ready - restart required")
                 QMessageBox.critical(self, "Backend Error", error_msg)
                 return
-            
-            self.status_bar.showMessage("Processing...")
+
+            # Validate query
+            if not query or not query.strip():
+                self.status_bar.showMessage("Query cannot be empty")
+                QMessageBox.warning(self, "Invalid Query", "Please enter a question.")
+                return
+
+            self.status_bar.showMessage("Searching documents...")
 
             # Load current settings
             settings = self.load_settings()
 
             if not self.retriever.get_loaded_documents():
+                self.status_bar.showMessage("No documents loaded")
                 QMessageBox.warning(self, "No Documents",
                     "Please upload some documents first before asking questions.")
-                self.status_bar.showMessage("Ready")
                 return
+
+            self.status_bar.showMessage("Retrieving relevant content...")
 
             # Use service manager for async query processing with automatic data saving
             from src.generator import ResponseGenerator
@@ -642,6 +750,14 @@ class CUBOGUI(QMainWindow):
             # Get retrieval settings and retrieve documents
             top_k = settings.get("retrieval", {}).get("top_k", 6)
             relevant_docs_data = self.retriever.retrieve_top_documents(query, top_k=top_k)
+
+            if not relevant_docs_data:
+                self.status_bar.showMessage("No relevant documents found")
+                QMessageBox.information(self, "No Results",
+                    "No relevant documents were found for your query. Try rephrasing or upload more documents.")
+                return
+
+            self.status_bar.showMessage(f"Found {len(relevant_docs_data)} relevant sections, generating response...")
 
             # Extract document text and build context
             relevant_docs = [doc_data['document'] for doc_data in relevant_docs_data]
@@ -661,55 +777,110 @@ class CUBOGUI(QMainWindow):
                 generator_func=lambda q, c: generator.generate_response(q, context=c),
                 sources=relevant_docs  # Pass actual document content, not just filenames
             )
-            print(f"DEBUG: Future created with data saving: {future}")
 
             # Handle completion
             def on_complete(response):
-                print(f"DEBUG: on_complete called with response type: {type(response)}")
-                print(f"DEBUG: Response length: {len(response) if response else 0}")
+                if not response or len(response.strip()) == 0:
+                    self.status_bar.showMessage("Generated empty response")
+                    QMessageBox.warning(self, "Empty Response",
+                        "The AI generated an empty response. This might indicate an issue with the model or context.")
+                else:
+                    self.status_bar.showMessage("Response generated successfully")
                 # Data is automatically saved by generate_response_async
-                print("DEBUG: Data automatically saved to evaluation database")
                 # Update UI in main thread using signal
-                print("DEBUG: Emitting update_results_signal")
                 self.update_results_signal.emit(response, sources)
-                print("DEBUG: Signal emitted")
 
             def on_error(error):
-                print(f"DEBUG: on_error called with error: {error}")
+                error_msg = str(error)
+                if "timeout" in error_msg.lower():
+                    self.status_bar.showMessage("Response generation timed out")
+                elif "memory" in error_msg.lower():
+                    self.status_bar.showMessage("Insufficient memory for response generation")
+                elif "connection" in error_msg.lower():
+                    self.status_bar.showMessage("Connection error during response generation")
+                else:
+                    self.status_bar.showMessage("Error generating response")
                 # Update UI in main thread
                 from PySide6.QtCore import QTimer
                 QTimer.singleShot(0, lambda: self._handle_query_error(error))
 
             # Set up callbacks
-            print("DEBUG: Setting up future callbacks")
             future.add_done_callback(lambda f: on_complete(f.result()) if not f.exception() else on_error(f.exception()))
-            print("DEBUG: Callbacks set up successfully")
 
         except Exception as e:
-            self.status_bar.showMessage("Error")
+            error_msg = str(e)
+            if "model" in error_msg.lower():
+                self.status_bar.showMessage("Model error - check configuration")
+            elif "database" in error_msg.lower():
+                self.status_bar.showMessage("Database error - check connection")
+            else:
+                self.status_bar.showMessage("Unexpected error during query processing")
             QMessageBox.critical(self, "Query Error", f"Failed to process query: {e}")
 
     def _update_ui_with_results(self, response, sources):
         """Update UI with query results (called in main thread)."""
         try:
-            print(f"DEBUG: Updating UI with response (length: {len(response) if response else 0})")
-            print(f"DEBUG: Sources: {sources}")
+            if not response:
+                self.status_bar.showMessage("No response generated")
+                QMessageBox.warning(self, "No Response",
+                    "The AI did not generate a response. This might indicate an issue with the model or context.")
+                return
+
+            if len(response.strip()) == 0:
+                self.status_bar.showMessage("Empty response generated")
+                QMessageBox.warning(self, "Empty Response",
+                    "The AI generated an empty response. Try rephrasing your question.")
+                return
+
+            # Check for very short responses that might indicate issues
+            if len(response.strip()) < 10:
+                self.status_bar.showMessage("Very short response - may be incomplete")
+                QMessageBox.information(self, "Short Response",
+                    "The response seems unusually short. The AI might not have had enough relevant context.")
+
             self.query_widget.display_results(response, sources)
             self.status_bar.showMessage("Ready")
-            print("DEBUG: UI update completed successfully")
+
         except Exception as e:
-            print(f"Error updating UI with results: {e}")
             import traceback
-            traceback.print_exc()
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error updating UI with results: {e}")
+            logger.error(traceback.format_exc())
             self.status_bar.showMessage("Error displaying results")
+            QMessageBox.critical(self, "Display Error", f"Failed to display results: {e}")
 
     def _handle_query_error(self, error):
         """Handle query error (called in main thread)."""
         try:
-            self.status_bar.showMessage("Error")
-            QMessageBox.critical(self, "Query Error", f"Failed to process query: {error}")
+            error_msg = str(error)
+            logger = logging.getLogger(__name__)
+
+            # Categorize errors for better user feedback
+            if "timeout" in error_msg.lower():
+                user_msg = "The response generation timed out. Try a simpler question or check your internet connection."
+                self.status_bar.showMessage("Request timed out")
+            elif "memory" in error_msg.lower() or "cuda" in error_msg.lower():
+                user_msg = "Insufficient memory for processing. Try reducing the context size or restarting the application."
+                self.status_bar.showMessage("Memory error")
+            elif "connection" in error_msg.lower() or "network" in error_msg.lower():
+                user_msg = "Network connection error. Check your internet connection and try again."
+                self.status_bar.showMessage("Connection error")
+            elif "model" in error_msg.lower():
+                user_msg = "AI model error. The language model may not be properly configured."
+                self.status_bar.showMessage("Model configuration error")
+            else:
+                user_msg = f"An unexpected error occurred: {error_msg}"
+                self.status_bar.showMessage("Unexpected error")
+
+            logger.error(f"Query error: {error_msg}")
+            QMessageBox.critical(self, "Query Error", user_msg)
+
         except Exception as e:
-            print(f"Error handling query error: {e}")
+            # Fallback error handling
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in error handler: {e}")
+            self.status_bar.showMessage("Critical error")
+            QMessageBox.critical(self, "Critical Error", "An unexpected error occurred while handling the previous error.")
 
     def show_advanced_settings(self):
         """Show advanced settings dialog."""
@@ -795,15 +966,70 @@ def main():
     logger = logging.getLogger(__name__)
     logger.info("Starting CUBO GUI application")
     
+    # Check for existing instance
+    from PySide6.QtNetwork import QLocalSocket, QLocalServer
+    from PySide6.QtCore import QCoreApplication
+    
+    # Create unique server name for this application
+    server_name = "CUBO_GUI_SingleInstance"
+    
+    # Try to connect to existing instance
+    socket = QLocalSocket()
+    socket.connectToServer(server_name)
+    
+    if socket.waitForConnected(500):  # Wait 500ms for connection
+        # Another instance is running, send activation signal and exit
+        logger.info("Another instance is already running, activating it and exiting")
+        socket.write(b"ACTIVATE")
+        socket.flush()
+        socket.waitForBytesWritten(1000)
+        socket.disconnectFromServer()
+        return 0  # Exit successfully
+    
+    # No existing instance, create the server for future instances
+    server = QLocalServer()
+    if not server.listen(server_name):
+        logger.warning(f"Failed to create single-instance server: {server.errorString()}")
+        # Continue anyway, but there might be issues with multiple instances
+    
     app = QApplication(sys.argv)
     app.setApplicationName("CUBO")
     app.setApplicationVersion("1.0")
     app.setOrganizationName("CUBO")
+    
+    # Set application icon for Windows taskbar
+    from PySide6.QtGui import QIcon
+    from pathlib import Path
+    icon_path = Path(__file__).parent.parent / "assets" / "logo.ico"
+    if not icon_path.exists():
+        # Fallback to PNG if ICO doesn't exist
+        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
 
     try:
         # Create main window (loading dialog will be shown during initialization)
         logger.info("Creating main window")
         window = CUBOGUI()
+        
+        # Connect server to handle activation requests from other instances
+        def handle_new_connection():
+            client_socket = server.nextPendingConnection()
+            client_socket.readyRead.connect(lambda: handle_activation_request(client_socket))
+        
+        def handle_activation_request(socket):
+            if socket.bytesAvailable() > 0:
+                data = socket.readAll().data().decode()
+                if data == "ACTIVATE":
+                    # Bring window to front
+                    if hasattr(window, 'show'):
+                        window.show()
+                        window.raise_()
+                        window.activateWindow()
+                    logger.info("Activated existing instance")
+        
+        if server.isListening():
+            server.newConnection.connect(handle_new_connection)
         
         # The constructor already started initialization, just wait for it to complete
         logger.info("Main window shown, starting event loop")
