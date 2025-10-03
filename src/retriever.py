@@ -14,6 +14,7 @@ from src.logger import logger
 from src.config import config
 from src.service_manager import get_service_manager
 from src.model_inference_threading import get_model_inference_threading
+from .reranker import LocalReranker
 
 
 class DocumentRetriever:
@@ -61,7 +62,7 @@ class DocumentRetriever:
 
         # Initialize postprocessors if using sentence windows
         if self.use_sentence_window:
-            from .postprocessor import WindowReplacementPostProcessor, LocalReranker
+            from .postprocessor import WindowReplacementPostProcessor
             self.window_postprocessor = WindowReplacementPostProcessor()
             if self.model:
                 self.reranker = LocalReranker(self.model)

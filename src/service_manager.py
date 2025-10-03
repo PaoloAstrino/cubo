@@ -334,8 +334,10 @@ class ServiceManager:
         except Exception as e:
             logger.error(f"Failed to schedule data saving: {e}")
 
-    def _save_query_data_direct(self, question: str, answer: str, contexts: List[str],
-                               response_time: float) -> bool:
+    def _save_query_data_direct(
+        self, question: str, answer: str, contexts: List[str],
+        response_time: float
+    ) -> bool:
         """Save query data directly to database without evaluation."""
         try:
             # Create evaluation data
