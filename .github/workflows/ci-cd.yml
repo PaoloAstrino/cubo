@@ -745,6 +745,14 @@ jobs:
 
                   # 2. Initialize retriever and add document
                   print('Step 2: Document indexing')
+                  import uuid
+                  unique_collection_name = f"integration_test_{uuid.uuid4().hex[:8]}"
+                  
+                  # Temporarily override config for unique collection
+                  from src import config
+                  original_collection_name = config.config.get("collection_name", "cubo_documents")
+                  config.config["collection_name"] = unique_collection_name
+                  
                   model = SentenceTransformer('all-MiniLM-L6-v2')
                   retriever = DocumentRetriever(model)
                   success = retriever.add_documents([test_content])
@@ -766,7 +774,8 @@ jobs:
                   print('Reranking integrated successfully')
 
                   # 5. Clean up
-                  retriever.clear_current_session()
+                  # Restore original collection name
+                  config.config["collection_name"] = original_collection_name
                   print('Session cleanup completed')
 
                   print('End-to-end integration test: PASSED')
