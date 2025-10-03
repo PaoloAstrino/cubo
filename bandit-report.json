@@ -1,13 +1,13 @@
 {
   "errors": [],
-  "generated_at": "2025-10-03T13:49:19Z",
+  "generated_at": "2025-10-03T14:21:34Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 7,
+      "CONFIDENCE.HIGH": 4,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 3,
+      "SEVERITY.HIGH": 0,
       "SEVERITY.LOW": 4,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
@@ -55,11 +55,11 @@
       "skipped_tests": 0
     },
     "src/custom_auto_merging.py": {
-      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 1,
+      "SEVERITY.HIGH": 0,
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
@@ -237,11 +237,11 @@
       "skipped_tests": 0
     },
     "src/retriever.py": {
-      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 2,
+      "SEVERITY.HIGH": 0,
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
@@ -304,26 +304,6 @@
   },
   "results": [
     {
-      "code": "100         content = f\"{filename}_{level}_{index}\"\n101         return hashlib.md5(content.encode()).hexdigest()[:16]\n102 \n",
-      "col_offset": 15,
-      "end_col_offset": 44,
-      "filename": "src/custom_auto_merging.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 327,
-        "link": "https://cwe.mitre.org/data/definitions/327.html"
-      },
-      "issue_severity": "HIGH",
-      "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
-      "line_number": 101,
-      "line_range": [
-        101
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.8.3/plugins/b324_hashlib.html",
-      "test_id": "B324",
-      "test_name": "hashlib"
-    },
-    {
       "code": "210         try:\n211             import subprocess\n212             result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=10)\n",
       "col_offset": 12,
       "end_col_offset": 29,
@@ -382,46 +362,6 @@
       "more_info": "https://bandit.readthedocs.io/en/1.8.3/plugins/b603_subprocess_without_shell_equals_true.html",
       "test_id": "B603",
       "test_name": "subprocess_without_shell_equals_true"
-    },
-    {
-      "code": "80         with open(filepath, 'rb') as f:\n81             return hashlib.md5(f.read()).hexdigest()\n82 \n",
-      "col_offset": 19,
-      "end_col_offset": 40,
-      "filename": "src/retriever.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 327,
-        "link": "https://cwe.mitre.org/data/definitions/327.html"
-      },
-      "issue_severity": "HIGH",
-      "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
-      "line_number": 81,
-      "line_range": [
-        81
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.8.3/plugins/b324_hashlib.html",
-      "test_id": "B324",
-      "test_name": "hashlib"
-    },
-    {
-      "code": "217                 import hashlib\n218                 file_hash = hashlib.md5(doc.encode()).hexdigest()\n219 \n",
-      "col_offset": 28,
-      "end_col_offset": 53,
-      "filename": "src/retriever.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 327,
-        "link": "https://cwe.mitre.org/data/definitions/327.html"
-      },
-      "issue_severity": "HIGH",
-      "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
-      "line_number": 218,
-      "line_range": [
-        218
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.8.3/plugins/b324_hashlib.html",
-      "test_id": "B324",
-      "test_name": "hashlib"
     },
     {
       "code": "144                 return len(tokenizer.encode(text, add_special_tokens=False))\n145             except Exception:\n146                 pass\n147         # Fallback: approximate by words\n",

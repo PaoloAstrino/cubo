@@ -78,7 +78,7 @@ class DocumentRetriever:
     def _get_file_hash(self, filepath: str) -> str:
         """Get hash of file content for caching."""
         with open(filepath, 'rb') as f:
-            return hashlib.md5(f.read()).hexdigest()
+            return hashlib.md5(f.read(), usedforsecurity=False).hexdigest()
 
     def _get_filename_from_path(self, filepath: str) -> str:
         """Extract filename from path."""
@@ -215,7 +215,7 @@ class DocumentRetriever:
 
                 # Use document content hash instead of file hash for testing
                 import hashlib
-                file_hash = hashlib.md5(doc.encode()).hexdigest()
+                file_hash = hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()
 
                 # Check if document with same hash already exists
                 existing_docs = self.collection.get(where={"file_hash": file_hash})

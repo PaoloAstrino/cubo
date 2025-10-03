@@ -98,7 +98,7 @@ class HierarchicalChunker:
     def _generate_chunk_id(self, filename: str, level: int, index: int) -> str:
         """Generate unique chunk ID."""
         content = f"{filename}_{level}_{index}"
-        return hashlib.md5(content.encode()).hexdigest()[:16]
+        return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:16]
 
     def build_hierarchy(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Build parent-child relationships between chunks."""
