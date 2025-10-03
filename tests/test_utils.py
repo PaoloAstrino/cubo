@@ -5,10 +5,18 @@ from src.utils import Utils
 
 def test_sanitize_path_valid():
     """Test path sanitization with valid paths."""
-    base_dir = "C:\\base"
-    path = "C:\\base\\subdir\\file.txt"
+    # Use platform-appropriate paths
+    if os.name == 'nt':  # Windows
+        base_dir = "C:\\base"
+        path = "C:\\base\\subdir\\file.txt"
+    else:  # Unix/Linux
+        base_dir = "/base"
+        path = "/base/subdir/file.txt"
+
     result = Utils.sanitize_path(path, base_dir)
-    assert result == path
+    # The result should be the absolute path
+    expected = os.path.abspath(path)
+    assert result == expected
 
 def test_sanitize_path_traversal():
     """Test path sanitization blocks directory traversal."""

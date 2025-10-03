@@ -191,7 +191,7 @@ jobs:
 
           # Test GUI imports
           try:
-              from gui.main_window import MainWindow
+              from gui.main_window import CUBOGUI
               from gui.components import DocumentWidget
               from PySide6.QtWidgets import QApplication
               print('GUI imports: PASSED')
@@ -205,7 +205,7 @@ jobs:
 
           try:
               app = QApplication.instance() or QApplication([])
-              window = MainWindow()
+              window = CUBOGUI()
               print('GUI instantiation: PASSED')
               app.quit()
           except Exception as e:
@@ -225,12 +225,12 @@ jobs:
           os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
           from PySide6.QtWidgets import QApplication
-          from gui.main_window import MainWindow
+          from gui.main_window import CUBOGUI
 
           app = QApplication.instance() or QApplication([])
 
           try:
-              window = MainWindow()
+              window = CUBOGUI()
 
               # Test document widget creation
               from gui.components import DocumentWidget
@@ -337,8 +337,8 @@ jobs:
               test_texts = ['Test document 1', 'Test document 2', 'Test document 3']
               embeddings = inference_threading.generate_embeddings_threaded(test_texts, model)
 
-              assert embeddings.shape[0] == 3
-              assert embeddings.shape[1] > 0
+              assert len(embeddings) == 3
+              assert len(embeddings[0]) > 0  # Check first embedding has dimensions
               print('Threaded embedding generation: PASSED')
 
           except Exception as e:
@@ -371,8 +371,6 @@ jobs:
           python -c "
           import sys
           sys.path.insert(0, '.')
-          import tempfile
-          import os
 
           print('Testing ChromaDB integration...')
 
@@ -380,35 +378,33 @@ jobs:
               import chromadb
               from sentence_transformers import SentenceTransformer
 
-              # Create temporary directory for ChromaDB
-              with tempfile.TemporaryDirectory() as temp_dir:
-                  # Initialize ChromaDB
-                  client = chromadb.PersistentClient(path=temp_dir)
-                  collection = client.get_or_create_collection('test_collection')
+              # Use EphemeralClient for testing (no file persistence)
+              client = chromadb.EphemeralClient()
+              collection = client.get_or_create_collection('test_collection')
 
-                  # Test basic operations
-                  model = SentenceTransformer('all-MiniLM-L6-v2')
-                  test_texts = ['Document one', 'Document two']
-                  embeddings = model.encode(test_texts)
+              # Test basic operations
+              model = SentenceTransformer('all-MiniLM-L6-v2')
+              test_texts = ['Document one', 'Document two']
+              embeddings = model.encode(test_texts).tolist()  # Convert numpy arrays to lists
 
-                  # Add documents
-                  collection.add(
-                      embeddings=embeddings,
-                      documents=test_texts,
-                      metadatas=[{'id': 1}, {'id': 2}],
-                      ids=['doc1', 'doc2']
-                  )
-                  print('ChromaDB document addition: PASSED')
+              # Add documents
+              collection.add(
+                  embeddings=embeddings,
+                  documents=test_texts,
+                  metadatas=[{'id': 1}, {'id': 2}],
+                  ids=['doc1', 'doc2']
+              )
+              print('ChromaDB document addition: PASSED')
 
-                  # Query documents
-                  query_embedding = model.encode(['Document query'])
-                  results = collection.query(
-                      query_embeddings=query_embedding,
-                      n_results=2
-                  )
+              # Query documents
+              query_embedding = model.encode(['Document query']).tolist()  # Convert to list
+              results = collection.query(
+                  query_embeddings=query_embedding,
+                  n_results=2
+              )
 
-                  assert len(results['documents'][0]) > 0
-                  print('ChromaDB querying: PASSED')
+              assert len(results['documents'][0]) > 0
+              print('ChromaDB querying: PASSED')
 
           except Exception as e:
               print(f'ChromaDB integration test failed: {e}')
@@ -549,7 +545,7 @@ jobs:
               embedding_time = time.time() - start_time
 
               print(f'Embedding generation: {len(test_texts)} texts in {embedding_time:.2f}s')
-              assert embeddings.shape[0] == len(test_texts)
+              assert len(embeddings) == len(test_texts)
               assert embedding_time < 10  # Should complete within 10 seconds
               print('Embedding generation performance: PASSED')
 
@@ -572,7 +568,10 @@ jobs:
 
       - name: Run Bandit security scan
         run: |
-          bandit -r src/ -f json -o bandit-report.json || true
+          bandit -r src/ -f json -o bandit-report.json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Bandit found security issues (this is expected)"
+          }
           # Check if any high-severity issues found
           python -c "
           import json
@@ -583,7 +582,9 @@ jobs:
               if high_severity:
                   print(f'Found {len(high_severity)} high-severity security issues')
                   for issue in high_severity[:5]:  # Show first 5
-                      print(f'- {issue.get(\"test_name\", \"Unknown\")}: {issue.get(\"issue_text\", \"\")[:100]}...')
+                      test_name = issue.get('test_name', 'Unknown')
+                      text = issue.get('issue_text', '')[:100]
+                      print(f'- {test_name}: {text}...')
                   exit(1)
               else:
                   print('No high-severity security issues found')
