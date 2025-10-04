@@ -746,7 +746,8 @@ jobs:
                   # 2. Initialize retriever and add document
                   print('Step 2: Document indexing')
                   import uuid
-                  unique_collection_name = f"integration_test_{uuid.uuid4().hex[:8]}"
+                  unique_id = uuid.uuid4().hex
+                  unique_collection_name = f"integration_test_{unique_id[:8]}"
                   
                   # Temporarily override config for unique collection
                   from src import config
