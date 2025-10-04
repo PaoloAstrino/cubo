@@ -791,12 +791,12 @@ jobs:
               import traceback
               traceback.print_exc()
           '@
-          
+
           # Write the script to a temporary file and execute it
           $scriptPath = "$env:TEMP\integration_test.py"
           $integrationTestScript | Out-File -FilePath $scriptPath -Encoding UTF8
           python $scriptPath
-          
+
           # Clean up
           if (Test-Path $scriptPath) {
               Remove-Item $scriptPath

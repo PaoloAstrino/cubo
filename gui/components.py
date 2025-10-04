@@ -9,16 +9,127 @@ from PySide6.QtWidgets import (
     QComboBox, QSpinBox, QGroupBox, QFormLayout, QTableWidget,
     QTableWidgetItem, QHeaderView, QSplitter, QFileDialog,
     QMessageBox, QScrollArea, QFrame, QLineEdit, QStackedWidget,
-    QCheckBox
+    QCheckBox, QListView, QStyledItemDelegate, QStyleOptionViewItem
 )
-from PySide6.QtCore import Qt, Signal, QThread
-from PySide6.QtGui import QFont, QPixmap, QIcon
+from PySide6.QtCore import Qt, Signal, QThread, QAbstractListModel, QModelIndex, QSize
+from PySide6.QtGui import QFont, QPixmap, QIcon, QPainter, QColor
 
 from pathlib import Path
 import os
 import logging
+from datetime import datetime
+from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+
+class MessageModel(QAbstractListModel):
+    """Model for chat messages using Qt's Model-View-Delegate pattern."""
+
+    def __init__(self):
+        super().__init__()
+        self._messages = []  # List of message dicts
+
+    def rowCount(self, parent=QModelIndex()):
+        """Return the number of messages."""
+        return len(self._messages)
+
+    def data(self, index, role=Qt.DisplayRole):
+        """Return data for the given index and role."""
+        if not index.isValid() or index.row() >= len(self._messages):
+            return None
+
+        message = self._messages[index.row()]
+
+        if role == Qt.DisplayRole:
+            return message.get('content', '')
+        elif role == Qt.UserRole:  # Full message data
+            return message
+        elif role == Qt.UserRole + 1:  # Message type
+            return message.get('type', 'user')  # 'user', 'system', 'error'
+        elif role == Qt.UserRole + 2:  # Timestamp
+            return message.get('timestamp')
+
+        return None
+
+    def add_message(self, content: str, msg_type: str = 'user', metadata: Dict[str, Any] = None):
+        """Add a new message to the model."""
+        message = {
+            'content': content,
+            'type': msg_type,
+            'timestamp': datetime.now(),
+            'metadata': metadata or {}
+        }
+
+        self.beginInsertRows(QModelIndex(), len(self._messages), len(self._messages))
+        self._messages.append(message)
+        self.endInsertRows()
+
+    def clear_messages(self):
+        """Clear all messages."""
+        self.beginResetModel()
+        self._messages.clear()
+        self.endResetModel()
+
+    def get_messages(self) -> List[Dict[str, Any]]:
+        """Get all messages."""
+        return self._messages.copy()
+
+
+class MessageDelegate(QStyledItemDelegate):
+    """Custom delegate for rendering chat messages as bubbles."""
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
+        """Paint the message item."""
+        message = index.data(Qt.UserRole)
+        msg_type = index.data(Qt.UserRole + 1)
+
+        # Set colors and alignment based on message type
+        if msg_type == 'user':
+            bg_color = QColor('#0078D4')  # Blue for user
+            text_color = QColor('white')
+            alignment = Qt.AlignRight
+        elif msg_type == 'system':
+            bg_color = QColor('#107C10')  # Green for system
+            text_color = QColor('white')
+            alignment = Qt.AlignLeft
+        elif msg_type == 'error':
+            bg_color = QColor('#D13438')  # Red for errors
+            text_color = QColor('white')
+            alignment = Qt.AlignLeft
+        elif msg_type == 'typing':
+            bg_color = QColor('#2a2a2a')  # Dark gray for typing indicator
+            text_color = QColor('#888888')  # Muted text
+            alignment = Qt.AlignLeft
+        else:
+            bg_color = QColor('#2a2a2a')  # Default
+            text_color = QColor('#cccccc')
+            alignment = Qt.AlignLeft
+
+        # Draw message bubble
+        rect = option.rect.adjusted(10, 5, -10, -5)
+
+        # Bubble background
+        painter.fillRect(rect, bg_color)
+
+        # Bubble text
+        painter.setPen(text_color)
+        font = painter.font()
+        font.setPointSize(10)
+        painter.setFont(font)
+
+        text_rect = rect.adjusted(10, 5, -10, -5)
+        painter.drawText(text_rect, alignment | Qt.TextWordWrap, message['content'])
+
+    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex):
+        """Calculate the size needed for each message."""
+        message = index.data(Qt.UserRole)
+        content = message['content']
+
+        # Estimate height based on text length
+        # Rough estimate: ~50 chars per line
+        lines = max(1, len(content) // 50 + 1)
+        return QSize(option.rect.width(), max(40, lines * 20 + 10))
 
 
 class DocumentWidget(QWidget):
@@ -472,6 +583,11 @@ class QueryWidget(QWidget):
         super().__init__()
         self.conversation_history = []
         self.typing_indicator_position = None
+
+        # Initialize model-view-delegate components
+        self.message_model = MessageModel()
+        self.message_delegate = MessageDelegate()
+
         self.init_ui()
 
     def init_ui(self):
@@ -501,10 +617,12 @@ class QueryWidget(QWidget):
         """)
         chat_layout = QVBoxLayout(chat_group)
 
-        self.chat_display = QTextEdit()
-        self.chat_display.setReadOnly(True)
+        # Use QListView with model-view-delegate pattern for better performance
+        self.chat_display = QListView()
+        self.chat_display.setModel(self.message_model)
+        self.chat_display.setItemDelegate(self.message_delegate)
         self.chat_display.setStyleSheet("""
-            QTextEdit {
+            QListView {
                 border: none;
                 background-color: #1a1a1a;
                 color: #cccccc;
@@ -513,6 +631,8 @@ class QueryWidget(QWidget):
             }
         """)
         self.chat_display.setMinimumHeight(300)
+        # Disable selection since this is a chat display
+        self.chat_display.setSelectionMode(QListView.SelectionMode.NoSelection)
         chat_layout.addWidget(self.chat_display)
 
         layout.addWidget(chat_group)
@@ -571,236 +691,119 @@ class QueryWidget(QWidget):
         # Clear input immediately
         self.query_input.clear()
 
-        # Add user message to chat immediately (right-aligned)
-        user_html = f"""
-        <div align="right" style='margin: 10px 0;'>
-            <div style='
-                display: inline-block; /* Necessary for block properties like padding */
-                padding: 10px 15px;
-                background-color: #2a2a2a;
-                border-radius: 10px;
-                color: #cccccc;
-                max-width: 70%;
-                word-wrap: break-word;
-                text-align: left;
-            '>
-                <div style='font-weight: bold; margin-bottom: 3px;'>You</div>
-                <div>{query}</div>
-            </div>
-        </div>
-        """
-        self.chat_display.append(user_html)
-        self.conversation_history.append(user_html)
+        # Add user message to model
+        self.message_model.add_message(query, 'user')
 
-        # Show typing indicator with spinning cube
+        # Show typing indicator
         self.show_typing_indicator()
 
         # Emit signal for processing
         self.query_submitted.emit(query)
 
     def show_typing_indicator(self):
-        """Show typing indicator with spinning cube."""
-        self.typing_indicator_html = f"""
-        <div style='text-align: left; margin: 10px 0;' id='typing-indicator'>
-            <span style='display: inline-block; vertical-align: middle; margin-right: 8px;'>
-                <span style='
-                    display: inline-block;
-                    width: 16px;
-                    height: 16px;
-                    background: #ffffff;
-                    border-radius: 4px;
-                    animation: spin 1.2s linear infinite;
-                '></span>
-            </span>
-            <span style='color: #cccccc; font-style: italic;'>Generating response...</span>
-        </div>
-        <style>
-        @keyframes spin {{
-            0% {{ transform: rotate(0deg); }}
-            100% {{ transform: rotate(360deg); }}
-        }}
-        </style>
-        """
-        self.chat_display.append(self.typing_indicator_html)
+        """Show professional typing indicator."""
+        # Add typing indicator to model with animated dots
+        typing_text = "Analyzing your documents..."
+        self.message_model.add_message(typing_text, 'typing')
 
         # Scroll to bottom
-        cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.chat_display.setTextCursor(cursor)
+        self.chat_display.scrollToBottom()
 
     def display_results(self, response, sources):
         """Display query results in chat format."""
         print(f"DEBUG: display_results called with response length: {len(response) if response else 0}")
 
-        # To reliably remove the typing indicator, we rebuild the chat from history
-        # and then append the new response. This is more robust than HTML replacement.
-        self._rebuild_chat_with_response(response, sources)
+        # Remove typing indicator (last message) and add actual response
+        messages = self.message_model.get_messages()
+        if messages and messages[-1]['type'] == 'typing':
+            # Remove the typing indicator by clearing and re-adding all messages except the last
+            self.message_model.clear_messages()
+            for msg in messages[:-1]:  # All messages except the typing indicator
+                self.message_model.add_message(msg['content'], msg['type'], msg['metadata'])
+
+        # Add the actual response
+        self._add_response_message(response, sources)
 
         # Scroll to bottom
-        cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.chat_display.setTextCursor(cursor)
+        self.chat_display.scrollToBottom()
 
-    def _rebuild_chat_with_response(self, response, sources):
-        """Rebuild the entire chat with the new response."""
-        try:
-            # Store current conversation history
-            current_history = self.conversation_history.copy()
+    def _add_response_message(self, response, sources):
+        """Add response message to the model with production-ready formatting."""
+        print(f"DEBUG: _add_response_message called with response: {response[:100] if response else 'None'}...")
 
-            # Clear the chat
-            self.chat_display.clear()
+        # Format response with professional source citations
+        formatted_response = response
 
-            # Rebuild conversation history
-            for message in current_history:
-                self.chat_display.append(message)
-
-            # Add the new response
-            self._append_response(response, sources)
-
-            # Clean up typing indicator
-            if hasattr(self, 'typing_indicator_html'):
-                delattr(self, 'typing_indicator_html')
-
-        except Exception as e:
-            logger.error(f"Error rebuilding chat: {e}")
-            # Final fallback: just append
-            self._append_response(response, sources)
-
-    def _append_response(self, response, sources):
-        """Helper method to append response when no typing indicator to replace."""
-        print(f"DEBUG: _append_response called with response: {response[:100] if response else 'None'}...")
-        
-        response_html = f"""
-        <div align="left" style='margin: 10px 0;'>
-            <span style='display: inline-block; vertical-align: top; margin-right: 8px;'>
-                <span style='
-                    display: inline-block;
-                    width: 16px;
-                    height: 16px;
-                    background: #ffffff; /* White cube */
-                    border-radius: 4px; /* Slightly rounded corners for cube */
-                '></span>
-            </span>
-            <span style='
-                display: inline-block;
-                padding: 12px 16px;
-                background-color: #1a1a1a;
-                border-radius: 10px;
-                color: #cccccc;
-                line-height: 1.4;
-                max-width: 80%;
-                word-wrap: break-word;
-                text-align: left;
-            '>{response}</span>
-        </div>
-        """
-
-        # Add sources if available
         if sources:
             # Handle sources as string or list
             if isinstance(sources, list):
-                sources_text = ", ".join(sources)
+                sources_list = sources
             else:
-                sources_text = str(sources).strip()
+                sources_list = [str(sources).strip()]
 
-            if sources_text:
-                sources_html = f"""
-                <div align="left" style='margin: 5px 0 10px 24px;'>
-                    <div style='
-                        display: inline-block;
-                        padding: 6px 12px;
-                        background-color: #333333;
-                        border-radius: 5px;
-                        font-size: 10px;
-                        max-width: 70%;
-                        word-wrap: break-word;
-                        text-align: left;
-                    '>
-                        <div style='font-weight: bold; color: #cccccc; margin-bottom: 3px;'>📋 Based on:</div>
-                        <div style='color: #999999;'>{sources_text.replace(chr(10), "<br>")}</div>
-                    </div>
-                </div>
-                """
-                response_html += sources_html
+            # Filter out empty sources and format nicely
+            valid_sources = [s for s in sources_list if s.strip()]
 
-        # Append to history before updating display
-        self.conversation_history.append(response_html)
+            if valid_sources:
+                # Create user-friendly source citations
+                if len(valid_sources) == 1:
+                    formatted_response += f"\n\n� Source: {valid_sources[0]}"
+                else:
+                    source_list = "\n".join(f"  • {source}" for source in valid_sources[:5])  # Limit to 5 sources
+                    formatted_response += f"\n\n📚 Sources:\n{source_list}"
 
-        self.chat_display.append(response_html)
+                    if len(valid_sources) > 5:
+                        formatted_response += f"\n  ... and {len(valid_sources) - 5} more"
+
+        # Add to model
+        self.message_model.add_message(formatted_response, 'system')
 
     def show_error(self, error_message):
-        """Display error message in chat format."""
-        # Replace typing indicator with error if it exists
-        if hasattr(self, 'typing_indicator_html'):
-            # Get current HTML content
-            current_html = self.chat_display.toHtml()
+        """Display user-friendly error message in chat format."""
+        # Remove typing indicator if it exists and replace with error
+        messages = self.message_model.get_messages()
+        if messages and messages[-1]['type'] == 'typing':
+            # Remove the typing indicator by clearing and re-adding all messages except the last
+            self.message_model.clear_messages()
+            for msg in messages[:-1]:  # All messages except the typing indicator
+                self.message_model.add_message(msg['content'], msg['type'], msg['metadata'])
 
-            # Create error HTML
-            error_html = f"""
-            <div style='text-align: left; margin: 10px 0;'>
-                <div style='
-                    display: inline-block;
-                    padding: 12px 16px;
-                    background-color: #2a2a2a;
-                    border-radius: 10px;
-                    color: #cccccc;
-                    max-width: 70%;
-                    word-wrap: break-word;
-                    text-align: left;
-                '>
-                    <div style='font-weight: bold; margin-bottom: 5px;'>⚠️ Error</div>
-                    <div style='line-height: 1.4;'>{error_message}</div>
-                </div>
-            </div>
-            """
+        # Create user-friendly error message based on error type
+        friendly_error = self._format_error_message(error_message)
 
-            # Replace typing indicator with error
-            if self.typing_indicator_html in current_html:
-                new_html = current_html.replace(self.typing_indicator_html, error_html)
-                self.chat_display.setHtml(new_html)
-                delattr(self, 'typing_indicator_html')
-            else:
-                # Fallback: just append the error
-                self.chat_display.append(error_html)
+        # Add error message
+        self.message_model.add_message(friendly_error, 'error')
+
+        # Scroll to bottom
+        self.chat_display.scrollToBottom()
+
+    def _format_error_message(self, error_message):
+        """Convert technical errors to user-friendly messages."""
+        error_lower = str(error_message).lower()
+
+        # Network-related errors
+        if any(keyword in error_lower for keyword in ['network', 'connection', 'timeout', 'unreachable']):
+            return "🤖 I'm having trouble connecting right now. Please check your internet connection and try again."
+
+        # Document processing errors
+        elif any(keyword in error_lower for keyword in ['document', 'file', 'pdf', 'processing']):
+            return "📄 I couldn't process your documents properly. Please try uploading them again or check the file format."
+
+        # Model/embedding errors
+        elif any(keyword in error_lower for keyword in ['model', 'embedding', 'transform', 'tensor']):
+            return "🧠 I'm experiencing technical difficulties. Please try again in a moment, or contact support if the issue persists."
+
+        # Query too long/complex
+        elif any(keyword in error_lower for keyword in ['length', 'complex', 'limit']):
+            return "📝 Your question is quite detailed! Try breaking it down into smaller, more specific questions."
+
+        # Generic fallback
         else:
-            # No typing indicator, just append error
-            error_html = f"""
-            <div style='text-align: right; margin: 10px 0;'>
-                <div style='
-                    display: inline-block;
-                    padding: 12px 16px;
-                    background-color: #2a2a2a;
-                    border-radius: 10px;
-                    color: #cccccc;
-                    max-width: 70%;
-                    word-wrap: break-word;
-                    text-align: left;
-                '>
-                    <div style='font-weight: bold; margin-bottom: 5px;'>⚠️ Error</div>
-                    <div style='line-height: 1.4;'>{error_message}</div>
-                </div>
-            </div>
-            """
-            self.chat_display.append(error_html)
-
-        self.conversation_history.append(error_html)
-
-        # Scroll to bottom
-        cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.chat_display.setTextCursor(cursor)
-
-        # Reset typing indicator position
-        self.typing_indicator_position = None
-
-        # Scroll to bottom
-        cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.chat_display.setTextCursor(cursor)
+            return "😅 Something went wrong while processing your request. Please try again, or rephrase your question."
 
     def clear_chat(self):
         """Clear the chat display."""
-        self.chat_display.clear()
+        self.message_model.clear_messages()
         self.conversation_history.clear()
         self.typing_indicator_position = None
 
