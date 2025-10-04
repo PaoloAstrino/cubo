@@ -709,13 +709,13 @@ jobs:
       - name: Run end-to-end integration test
         run: |
           $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
-          python -c "
+          python -c '
           import sys
-          sys.path.insert(0, '.')
+          sys.path.insert(0, ".")
           import tempfile
           import os
 
-          print('Running end-to-end integration test...')
+          print("Running end-to-end integration test...")
 
           try:
               # Test full pipeline: Document Loading -> Processing -> Retrieval -> Reranking
@@ -724,72 +724,73 @@ jobs:
               from sentence_transformers import SentenceTransformer
 
               # Create test document
-              test_content = '''
+              test_content = """
               Artificial Intelligence (AI) is transforming industries worldwide.
               Machine learning algorithms can process vast amounts of data to make predictions.
               Natural language processing enables computers to understand human language.
               Computer vision allows machines to interpret visual information from the world.
-              '''
+              """
 
-              with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+              with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
                   f.write(test_content)
                   temp_file = f.name
 
               try:
                   # 1. Load and process document
-                  print('Step 1: Document loading and processing')
+                  print("Step 1: Document loading and processing")
                   dl = DocumentLoader()
                   chunks = dl.load_single_document(temp_file)
                   assert len(chunks) > 0
-                  print(f'Document processed into {len(chunks)} chunks')
+                  print(f"Document processed into {len(chunks)} chunks")
 
                   # 2. Initialize retriever and add document
-                  print('Step 2: Document indexing')
+                  print("Step 2: Document indexing")
                   import uuid
                   unique_id = uuid.uuid4().hex
-                  unique_collection_name = f"integration_test_{unique_id[:8]}"
+                  unique_collection_name = "integration_test_" + unique_id[:8]
                   
                   # Temporarily override config for unique collection
-                  from src import config
-                  original_collection_name = config.config.get("collection_name", "cubo_documents")
-                  config.config["collection_name"] = unique_collection_name
+                  from src.config import config
+                  original_collection_name = config.get("collection_name", "cubo_documents")
+                  config.set("collection_name", unique_collection_name)
                   
-                  model = SentenceTransformer('all-MiniLM-L6-v2')
+                  model = SentenceTransformer("all-MiniLM-L6-v2")
                   retriever = DocumentRetriever(model)
                   success = retriever.add_documents([test_content])
                   assert success
-                  print('Document indexed successfully')
+                  print("Document indexed successfully")
 
                   # 3. Test retrieval
-                  print('Step 3: Document retrieval')
-                  query = 'How is AI transforming industries?'
+                  print("Step 3: Document retrieval")
+                  query = "How is AI transforming industries?"
                   results = retriever.retrieve_top_documents(query, top_k=3)
                   assert len(results) > 0
-                  assert 'document' in results[0]
-                  assert 'metadata' in results[0]
-                  print(f'Retrieved {len(results)} relevant documents')
+                  assert "document" in results[0]
+                  assert "metadata" in results[0]
+                  print(f"Retrieved {len(results)} relevant documents")
 
                   # 4. Test reranking
-                  print('Step 4: Result reranking')
+                  print("Step 4: Result reranking")
                   # Reranking is tested implicitly in retrieve_top_documents
-                  print('Reranking integrated successfully')
+                  print("Reranking integrated successfully")
 
                   # 5. Clean up
                   # Restore original collection name
-                  config.config["collection_name"] = original_collection_name
-                  print('Session cleanup completed')
+                  from src.config import config
+                  config.set("collection_name", original_collection_name)
+                  print("Session cleanup completed")
 
-                  print('End-to-end integration test: PASSED')
+                  print("End-to-end integration test: PASSED")
 
               finally:
                   os.unlink(temp_file)
 
           except Exception as e:
-              print(f'Integration test failed: {e}')
+              print(f"Integration test failed: {e}")
               import traceback
               traceback.print_exc()
-              sys.exit(1)
-          "
+              exit(1)
+          '
 
   docs:
     runs-on: windows-latest
