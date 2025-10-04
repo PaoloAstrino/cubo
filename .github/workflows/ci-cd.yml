@@ -709,7 +709,8 @@ jobs:
       - name: Run end-to-end integration test
         run: |
           $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
-          python -c '
+          # Create temporary Python script to avoid PowerShell parsing issues
+          $integrationTestScript = @'
           import sys
           sys.path.insert(0, ".")
           import tempfile
@@ -789,8 +790,17 @@ jobs:
               print(f"Integration test failed: {e}")
               import traceback
               traceback.print_exc()
-              exit(1)
-          '
+          '@
+          
+          # Write the script to a temporary file and execute it
+          $scriptPath = "$env:TEMP\integration_test.py"
+          $integrationTestScript | Out-File -FilePath $scriptPath -Encoding UTF8
+          python $scriptPath
+          
+          # Clean up
+          if (Test-Path $scriptPath) {
+              Remove-Item $scriptPath
+          }
 
   docs:
     runs-on: windows-latest
