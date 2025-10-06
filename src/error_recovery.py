@@ -8,6 +8,8 @@ import logging
 from typing import Callable, Any, Optional, Dict
 from enum import Enum
 
+from .exceptions import DocumentAlreadyExistsError
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,6 +110,12 @@ class ErrorRecoveryManager:
             except Exception as e:
                 last_exception = e
                 self._record_error(operation_type, e)
+
+                # Special handling for document processing: DocumentAlreadyExistsError is success
+                if operation_type == 'document_processing' and isinstance(e, DocumentAlreadyExistsError):
+                    logger.info(f"Document already exists, treating as success: {e}")
+                    self._record_success(operation_type)  # Reset error counts
+                    return False  # DocumentAlreadyExistsError returns False from add_document
 
                 if attempt < config['max_retries']:
                     logger.warning(

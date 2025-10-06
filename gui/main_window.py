@@ -985,6 +985,30 @@ class CUBOGUI(QMainWindow):
             logger.warning(f"Failed to index {filename}")
             self.status_bar.showMessage(f"Failed to index {filename}")
 
+    def _update_processing_status(self, total_files, processing_counts):
+        """
+        Update the status bar with final processing results.
+
+        Args:
+            total_files: Total number of files that were processed
+            processing_counts: Dict with counts of processed, skipped, and failed files
+        """
+        processed = processing_counts["processed"]
+        skipped = processing_counts["skipped"]
+        failed = processing_counts["failed"]
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Document processing completed: {processed} processed, {skipped} skipped, {failed} failed")
+
+        if failed == 0 and skipped == 0:
+            self.status_bar.showMessage(f"Ready - {processed} documents processed")
+        elif failed == 0:
+            self.status_bar.showMessage(f"Ready - {processed} documents available ({skipped} already loaded)")
+        elif skipped == 0:
+            self.status_bar.showMessage(f"Ready - {processed - failed} documents processed ({failed} failed)")
+        else:
+            self.status_bar.showMessage(f"Ready - {processed} documents available ({processed - skipped - failed} new, {skipped} cached, {failed} failed)")
+
     def on_query_submitted(self, query):
         """Handle query submission with detailed status reporting."""
         try:

@@ -68,47 +68,56 @@ class DolphinProcessor:
         Returns:
             Extracted text/content from the image
         """
-        # Lazy load model if needed
         self._ensure_model_loaded()
+        
+        prompt = self._get_processing_prompt(prompt)
+        
+        try:
+            inputs = self._prepare_model_inputs(prompt, image)
+            generated_ids = self._generate_model_response(inputs)
+            return self._decode_generated_text(generated_ids)
+        except Exception as e:
+            logger.error(f"Error processing image: {e}")
+            return ""
 
+    def _get_processing_prompt(self, prompt: str = None) -> str:
+        """Get the processing prompt, using default if none provided."""
         if prompt is None:
-            prompt = (
+            return (
                 "You are an expert document analyzer. Extract all text, tables, "
                 "and structured information from this document image. "
                 "Maintain the original formatting and structure as much as possible. "
                 "If there are tables, represent them in markdown format. "
                 "Be thorough and accurate."
             )
+        return prompt
 
-        try:
-            # Prepare inputs
-            inputs = self.processor(
-                text=prompt,
-                images=image,
-                return_tensors="pt"
-            ).to(self.device)
+    def _prepare_model_inputs(self, prompt: str, image: Image.Image):
+        """Prepare model inputs for processing."""
+        return self.processor(
+            text=prompt,
+            images=image,
+            return_tensors="pt"
+        ).to(self.device)
 
-            # Generate response
-            with torch.no_grad():
-                generated_ids = self.model.generate(
-                    **inputs,
-                    max_new_tokens=2048,
-                    do_sample=False,
-                    temperature=0.0,
-                    num_beams=1
-                )
+    def _generate_model_response(self, inputs):
+        """Generate model response from prepared inputs."""
+        with torch.no_grad():
+            return self.model.generate(
+                **inputs,
+                max_new_tokens=2048,
+                do_sample=False,
+                temperature=0.0,
+                num_beams=1
+            )
 
-            # Decode response
-            generated_text = self.processor.batch_decode(
-                generated_ids,
-                skip_special_tokens=True
-            )[0]
-
-            return generated_text.strip()
-
-        except Exception as e:
-            logger.error(f"Error processing image: {e}")
-            return ""
+    def _decode_generated_text(self, generated_ids) -> str:
+        """Decode generated token IDs to text."""
+        generated_text = self.processor.batch_decode(
+            generated_ids,
+            skip_special_tokens=True
+        )[0]
+        return generated_text.strip()
 
     def process_document_pages(self, images: List[Image.Image],
                                page_prompts: Optional[List[str]] = None) -> List[str]:

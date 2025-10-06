@@ -100,8 +100,14 @@ class DocumentLoader:
             List of chunk dictionaries with processed text content
         """
         text = Utils.clean_text(text)
+        cfg = self._configure_chunking(chunking_config)
+        chunks = self._create_sentence_window_chunks(text, cfg)
+        
+        self._log_chunking_results(file_path, chunks, cfg)
+        return chunks
 
-        # Configure sentence window chunking with defaults
+    def _configure_chunking(self, chunking_config: dict = None) -> dict:
+        """Configure sentence window chunking parameters."""
         cfg = {
             "method": "sentence_window",
             "window_size": 3,
@@ -112,16 +118,20 @@ class DocumentLoader:
         if chunking_config and "window_size" in chunking_config:
             cfg["window_size"] = chunking_config["window_size"]
 
-        # Use sentence window chunking
-        chunks = Utils.create_sentence_window_chunks(
+        return cfg
+
+    def _create_sentence_window_chunks(self, text: str, cfg: dict) -> List[dict]:
+        """Create sentence window chunks using the configured parameters."""
+        return Utils.create_sentence_window_chunks(
             text,
             window_size=cfg["window_size"],
             tokenizer_name=cfg["tokenizer_name"]
         )
 
+    def _log_chunking_results(self, file_path: str, chunks: List[dict], cfg: dict):
+        """Log the results of the chunking process."""
         logger.info(f"Loaded and chunked {os.path.basename(file_path)} into "
                     f"{len(chunks)} chunks using {cfg['method']} method.")
-        return chunks
 
     def load_documents_from_folder(self, folder_path: str) -> List[dict]:
         """Load all supported documents from a folder, including subfolders."""
@@ -167,16 +177,33 @@ class DocumentLoader:
             Combined list of all chunks from all files
         """
         documents = []
-        processing_method = "enhanced" if self._should_use_enhanced_processing() else "standard"
+        processing_method = self._determine_processing_method()
 
+        self._log_batch_processing_start(file_paths, processing_method)
+        documents = self._process_all_files(file_paths)
+        self._log_batch_processing_complete(documents)
+
+        return documents
+
+    def _determine_processing_method(self) -> str:
+        """Determine which processing method will be used."""
+        return "enhanced" if self._should_use_enhanced_processing() else "standard"
+
+    def _log_batch_processing_start(self, file_paths: List[str], processing_method: str):
+        """Log the start of batch processing."""
         logger.info(f"Loading {len(file_paths)} documents using {processing_method} processing...")
 
+    def _process_all_files(self, file_paths: List[str]) -> List[dict]:
+        """Process all files and collect their chunks."""
+        documents = []
         for file_path in file_paths:
             chunks = self.load_single_document(file_path)
             documents.extend(chunks)
-
-        logger.info(f"Total documents loaded and chunked into {len(documents)} chunks.")
         return documents
+
+    def _log_batch_processing_complete(self, documents: List[dict]):
+        """Log the completion of batch processing."""
+        logger.info(f"Total documents loaded and chunked into {len(documents)} chunks.")
 
     def load_documents(self, file_paths: List[str]) -> List[str]:
         """Load multiple documents from a list of file paths."""

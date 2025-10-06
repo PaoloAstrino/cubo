@@ -88,45 +88,68 @@ class HealthMonitor:
 
     def perform_health_check(self, check_name: str) -> Dict[str, Any]:
         """Perform a specific health check."""
-        if check_name not in self.health_checks:
-            return {
-                'status': HealthStatus.UNKNOWN.value,
-                'message': f'Health check {check_name} not found',
-                'timestamp': time.time()
-            }
-
-        check = self.health_checks[check_name]
+        # Validate check exists
+        check = self._validate_check_exists(check_name)
+        if not check:
+            return self._create_unknown_check_result(check_name)
 
         try:
-            # Execute check with timeout
-            result = self._execute_check_with_timeout(check)
-
-            # Update check metadata
-            check.last_check = time.time()
-            check.last_result = result
-
-            # Store in history (keep last 10 results)
-            self.status_history[check_name].append(result)
-            if len(self.status_history[check_name]) > 10:
-                self.status_history[check_name].pop(0)
-
-            # Trigger alerts if status changed
-            self._check_for_alerts(check_name, result)
-
+            # Execute check and process results
+            result = self._execute_and_process_check(check_name, check)
             return result
 
         except Exception as e:
-            error_result = {
-                'status': HealthStatus.CRITICAL.value,
-                'message': f'Health check failed: {str(e)}',
-                'timestamp': time.time(),
-                'error': str(e)
-            }
+            # Handle check execution errors
+            return self._handle_check_error(check_name, check, e)
 
-            check.last_result = error_result
-            self._check_for_alerts(check_name, error_result)
+    def _validate_check_exists(self, check_name: str) -> Optional[HealthCheck]:
+        """Validate that a health check exists and return it."""
+        return self.health_checks.get(check_name)
 
-            return error_result
+    def _create_unknown_check_result(self, check_name: str) -> Dict[str, Any]:
+        """Create result for unknown health check."""
+        return {
+            'status': HealthStatus.UNKNOWN.value,
+            'message': f'Health check {check_name} not found',
+            'timestamp': time.time()
+        }
+
+    def _execute_and_process_check(self, check_name: str, check: HealthCheck) -> Dict[str, Any]:
+        """Execute health check and process the results."""
+        # Execute check with timeout
+        result = self._execute_check_with_timeout(check)
+
+        # Update check metadata and history
+        self._update_check_metadata(check_name, check, result)
+
+        # Trigger alerts if status changed
+        self._check_for_alerts(check_name, result)
+
+        return result
+
+    def _update_check_metadata(self, check_name: str, check: HealthCheck, result: Dict[str, Any]):
+        """Update check metadata and store in history."""
+        check.last_check = time.time()
+        check.last_result = result
+
+        # Store in history (keep last 10 results)
+        self.status_history[check_name].append(result)
+        if len(self.status_history[check_name]) > 10:
+            self.status_history[check_name].pop(0)
+
+    def _handle_check_error(self, check_name: str, check: HealthCheck, error: Exception) -> Dict[str, Any]:
+        """Handle errors during health check execution."""
+        error_result = {
+            'status': HealthStatus.CRITICAL.value,
+            'message': f'Health check failed: {str(error)}',
+            'timestamp': time.time(),
+            'error': str(error)
+        }
+
+        check.last_result = error_result
+        self._check_for_alerts(check_name, error_result)
+
+        return error_result
 
     def get_health_status(self, check_name: Optional[str] = None) -> Dict[str, Any]:
         """Get health status for all checks or a specific check."""

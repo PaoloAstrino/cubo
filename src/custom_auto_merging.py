@@ -40,59 +40,93 @@ class HierarchicalChunker:
     def _create_chunks_at_level(self, text: str, chunk_size: int, level: int, filename: str) -> List[Dict[str, Any]]:
         """Create chunks at a specific hierarchical level."""
         chunks = []
-
-        # Split text into chunks of approximately chunk_size tokens
         words = text.split()
-        current_chunk = []
-        current_tokens = 0
+        
+        # Initialize chunking variables
+        current_chunk, current_tokens = self._initialize_chunking_variables()
 
+        # Process each word
         for word in words:
-            word_tokens = len(word.split())  # Approximate token count
+            current_chunk, current_tokens, chunks = self._process_word_in_chunk(
+                word, current_chunk, current_tokens, chunk_size, 
+                level, filename, chunks, words
+            )
 
-            if current_tokens + word_tokens > chunk_size and current_chunk:
-                # Create chunk
-                chunk_text = ' '.join(current_chunk)
-                chunk_id = self._generate_chunk_id(filename, level, len(chunks))
-
-                chunk = {
-                    'id': chunk_id,
-                    'text': chunk_text,
-                    'filename': filename,
-                    'level': level,
-                    'chunk_size': chunk_size,
-                    'token_count': current_tokens,
-                    'start_pos': len(' '.join(words[:len(current_chunk)])),
-                    'end_pos': len(' '.join(words[:len(current_chunk) + len(current_chunk)])),
-                    'parent_id': None,  # Will be set later
-                    'child_ids': []
-                }
-                chunks.append(chunk)
-
-                current_chunk = [word]
-                current_tokens = word_tokens
-            else:
-                current_chunk.append(word)
-                current_tokens += word_tokens
-
-        # Add remaining chunk
+        # Add any remaining chunk
         if current_chunk:
-            chunk_text = ' '.join(current_chunk)
-            chunk_id = self._generate_chunk_id(filename, level, len(chunks))
+            chunks = self._finalize_remaining_chunk(
+                current_chunk, current_tokens, level, filename, chunks, text
+            )
 
-            chunk = {
-                'id': chunk_id,
-                'text': chunk_text,
-                'filename': filename,
-                'level': level,
-                'chunk_size': chunk_size,
-                'token_count': current_tokens,
-                'start_pos': len(' '.join(words[:len(current_chunk)])),
-                'end_pos': len(text),
-                'parent_id': None,
-                'child_ids': []
-            }
-            chunks.append(chunk)
+        return chunks
 
+    def _initialize_chunking_variables(self) -> tuple:
+        """Initialize variables for the chunking process."""
+        return [], 0
+
+    def _process_word_in_chunk(self, word: str, current_chunk: List[str], current_tokens: int, 
+                              chunk_size: int, level: int, filename: str, chunks: List[Dict[str, Any]], 
+                              words: List[str]) -> tuple:
+        """Process a word and determine if a new chunk should be created."""
+        word_tokens = len(word.split())  # Approximate token count
+
+        if current_tokens + word_tokens > chunk_size and current_chunk:
+            # Create chunk from current words
+            chunks = self._create_chunk_from_current(
+                current_chunk, current_tokens, level, filename, chunks, words
+            )
+            # Start new chunk with current word
+            current_chunk = [word]
+            current_tokens = word_tokens
+        else:
+            # Add word to current chunk
+            current_chunk.append(word)
+            current_tokens += word_tokens
+
+        return current_chunk, current_tokens, chunks
+
+    def _create_chunk_from_current(self, current_chunk: List[str], current_tokens: int, 
+                                  level: int, filename: str, chunks: List[Dict[str, Any]], 
+                                  words: List[str]) -> List[Dict[str, Any]]:
+        """Create a chunk from the currently accumulated words."""
+        chunk_text = ' '.join(current_chunk)
+        chunk_id = self._generate_chunk_id(filename, level, len(chunks))
+
+        chunk = {
+            'id': chunk_id,
+            'text': chunk_text,
+            'filename': filename,
+            'level': level,
+            'chunk_size': len(current_chunk) * 5,  # Approximate chunk size
+            'token_count': current_tokens,
+            'start_pos': len(' '.join(words[:len(current_chunk)])),
+            'end_pos': len(' '.join(words[:len(current_chunk) + len(current_chunk)])),
+            'parent_id': None,  # Will be set later
+            'child_ids': []
+        }
+        chunks.append(chunk)
+        return chunks
+
+    def _finalize_remaining_chunk(self, current_chunk: List[str], current_tokens: int, 
+                                 level: int, filename: str, chunks: List[Dict[str, Any]], 
+                                 text: str) -> List[Dict[str, Any]]:
+        """Create the final chunk from any remaining words."""
+        chunk_text = ' '.join(current_chunk)
+        chunk_id = self._generate_chunk_id(filename, level, len(chunks))
+
+        chunk = {
+            'id': chunk_id,
+            'text': chunk_text,
+            'filename': filename,
+            'level': level,
+            'chunk_size': len(current_chunk) * 5,  # Approximate chunk size
+            'token_count': current_tokens,
+            'start_pos': len(' '.join(current_chunk)),
+            'end_pos': len(text),
+            'parent_id': None,
+            'child_ids': []
+        }
+        chunks.append(chunk)
         return chunks
 
     def _generate_chunk_id(self, filename: str, level: int, index: int) -> str:

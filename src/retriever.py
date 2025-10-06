@@ -129,15 +129,18 @@ class DocumentRetriever:
 
         Raises:
             FileAccessError: If file cannot be accessed
-            DocumentAlreadyExistsError: If document already exists
             DatabaseError: If database operation fails
             EmbeddingGenerationError: If embedding generation fails
         """
         try:
             return self.service_manager.execute_sync('document_processing',
                                                    lambda: self._add_document_operation(filepath, chunks))
+        except DocumentAlreadyExistsError:
+            # Document already exists - this is not an error, just return False
+            logger.info(f"Document {self._get_filename_from_path(filepath)} already exists")
+            return False
         except CUBOError:
-            # Re-raise custom exceptions as-is
+            # Re-raise other custom exceptions as-is
             raise
         except Exception as e:
             # Wrap unexpected exceptions
@@ -256,52 +259,69 @@ class DocumentRetriever:
         """Retrieve using sentence window method."""
 
         def _retrieve_operation():
-            if not self.current_documents:
-                logger.warning("No documents loaded in current session")
+            if not self._has_loaded_documents():
                 return []
-
-            # Generate query embedding
+            
             query_embedding = self._generate_query_embedding(query)
-
-            # Get more candidates for reranking if using sentence windows
             initial_top_k = self._calculate_initial_top_k(top_k)
-
-            # Query the collection
             candidates = self._query_collection_for_candidates(query_embedding, initial_top_k)
-
-            # Apply postprocessing
             candidates = self._apply_sentence_window_postprocessing(candidates, top_k, query)
-
-            logger.info(f"Retrieved {len(candidates)} chunks using sentence window")
+            
+            self._log_retrieval_results(candidates, "sentence window")
             return candidates
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
 
+    def _has_loaded_documents(self) -> bool:
+        """Check if any documents are loaded in the current session."""
+        if not self.current_documents:
+            logger.warning("No documents loaded in current session")
+            return False
+        return True
+
+    def _log_retrieval_results(self, candidates: List[Dict], method: str):
+        """Log the results of a retrieval operation."""
+        logger.info(f"Retrieved {len(candidates)} chunks using {method}")
+
     def _retrieve_auto_merging(self, query: str, top_k: int) -> List[Dict]:
         """Retrieve using auto-merging method."""
         try:
-            if not self.auto_merging_retriever:
-                logger.warning("Auto-merging retriever not available, falling back to sentence window")
-                return self._retrieve_sentence_window(query, top_k)
+            if not self._is_auto_merging_available():
+                return self._fallback_to_sentence_window(query, top_k)
 
-            # Get results from auto-merging retriever
             results = self.auto_merging_retriever.retrieve(query, top_k=top_k)
-
-            # Convert to CUBO format
-            formatted_results = []
-            for result in results:
-                formatted_results.append({
-                    "document": result.get('document', ''),
-                    "metadata": result.get('metadata', {}),
-                    "similarity": result.get('similarity', 1.0)
-                })
-
-            logger.info(f"Retrieved {len(formatted_results)} chunks using auto-merging")
+            formatted_results = self._format_auto_merging_results(results)
+            
+            self._log_retrieval_results(formatted_results, "auto-merging")
             return formatted_results
 
         except Exception as e:
-            logger.error(f"Auto-merging retrieval failed: {e}, falling back to sentence window")
-            return self._retrieve_sentence_window(query, top_k)
+            return self._handle_auto_merging_error(e, query, top_k)
+
+    def _is_auto_merging_available(self) -> bool:
+        """Check if auto-merging retriever is available."""
+        return self.auto_merging_retriever is not None
+
+    def _fallback_to_sentence_window(self, query: str, top_k: int) -> List[Dict]:
+        """Fallback to sentence window retrieval."""
+        logger.warning("Auto-merging retriever not available, falling back to sentence window")
+        return self._retrieve_sentence_window(query, top_k)
+
+    def _format_auto_merging_results(self, results) -> List[Dict]:
+        """Convert auto-merging results to CUBO format."""
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "document": result.get('document', ''),
+                "metadata": result.get('metadata', {}),
+                "similarity": result.get('similarity', 1.0)
+            })
+        return formatted_results
+
+    def _handle_auto_merging_error(self, error: Exception, query: str, top_k: int) -> List[Dict]:
+        """Handle auto-merging retrieval errors."""
+        logger.error(f"Auto-merging retrieval failed: {error}, falling back to sentence window")
+        return self._retrieve_sentence_window(query, top_k)
 
     def get_loaded_documents(self) -> List[str]:
         """Get list of currently loaded document filenames."""

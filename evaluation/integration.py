@@ -141,6 +141,9 @@ class EvaluationIntegrator:
             llm_metrics=None  # Will be set if LLM evaluation succeeds
         )
 
+        # Track evaluation completion
+        evaluation_completed = False
+
         # Compute advanced metrics
         if not error_occurred:
             try:
@@ -151,37 +154,54 @@ class EvaluationIntegrator:
 
                 # Extract RAG triad scores using LLM evaluation
                 logger.debug(f"Evaluating query: {question[:50]}...")
-                evaluation.answer_relevance_score = await self.evaluator.evaluate_answer_relevance(question, answer)
-                logger.debug(f"Answer relevance score: {evaluation.answer_relevance_score}")
-                evaluation.context_relevance_score = await self.evaluator.evaluate_context_relevance(question, contexts)
-                logger.debug(f"Context relevance score: {evaluation.context_relevance_score}")
-                evaluation.groundedness_score = advanced_metrics.get('groundedness_score', self._compute_groundedness(contexts, answer))
-                logger.debug(f"Groundedness score: {evaluation.groundedness_score}")
+                answer_relevance = await self.evaluator.evaluate_answer_relevance(question, answer)
+                context_relevance = await self.evaluator.evaluate_context_relevance(question, contexts)
+                groundedness = await self.evaluator.evaluate_groundedness(contexts, answer)
 
-                # Extract LLM metrics if available
-                llm_metrics = advanced_metrics.get('llm_metrics')
-                if llm_metrics:
-                    evaluation.llm_metrics = llm_metrics
+                # Only proceed if we have valid LLM scores for all three core metrics
+                if (answer_relevance is not None and 
+                    context_relevance is not None and 
+                    groundedness is not None):
+                    evaluation.answer_relevance_score = answer_relevance
+                    evaluation.context_relevance_score = context_relevance
+                    evaluation.groundedness_score = groundedness
+                    logger.debug(f"Answer relevance score: {evaluation.answer_relevance_score}")
+                    logger.debug(f"Context relevance score: {evaluation.context_relevance_score}")
+                    logger.debug(f"Groundedness score: {evaluation.groundedness_score}")
 
-                # Store advanced metrics in metadata
-                evaluation.context_metadata = [{
-                    'metric_type': 'advanced_evaluation',
-                    'data': advanced_metrics
-                }]
+                    # Extract LLM metrics if available
+                    llm_metrics = advanced_metrics.get('llm_metrics')
+                    if llm_metrics:
+                        evaluation.llm_metrics = llm_metrics
+
+                    # Store advanced metrics in metadata
+                    evaluation.context_metadata = [{
+                        'metric_type': 'advanced_evaluation',
+                        'data': advanced_metrics
+                    }]
+
+                    # Mark as successfully evaluated
+                    evaluation_completed = True
+                else:
+                    logger.warning(f"LLM evaluation failed for query: {question[:50]}... - AR={answer_relevance}, CR={context_relevance}, G={groundedness}")
+                    # Don't store this evaluation, leave it for retry
+                    return None
 
             except Exception as e:
                 logger.error(f"Advanced evaluation failed: {e}")
-                # Set neutral scores
-                evaluation.answer_relevance_score = 0.5
-                evaluation.context_relevance_score = 0.5
-                evaluation.groundedness_score = 0.5
+                error_occurred = True
 
-        # Store in database
-        self.db.store_evaluation(evaluation)
-
-        logger.info(f"Query evaluation stored: {question[:50]}... | Scores: AR={evaluation.answer_relevance_score:.2f}, CR={evaluation.context_relevance_score:.2f}, G={evaluation.groundedness_score:.2f}")
-
-        return evaluation
+        # Store in database only if evaluation completed successfully
+        if evaluation_completed and not error_occurred:
+            self.db.store_evaluation(evaluation)
+            logger.info(f"Query evaluation stored: {question[:50]}... | Scores: AR={evaluation.answer_relevance_score:.2f}, CR={evaluation.context_relevance_score:.2f}, G={evaluation.groundedness_score:.2f}")
+            return evaluation
+        else:
+            if not evaluation_completed:
+                logger.warning(f"Skipping storage of failed LLM evaluation for: {question[:50]}...")
+            else:
+                logger.warning(f"Skipping storage due to error for: {question[:50]}...")
+            return None
 
     def _compute_answer_relevance(self, question: str, answer: str) -> float:
         """Simple heuristic for answer relevance."""
@@ -334,44 +354,61 @@ def save_query_data_sync(question: str, answer: str, contexts: List[str],
     """
     try:
         integrator = get_evaluation_integrator()
-        import datetime
-
-        # Create basic evaluation record without metrics
-        evaluation = QueryEvaluation(
-            timestamp=datetime.datetime.now().isoformat(),
-            session_id=integrator.session_id,
-            question=question,
-            answer=answer,
-            response_time=response_time,
-            contexts=contexts,
-            context_metadata=[],
-            model_used=model_used,
-            embedding_model="embeddinggemma-300m",
-            retrieval_method="sentence_window",
-            chunking_method="sentence_window",
-            answer_relevance_score=None,  # Not computed yet
-            context_relevance_score=None,  # Not computed yet
-            groundedness_score=None,  # Not computed yet
-            answer_length=len(answer) if answer else 0,
-            context_count=len(contexts),
-            total_context_length=sum(len(ctx) for ctx in contexts),
-            average_context_similarity=0.0,
-            answer_confidence=0.0,
-            has_answer=bool(answer and not answer.startswith("Error")),
-            is_fallback_response=answer and "unable to generate" in answer.lower(),
-            error_occurred=error_occurred,
-            error_message=error_message,
-            user_rating=None,
-            user_feedback=None,
-            llm_metrics=None  # Will be set when evaluation runs
+        
+        # Create evaluation record
+        evaluation = _create_basic_evaluation_record(
+            question, answer, contexts, response_time, model_used, 
+            error_occurred, error_message, integrator.session_id
         )
-
+        
         # Store in database
-        integrator.db.store_evaluation(evaluation)
-
-        logger.info(f"Query data saved (no evaluation): {question[:50]}...")
+        _store_evaluation_record(evaluation, integrator.db, question)
+        
         return True
 
     except Exception as e:
         logger.error(f"Failed to save query data: {e}")
         return False
+
+
+def _create_basic_evaluation_record(question: str, answer: str, contexts: List[str],
+                                  response_time: float, model_used: str,
+                                  error_occurred: bool, error_message: Optional[str],
+                                  session_id: str) -> QueryEvaluation:
+    """Create a basic evaluation record without computed metrics."""
+    import datetime
+    
+    return QueryEvaluation(
+        timestamp=datetime.datetime.now().isoformat(),
+        session_id=session_id,
+        question=question,
+        answer=answer,
+        response_time=response_time,
+        contexts=contexts,
+        context_metadata=[],
+        model_used=model_used,
+        embedding_model="embeddinggemma-300m",
+        retrieval_method="sentence_window",
+        chunking_method="sentence_window",
+        answer_relevance_score=None,  # Not computed yet
+        context_relevance_score=None,  # Not computed yet
+        groundedness_score=None,  # Not computed yet
+        answer_length=len(answer) if answer else 0,
+        context_count=len(contexts),
+        total_context_length=sum(len(ctx) for ctx in contexts),
+        average_context_similarity=0.0,
+        answer_confidence=0.0,
+        has_answer=bool(answer and not answer.startswith("Error")),
+        is_fallback_response=answer and "unable to generate" in answer.lower(),
+        error_occurred=error_occurred,
+        error_message=error_message,
+        user_rating=None,
+        user_feedback=None,
+        llm_metrics=None  # Will be set when evaluation runs
+    )
+
+
+def _store_evaluation_record(evaluation: QueryEvaluation, db: EvaluationDatabase, question: str) -> None:
+    """Store the evaluation record in the database."""
+    db.store_evaluation(evaluation)
+    logger.info(f"Query data saved (no evaluation): {question[:50]}...")

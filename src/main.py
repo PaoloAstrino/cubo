@@ -383,35 +383,55 @@ class CUBOApp:
         """Run the RAG system in command-line mode."""
         logger.info("Initializing RAG system...")
 
-        try:
-            data_folder = Utils.sanitize_path(args.data_folder, os.getcwd())
-        except ValueError as e:
-            logger.error(f"Invalid path: {e}")
+        data_folder = self._sanitize_data_folder_path(args)
+        if not data_folder:
             return
 
         if not self.initialize_components():
             return
 
-        # Load documents
+        documents = self._load_all_documents(data_folder)
+        if not documents:
+            return
+
+        self._add_documents_to_db(documents)
+        self._process_and_display_query(args.query)
+
+    def _sanitize_data_folder_path(self, args) -> str:
+        """Sanitize and validate the data folder path."""
+        try:
+            return Utils.sanitize_path(args.data_folder, os.getcwd())
+        except ValueError as e:
+            logger.error(f"Invalid path: {e}")
+            return None
+
+    def _load_all_documents(self, data_folder: str) -> list:
+        """Load and chunk all documents from the data folder."""
         logger.info("Loading and chunking all documents...")
         start = time.time()
         documents = self.doc_loader.load_documents_from_folder(data_folder)
         logger.info(f"Documents loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds.")
+        return documents
 
-        # Add to vector DB
+    def _add_documents_to_db(self, documents: list):
+        """Add documents to the vector database."""
         self.retriever.add_documents(documents)
 
-        # Process query
+    def _process_and_display_query(self, query: str):
+        """Process query and display results."""
         logger.info("Retrieving top documents...")
         start = time.time()
-        top_docs = self.retriever.retrieve_top_documents(args.query)
+        top_docs = self.retriever.retrieve_top_documents(query)
         logger.info(f"Retrieved in {time.time() - start:.2f} seconds.")
 
         context = "\n".join(top_docs)
-        response = self.generator.generate_response(args.query, context)
+        response = self.generator.generate_response(query, context)
 
-        # Output results
-        logger.info(f"Query: {args.query}")
+        self._display_command_line_results(query, top_docs, response)
+
+    def _display_command_line_results(self, query: str, top_docs: list, response: str):
+        """Display query results in command line format."""
+        logger.info(f"Query: {query}")
         logger.info("Retrieved Documents:")
         for i, doc in enumerate(top_docs, 1):
             logger.info(f"{i}. {doc[:200]}...")
@@ -422,27 +442,35 @@ class CUBOApp:
         """Main entry point."""
         start_time = time.time()
         try:
-            # Run setup wizard
             self.setup_wizard()
-
-            parser = argparse.ArgumentParser(description="CUBO - AI Document Assistant using embedding model and Llama LLM.")
-            parser.add_argument('--data_folder', help="Path to the folder containing documents.")
-            parser.add_argument('--query', help="The query to process.")
-
-            args = parser.parse_args()
-
-            if args.data_folder and args.query:
-                self.command_line_mode(args)
-            else:
-                self.interactive_mode()
+            args = self._parse_command_line_arguments()
+            self._run_application_mode(args)
         except Exception as e:
             logger.error(f"An error occurred: {e}")
         finally:
-            duration = time.time() - start_time
-            metrics.record_time("main_execution", duration)
-            import traceback
-            traceback.print_exc()
-            input("Press Enter to exit...")  # Keep terminal open for debugging
+            self._finalize_application(start_time)
+
+    def _parse_command_line_arguments(self):
+        """Parse command line arguments."""
+        parser = argparse.ArgumentParser(description="CUBO - AI Document Assistant using embedding model and Llama LLM.")
+        parser.add_argument('--data_folder', help="Path to the folder containing documents.")
+        parser.add_argument('--query', help="The query to process.")
+        return parser.parse_args()
+
+    def _run_application_mode(self, args):
+        """Run the appropriate application mode based on arguments."""
+        if args.data_folder and args.query:
+            self.command_line_mode(args)
+        else:
+            self.interactive_mode()
+
+    def _finalize_application(self, start_time: float):
+        """Finalize application execution with timing and error handling."""
+        duration = time.time() - start_time
+        metrics.record_time("main_execution", duration)
+        import traceback
+        traceback.print_exc()
+        input("Press Enter to exit...")  # Keep terminal open for debugging
 
 
 if __name__ == "__main__":

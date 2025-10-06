@@ -49,61 +49,83 @@ class DocumentProcessorWorker(QObject):
     def run(self):
         """Main processing function - runs in background thread."""
         try:
-            start_time = time.time()
-            all_chunks = []
-            total_files = len(self.file_paths)
-
-            self.progress_updated.emit(0, "Initializing processors...")
-
-            # Initialize processors
-            self._initialize_processors()
-
-            for i, file_path in enumerate(self.file_paths):
-                if self.is_cancelled:
-                    logger.info("Processing cancelled")
-                    break
-
-                file_start_time = time.time()
-                filename = file_path.split('/')[-1].split('\\')[-1]
-
-                self.progress_updated.emit(
-                    int((i / total_files) * 100),
-                    f"Processing {filename}..."
-                )
-
-                try:
-                    # Process single document
-                    chunks = self._process_single_document(file_path)
-
-                    if chunks:
-                        all_chunks.extend(chunks)
-                        processing_time = time.time() - file_start_time
-                        logger.info(f"Processed {filename}: {len(chunks)} chunks in {processing_time:.2f}s")
-
-                        # Signal individual document completion
-                        self.document_processed.emit(filename, len(chunks))
-                    else:
-                        logger.warning(f"No chunks generated for {filename}")
-
-                except Exception as e:
-                    error_msg = f"Failed to process {filename}: {str(e)}"
-                    logger.error(error_msg)
-                    # Continue with other files instead of failing completely
-                    self.progress_updated.emit(
-                        int((i / total_files) * 100),
-                        f"Error processing {filename}, continuing..."
-                    )
-
+            # Setup processing environment
+            start_time, all_chunks, total_files = self._setup_processing()
+            
+            # Process all documents
+            all_chunks = self._process_document_batch(all_chunks, total_files, start_time)
+            
+            # Handle successful completion
             if not self.is_cancelled:
-                total_time = time.time() - start_time
-                self.progress_updated.emit(100, f"Processing complete! {len(all_chunks)} total chunks in {total_time:.2f}s")
-                self.processing_finished.emit(all_chunks)
-                logger.info(f"Document processing completed: {len(all_chunks)} chunks from {len(self.file_paths)} files")
+                self._handle_processing_completion(all_chunks, total_files, start_time)
 
         except Exception as e:
-            error_msg = f"Critical processing error: {str(e)}"
-            logger.error(error_msg)
-            self.error_occurred.emit(error_msg)
+            # Handle critical errors
+            self._handle_processing_error(e)
+
+    def _setup_processing(self) -> tuple:
+        """Setup the processing environment and return initial state."""
+        start_time = time.time()
+        all_chunks = []
+        total_files = len(self.file_paths)
+
+        self.progress_updated.emit(0, "Initializing processors...")
+        self._initialize_processors()
+        
+        return start_time, all_chunks, total_files
+
+    def _process_document_batch(self, all_chunks: List, total_files: int, start_time: float) -> List:
+        """Process all documents in the batch."""
+        for i, file_path in enumerate(self.file_paths):
+            if self.is_cancelled:
+                logger.info("Processing cancelled")
+                break
+
+            file_start_time = time.time()
+            filename = file_path.split('/')[-1].split('\\')[-1]
+
+            self.progress_updated.emit(
+                int((i / total_files) * 100),
+                f"Processing {filename}..."
+            )
+
+            try:
+                # Process single document
+                chunks = self._process_single_document(file_path)
+
+                if chunks:
+                    all_chunks.extend(chunks)
+                    processing_time = time.time() - file_start_time
+                    logger.info(f"Processed {filename}: {len(chunks)} chunks in {processing_time:.2f}s")
+
+                    # Signal individual document completion
+                    self.document_processed.emit(filename, len(chunks))
+                else:
+                    logger.warning(f"No chunks generated for {filename}")
+
+            except Exception as e:
+                error_msg = f"Failed to process {filename}: {str(e)}"
+                logger.error(error_msg)
+                # Continue with other files instead of failing completely
+                self.progress_updated.emit(
+                    int((i / total_files) * 100),
+                    f"Error processing {filename}, continuing..."
+                )
+
+        return all_chunks
+
+    def _handle_processing_completion(self, all_chunks: List, total_files: int, start_time: float):
+        """Handle successful completion of processing."""
+        total_time = time.time() - start_time
+        self.progress_updated.emit(100, f"Processing complete! {len(all_chunks)} total chunks in {total_time:.2f}s")
+        self.processing_finished.emit(all_chunks)
+        logger.info(f"Document processing completed: {len(all_chunks)} chunks from {total_files} files")
+
+    def _handle_processing_error(self, error: Exception):
+        """Handle critical processing errors."""
+        error_msg = f"Critical processing error: {str(error)}"
+        logger.error(error_msg)
+        self.error_occurred.emit(error_msg)
 
     def _initialize_processors(self):
         """Initialize document processors."""

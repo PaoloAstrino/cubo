@@ -143,103 +143,103 @@ class AdvancedEvaluator:
     async def evaluate_answer_relevance(self, question: str, answer: str) -> float:
         """
         Evaluate how relevant the answer is to the question.
-        
+
         Answer relevance measures whether the answer actually addresses the question asked.
-        
+
         Returns:
-            Float between 0-1, where 1.0 means perfectly relevant
+            Float between 0-1, where 1.0 means perfectly relevant, or None if evaluation fails
         """
         if not question or not answer:
-            return 0.0
-            
+            return None
+
         if not self.ollama_client and not self.gemini_client:
-            # Fallback heuristic evaluation
-            return self._evaluate_answer_relevance_heuristic(question, answer)
-        
+            # No LLM available, cannot evaluate
+            return None
+
         try:
             relevance_prompt = f"""
             Evaluate how well this answer addresses the question.
-            
+
             Question: {question}
-            
+
             Answer: {answer}
-            
+
             Rate the answer relevance on a scale of 1-5:
             1 = Answer does not address the question at all
             2 = Answer partially addresses the question but misses key points
             3 = Answer addresses the main question but could be more complete
             4 = Answer fully addresses the question with good detail
             5 = Answer perfectly addresses the question comprehensively
-            
+
             Consider:
             - Does the answer directly answer what was asked?
             - Is the answer complete and accurate?
             - Does the answer stay on topic?
-            
+
             Rate only with a number (1-5):
             """
-            
+
             score = await self._get_llm_score(relevance_prompt)
-            
+
             # Convert 1-5 scale to 0-1 scale
             return (score - 1) / 4.0
-            
+
         except Exception as e:
             logger.error(f"LLM answer relevance evaluation failed: {e}")
-            # Fallback to heuristic
-            return self._evaluate_answer_relevance_heuristic(question, answer)
+            # No fallback - return None to indicate failure
+            return None
 
     async def evaluate_context_relevance(self, question: str, contexts: List[str]) -> float:
         """
         Evaluate how relevant the retrieved contexts are to the question.
-        
+
         Context relevance measures whether the retrieved information is useful for answering the question.
-        
+
         Returns:
-            Float between 0-1, where 1.0 means perfectly relevant contexts
+            Float between 0-1, where 1.0 means perfectly relevant contexts, or None if evaluation fails
         """
         if not question or not contexts:
-            return 0.0
-            
+            return None
+
         if not self.ollama_client and not self.gemini_client:
-            # Fallback heuristic evaluation
-            return self._evaluate_context_relevance_heuristic(question, contexts)
-        
+            # No LLM available, cannot evaluate
+            return None
+
         try:
             # Combine contexts for evaluation
             context_text = ' '.join(contexts[:3])  # Use first 3 contexts to avoid token limits
-            
+
             relevance_prompt = f"""
             Evaluate how relevant these retrieved contexts are to the question.
-            
+
             Question: {question}
-            
+
             Retrieved Contexts: {context_text}
-            
+
             Rate the context relevance on a scale of 1-5:
             1 = Contexts are completely irrelevant to the question
             2 = Contexts have some tangential relevance but miss the main topic
             3 = Contexts are somewhat relevant but could be better
             4 = Contexts are highly relevant and useful for answering
             5 = Contexts are perfectly relevant and contain exactly the needed information
-            
+
             Consider:
             - Do the contexts contain information that helps answer the question?
             - Are the contexts on the right topic?
             - Is the information in contexts sufficient to answer the question?
-            
+
             Rate only with a number (1-5):
             """
-            
+
             score = await self._get_llm_score(relevance_prompt)
-            
+
             # Convert 1-5 scale to 0-1 scale
             return (score - 1) / 4.0
-            
+
         except Exception as e:
             logger.error(f"LLM context relevance evaluation failed: {e}")
-            # Fallback to heuristic
-            return self._evaluate_context_relevance_heuristic(question, contexts)
+            # No fallback - return None to indicate failure
+            return None
 
     def _evaluate_answer_relevance_heuristic(self, question: str, answer: str) -> float:
         """Evaluate answer relevance using heuristic methods."""
@@ -276,13 +276,24 @@ class AdvancedEvaluator:
         answer_words = set(re.findall(r'\b\w+\b', answer.lower()))
         
         # Direct keyword overlap
-        direct_overlap = len(question_keywords.intersection(answer_words))
-        max_possible = len(question_keywords)
+        direct_overlap, max_possible = self._calculate_direct_overlap_score(question_keywords, answer_words)
         
         if max_possible == 0:
             return 0.0
             
         # Check for partial matches and synonyms (simplified)
+        partial_score = self._calculate_partial_overlap_score(question_keywords, answer_words)
+        
+        return self._normalize_overlap_score(partial_score, max_possible)
+
+    def _calculate_direct_overlap_score(self, question_keywords: set, answer_words: set) -> tuple:
+        """Calculate direct keyword overlap and return overlap count and max possible."""
+        direct_overlap = len(question_keywords.intersection(answer_words))
+        max_possible = len(question_keywords)
+        return direct_overlap, max_possible
+
+    def _calculate_partial_overlap_score(self, question_keywords: set, answer_words: set) -> float:
+        """Calculate partial overlap score including substring matches."""
         partial_score = 0.0
         for q_word in question_keywords:
             if q_word in answer_words:
@@ -293,42 +304,82 @@ class AdvancedEvaluator:
                     if q_word in a_word or a_word in q_word:
                         partial_score += 0.5
                         break
-        
-        return min(1.0, partial_score / max_possible)
+        return partial_score
+
+    def _normalize_overlap_score(self, score: float, max_possible: int) -> float:
+        """Normalize overlap score to [0, 1] range."""
+        if max_possible == 0:
+            return 0.0
+        return min(1.0, score / max_possible)
 
     def _calculate_structural_relevance(self, question: str, answer: str) -> float:
         """Calculate structural relevance based on answer completeness."""
         score = 0.0
         
         # Length appropriateness (answers should be substantial but not too long)
-        answer_length = len(answer.split())
-        if 10 <= answer_length <= 200:
-            score += 0.3
-        elif answer_length < 10:
-            score += 0.1
-        else:
-            score += 0.2
+        score += self._calculate_length_appropriateness_score(answer)
             
         # Check if answer seems to address the question type
-        question_lower = question.lower()
-        answer_lower = answer.lower()
-        
-        # For "why" questions, look for explanations
-        if question_lower.startswith('why'):
-            if any(word in answer_lower for word in ['because', 'due to', 'since', 'as', 'so']):
-                score += 0.3
-                
-        # For "how" questions, look for process descriptions
-        elif question_lower.startswith('how'):
-            if any(word in answer_lower for word in ['by', 'through', 'using', 'with', 'step']):
-                score += 0.3
-                
-        # For "what" questions, look for definitions or descriptions
-        elif question_lower.startswith('what'):
-            if len(answer.split()) > 5:  # Substantial response
-                score += 0.3
+        question_type = self._detect_question_type(question)
+        score += self._calculate_question_type_relevance(question_type, answer)
         
         return min(1.0, score)
+
+    def _calculate_length_appropriateness_score(self, answer: str) -> float:
+        """Calculate score based on answer length appropriateness."""
+        answer_length = len(answer.split())
+        if 10 <= answer_length <= 200:
+            return 0.3
+        elif answer_length < 10:
+            return 0.1
+        else:
+            return 0.2
+
+    def _detect_question_type(self, question: str) -> str:
+        """Detect the type of question (why, how, what, or other)."""
+        question_lower = question.lower()
+        if question_lower.startswith('why'):
+            return 'why'
+        elif question_lower.startswith('how'):
+            return 'how'
+        elif question_lower.startswith('what'):
+            return 'what'
+        else:
+            return 'other'
+
+    def _calculate_question_type_relevance(self, question_type: str, answer: str) -> float:
+        """Calculate relevance score based on question type and answer structure."""
+        answer_lower = answer.lower()
+        
+        if question_type == 'why':
+            # For "why" questions, look for explanations
+            return self._check_why_question_relevance(answer_lower)
+        elif question_type == 'how':
+            # For "how" questions, look for process descriptions
+            return self._check_how_question_relevance(answer_lower)
+        elif question_type == 'what':
+            # For "what" questions, look for definitions or descriptions
+            return self._check_what_question_relevance(answer)
+        
+        return 0.0
+
+    def _check_why_question_relevance(self, answer_lower: str) -> float:
+        """Check if answer addresses a 'why' question with explanations."""
+        if any(word in answer_lower for word in ['because', 'due to', 'since', 'as', 'so']):
+            return 0.3
+        return 0.0
+
+    def _check_how_question_relevance(self, answer_lower: str) -> float:
+        """Check if answer addresses a 'how' question with process descriptions."""
+        if any(word in answer_lower for word in ['by', 'through', 'using', 'with', 'step']):
+            return 0.3
+        return 0.0
+
+    def _check_what_question_relevance(self, answer: str) -> float:
+        """Check if answer addresses a 'what' question with substantial content."""
+        if len(answer.split()) > 5:  # Substantial response
+            return 0.3
+        return 0.0
 
     def evaluate_context_utilization(self, question: str, contexts: List[str]) -> Dict[str, Any]:
         """Evaluate how well contexts are utilized."""
@@ -536,28 +587,40 @@ class AdvancedEvaluator:
         """Get numerical score from LLM."""
         try:
             if self.llm_provider == "gemini" and self.gemini_client and GEMINI_AVAILABLE:
-                return await self._get_gemini_score(prompt)
+                score = await self._get_gemini_score(prompt)
+                if score is None:
+                    return None
+                return score
             elif self.llm_provider == "ollama" and self.ollama_client:
-                return await self._get_ollama_score(prompt)
+                score = await self._get_ollama_score(prompt)
+                if score is None:
+                    return None
+                return score
             else:
-                # Fallback to mock score
-                import random
-                return round(random.uniform(1, 5), 1)
+                # No LLM available
+                return None
         except Exception as e:
             logger.error(f"LLM scoring failed: {e}")
-            return 3.0  # Neutral score
+            return None  # Neutral score
 
     async def _get_gemini_score(self, prompt: str) -> float:
         """Get score from Gemini."""
+        import asyncio
+
         try:
             # Try different model names in order of preference (free tier first)
             model_names = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
-            
+
             for model_name in model_names:
                 try:
                     model = genai.GenerativeModel(model_name)
-                    response = model.generate_content(prompt)
-                    
+
+                    # Add timeout to prevent hanging
+                    response = await asyncio.wait_for(
+                        model.generate_content_async(prompt),
+                        timeout=30.0  # 30 second timeout
+                    )
+
                     # Extract numerical score from response
                     text = response.text.strip()
                     logger.debug(f"Gemini response for prompt: {prompt[:100]}... -> {text}")
@@ -568,16 +631,20 @@ class AdvancedEvaluator:
                         score = float(match.group(1))
                         logger.debug(f"Extracted score: {score}")
                         return max(1.0, min(5.0, score))  # Clamp to 1-5 range
+                except asyncio.TimeoutError:
+                    logger.warning(f"Gemini API call timed out for model {model_name}")
+                    continue
                 except Exception as e:
                     logger.debug(f"Failed with model {model_name}: {e}")
                     continue
-            
-            # If all models failed, raise the last error
-            raise Exception(f"All Gemini models failed")
+
+            # If all models failed, return None to indicate complete failure
+            logger.error(f"All Gemini models failed for scoring")
+            return None
             
         except Exception as e:
             logger.error(f"Gemini scoring failed: {e}")
-            return 3.0
+            return None
 
     async def _get_ollama_score(self, prompt: str) -> float:
         """Get score from Ollama."""
@@ -640,8 +707,8 @@ class AdvancedEvaluator:
             
         except Exception as e:
             logger.error(f"LLM groundedness evaluation failed: {e}")
-            # Fallback to heuristic
-            return self._evaluate_groundedness_heuristic(contexts, answer)
+            # No fallback - return None to indicate failure
+            return None
     
     def _evaluate_groundedness_heuristic(self, contexts: List[str], answer: str) -> float:
         """

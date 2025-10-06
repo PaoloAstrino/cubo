@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-CUBO Evalu        # Get queries that need evaluation (where metrics are NULL or 0.0 - indicating failed evaluation)
-        queries_to_evaluate = db.get_queries_needing_evaluation(session_id=session_id, limit=limit)ion Script
+CUBO Evaluation Script
 Run evaluations on saved query data that hasn't been evaluated yet.
 """
 
@@ -54,14 +53,23 @@ async def evaluate_saved_queries(limit: Optional[int] = None, session_id: Option
             try:
                 logger.info(f"Evaluating query: {query_data['question'][:50]}...")
 
-                # Run evaluation
-                evaluation_result = await integrator.evaluate_query(
-                    question=query_data['question'],
-                    answer=query_data['answer'],
-                    contexts=query_data['contexts'],
-                    response_time=query_data['response_time'],
-                    model_used=query_data['model_used']
-                )
+                # Run evaluation with timeout to prevent hanging
+                import asyncio
+                try:
+                    evaluation_result = await asyncio.wait_for(
+                        integrator.evaluate_query(
+                            question=query_data['question'],
+                            answer=query_data['answer'],
+                            contexts=query_data['contexts'],
+                            response_time=query_data['response_time'],
+                            model_used=query_data['model_used']
+                        ),
+                        timeout=60.0  # 60 second timeout per evaluation
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"⚠ Evaluation timed out for query: {query_data['question'][:50]}... - will retry later")
+                    # Don't increment failed_count, leave record for retry
+                    continue
 
                 if evaluation_result:
                     # Update the existing record with evaluation metrics
@@ -78,18 +86,31 @@ async def evaluate_saved_queries(limit: Optional[int] = None, session_id: Option
                               f"CR={evaluation_result.context_relevance_score:.2f}, "
                               f"G={evaluation_result.groundedness_score:.2f}")
                 else:
-                    failed_count += 1
-                    logger.error(f"✗ Evaluation failed for query: {query_data['question'][:50]}...")
+                    # LLM evaluation failed - leave record unchanged so it will be retried later
+                    logger.warning(f"⚠ LLM evaluation failed for query: {query_data['question'][:50]}... - will retry later")
+                    # Don't increment failed_count, don't update database
 
                 # Small delay to avoid overwhelming the API
                 time.sleep(0.5)
 
+            except KeyboardInterrupt:
+                logger.warning("Evaluation interrupted by user. Saving progress...")
+                break
             except Exception as e:
-                failed_count += 1
-                logger.error(f"Error evaluating query {query_data['id']}: {e}")
+                # For any other error, leave the record unchanged for retry
+                logger.warning(f"⚠ Evaluation error for query {query_data['id']}: {e} - will retry later")
+                # Don't increment failed_count, leave record for retry
 
         logger.info(f"Evaluation complete. Evaluated: {evaluated_count}, Failed: {failed_count}")
+        if failed_count == 0:
+            logger.info("All queries were either successfully evaluated or deferred for retry.")
+        else:
+            logger.warning(f"{failed_count} queries had permanent failures and were not processed.")
 
+    except KeyboardInterrupt:
+        logger.warning("Evaluation interrupted by user")
+        logger.info(f"Partial results - Evaluated: {evaluated_count}, Failed: {failed_count}")
+        logger.info("Interrupted queries will be retried in the next run.")
     except Exception as e:
         logger.error(f"Failed to run evaluations: {e}")
         sys.exit(1)

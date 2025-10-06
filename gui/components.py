@@ -383,7 +383,16 @@ class DocumentWidget(QWidget):
         upload_layout = QVBoxLayout(upload_page)
         upload_layout.setContentsMargins(20, 20, 20, 20)
 
-        # Centered upload area
+        # Create centered upload widget
+        upload_widget = self._create_upload_widget()
+        upload_layout.addStretch()
+        upload_layout.addWidget(upload_widget)
+        upload_layout.addStretch()
+
+        self.stacked_widget.addWidget(upload_page)
+
+    def _create_upload_widget(self):
+        """Create the centered upload widget with icon, title, and button."""
         upload_widget = QWidget()
         upload_widget.setStyleSheet("""
             QWidget {
@@ -391,47 +400,58 @@ class DocumentWidget(QWidget):
                 border-radius: 10px;
             }
         """)
+        
         upload_inner_layout = QVBoxLayout(upload_widget)
         upload_inner_layout.setAlignment(Qt.AlignCenter)
 
-        # Upload icon/label
+        # Add UI components
+        self._add_upload_icon(upload_inner_layout)
+        self._add_upload_title(upload_inner_layout)
+        self._add_upload_subtitle(upload_inner_layout)
+        self._add_upload_button(upload_inner_layout)
+        self._add_supported_formats_label(upload_inner_layout)
+
+        return upload_widget
+
+    def _add_upload_icon(self, layout):
+        """Add the upload icon to the layout."""
         upload_icon = QLabel("📁")
         upload_icon.setFont(QFont("Arial", 24))
         upload_icon.setAlignment(Qt.AlignCenter)
         upload_icon.setStyleSheet("color: #cccccc; margin-bottom: 15px;")
-        upload_inner_layout.addWidget(upload_icon)
+        layout.addWidget(upload_icon)
 
+    def _add_upload_title(self, layout):
+        """Add the upload title to the layout."""
         upload_title = QLabel("Upload Documents")
         upload_title.setFont(QFont("Arial", 14, QFont.Bold))
         upload_title.setAlignment(Qt.AlignCenter)
         upload_title.setStyleSheet("color: #cccccc; margin-bottom: 8px;")
-        upload_inner_layout.addWidget(upload_title)
+        layout.addWidget(upload_title)
 
+    def _add_upload_subtitle(self, layout):
+        """Add the upload subtitle to the layout."""
         upload_subtitle = QLabel("Select files or folders - we'll handle both!")
         upload_subtitle.setFont(QFont("Arial", 12))
         upload_subtitle.setAlignment(Qt.AlignCenter)
         upload_subtitle.setStyleSheet("color: #888888; margin-bottom: 20px;")
-        upload_inner_layout.addWidget(upload_subtitle)
+        layout.addWidget(upload_subtitle)
 
-        # Unified upload button
+    def _add_upload_button(self, layout):
+        """Add the upload button to the layout."""
         self.upload_btn = QPushButton("📄📁 Select Files or Folders")
         self.upload_btn.setFont(QFont("Arial", 11, QFont.Bold))
         self.upload_btn.setStyleSheet(UIStyles.PRIMARY_BUTTON_STYLE)
         self.upload_btn.clicked.connect(self.unified_upload)
-        upload_inner_layout.addWidget(self.upload_btn)
+        layout.addWidget(self.upload_btn)
 
-        # Supported formats
+    def _add_supported_formats_label(self, layout):
+        """Add the supported formats label to the layout."""
         formats_label = QLabel("Supported: PDF, DOCX, TXT, MD")
         formats_label.setFont(QFont("Arial", 10))
         formats_label.setAlignment(Qt.AlignCenter)
         formats_label.setStyleSheet("color: #666666; margin-top: 12px;")
-        upload_inner_layout.addWidget(formats_label)
-
-        upload_layout.addStretch()
-        upload_layout.addWidget(upload_widget)
-        upload_layout.addStretch()
-
-        self.stacked_widget.addWidget(upload_page)
+        layout.addWidget(formats_label)
 
     def create_list_page(self):
         """Create the page with upload section and document list."""

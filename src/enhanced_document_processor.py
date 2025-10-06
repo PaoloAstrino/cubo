@@ -62,21 +62,9 @@ class EnhancedDocumentProcessor:
             raise ValueError("Dolphin processor not available")
 
         try:
-            # Convert PDF to images
-            from pdf2image import convert_from_path
-            logger.info(f"Converting PDF to images: {pdf_path}")
-
-            images = convert_from_path(pdf_path, dpi=300)
-            logger.info(f"Converted to {len(images)} pages")
-
-            # Process each page with Dolphin
+            images = self._convert_pdf_to_images(pdf_path)
             page_contents = self.dolphin.process_document_pages(images)
-
-            # Combine and chunk content
-            full_content = "\n\n".join(f"--- Page {i+1} ---\n{content}"
-                                       for i, content in enumerate(page_contents))
-
-            # Create chunks with embeddings
+            full_content = self._combine_page_contents(page_contents)
             chunks = self._create_enhanced_chunks(full_content, pdf_path)
 
             logger.info(f"Processed PDF into {len(chunks)} enhanced chunks")
@@ -87,6 +75,20 @@ class EnhancedDocumentProcessor:
         except Exception as e:
             logger.error(f"Error processing PDF: {e}")
             raise
+
+    def _convert_pdf_to_images(self, pdf_path: str) -> List[Image.Image]:
+        """Convert PDF pages to images."""
+        from pdf2image import convert_from_path
+        logger.info(f"Converting PDF to images: {pdf_path}")
+
+        images = convert_from_path(pdf_path, dpi=300)
+        logger.info(f"Converted to {len(images)} pages")
+        return images
+
+    def _combine_page_contents(self, page_contents: List[str]) -> str:
+        """Combine page contents into a single document."""
+        return "\n\n".join(f"--- Page {i+1} ---\n{content}"
+                          for i, content in enumerate(page_contents))
 
     def process_image_with_dolphin(self, image_path: str) -> List[Dict[str, Any]]:
         """
@@ -223,25 +225,27 @@ class EnhancedDocumentProcessor:
 
         file_path = Path(file_path)
 
-        if file_path.suffix.lower() in ['.pdf', '.png', '.jpg', '.jpeg']:
-            try:
-                # Convert to image if PDF
-                if file_path.suffix.lower() == '.pdf':
-                    from pdf2image import convert_from_path
-                    images = convert_from_path(str(file_path), dpi=300, first_page=1, last_page=1)
-                    image = images[0] if images else None
-                else:
-                    image = Image.open(file_path)
-
-                if image:
-                    return self.dolphin.extract_structured_data(image)
-                else:
-                    return {"error": "Could not load image"}
-
-            except Exception as e:
-                return {"error": str(e)}
-        else:
+        if not self._is_supported_for_structured_extraction(file_path):
             return {"error": "Structured extraction requires image/PDF input"}
+
+        try:
+            image = self._load_image_for_extraction(file_path)
+            return self.dolphin.extract_structured_data(image) if image else {"error": "Could not load image"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _is_supported_for_structured_extraction(self, file_path: Path) -> bool:
+        """Check if file type supports structured extraction."""
+        return file_path.suffix.lower() in ['.pdf', '.png', '.jpg', '.jpeg']
+
+    def _load_image_for_extraction(self, file_path: Path) -> Image.Image:
+        """Load image for structured extraction."""
+        if file_path.suffix.lower() == '.pdf':
+            from pdf2image import convert_from_path
+            images = convert_from_path(str(file_path), dpi=300, first_page=1, last_page=1)
+            return images[0] if images else None
+        else:
+            return Image.open(file_path)
 
     def is_dolphin_available(self) -> bool:
         """Check if Dolphin processor is available."""

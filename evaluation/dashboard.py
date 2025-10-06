@@ -564,3 +564,38 @@ Worst Day: {summary.get('worst_day', 'N/A')}
             QMessageBox.critical(self, "Export Error",
                                f"Failed to export data: {e}")
             logger.error(f"Error exporting data: {e}")
+
+
+def show_evaluation_dashboard():
+    """
+    Launch the evaluation dashboard as a standalone application.
+
+    This function creates a QApplication if one doesn't exist,
+    creates the EvaluationDashboard widget, and shows it.
+    """
+    from PySide6.QtWidgets import QApplication
+    import sys
+
+    # Create application if it doesn't exist
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    try:
+        # Create and show dashboard
+        dashboard = EvaluationDashboard()
+        dashboard.show()
+
+        # Run application if this is the main instance
+        if app.instance() == app:
+            sys.exit(app.exec())
+
+    except Exception as e:
+        logger.error(f"Failed to launch evaluation dashboard: {e}")
+        QMessageBox.critical(None, "Dashboard Error",
+                           f"Failed to launch evaluation dashboard: {e}")
+        raise
+
+
+if __name__ == "__main__":
+    show_evaluation_dashboard()
