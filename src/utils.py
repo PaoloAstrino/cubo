@@ -3,95 +3,95 @@ import re
 from typing import List, Optional
 from collections import defaultdict
 from src.logger import logger
+from functools import wraps
 
 # Lazy import for transformers - only import when needed
 AutoTokenizer = None
+
+
+def log_errors(success_msg: str = None, error_prefix: str = "Error"):
+    """
+    Decorator to handle common error logging pattern.
+
+    Args:
+        success_msg: Message to log on success (optional)
+        error_prefix: Prefix for error messages
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                result = func(*args, **kwargs)
+                if success_msg:
+                    logger.info(success_msg)
+                return result
+            except Exception as e:
+                logger.error(f"{error_prefix} in {func.__name__}: {e}")
+                raise
+        return wrapper
+    return decorator
 
 
 class Utils:
     """Utility functions for CUBO."""
 
     @staticmethod
+    @log_errors("Path sanitized successfully")
     def sanitize_path(path: str, base_dir: str) -> str:
         """Sanitize and validate file path to prevent directory traversal."""
-        try:
-            abs_path = os.path.abspath(path)
-            base_abs = os.path.abspath(base_dir)
-            if not abs_path.startswith(base_abs):
-                raise ValueError("Path traversal detected.")
-            logger.info(f"Path sanitized: {abs_path}")
-            return abs_path
-        except Exception as e:
-            logger.error(f"Error sanitizing path {path}: {e}")
-            raise
+        abs_path = os.path.abspath(path)
+        base_abs = os.path.abspath(base_dir)
+        if not abs_path.startswith(base_abs):
+            raise ValueError("Path traversal detected.")
+        return abs_path
 
     @staticmethod
+    @log_errors("File size validated successfully")
     def validate_file_size(file_path: str, max_size_mb: float) -> None:
         """Validate file size against maximum allowed size."""
-        try:
-            size = os.path.getsize(file_path) / (1024 * 1024)
-            if size > max_size_mb:
-                raise ValueError(f"File size {size:.2f}MB exceeds limit {max_size_mb}MB.")
-            logger.info(f"File size validated: {file_path} ({size:.2f}MB)")
-        except Exception as e:
-            logger.error(f"Error validating file size for {file_path}: {e}")
-            raise
+        size = os.path.getsize(file_path) / (1024 * 1024)
+        if size > max_size_mb:
+            raise ValueError(f"File size {size:.2f}MB exceeds limit {max_size_mb}MB.")
 
     @staticmethod
+    @log_errors("File type validated successfully")
     def validate_file_type(file_path: str, allowed_extensions: List[str]) -> None:
         """Validate file type based on extension."""
-        try:
-            _, ext = os.path.splitext(file_path)
-            if ext.lower() not in [e.lower() for e in allowed_extensions]:
-                raise ValueError(f"File type {ext} not allowed. Allowed: {allowed_extensions}")
-            logger.info(f"File type validated: {file_path}")
-        except Exception as e:
-            logger.error(f"Error validating file type for {file_path}: {e}")
-            raise
+        _, ext = os.path.splitext(file_path)
+        if ext.lower() not in [e.lower() for e in allowed_extensions]:
+            raise ValueError(f"File type {ext} not allowed. Allowed: {allowed_extensions}")
 
     @staticmethod
+    @log_errors("Text cleaned successfully")
     def clean_text(text: str) -> str:
         """Clean and normalize text content."""
-        try:
-            # Remove extra whitespace, normalize
-            text = re.sub(r'\s+', ' ', text)
-            text = text.strip()
-            logger.info("Text cleaned successfully")
-            return text
-        except Exception as e:
-            logger.error(f"Error cleaning text: {e}")
-            raise
+        # Remove extra whitespace, normalize
+        text = re.sub(r'\s+', ' ', text)
+        text = text.strip()
+        return text
 
     @staticmethod
+    @log_errors("Text preprocessed successfully")
     def preprocess_text(text: str, lowercase: bool = True, remove_punct: bool = True) -> str:
         """Advanced text preprocessing: lowercase, remove punctuation, etc."""
-        try:
-            if lowercase:
-                text = text.lower()
-            if remove_punct:
-                text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
-            text = Utils.clean_text(text)  # Reuse clean_text
-            logger.info("Text preprocessed successfully")
-            return text
-        except Exception as e:
-            logger.error(f"Error preprocessing text: {e}")
-            raise
+        if lowercase:
+            text = text.lower()
+        if remove_punct:
+            text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+        text = Utils.clean_text(text)  # Reuse clean_text
+        return text
 
     @staticmethod
     def chunk_text(text: str, chunk_size: int = None, overlap: int = None) -> List[str]:
         """Split text into overlapping chunks with adaptive sizing based on text length."""
-        try:
-            text_length = len(text)
+        text_length = len(text)
 
-            # Get adaptive chunk parameters
-            chunk_size, overlap = Utils._get_adaptive_chunk_params(text_length, chunk_size, overlap)
+        # Get adaptive chunk parameters
+        chunk_size, overlap = Utils._get_adaptive_chunk_params(text_length, chunk_size, overlap)
 
-            chunks = Utils._create_overlapping_chunks(text, chunk_size, overlap)
-            logger.info(f"Text chunked into {len(chunks)} chunks")
-            return chunks
-        except Exception as e:
-            logger.error(f"Error chunking text: {e}")
-            raise
+        chunks = Utils._create_overlapping_chunks(text, chunk_size, overlap)
+        logger.info(f"Text chunked into {len(chunks)} chunks")
+        return chunks
 
     @staticmethod
     def _get_adaptive_chunk_params(text_length: int, chunk_size: int = None, overlap: int = None) -> tuple:
@@ -148,6 +148,7 @@ class Utils:
         return max(1, len(text.split()))
 
     @staticmethod
+    @log_errors("Sentence window chunks created successfully")
     def create_sentence_window_chunks(
         text: str,
         window_size: int = 3,

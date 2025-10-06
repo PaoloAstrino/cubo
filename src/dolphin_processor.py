@@ -143,7 +143,25 @@ class DolphinProcessor:
         Returns:
             Dictionary with extracted structured information
         """
-        prompt = (
+        prompt = self._create_extraction_prompt()
+        content = self.process_image(image, prompt)
+
+        # Initialize structured data container
+        structured = self._initialize_structured_data(content)
+
+        # Parse content with heuristics
+        self._parse_content_into_structure(structured, content)
+
+        return structured
+
+    def _create_extraction_prompt(self) -> str:
+        """
+        Create the prompt for structured data extraction.
+
+        Returns:
+            Formatted prompt string for the model
+        """
+        return (
             "Analyze this document and extract structured information. "
             "Identify and categorize:\n"
             "- Document type/title\n"
@@ -154,10 +172,17 @@ class DolphinProcessor:
             "Format your response as a structured JSON-like output with clear categories."
         )
 
-        content = self.process_image(image, prompt)
+    def _initialize_structured_data(self, content: str) -> Dict[str, Any]:
+        """
+        Initialize the structured data container.
 
-        # Basic parsing (could be enhanced with better NLP)
-        structured = {
+        Args:
+            content: Raw extracted content from the image
+
+        Returns:
+            Dictionary with initial structured data structure
+        """
+        return {
             "raw_content": content,
             "document_type": "unknown",
             "entities": [],
@@ -165,7 +190,14 @@ class DolphinProcessor:
             "sections": []
         }
 
-        # Simple heuristics for structure detection
+    def _parse_content_into_structure(self, structured: Dict[str, Any], content: str) -> None:
+        """
+        Parse content using simple heuristics to populate structured data.
+
+        Args:
+            structured: Structured data dictionary to populate
+            content: Raw content to parse
+        """
         lines = content.split('\n')
         current_section = None
 
@@ -175,14 +207,50 @@ class DolphinProcessor:
                 continue
 
             # Detect headers/sections
-            if line.isupper() or (len(line) < 50 and line.endswith(':')):
+            if self._is_header_line(line):
                 current_section = line.rstrip(':')
                 structured["sections"].append(current_section)
-            elif '|' in line and ('---' in lines[lines.index(line) + 1] if lines.index(line) + 1 < len(lines) else False):
+            elif self._is_table_line(line, lines):
                 # Likely a table
                 structured["tables"].append(line)
 
-        return structured
+    def _is_header_line(self, line: str) -> bool:
+        """
+        Check if a line appears to be a header or section title.
+
+        Args:
+            line: Text line to check
+
+        Returns:
+            True if line appears to be a header
+        """
+        return line.isupper() or (len(line) < 50 and line.endswith(':'))
+
+    def _is_table_line(self, line: str, all_lines: List[str]) -> bool:
+        """
+        Check if a line appears to be part of a table.
+
+        Args:
+            line: Text line to check
+            all_lines: All lines in the content for context
+
+        Returns:
+            True if line appears to be part of a table
+        """
+        if '|' not in line:
+            return False
+
+        # Check if next line is a separator (common markdown table format)
+        try:
+            current_index = all_lines.index(line)
+            next_index = current_index + 1
+            if next_index < len(all_lines):
+                next_line = all_lines[next_index].strip()
+                return '---' in next_line or ('|' in next_line and '-' in next_line)
+        except ValueError:
+            pass
+
+        return False
 
     def is_available(self) -> bool:
         """Check if Dolphin model is available and loaded."""

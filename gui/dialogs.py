@@ -13,6 +13,10 @@ from PySide6.QtCore import Qt, QThread, Signal
 import subprocess
 
 
+# Common UI Style Constants
+GROUP_BOX_STYLE = "QGroupBox { font-weight: bold; padding-top: 10px; }"
+
+
 class ProgressDialog(QProgressDialog):
     """Custom progress dialog for long-running operations."""
 
@@ -79,7 +83,7 @@ class SettingsDialog(QDialog):
 
         # Chunking Settings Section
         chunking_group = QGroupBox("Document Chunking")
-        chunking_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        chunking_group.setStyleSheet(GROUP_BOX_STYLE)
         chunking_layout = QFormLayout(chunking_group)
 
         # Chunking method selection
@@ -113,7 +117,7 @@ class SettingsDialog(QDialog):
 
         # Retrieval Settings Section
         retrieval_group = QGroupBox("Retrieval Settings")
-        retrieval_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        retrieval_group.setStyleSheet(GROUP_BOX_STYLE)
         retrieval_layout = QFormLayout(retrieval_group)
 
         # Top-k results
@@ -126,7 +130,7 @@ class SettingsDialog(QDialog):
 
         # Performance Settings Section
         perf_group = QGroupBox("Performance")
-        perf_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        perf_group.setStyleSheet(GROUP_BOX_STYLE)
         perf_layout = QVBoxLayout(perf_group)
 
         self.use_gpu = QCheckBox("Use GPU (if available)")
@@ -258,7 +262,7 @@ class ModelSelectionDialog(QDialog):
 
         # Model selection section
         model_group = QGroupBox("Available AI Models")
-        model_group.setStyleSheet("QGroupBox { font-weight: bold; padding-top: 10px; }")
+        model_group.setStyleSheet(GROUP_BOX_STYLE)
         model_layout = QVBoxLayout(model_group)
 
         # Model list
@@ -306,41 +310,55 @@ class ModelSelectionDialog(QDialog):
     def load_available_models(self):
         """Load available Ollama models."""
         try:
-            self.status_label.setText("Checking for available models...")
+            self._start_model_loading()
             self.available_models = self.get_available_ollama_models()
 
             if self.available_models:
-                self.model_list.clear()
-                for i, model in enumerate(self.available_models):
-                    # Make model names more user-friendly
-                    display_name = self.get_friendly_model_name(model)
-                    item = QListWidgetItem(f"🤖 {display_name}")
-                    item.setData(Qt.UserRole, model)  # Store actual model name
-                    self.model_list.addItem(item)
-                    
-                    # Pre-select current model if available
-                    if model == self.current_model:
-                        self.model_list.setCurrentItem(item)
-
-                if self.available_models:
-                    if len(self.available_models) == 1:
-                        self.status_label.setText("✅ Found 1 model - perfect!")
-                        # Auto-select the only model
-                        self.model_list.setCurrentRow(0)
-                    else:
-                        self.status_label.setText(f"✅ Found {len(self.available_models)} models - choose your favorite!")
-                        # Select first model if none selected
-                        if not self.model_list.currentItem():
-                            self.model_list.setCurrentRow(0)
-                else:
-                    self.status_label.setText("❌ No models found")
+                self._populate_model_list()
+                self._update_status_for_available_models()
             else:
-                self.status_label.setText("❌ No AI models found. Please install models using 'ollama pull llama3.2'")
-                self.model_list.setEnabled(False)
+                self._handle_no_models_found()
 
         except Exception as e:
-            self.status_label.setText(f"❌ Error checking models: {str(e)}")
-            self.model_list.setEnabled(False)
+            self._handle_model_loading_error(e)
+
+    def _start_model_loading(self):
+        """Initialize the model loading process."""
+        self.status_label.setText("Checking for available models...")
+
+    def _populate_model_list(self):
+        """Populate the model list widget with available models."""
+        self.model_list.clear()
+        for i, model in enumerate(self.available_models):
+            display_name = self.get_friendly_model_name(model)
+            item = QListWidgetItem(f"🤖 {display_name}")
+            item.setData(Qt.UserRole, model)  # Store actual model name
+            self.model_list.addItem(item)
+
+            # Pre-select current model if available
+            if model == self.current_model:
+                self.model_list.setCurrentItem(item)
+
+    def _update_status_for_available_models(self):
+        """Update status and selection for available models."""
+        if len(self.available_models) == 1:
+            self.status_label.setText("✅ Found 1 model - perfect!")
+            self.model_list.setCurrentRow(0)
+        else:
+            self.status_label.setText(f"✅ Found {len(self.available_models)} models - choose your favorite!")
+            # Select first model if none selected
+            if not self.model_list.currentItem():
+                self.model_list.setCurrentRow(0)
+
+    def _handle_no_models_found(self):
+        """Handle the case when no models are found."""
+        self.status_label.setText("❌ No AI models found. Please install models using 'ollama pull llama3.2'")
+        self.model_list.setEnabled(False)
+
+    def _handle_model_loading_error(self, error):
+        """Handle errors during model loading."""
+        self.status_label.setText(f"❌ Error checking models: {str(error)}")
+        self.model_list.setEnabled(False)
 
     def get_friendly_model_name(self, model_name):
         """Convert technical model names to user-friendly names."""

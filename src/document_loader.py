@@ -88,10 +88,20 @@ class DocumentLoader:
             raise ValueError(f"Unsupported file type: {file_ext}")
 
     def _process_and_chunk_text(self, text: str, file_path: str, chunking_config: dict = None) -> List[dict]:
-        """Process text and create chunks."""
+        """
+        Process text content and create chunks using sentence window chunking.
+
+        Args:
+            text: The raw text content to process
+            file_path: Path to the source file (used for logging)
+            chunking_config: Optional configuration for chunking parameters
+
+        Returns:
+            List of chunk dictionaries with processed text content
+        """
         text = Utils.clean_text(text)
 
-        # Always use sentence window chunking for optimal quality
+        # Configure sentence window chunking with defaults
         cfg = {
             "method": "sentence_window",
             "window_size": 3,
@@ -112,83 +122,56 @@ class DocumentLoader:
         logger.info(f"Loaded and chunked {os.path.basename(file_path)} into "
                     f"{len(chunks)} chunks using {cfg['method']} method.")
         return chunks
-        """Load and process a single document file with configurable chunking."""
-        Utils.validate_file_size(file_path, config.get("max_file_size_mb", 10))
-
-        text = ""
-        file_ext = os.path.splitext(file_path)[1].lower()
-
-        try:
-            if file_ext in ['.txt', '.md']:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    text = f.read()
-            elif file_ext == '.docx':
-                doc = Document(file_path)
-                text = '\n'.join([para.text for para in doc.paragraphs])
-            elif file_ext == '.pdf':
-                reader = PdfReader(file_path)
-                text = ''
-                for page in reader.pages:
-                    text += page.extract_text()
-            else:
-                raise ValueError(f"Unsupported file type: {file_ext}")
-
-            if text:
-                text = Utils.clean_text(text)
-
-                # Always use sentence window chunking for optimal quality
-                cfg = {
-                    "method": "sentence_window",
-                    "window_size": 3,
-                    "tokenizer_name": None
-                }
-                # Allow overriding window_size if provided
-                if chunking_config and "window_size" in chunking_config:
-                    cfg["window_size"] = chunking_config["window_size"]
-
-                # Use sentence window chunking
-                chunks = Utils.create_sentence_window_chunks(
-                    text,
-                    window_size=cfg["window_size"],
-                    tokenizer_name=cfg["tokenizer_name"]
-                )
-
-                logger.info(f"Loaded and chunked {os.path.basename(file_path)} into "
-                            f"{len(chunks)} chunks using {cfg['method']} method.")
-                return chunks
-            else:
-                logger.warning(f"No text content found in {file_path}")
-                return []
-
-        except Exception as e:
-            logger.error(f"Failed to load {file_path}: {e}")
-            return []
 
     def load_documents_from_folder(self, folder_path: str) -> List[dict]:
         """Load all supported documents from a folder, including subfolders."""
-        documents = []
-
         if not os.path.exists(folder_path):
             raise FileNotFoundError(f"Folder '{folder_path}' does not exist.")
 
-        # Recursively find all supported files
+        # Find all supported files
+        supported_files = self._find_supported_files(folder_path)
+
+        if not supported_files:
+            logger.warning(f"No supported files {self.supported_extensions} found in the specified folder or its subfolders.")
+            return []
+
+        # Process all files
+        return self._process_files_batch(supported_files)
+
+    def _find_supported_files(self, folder_path: str) -> List[str]:
+        """
+        Find all supported files in the folder and subfolders.
+
+        Args:
+            folder_path: Root folder path to search
+
+        Returns:
+            List of absolute paths to supported files
+        """
         supported_files = []
         for root, _, files in os.walk(folder_path):
             for file in files:
                 file_ext = os.path.splitext(file)[1].lower()
                 if file_ext in self.supported_extensions:
                     supported_files.append(os.path.join(root, file))
+        return supported_files
 
-        if not supported_files:
-            logger.warning(f"No supported files {self.supported_extensions} found in the specified folder or its subfolders.")
-            return []
+    def _process_files_batch(self, file_paths: List[str]) -> List[dict]:
+        """
+        Process a batch of files and return combined chunks.
 
-        processing_method = "enhanced" if (self.enhanced_processor and
-                                           config.get("dolphin", {}).get("enabled", False)) else "standard"
-        logger.info(f"Loading {len(supported_files)} documents from {folder_path} "
-                    f"using {processing_method} processing...")
+        Args:
+            file_paths: List of file paths to process
 
-        for file_path in supported_files:
+        Returns:
+            Combined list of all chunks from all files
+        """
+        documents = []
+        processing_method = "enhanced" if self._should_use_enhanced_processing() else "standard"
+
+        logger.info(f"Loading {len(file_paths)} documents using {processing_method} processing...")
+
+        for file_path in file_paths:
             chunks = self.load_single_document(file_path)
             documents.extend(chunks)
 
@@ -197,16 +180,4 @@ class DocumentLoader:
 
     def load_documents(self, file_paths: List[str]) -> List[str]:
         """Load multiple documents from a list of file paths."""
-        documents = []
-
-        processing_method = "enhanced" if (self.enhanced_processor and
-                                           config.get("dolphin", {}).get("enabled", False)) else "standard"
-        logger.info(f"Loading {len(file_paths)} documents "
-                    f"using {processing_method} processing...")
-
-        for file_path in file_paths:
-            chunks = self.load_single_document(file_path)
-            documents.extend(chunks)
-
-        logger.info(f"Total documents loaded and chunked into {len(documents)} chunks.")
-        return documents
+        return self._process_files_batch(file_paths)

@@ -154,16 +154,34 @@ class ThreadManager:
             True if all tasks completed, False if timeout occurred
         """
         start_time = time.time()
-        while self.active_futures and (timeout is None or time.time() - start_time < timeout):
-            # Wait for any future to complete
-            for future in list(self.active_futures):
-                try:
-                    future.result(timeout=0.1)
-                except TimeoutError:
-                    continue
-                except Exception as e:
-                    logger.error(f"Future completed with error: {e}")
 
+        while self._should_continue_waiting(start_time, timeout):
+            self._process_pending_futures()
+
+        return self._all_tasks_completed()
+
+    def _should_continue_waiting(self, start_time: float, timeout: Optional[float]) -> bool:
+        """Check if we should continue waiting for tasks."""
+        if not self.active_futures:
+            return False
+
+        if timeout is None:
+            return True
+
+        return time.time() - start_time < timeout
+
+    def _process_pending_futures(self):
+        """Process any futures that may have completed."""
+        for future in list(self.active_futures):
+            try:
+                future.result(timeout=0.1)
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Future completed with error: {e}")
+
+    def _all_tasks_completed(self) -> bool:
+        """Check if all tasks have completed."""
         return len(self.active_futures) == 0
 
     def get_active_count(self) -> int:

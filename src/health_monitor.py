@@ -9,8 +9,8 @@ import logging
 from typing import Dict, Any, List, Callable, Optional
 from dataclasses import dataclass
 from enum import Enum
-
-logger = logging.getLogger(__name__)
+from src.exceptions import HealthCheckError, ServiceError, CUBOError
+from src.logger import logger
 
 
 class HealthStatus(Enum):
@@ -130,47 +130,10 @@ class HealthMonitor:
 
     def get_health_status(self, check_name: Optional[str] = None) -> Dict[str, Any]:
         """Get health status for all checks or a specific check."""
-        current_time = time.time()
-
         if check_name:
-            if check_name not in self.health_checks:
-                return {'error': f'Health check {check_name} not found'}
-
-            check = self.health_checks[check_name]
-
-            # Perform check if it's due
-            if current_time - check.last_check >= check.interval:
-                self.perform_health_check(check_name)
-
-            return {
-                'name': check_name,
-                'status': check.last_result or {'status': HealthStatus.UNKNOWN.value},
-                'last_check': check.last_check,
-                'next_check': check.last_check + check.interval,
-                'history': self.status_history[check_name][-5:]  # Last 5 results
-            }
-
-        # Get all health statuses
-        all_statuses = {}
-        overall_status = HealthStatus.HEALTHY
-
-        for name in self.health_checks:
-            status_info = self.get_health_status(name)
-            all_statuses[name] = status_info
-
-            # Determine overall status
-            check_status = status_info['status']['status']
-            if check_status == HealthStatus.CRITICAL.value:
-                overall_status = HealthStatus.CRITICAL
-            elif (check_status == HealthStatus.WARNING.value and
-                  overall_status == HealthStatus.HEALTHY):
-                overall_status = HealthStatus.WARNING
-
-        return {
-            'overall_status': overall_status.value,
-            'checks': all_statuses,
-            'timestamp': current_time
-        }
+            return self._get_single_health_status(check_name)
+        else:
+            return self._get_all_health_statuses()
 
     def run_all_checks(self) -> Dict[str, Any]:
         """Run all health checks."""
@@ -297,3 +260,75 @@ class HealthMonitor:
             'free_gb': disk.free / (1024**3),
             'timestamp': time.time()
         }
+
+    def _get_single_health_status(self, check_name: str) -> Dict[str, Any]:
+        """
+        Get health status for a specific check.
+
+        Args:
+            check_name: Name of the health check
+
+        Returns:
+            Dictionary containing check status information
+        """
+        if check_name not in self.health_checks:
+            return {'error': f'Health check {check_name} not found'}
+
+        check = self.health_checks[check_name]
+        current_time = time.time()
+
+        # Perform check if it's due
+        if current_time - check.last_check >= check.interval:
+            self.perform_health_check(check_name)
+
+        return {
+            'name': check_name,
+            'status': check.last_result or {'status': HealthStatus.UNKNOWN.value},
+            'last_check': check.last_check,
+            'next_check': check.last_check + check.interval,
+            'history': self.status_history[check_name][-5:]  # Last 5 results
+        }
+
+    def _get_all_health_statuses(self) -> Dict[str, Any]:
+        """
+        Get health status for all checks and calculate overall status.
+
+        Returns:
+            Dictionary containing overall status and all check statuses
+        """
+        all_statuses = {}
+        overall_status = HealthStatus.HEALTHY
+
+        for name in self.health_checks:
+            status_info = self.get_health_status(name)
+            all_statuses[name] = status_info
+
+            # Determine overall status
+            overall_status = self._calculate_overall_status(overall_status, status_info)
+
+        return {
+            'overall_status': overall_status.value,
+            'checks': all_statuses,
+            'timestamp': time.time()
+        }
+
+    def _calculate_overall_status(self, current_overall: HealthStatus, status_info: Dict) -> HealthStatus:
+        """
+        Calculate the overall health status based on individual check status.
+
+        Args:
+            current_overall: Current overall status
+            status_info: Status information for a single check
+
+        Returns:
+            Updated overall health status
+        """
+        check_status = status_info['status']['status']
+
+        if check_status == HealthStatus.CRITICAL.value:
+            return HealthStatus.CRITICAL
+        elif (check_status == HealthStatus.WARNING.value and
+              current_overall == HealthStatus.HEALTHY):
+            return HealthStatus.WARNING
+
+        return current_overall

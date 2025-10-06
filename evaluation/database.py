@@ -187,94 +187,24 @@ class EvaluationDatabase:
 
         with sqlite3.connect(self.db_path) as conn:
             # Basic counts
-            total_queries = conn.execute('''
-                SELECT COUNT(*) FROM evaluations
-                WHERE timestamp >= ?
-            ''', (cutoff_date,)).fetchone()[0]
-
-            successful_queries = conn.execute('''
-                SELECT COUNT(*) FROM evaluations
-                WHERE timestamp >= ? AND error_occurred = 0
-            ''', (cutoff_date,)).fetchone()[0]
+            total_queries, successful_queries = self._get_basic_counts(conn, cutoff_date)
 
             # Average scores
-            scores = conn.execute('''
-                SELECT
-                    AVG(answer_relevance_score) as avg_answer_relevance,
-                    AVG(context_relevance_score) as avg_context_relevance,
-                    AVG(groundedness_score) as avg_groundedness,
-                    AVG(response_time) as avg_response_time,
-                    AVG(answer_length) as avg_answer_length
-                FROM evaluations
-                WHERE timestamp >= ? AND error_occurred = 0
-            ''', (cutoff_date,)).fetchone()
+            average_scores = self._get_average_scores(conn, cutoff_date)
 
             # Score distributions
-            score_distributions = {}
-            for metric in ['answer_relevance_score', 'context_relevance_score', 'groundedness_score']:
-                dist = conn.execute(f'''
-                    SELECT
-                        COUNT(CASE WHEN {metric} >= 0.8 THEN 1 END) as excellent,
-                        COUNT(CASE WHEN {metric} >= 0.6 AND {metric} < 0.8 THEN 1 END) as good,
-                        COUNT(CASE WHEN {metric} >= 0.4 AND {metric} < 0.6 THEN 1 END) as fair,
-                        COUNT(CASE WHEN {metric} < 0.4 THEN 1 END) as poor
-                    FROM evaluations
-                    WHERE timestamp >= ? AND error_occurred = 0 AND {metric} IS NOT NULL
-                ''', (cutoff_date,)).fetchone()
-                score_distributions[metric] = {
-                    'excellent': dist[0],
-                    'good': dist[1], 
-                    'fair': dist[2],
-                    'poor': dist[3]
-                }
+            score_distributions = self._get_score_distributions(conn, cutoff_date)
 
             # Top performing queries
-            top_queries = conn.execute('''
-                SELECT question, answer_relevance_score, context_relevance_score, groundedness_score
-                FROM evaluations
-                WHERE timestamp >= ? AND error_occurred = 0
-                ORDER BY (answer_relevance_score + context_relevance_score + groundedness_score) / 3 DESC
-                LIMIT 5
-            ''', (cutoff_date,)).fetchall()
+            top_queries = self._get_top_performing_queries(conn, cutoff_date)
 
             # Error analysis
-            error_types = conn.execute('''
-                SELECT error_message, COUNT(*) as count
-                FROM evaluations
-                WHERE timestamp >= ? AND error_occurred = 1
-                GROUP BY error_message
-                ORDER BY count DESC
-                LIMIT 5
-            ''', (cutoff_date,)).fetchall()
+            common_errors = self._get_common_errors(conn, cutoff_date)
 
-            return {
-                'period_days': days,
-                'total_queries': total_queries,
-                'successful_queries': successful_queries,
-                'success_rate': successful_queries / max(total_queries, 1),
-                'average_scores': {
-                    'avg_answer_relevance': scores[0] if scores else None,
-                    'avg_context_relevance': scores[1] if scores else None,
-                    'avg_groundedness': scores[2] if scores else None,
-                    'avg_response_time': scores[3] if scores else None
-                } if scores else {},
-                'score_distributions': score_distributions,
-                'top_performing_queries': [
-                    {
-                        'question': row[0],
-                        'answer_relevance_score': row[1],
-                        'context_relevance_score': row[2],
-                        'groundedness_score': row[3]
-                    } for row in top_queries
-                ],
-                'common_errors': [
-                    {
-                        'error_message': row[0],
-                        'count': row[1]
-                    } for row in error_types
-                ],
-                'generated_at': datetime.now().isoformat()
-            }
+            return self._build_metrics_summary_response(
+                days, total_queries, successful_queries,
+                average_scores, score_distributions, top_queries, common_errors
+            )
 
     def export_to_csv(self, output_path: str, days: int = 30):
         """Export evaluation data to CSV."""
@@ -297,49 +227,20 @@ class EvaluationDatabase:
 
     def get_trends(self, days: int = 30) -> Dict[str, Any]:
         """Analyze performance trends over time."""
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+
         with sqlite3.connect(self.db_path) as conn:
-            # Daily averages
-            daily_stats = pd.read_sql_query('''
-                SELECT
-                    DATE(timestamp) as date,
-                    COUNT(*) as query_count,
-                    AVG(answer_relevance_score) as avg_answer_relevance,
-                    AVG(context_relevance_score) as avg_context_relevance,
-                    AVG(groundedness_score) as avg_groundedness,
-                    AVG(response_time) as avg_response_time,
-                    SUM(error_occurred) as error_count
-                FROM evaluations
-                WHERE timestamp >= ?
-                GROUP BY DATE(timestamp)
-                ORDER BY date
-            ''', conn, params=((datetime.now() - timedelta(days=days)).isoformat(),))
+            # Get daily statistics
+            daily_stats = self._get_daily_statistics(conn, cutoff_date)
 
         if daily_stats.empty:
             return {'error': 'No data available for trend analysis'}
 
         # Calculate trends
-        trends = {}
-        for metric in ['avg_answer_relevance', 'avg_context_relevance', 'avg_groundedness', 'avg_response_time']:
-            if len(daily_stats) > 1:
-                values = daily_stats[metric].dropna()
-                if len(values) > 1:
-                    trend = np.polyfit(range(len(values)), values, 1)[0]
-                    trends[metric] = {
-                        'slope': trend,
-                        'direction': 'improving' if trend > 0 else 'declining' if trend < 0 else 'stable',
-                        'change_per_day': trend
-                    }
+        trends = self._calculate_trends(daily_stats)
 
-        return {
-            'daily_stats': daily_stats.to_dict('records'),
-            'trends': trends,
-            'summary': {
-                'total_days': len(daily_stats),
-                'avg_daily_queries': daily_stats['query_count'].mean(),
-                'best_day': daily_stats.loc[daily_stats['avg_answer_relevance'].idxmax()]['date'] if not daily_stats.empty else None,
-                'worst_day': daily_stats.loc[daily_stats['avg_answer_relevance'].idxmin()]['date'] if not daily_stats.empty else None
-            }
-        }
+        # Build response
+        return self._build_trends_response(daily_stats, trends, days)
 
     def get_queries_needing_evaluation(self, session_id: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -415,3 +316,186 @@ class EvaluationDatabase:
                 evaluation_id
             ))
             conn.commit()
+
+    def _get_basic_counts(self, conn: sqlite3.Connection, cutoff_date: str) -> tuple[int, int]:
+        """
+        Get basic query counts (total and successful).
+
+        Args:
+            conn: Database connection
+            cutoff_date: ISO format date string for filtering
+
+        Returns:
+            Tuple of (total_queries, successful_queries)
+        """
+        total_queries = conn.execute('''
+            SELECT COUNT(*) FROM evaluations
+            WHERE timestamp >= ?
+        ''', (cutoff_date,)).fetchone()[0]
+
+        successful_queries = conn.execute('''
+            SELECT COUNT(*) FROM evaluations
+            WHERE timestamp >= ? AND error_occurred = 0
+        ''', (cutoff_date,)).fetchone()[0]
+
+        return total_queries, successful_queries
+
+    def _get_average_scores(self, conn: sqlite3.Connection, cutoff_date: str) -> tuple:
+        """
+        Get average scores for various metrics.
+
+        Args:
+            conn: Database connection
+            cutoff_date: ISO format date string for filtering
+
+        Returns:
+            Tuple of average scores
+        """
+        scores = conn.execute('''
+            SELECT
+                AVG(answer_relevance_score) as avg_answer_relevance,
+                AVG(context_relevance_score) as avg_context_relevance,
+                AVG(groundedness_score) as avg_groundedness,
+                AVG(response_time) as avg_response_time,
+                AVG(answer_length) as avg_answer_length
+            FROM evaluations
+            WHERE timestamp >= ? AND error_occurred = 0
+        ''', (cutoff_date,)).fetchone()
+
+        return scores
+
+    def _get_score_distributions(self, conn: sqlite3.Connection, cutoff_date: str) -> Dict[str, Dict[str, int]]:
+        """
+        Get score distributions for quality metrics.
+
+        Args:
+            conn: Database connection
+            cutoff_date: ISO format date string for filtering
+
+        Returns:
+            Dictionary of score distributions by metric
+        """
+        score_distributions = {}
+        for metric in ['answer_relevance_score', 'context_relevance_score', 'groundedness_score']:
+            dist = conn.execute(f'''
+                SELECT
+                    COUNT(CASE WHEN {metric} >= 0.8 THEN 1 END) as excellent,
+                    COUNT(CASE WHEN {metric} >= 0.6 AND {metric} < 0.8 THEN 1 END) as good,
+                    COUNT(CASE WHEN {metric} >= 0.4 AND {metric} < 0.6 THEN 1 END) as fair,
+                    COUNT(CASE WHEN {metric} < 0.4 THEN 1 END) as poor
+                FROM evaluations
+                WHERE timestamp >= ? AND error_occurred = 0 AND {metric} IS NOT NULL
+            ''', (cutoff_date,)).fetchone()
+            score_distributions[metric] = {
+                'excellent': dist[0],
+                'good': dist[1],
+                'fair': dist[2],
+                'poor': dist[3]
+            }
+
+        return score_distributions
+
+    def _get_top_performing_queries(self, conn: sqlite3.Connection, cutoff_date: str) -> List[tuple]:
+        """
+        Get top performing queries by average score.
+
+        Args:
+            conn: Database connection
+            cutoff_date: ISO format date string for filtering
+
+        Returns:
+            List of top query tuples
+        """
+        top_queries = conn.execute('''
+            SELECT question, answer_relevance_score, context_relevance_score, groundedness_score
+            FROM evaluations
+            WHERE timestamp >= ? AND error_occurred = 0
+            ORDER BY (answer_relevance_score + context_relevance_score + groundedness_score) / 3 DESC
+            LIMIT 5
+        ''', (cutoff_date,)).fetchall()
+
+        return top_queries
+
+    def _get_common_errors(self, conn: sqlite3.Connection, cutoff_date: str) -> List[tuple]:
+        """
+        Get most common error types.
+
+        Args:
+            conn: Database connection
+            cutoff_date: ISO format date string for filtering
+
+        Returns:
+            List of error type tuples
+        """
+        error_types = conn.execute('''
+            SELECT error_message, COUNT(*) as count
+            FROM evaluations
+            WHERE timestamp >= ? AND error_occurred = 1
+            GROUP BY error_message
+            ORDER BY count DESC
+            LIMIT 5
+        ''', (cutoff_date,)).fetchall()
+
+        return error_types
+
+    def _build_metrics_summary_response(self, days: int, total_queries: int, successful_queries: int,
+                                      average_scores: tuple, score_distributions: Dict[str, Dict[str, int]],
+                                      top_queries: List[tuple], common_errors: List[tuple]) -> Dict[str, Any]:
+        """
+        Build the final metrics summary response dictionary.
+
+        Args:
+            days: Number of days for the analysis period
+            total_queries: Total number of queries
+            successful_queries: Number of successful queries
+            average_scores: Tuple of average scores
+            score_distributions: Score distribution data
+            top_queries: Top performing queries data
+            common_errors: Common error data
+
+        Returns:
+            Complete metrics summary dictionary
+        """
+        return {
+            'period_days': days,
+            'total_queries': total_queries,
+            'successful_queries': successful_queries,
+            'success_rate': successful_queries / max(total_queries, 1),
+            'average_scores': self._build_average_scores_section(average_scores),
+            'score_distributions': score_distributions,
+            'top_performing_queries': self._build_top_queries_section(top_queries),
+            'common_errors': self._build_common_errors_section(common_errors),
+            'generated_at': datetime.now().isoformat()
+        }
+
+    def _build_average_scores_section(self, average_scores: tuple) -> Dict[str, float]:
+        """Build the average scores section of the response."""
+        if not average_scores:
+            return {}
+            
+        return {
+            'avg_answer_relevance': average_scores[0],
+            'avg_context_relevance': average_scores[1],
+            'avg_groundedness': average_scores[2],
+            'avg_response_time': average_scores[3]
+        }
+
+    def _build_top_queries_section(self, top_queries: List[tuple]) -> List[Dict[str, Any]]:
+        """Build the top performing queries section of the response."""
+        return [
+            {
+                'question': row[0],
+                'answer_relevance_score': row[1],
+                'context_relevance_score': row[2],
+                'groundedness_score': row[3]
+            } for row in top_queries
+        ]
+
+    def _build_common_errors_section(self, common_errors: List[tuple]) -> List[Dict[str, Any]]:
+        """Build the common errors section of the response."""
+        return [
+            {
+                'error_message': row[0],
+                'count': row[1]
+            } for row in common_errors
+        ]

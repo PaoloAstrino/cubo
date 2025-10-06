@@ -14,6 +14,11 @@ from src.logger import logger
 from src.config import config
 from src.service_manager import get_service_manager
 from src.model_inference_threading import get_model_inference_threading
+from src.exceptions import (
+    CUBOError, DatabaseError, EmbeddingError, FileOperationError,
+    DocumentAlreadyExistsError, DocumentNotFoundError, EmbeddingGenerationError,
+    ModelNotAvailableError, RetrievalMethodUnavailableError, FileAccessError, RetrievalError
+)
 from .reranker import LocalReranker
 
 
@@ -23,6 +28,18 @@ class DocumentRetriever:
     def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True,
                  use_auto_merging: bool = False, auto_merge_for_complex: bool = True,
                  window_size: int = 3, top_k: int = 3):
+        self._set_basic_attributes(model, use_sentence_window, use_auto_merging,
+                                 auto_merge_for_complex, window_size, top_k)
+        self._initialize_auto_merging_retriever()
+        self._setup_chromadb()
+        self._setup_caching()
+        self._initialize_postprocessors()
+        self._log_initialization_status()
+
+    def _set_basic_attributes(self, model: SentenceTransformer, use_sentence_window: bool,
+                            use_auto_merging: bool, auto_merge_for_complex: bool,
+                            window_size: int, top_k: int) -> None:
+        """Set basic instance attributes."""
         self.model = model
         self.service_manager = get_service_manager()
         self.inference_threading = get_model_inference_threading()
@@ -32,7 +49,8 @@ class DocumentRetriever:
         self.window_size = window_size
         self.top_k = top_k
 
-        # Initialize auto-merging retriever if enabled
+    def _initialize_auto_merging_retriever(self) -> None:
+        """Initialize auto-merging retriever if enabled."""
         self.auto_merging_retriever = None
         if self.use_auto_merging:
             try:
@@ -43,6 +61,8 @@ class DocumentRetriever:
                 logger.warning(f"Auto-merging retrieval not available: {e}")
                 self.use_auto_merging = False
 
+    def _setup_chromadb(self) -> None:
+        """Setup ChromaDB client and collection."""
         self.client = chromadb.PersistentClient(
             path=config.get("chroma_db_path", "./chroma_db")
         )
@@ -50,17 +70,15 @@ class DocumentRetriever:
             name=config.get("collection_name", "cubo_documents")
         )
 
-        # Track currently loaded documents
+    def _setup_caching(self) -> None:
+        """Setup query caching for testing."""
         self.current_documents = set()
-
-        # Query cache for testing
         self.query_cache = {}
-
-        # Cache file path for testing
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
-        self._load_cache()  # Load existing cache from disk
+        self._load_cache()
 
-        # Initialize postprocessors if using sentence windows
+    def _initialize_postprocessors(self) -> None:
+        """Initialize postprocessors and reranker based on configuration."""
         if self.use_sentence_window:
             from .postprocessor import WindowReplacementPostProcessor
             self.window_postprocessor = WindowReplacementPostProcessor()
@@ -73,12 +91,21 @@ class DocumentRetriever:
             self.window_postprocessor = None
             self.reranker = None
 
-        logger.info(f"Document retriever initialized (sentence_window={use_sentence_window}, auto_merging={use_auto_merging})")
+    def _log_initialization_status(self) -> None:
+        """Log the initialization status."""
+        logger.info(f"Document retriever initialized (sentence_window={self.use_sentence_window}, auto_merging={self.use_auto_merging})")
 
     def _get_file_hash(self, filepath: str) -> str:
         """Get hash of file content for caching."""
-        with open(filepath, 'rb') as f:
-            return hashlib.md5(f.read(), usedforsecurity=False).hexdigest()
+        try:
+            with open(filepath, 'rb') as f:
+                return hashlib.md5(f.read(), usedforsecurity=False).hexdigest()
+        except FileNotFoundError:
+            raise FileAccessError(filepath, "read", {"reason": "file_not_found"})
+        except PermissionError:
+            raise FileAccessError(filepath, "read", {"reason": "permission_denied"})
+        except OSError as e:
+            raise FileAccessError(filepath, "read", {"reason": "os_error", "details": str(e)})
 
     def _get_filename_from_path(self, filepath: str) -> str:
         """Extract filename from path."""
@@ -99,92 +126,33 @@ class DocumentRetriever:
 
         Returns:
             bool: True if added, False if already exists
+
+        Raises:
+            FileAccessError: If file cannot be accessed
+            DocumentAlreadyExistsError: If document already exists
+            DatabaseError: If database operation fails
+            EmbeddingGenerationError: If embedding generation fails
         """
+        try:
+            return self.service_manager.execute_sync('document_processing',
+                                                   lambda: self._add_document_operation(filepath, chunks))
+        except CUBOError:
+            # Re-raise custom exceptions as-is
+            raise
+        except Exception as e:
+            # Wrap unexpected exceptions
+            error_msg = f"Unexpected error adding document {filepath}: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg, "ADD_DOCUMENT_FAILED", {"filepath": filepath}) from e
 
-        def _add_document_operation():
-            filename = self._get_filename_from_path(filepath)
+    def _add_document_operation(self, filepath: str, chunks: List[dict]) -> bool:
+        """Execute the document addition operation."""
+        filename = self._get_filename_from_path(filepath)
+        self._validate_document_for_addition(filepath, filename)
 
-            # Check if document is already loaded in current session
-            if self.is_document_loaded(filepath):
-                logger.info(f"Document {filename} already loaded in current session")
-                return False
-
-            # Get file hash for caching
-            file_hash = self._get_file_hash(filepath)
-
-            # Check if document with same hash already exists
-            existing_docs = self.collection.get(where={"file_hash": file_hash})
-
-            if existing_docs.get('ids'):
-                logger.info(f"Document {filename} with same content already exists in database")
-                # Still add to current session tracking
-                self.current_documents.add(filename)
-                return False
-
-            # Prepare texts for embedding (use 'text' field for sentence window, or chunk itself for character)
-            texts = []
-            metadatas = []
-
-            for i, chunk in enumerate(chunks):
-                if isinstance(chunk, dict):
-                    # Sentence window chunk
-                    text = chunk["text"]
-                    metadata = {
-                        "filename": filename,
-                        "file_hash": file_hash,
-                        "filepath": filepath,
-                        "chunk_index": i,
-                        "sentence_index": chunk.get("sentence_index", i),
-                        "window": chunk.get("window", ""),
-                        "window_start": chunk.get("window_start", i),
-                        "window_end": chunk.get("window_end", i),
-                        "sentence_token_count": chunk.get("sentence_token_count", 0),
-                        "window_token_count": chunk.get("window_token_count", 0)
-                    }
-                else:
-                    # Character-based chunk (backward compatibility)
-                    text = chunk
-                    metadata = {
-                        "filename": filename,
-                        "file_hash": file_hash,
-                        "filepath": filepath,
-                        "chunk_index": i,
-                        "token_count": len(chunk.split())  # Approximate
-                    }
-
-                texts.append(text)
-                metadatas.append(metadata)
-
-            # Generate embeddings for chunks
-            logger.info(f"Generating embeddings for {filename} ({len(texts)} chunks)")
-            embeddings = self.inference_threading.generate_embeddings_threaded(texts, self.model)
-
-            # Create deterministic IDs
-            chunk_ids = []
-            for i, metadata in enumerate(metadatas):
-                if self.use_sentence_window and "sentence_index" in metadata:
-                    # Use sentence-based ID for sentence windows
-                    sentence_idx = metadata["sentence_index"]
-                    chunk_ids.append(f"{filename}_s{sentence_idx}")
-                else:
-                    # Use chunk index for character-based
-                    chunk_ids.append(f"{filename}_chunk_{i}")
-
-            # Add to collection
-            self.collection.add(
-                embeddings=embeddings,
-                documents=texts,
-                metadatas=metadatas,
-                ids=chunk_ids
-            )
-
-            # Track as loaded in current session
-            self.current_documents.add(filename)
-
-            logger.info(f"Successfully added {filename} with {len(chunk_ids)} chunks")
-            return True
-
-        return self.service_manager.execute_sync('document_processing', _add_document_operation)
+        chunk_data = self._prepare_chunk_data(chunks, filename,
+                                            self._get_file_hash(filepath), filepath)
+        return self._process_and_add_document(chunk_data, filename)
 
     def add_documents(self, documents: List[str]) -> bool:
         """
@@ -205,56 +173,7 @@ class DocumentRetriever:
             # Create a fake filepath for testing
             fake_path = f"test_doc_{i}.txt"
 
-            def _add_test_document_operation():
-                filename = self._get_filename_from_path(fake_path)
-
-                # Check if document is already loaded in current session
-                if self.is_document_loaded(fake_path):
-                    logger.info(f"Document {filename} already loaded in current session")
-                    return False
-
-                # Use document content hash instead of file hash for testing
-                import hashlib
-                file_hash = hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()
-
-                # Check if document with same hash already exists
-                existing_docs = self.collection.get(where={"file_hash": file_hash})
-
-                if existing_docs['ids']:
-                    logger.info(f"Document {filename} with same content already exists in database")
-                    # Still add to current session tracking
-                    self.current_documents.add(filename)
-                    return False
-
-                # Generate embeddings for chunks
-                logger.info(f"Generating embeddings for {filename} (1 chunk)")
-                embeddings = self.inference_threading.generate_embeddings_threaded([doc], self.model)
-
-                # Create IDs and metadata
-                chunk_ids = [f"{filename}_chunk_0"]
-                metadatas = [{
-                    "filename": filename,
-                    "file_hash": file_hash,
-                    "filepath": fake_path,
-                    "chunk_index": 0,
-                    "total_chunks": 1
-                }]
-
-                # Add to collection
-                self.collection.add(
-                    embeddings=embeddings,
-                    documents=[doc],
-                    metadatas=metadatas,
-                    ids=chunk_ids
-                )
-
-                # Track as loaded in current session
-                self.current_documents.add(filename)
-
-                logger.info(f"Successfully added {filename} with 1 chunk")
-                return True
-
-            success = self.service_manager.execute_sync('document_processing', _add_test_document_operation)
+            success = self._add_test_document(fake_path, doc)
             if success:
                 added_any = True
 
@@ -294,18 +213,28 @@ class DocumentRetriever:
 
         Returns:
             List of dictionaries with document, metadata, and similarity
-        """
-        # Analyze query complexity to choose retrieval method
-        is_complex = self._analyze_query_complexity(query)
 
-        if self.auto_merge_for_complex and is_complex and self.use_auto_merging and self.auto_merging_retriever:
-            # Use auto-merging for complex queries
-            logger.info("Using auto-merging retrieval for complex query")
-            return self._retrieve_auto_merging(query, top_k)
-        else:
-            # Use sentence window retrieval
-            logger.info("Using sentence window retrieval")
-            return self._retrieve_sentence_window(query, top_k)
+        Raises:
+            RetrievalMethodUnavailableError: If no retrieval methods are available
+            RetrievalError: If retrieval operation fails
+        """
+        try:
+            # Analyze query complexity to choose retrieval method
+            retrieval_method = self._choose_retrieval_method(query)
+
+            # Execute retrieval with fallback handling
+            return self._execute_retrieval(retrieval_method, query, top_k)
+
+        except CUBOError:
+            # Re-raise custom exceptions as-is
+            raise
+        except Exception as e:
+            error_msg = f"Unexpected error during document retrieval: {str(e)}"
+            logger.error(error_msg)
+            raise RetrievalError(error_msg, "RETRIEVAL_FAILED", {
+                "query": query[:100] + "..." if len(query) > 100 else query,
+                "top_k": top_k
+            }) from e
 
     def _analyze_query_complexity(self, query: str) -> bool:
         """Determine if query needs complex retrieval."""
@@ -332,49 +261,19 @@ class DocumentRetriever:
                 return []
 
             # Generate query embedding
-            query_embeddings = self.inference_threading.generate_embeddings_threaded([query], self.model)
-            query_embedding = query_embeddings[0] if query_embeddings else []
+            query_embedding = self._generate_query_embedding(query)
 
             # Get more candidates for reranking if using sentence windows
-            initial_top_k = min(top_k * 2, 10) if self.use_sentence_window else top_k
+            initial_top_k = self._calculate_initial_top_k(top_k)
 
-            # Query only chunks from currently loaded documents
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=initial_top_k,
-                where={"filename": {"$in": list(self.current_documents)}},  # Only current docs
-                include=['documents', 'metadatas', 'distances']
-            )
+            # Query the collection
+            candidates = self._query_collection_for_candidates(query_embedding, initial_top_k)
 
-            # Format results
-            candidates = []
-            if results['documents'] and results['metadatas'] and results['distances']:
-                for i, (doc, metadata, distance) in enumerate(zip(
-                    results['documents'][0],
-                    results['metadatas'][0],
-                    results['distances'][0]
-                )):
-                    candidates.append({
-                        "document": doc,
-                        "metadata": metadata,
-                        "similarity": 1 - distance  # Convert distance to similarity
-                    })
+            # Apply postprocessing
+            candidates = self._apply_sentence_window_postprocessing(candidates, top_k, query)
 
-            # Apply postprocessing for sentence windows
-            if self.use_sentence_window and self.window_postprocessor:
-                candidates = self.window_postprocessor.postprocess_results(candidates)
-
-            # Apply reranking if available
-            if self.use_sentence_window and self.reranker and len(candidates) > top_k:
-                # Rerank but keep all candidates (don't limit to reranker.top_n)
-                reranked = self.reranker.rerank(query, candidates, max_results=len(candidates))
-                if reranked:
-                    candidates = reranked
-
-            # Return top results
-            final_results = candidates[:top_k]
-            logger.info(f"Retrieved {len(final_results)} chunks using sentence window")
-            return final_results
+            logger.info(f"Retrieved {len(candidates)} chunks using sentence window")
+            return candidates
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
 
@@ -464,3 +363,575 @@ class DocumentRetriever:
             except Exception as e:
                 logger.warning(f"Failed to load cache: {e}")
                 self.query_cache = {}
+
+    def _check_document_exists(self, filepath: str, filename: str) -> bool:
+        """
+        Check if document is already loaded in current session.
+
+        Args:
+            filepath: Full path to the document
+            filename: Just the filename
+
+        Returns:
+            bool: True if already exists
+        """
+        if self.is_document_loaded(filepath):
+            logger.info(f"Document {filename} already loaded in current session")
+            return True
+        return False
+
+    def _check_database_duplicate(self, file_hash: str, filename: str) -> bool:
+        """
+        Check if document with same hash already exists in database.
+
+        Args:
+            file_hash: Hash of the file content
+            filename: Just the filename
+
+        Returns:
+            bool: True if duplicate exists
+        """
+        existing_docs = self.collection.get(where={"file_hash": file_hash})
+        if existing_docs.get('ids'):
+            logger.info(f"Document {filename} with same content already exists in database")
+            # Still add to current session tracking
+            self.current_documents.add(filename)
+            return True
+        return False
+
+    def _prepare_chunk_data(self, chunks: List[dict], filename: str, file_hash: str, filepath: str) -> dict:
+        """
+        Prepare texts and metadata for chunks.
+
+        Args:
+            chunks: List of chunk dictionaries
+            filename: Document filename
+            file_hash: File content hash
+            filepath: Full file path
+
+        Returns:
+            dict: Dictionary with 'texts' and 'metadatas' lists
+        """
+        texts = []
+        metadatas = []
+
+        for i, chunk in enumerate(chunks):
+            text, metadata = self._extract_chunk_info(chunk, i, filename, file_hash, filepath)
+            texts.append(text)
+            metadatas.append(metadata)
+
+        return {"texts": texts, "metadatas": metadatas}
+
+    def _extract_chunk_info(self, chunk, index: int, filename: str, file_hash: str, filepath: str):
+        """Extract text and metadata from a chunk."""
+        if isinstance(chunk, dict):
+            return self._extract_sentence_window_chunk(chunk, index, filename, file_hash, filepath)
+        else:
+            return self._extract_character_chunk(chunk, index, filename, file_hash, filepath)
+
+    def _extract_sentence_window_chunk(self, chunk: dict, index: int, filename: str, file_hash: str, filepath: str):
+        """Extract text and metadata from a sentence window chunk."""
+        text = chunk["text"]
+        metadata = {
+            "filename": filename,
+            "file_hash": file_hash,
+            "filepath": filepath,
+            "chunk_index": index,
+            "sentence_index": chunk.get("sentence_index", index),
+            "window": chunk.get("window", ""),
+            "window_start": chunk.get("window_start", index),
+            "window_end": chunk.get("window_end", index),
+            "sentence_token_count": chunk.get("sentence_token_count", 0),
+            "window_token_count": chunk.get("window_token_count", 0)
+        }
+        return text, metadata
+
+    def _extract_character_chunk(self, chunk: str, index: int, filename: str, file_hash: str, filepath: str):
+        """Extract text and metadata from a character-based chunk."""
+        text = chunk
+        metadata = {
+            "filename": filename,
+            "file_hash": file_hash,
+            "filepath": filepath,
+            "chunk_index": index,
+            "token_count": len(chunk.split())  # Approximate
+        }
+        return text, metadata
+
+    def _generate_chunk_embeddings(self, texts: List[str], filename: str) -> List[List[float]]:
+        """
+        Generate embeddings for text chunks.
+
+        Args:
+            texts: List of text chunks
+            filename: Document filename for logging
+
+        Returns:
+            List[List[float]]: Embeddings for each chunk
+
+        Raises:
+            EmbeddingGenerationError: If embedding generation fails
+            ModelNotAvailableError: If the model is not available
+        """
+        self._validate_model_availability()
+        
+        try:
+            logger.info(f"Generating embeddings for {filename} ({len(texts)} chunks)")
+            embeddings = self.inference_threading.generate_embeddings_threaded(texts, self.model)
+            
+            self._validate_embeddings_result(embeddings, texts, filename)
+            
+            return embeddings
+            
+        except Exception as e:
+            # Re-raise with more context
+            error_msg = f"Failed to generate embeddings for {filename}: {str(e)}"
+            logger.error(error_msg)
+            raise EmbeddingGenerationError(error_msg, {"filename": filename, "text_count": len(texts)}) from e
+
+    def _validate_model_availability(self) -> None:
+        """
+        Validate that the embedding model is available.
+
+        Raises:
+            ModelNotAvailableError: If the model is not available
+        """
+        if not self.model:
+            raise ModelNotAvailableError("embedding_model")
+
+    def _validate_embeddings_result(self, embeddings: List[List[float]], texts: List[str], filename: str) -> None:
+        """
+        Validate the embeddings generation result.
+
+        Args:
+            embeddings: Generated embeddings
+            texts: Original texts
+            filename: Document filename for error context
+
+        Raises:
+            EmbeddingGenerationError: If validation fails
+        """
+        if not embeddings or len(embeddings) != len(texts):
+            raise EmbeddingGenerationError(
+                f"Expected {len(texts)} embeddings, got {len(embeddings) if embeddings else 0}",
+                {"filename": filename, "expected_count": len(texts), "actual_count": len(embeddings) if embeddings else 0}
+            )
+
+    def _create_chunk_ids(self, metadatas: List[dict], filename: str) -> List[str]:
+        """
+        Create deterministic IDs for chunks.
+
+        Args:
+            metadatas: List of metadata dictionaries
+            filename: Document filename
+
+        Returns:
+            List[str]: Unique IDs for each chunk
+        """
+        chunk_ids = []
+        for i, metadata in enumerate(metadatas):
+            if self.use_sentence_window and "sentence_index" in metadata:
+                # Use sentence-based ID for sentence windows
+                sentence_idx = metadata["sentence_index"]
+                chunk_ids.append(f"{filename}_s{sentence_idx}")
+            else:
+                # Use chunk index for character-based
+                chunk_ids.append(f"{filename}_chunk_{i}")
+        return chunk_ids
+
+    def _add_chunks_to_collection(self, embeddings: List[List[float]],         texts: List[str], metadatas: List[Dict], chunk_ids: List[str], filename: str) -> None:
+        """
+        Add chunks to the ChromaDB collection.
+
+        Args:
+            embeddings: List of embeddings
+            texts: List of text chunks
+            metadatas: List of metadata dictionaries
+            chunk_ids: List of unique chunk IDs
+            filename: Document filename for logging
+        """
+        self.collection.add(
+            embeddings=embeddings,
+            documents=texts,
+            metadatas=metadatas,
+            ids=chunk_ids
+        )
+
+        # Track as loaded in current session
+        self.current_documents.add(filename)
+
+        logger.info(f"Successfully added {filename} with {len(chunk_ids)} chunks")
+
+    def _generate_query_embedding(self, query: str) -> List[float]:
+        """
+        Generate embedding for a query.
+
+        Args:
+            query: Search query
+
+        Returns:
+            List[float]: Query embedding vector
+        """
+        query_embeddings = self.inference_threading.generate_embeddings_threaded([query], self.model)
+        return query_embeddings[0] if query_embeddings else []
+
+    def _calculate_initial_top_k(self, top_k: int) -> int:
+        """
+        Calculate initial number of candidates to retrieve before reranking.
+
+        Args:
+            top_k: Final number of results desired
+
+        Returns:
+            int: Initial number of candidates to retrieve
+        """
+        return min(top_k * 2, 10) if self.use_sentence_window else top_k
+
+    def _query_collection_for_candidates(self, query_embedding: List[float], initial_top_k: int) -> List[dict]:
+        """
+        Query the collection for candidate documents.
+
+        Args:
+            query_embedding: Query embedding vector
+            initial_top_k: Number of candidates to retrieve
+
+        Returns:
+            List[dict]: Candidate documents with metadata
+
+        Raises:
+            DatabaseError: If database query fails
+        """
+        try:
+            results = self._execute_collection_query(query_embedding, initial_top_k)
+            return self._process_query_results(results)
+        except Exception as e:
+            error_msg = f"Failed to query document collection: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg, "QUERY_FAILED", {
+                "query_embedding_length": len(query_embedding),
+                "top_k": initial_top_k,
+                "current_docs_count": len(self.current_documents)
+            }) from e
+
+    def _execute_collection_query(self, query_embedding: List[float], initial_top_k: int):
+        """Execute the ChromaDB collection query."""
+        return self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=initial_top_k,
+            where={"filename": {"$in": list(self.current_documents)}},  # Only current docs
+            include=['documents', 'metadatas', 'distances']
+        )
+
+    def _process_query_results(self, results) -> List[dict]:
+        """Process raw query results into candidate format."""
+        candidates = []
+        if results['documents'] and results['metadatas'] and results['distances']:
+            for doc, metadata, distance in zip(
+                results['documents'][0],
+                results['metadatas'][0],
+                results['distances'][0]
+            ):
+                candidates.append({
+                    "document": doc,
+                    "metadata": metadata,
+                    "similarity": 1 - distance  # Convert distance to similarity
+                })
+        return candidates
+
+    def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:
+        """
+        Apply postprocessing for sentence window retrieval.
+
+        Args:
+            candidates: Raw candidate documents
+            top_k: Final number of results to return
+
+        Returns:
+            List[dict]: Processed and reranked candidates
+        """
+        # Apply postprocessing for sentence windows
+        candidates = self._apply_window_postprocessing(candidates)
+
+        # Apply reranking if available
+        candidates = self._apply_reranking_if_available(candidates, top_k, query)
+
+        # Return top results
+        return candidates[:top_k]
+
+    def _apply_window_postprocessing(self, candidates: List[dict]) -> List[dict]:
+        """
+        Apply window postprocessing if available.
+
+        Args:
+            candidates: Raw candidate documents
+
+        Returns:
+            List[dict]: Postprocessed candidates
+        """
+        if self.use_sentence_window and self.window_postprocessor:
+            return self.window_postprocessor.postprocess_results(candidates)
+        return candidates
+
+    def _apply_reranking_if_available(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:
+        """
+        Apply reranking if available and beneficial.
+
+        Args:
+            candidates: Candidate documents
+            top_k: Number of final results needed
+            query: Search query
+
+        Returns:
+            List[dict]: Reranked candidates if reranking was applied
+        """
+        if self.use_sentence_window and self.reranker and len(candidates) > top_k:
+            # Rerank but keep all candidates (don't limit to reranker.top_n)
+            reranked = self.reranker.rerank(query, candidates, max_results=len(candidates))
+            if reranked:
+                return reranked
+        return candidates
+
+    def _add_test_document(self, fake_path: str, doc: str) -> bool:
+        """
+        Add a single test document to the collection.
+
+        Args:
+            fake_path: Fake filepath for the test document
+            doc: Document content
+
+        Returns:
+            bool: True if document was added successfully
+        """
+        def _add_test_document_operation():
+            filename = self._get_filename_from_path(fake_path)
+
+            # Check if document is already loaded in current session
+            if self._check_test_document_loaded(fake_path, filename):
+                return False
+
+            # Generate content hash
+            file_hash = self._generate_content_hash(doc)
+
+            # Check if document with same hash already exists
+            if self._check_test_document_duplicate(file_hash, filename):
+                return False
+
+            # Prepare and add document data
+            return self._prepare_and_add_test_document(doc, filename, file_hash, fake_path)
+
+        return self.service_manager.execute_sync('document_processing', _add_test_document_operation)
+
+    def _check_test_document_loaded(self, fake_path: str, filename: str) -> bool:
+        """
+        Check if test document is already loaded in current session.
+
+        Args:
+            fake_path: Fake filepath for the test document
+            filename: Document filename
+
+        Returns:
+            bool: True if already loaded
+        """
+        if self.is_document_loaded(fake_path):
+            logger.info(f"Document {filename} already loaded in current session")
+            return True
+        return False
+
+    def _generate_content_hash(self, doc: str) -> str:
+        """
+        Generate MD5 hash from document content.
+
+        Args:
+            doc: Document content
+
+        Returns:
+            str: MD5 hash of the content
+        """
+        import hashlib
+        return hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()
+
+    def _check_test_document_duplicate(self, file_hash: str, filename: str) -> bool:
+        """
+        Check if document with same hash already exists in database.
+
+        Args:
+            file_hash: Content hash of the document
+            filename: Document filename
+
+        Returns:
+            bool: True if duplicate exists
+        """
+        existing_docs = self.collection.get(where={"file_hash": file_hash})
+
+        if existing_docs['ids']:
+            logger.info(f"Document {filename} with same content already exists in database")
+            # Still add to current session tracking
+            self.current_documents.add(filename)
+            return True
+        return False
+
+    def _prepare_and_add_test_document(self, doc: str, filename: str, file_hash: str, fake_path: str) -> bool:
+        """
+        Prepare document data and add to collection.
+
+        Args:
+            doc: Document content
+            filename: Document filename
+            file_hash: Content hash
+            fake_path: Fake filepath
+
+        Returns:
+            bool: True if successfully added
+        """
+        embeddings = self._generate_test_embeddings(doc, filename)
+        chunk_ids, metadatas = self._create_test_chunk_metadata(doc, filename, file_hash, fake_path)
+
+        self._add_test_chunks_to_collection(embeddings, [doc], metadatas, chunk_ids, filename)
+        return True
+
+    def _generate_test_embeddings(self, doc: str, filename: str) -> List[List[float]]:
+        """Generate embeddings for test document."""
+        logger.info(f"Generating embeddings for {filename} (1 chunk)")
+        return self.inference_threading.generate_embeddings_threaded([doc], self.model)
+
+    def _create_test_chunk_metadata(self, doc: str, filename: str, file_hash: str, fake_path: str):
+        """Create chunk IDs and metadata for test document."""
+        chunk_ids = [f"{filename}_chunk_0"]
+        metadatas = [{
+            "filename": filename,
+            "file_hash": file_hash,
+            "filepath": fake_path,
+            "chunk_index": 0,
+            "total_chunks": 1
+        }]
+        return chunk_ids, metadatas
+
+    def _add_test_chunks_to_collection(self, embeddings: List[List[float]], documents: List[str],
+                                     metadatas: List[Dict], chunk_ids: List[str], filename: str) -> None:
+        """Add test chunks to the collection."""
+        self.collection.add(
+            embeddings=embeddings,
+            documents=documents,
+            metadatas=metadatas,
+            ids=chunk_ids
+        )
+
+        # Track as loaded in current session
+        self.current_documents.add(filename)
+        logger.info(f"Successfully added {filename} with 1 chunk")
+
+    def _choose_retrieval_method(self, query: str) -> str:
+        """
+        Choose the appropriate retrieval method based on query complexity.
+
+        Args:
+            query: Search query
+
+        Returns:
+            str: 'auto_merging' or 'sentence_window'
+        """
+        is_complex = self._analyze_query_complexity(query)
+
+        if self.auto_merge_for_complex and is_complex and self.use_auto_merging and self.auto_merging_retriever:
+            return 'auto_merging'
+        else:
+            return 'sentence_window'
+
+    def _execute_retrieval(self, method: str, query: str, top_k: int) -> List[Dict]:
+        """
+        Execute the chosen retrieval method with fallback handling.
+
+        Args:
+            method: Retrieval method ('auto_merging' or 'sentence_window')
+            query: Search query
+            top_k: Number of results to return
+
+        Returns:
+            List of retrieval results
+        """
+        if method == 'auto_merging':
+            logger.info("Using auto-merging retrieval for complex query")
+            try:
+                return self._retrieve_auto_merging_safe(query, top_k)
+            except Exception as e:
+                logger.error(f"Auto-merging retrieval failed: {e}, falling back to sentence window")
+                return self._retrieve_sentence_window(query, top_k)
+        else:
+            logger.info("Using sentence window retrieval")
+            return self._retrieve_sentence_window(query, top_k)
+
+    def _retrieve_auto_merging_safe(self, query: str, top_k: int) -> List[Dict]:
+        """
+        Safely retrieve using auto-merging method with fallback check.
+
+        Args:
+            query: Search query
+            top_k: Number of results to return
+
+        Returns:
+            List of retrieval results
+
+        Raises:
+            Exception: If auto-merging retriever is not available
+        """
+        if not self.auto_merging_retriever:
+            raise Exception("Auto-merging retriever not available")
+
+        # Get results from auto-merging retriever
+        results = self.auto_merging_retriever.retrieve(query, top_k=top_k)
+
+        # Convert to CUBO format
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "document": result.get('document', ''),
+                "metadata": result.get('metadata', {}),
+                "similarity": result.get('similarity', 1.0)
+            })
+
+        logger.info(f"Retrieved {len(formatted_results)} chunks using auto-merging")
+        return formatted_results
+
+    def _validate_document_for_addition(self, filepath: str, filename: str) -> None:
+        """
+        Validate that a document can be added.
+
+        Args:
+            filepath: Path to the document
+            filename: Document filename
+
+        Raises:
+            DocumentAlreadyExistsError: If document already exists
+        """
+        # Check if document is already loaded
+        if self._check_document_exists(filepath, filename):
+            raise DocumentAlreadyExistsError(filename, {"filepath": filepath})
+
+        # Get file hash for caching
+        file_hash = self._get_file_hash(filepath)
+
+        # Check if document with same hash already exists in database
+        if self._check_database_duplicate(file_hash, filename):
+            raise DocumentAlreadyExistsError(filename, {"file_hash": file_hash})
+
+    def _process_and_add_document(self, chunk_data: dict, filename: str) -> bool:
+        """
+        Process and add document data to the collection.
+
+        Args:
+            chunk_data: Prepared chunk data
+            filename: Document filename
+
+        Returns:
+            bool: True if successfully added
+        """
+        # Generate embeddings
+        embeddings = self._generate_chunk_embeddings(chunk_data['texts'], filename)
+
+        # Create chunk IDs
+        chunk_ids = self._create_chunk_ids(chunk_data['metadatas'], filename)
+
+        # Add to collection
+        self._add_chunks_to_collection(embeddings, chunk_data['texts'], chunk_data['metadatas'], chunk_ids, filename)
+
+        return True

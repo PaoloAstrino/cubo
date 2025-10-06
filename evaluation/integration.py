@@ -40,39 +40,49 @@ class EvaluationIntegrator:
     def _init_evaluator(self) -> AdvancedEvaluator:
         """Initialize evaluator with appropriate LLM client."""
         try:
-            # Load configuration
-            import json
-            # Corrected path to config.json (two levels up to project root)
-            config_path = Path(__file__).parent.parent / 'config.json'
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-
-            eval_config = config.get('evaluation', {})
-            llm_provider = eval_config.get('llm_provider', 'ollama')
+            config = self._load_evaluation_config()
+            llm_provider = config.get('llm_provider', 'ollama')
 
             if llm_provider == 'gemini':
-                # Initialize Gemini client
-                api_key = eval_config.get('gemini_api_key')
-                if api_key and api_key != 'your_gemini_api_key_here':
-                    try:
-                        import google.generativeai as genai
-                        genai.configure(api_key=api_key)
-                        logger.info("Gemini client initialized for evaluation")
-                        return AdvancedEvaluator(gemini_client=genai, llm_provider='gemini')
-                    except ImportError:
-                        logger.warning("google-generativeai not installed, falling back to basic evaluation")
-                    except Exception as e:
-                        logger.error(f"Failed to initialize Gemini client: {e}")
-                else:
-                    logger.warning("Gemini API key not configured, falling back to basic evaluation")
-
-            # Default to Ollama or basic evaluation
-            logger.info("Using basic evaluation (no LLM client)")
-            return AdvancedEvaluator(llm_provider='ollama')
+                return self._init_gemini_evaluator(config)
+            else:
+                return self._init_basic_evaluator()
 
         except Exception as e:
             logger.error(f"Failed to initialize evaluator: {e}")
             return AdvancedEvaluator(llm_provider='ollama')
+
+    def _load_evaluation_config(self) -> dict:
+        """Load evaluation configuration from config.json."""
+        import json
+        config_path = Path(__file__).parent.parent / 'config.json'
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config.get('evaluation', {})
+
+    def _init_gemini_evaluator(self, eval_config: dict) -> AdvancedEvaluator:
+        """Initialize Gemini-based evaluator."""
+        api_key = eval_config.get('gemini_api_key')
+        if not api_key or api_key == 'your_gemini_api_key_here':
+            logger.warning("Gemini API key not configured, falling back to basic evaluation")
+            return self._init_basic_evaluator()
+
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            logger.info("Gemini client initialized for evaluation")
+            return AdvancedEvaluator(gemini_client=genai, llm_provider='gemini')
+        except ImportError:
+            logger.warning("google-generativeai not installed, falling back to basic evaluation")
+            return self._init_basic_evaluator()
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini client: {e}")
+            return self._init_basic_evaluator()
+
+    def _init_basic_evaluator(self) -> AdvancedEvaluator:
+        """Initialize basic evaluator without LLM client."""
+        logger.info("Using basic evaluation (no LLM client)")
+        return AdvancedEvaluator(llm_provider='ollama')
 
     def set_components(self, generator, retriever):
         """Set or update the generator and retriever components."""

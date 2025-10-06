@@ -343,49 +343,128 @@ class EvaluationDashboard(QWidget):
             count = self.recent_count_spin.value()
             evaluations = self.db.get_recent_evaluations(count)
 
-            self.recent_table.setRowCount(len(evaluations))
+            self._setup_table_for_evaluations(len(evaluations))
 
             for row, eval_data in enumerate(evaluations):
-                # Timestamp
-                timestamp = eval_data.timestamp[:19] if eval_data.timestamp else ""
-                self.recent_table.setItem(row, 0, QTableWidgetItem(timestamp))
-
-                # Question (truncated)
-                question = eval_data.question[:50] + "..." if len(eval_data.question) > 50 else eval_data.question
-                self.recent_table.setItem(row, 1, QTableWidgetItem(question))
-
-                # Scores with color coding
-                scores = [
-                    eval_data.answer_relevance_score,
-                    eval_data.context_relevance_score,
-                    eval_data.groundedness_score
-                ]
-
-                for col, score in enumerate(scores, 2):
-                    if score is not None:
-                        item = QTableWidgetItem(f"{score:.2f}")
-                        self._color_code_score(item, score)
-                        self.recent_table.setItem(row, col, item)
-                    else:
-                        self.recent_table.setItem(row, col, QTableWidgetItem("--"))
-
-                # Response time
-                rt_item = QTableWidgetItem(f"{eval_data.response_time:.2f}s" if eval_data.response_time else "--")
-                self.recent_table.setItem(row, 5, rt_item)
-
-                # Status
-                status = "✅ Success" if not eval_data.error_occurred else "❌ Error"
-                status_item = QTableWidgetItem(status)
-                if eval_data.error_occurred:
-                    status_item.setBackground(QColor(255, 182, 193))  # Light red
-                else:
-                    status_item.setBackground(QColor(144, 238, 144))  # Light green
-                self.recent_table.setItem(row, 6, status_item)
+                self._populate_evaluation_row(row, eval_data)
 
             self.recent_table.resizeColumnsToContents()
 
         except Exception as e:
             logger.error(f"Failed to load recent evaluations: {e}")
+
+    def _setup_table_for_evaluations(self, row_count: int):
+        """
+        Set up the evaluations table with the correct number of rows.
+
+        Args:
+            row_count: Number of rows to display
+        """
+        self.recent_table.setRowCount(row_count)
+
+    def _populate_evaluation_row(self, row: int, eval_data):
+        """
+        Populate a single row in the evaluations table.
+
+        Args:
+            row: Row index to populate
+            eval_data: Evaluation data object
+        """
+        # Timestamp column
+        timestamp = self._format_evaluation_timestamp(eval_data.timestamp)
+        self.recent_table.setItem(row, 0, QTableWidgetItem(timestamp))
+
+        # Question column (truncated)
+        question = self._format_evaluation_question(eval_data.question)
+        self.recent_table.setItem(row, 1, QTableWidgetItem(question))
+
+        # Score columns with color coding
+        self._populate_evaluation_scores(row, eval_data)
+
+        # Response time column
+        response_time = self._format_response_time(eval_data.response_time)
+        self.recent_table.setItem(row, 5, QTableWidgetItem(response_time))
+
+        # Status column
+        self._populate_evaluation_status(row, eval_data.error_occurred)
+
+    def _format_evaluation_timestamp(self, timestamp: str) -> str:
+        """
+        Format timestamp for display.
+
+        Args:
+            timestamp: Raw timestamp string
+
+        Returns:
+            Formatted timestamp string
+        """
+        return timestamp[:19] if timestamp else ""
+
+    def _format_evaluation_question(self, question: str) -> str:
+        """
+        Format and truncate question for display.
+
+        Args:
+            question: Full question text
+
+        Returns:
+            Truncated question string
+        """
+        if len(question) > 50:
+            return question[:50] + "..."
+        return question
+
+    def _populate_evaluation_scores(self, row: int, eval_data):
+        """
+        Populate score columns with color coding.
+
+        Args:
+            row: Row index to populate
+            eval_data: Evaluation data object
+        """
+        scores = [
+            eval_data.answer_relevance_score,
+            eval_data.context_relevance_score,
+            eval_data.groundedness_score
+        ]
+
+        for col, score in enumerate(scores, 2):
+            if score is not None:
+                item = QTableWidgetItem(f"{score:.2f}")
+                self._color_code_score(item, score)
+                self.recent_table.setItem(row, col, item)
+            else:
+                self.recent_table.setItem(row, col, QTableWidgetItem("--"))
+
+    def _format_response_time(self, response_time: float) -> str:
+        """
+        Format response time for display.
+
+        Args:
+            response_time: Response time in seconds
+
+        Returns:
+            Formatted response time string
+        """
+        return f"{response_time:.2f}s" if response_time else "--"
+
+    def _populate_evaluation_status(self, row: int, error_occurred: bool):
+        """
+        Populate status column with appropriate styling.
+
+        Args:
+            row: Row index to populate
+            error_occurred: Whether an error occurred
+        """
+        status = "✅ Success" if not error_occurred else "❌ Error"
+        status_item = QTableWidgetItem(status)
+
+        if error_occurred:
+            status_item.setBackground(QColor(255, 182, 193))  # Light red
+        else:
+            status_item.setBackground(QColor(144, 238, 144))  # Light green
+
+        self.recent_table.setItem(row, 6, status_item)
 
     def load_trends(self):
         """Load performance trends."""
@@ -466,42 +545,22 @@ Worst Day: {summary.get('worst_day', 'N/A')}
                 self, "Export Evaluation Data", f"evaluation_data_{days}days.{format_type}", file_filter
             )
 
-            from evaluation.integration import get_evaluation_integrator
-            integrator = get_evaluation_integrator()
-
             if filename:
-                integrator.export_evaluation_data(filename, days, format_type)
+                logger.info(f"Exporting data to {filename} ({format_type})")
+                data = self.db.get_evaluation_data(days)
 
-                QMessageBox.information(self, "Export Complete",
-                                      f"Data exported successfully to {filename}")
+                if format_type == "csv":
+                    import pandas as pd
+                    df = pd.DataFrame(data)
+                    df.to_csv(filename, index=False)
+                else:  # JSON
+                    with open(filename, 'w') as json_file:
+                        json.dump(data, json_file, default=str, indent=4)
+
+                QMessageBox.information(self, "Export Successful",
+                                       f"Data exported successfully to {filename}")
 
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export data: {e}")
-
-
-
-    def _color_code_score(self, item: QTableWidgetItem, score: float):
-        """Color code table items based on score."""
-        if score >= 0.8:
-            item.setBackground(QColor(144, 238, 144))  # Light green
-        elif score >= 0.6:
-            item.setBackground(QColor(255, 255, 224))  # Light yellow
-        else:
-            item.setBackground(QColor(255, 182, 193))  # Light red
-
-def show_evaluation_dashboard():
-    """Standalone function to show evaluation dashboard."""
-    from PySide6.QtWidgets import QApplication
-    import sys
-
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-
-    dashboard = EvaluationDashboard()
-    dashboard.show()
-
-    return app.exec()
-
-if __name__ == "__main__":
-    show_evaluation_dashboard()
+            QMessageBox.critical(self, "Export Error",
+                               f"Failed to export data: {e}")
+            logger.error(f"Error exporting data: {e}")

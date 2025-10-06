@@ -43,37 +43,55 @@ class LocalReranker:
         Returns:
             Reranked list of candidates
         """
-        if not candidates:
-            return []
-
-        if not self.model:
-            logger.warning(
-                "No model available for reranking, returning original order"
-            )
+        if not self._validate_rerank_inputs(candidates):
             return candidates[:max_results or self.top_n]
 
         try:
-            # Score each candidate
-            scored_candidates = []
-            for candidate in candidates:
-                score = self._score_query_document_pair(query, candidate)
-                candidate_copy = candidate.copy()
-                candidate_copy['rerank_score'] = score
-                scored_candidates.append(candidate_copy)
-
-            # Sort by score (higher is better)
-            scored_candidates.sort(
-                key=lambda x: x['rerank_score'], reverse=True
-            )
-
-            # Return top results
-            max_results = max_results or self.top_n
-            return scored_candidates[:max_results]
-
+            return self._perform_reranking(query, candidates, max_results)
         except Exception as e:
             logger.error(f"Reranking failed: {e}")
-            # Return original candidates on error
-            return candidates[:max_results or self.top_n]
+            return self._fallback_to_original_order(candidates, max_results)
+
+    def _validate_rerank_inputs(self, candidates: List[Dict[str, Any]]) -> bool:
+        """Validate inputs for reranking."""
+        if not candidates:
+            return False
+
+        if not self.model:
+            logger.warning("No model available for reranking, returning original order")
+            return False
+
+        return True
+
+    def _perform_reranking(self, query: str, candidates: List[Dict[str, Any]],
+                          max_results: Optional[int]) -> List[Dict[str, Any]]:
+        """Perform the actual reranking operation."""
+        scored_candidates = self._score_candidates(query, candidates)
+        sorted_candidates = self._sort_candidates_by_score(scored_candidates)
+        return self._limit_results(sorted_candidates, max_results)
+
+    def _score_candidates(self, query: str, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Score all candidates against the query."""
+        scored_candidates = []
+        for candidate in candidates:
+            score = self._score_query_document_pair(query, candidate)
+            candidate_copy = candidate.copy()
+            candidate_copy['rerank_score'] = score
+            scored_candidates.append(candidate_copy)
+        return scored_candidates
+
+    def _sort_candidates_by_score(self, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Sort candidates by rerank score (higher is better)."""
+        return sorted(candidates, key=lambda x: x['rerank_score'], reverse=True)
+
+    def _limit_results(self, candidates: List[Dict[str, Any]], max_results: Optional[int]) -> List[Dict[str, Any]]:
+        """Limit results to max_results or default top_n."""
+        max_results = max_results or self.top_n
+        return candidates[:max_results]
+
+    def _fallback_to_original_order(self, candidates: List[Dict[str, Any]], max_results: Optional[int]) -> List[Dict[str, Any]]:
+        """Return original candidates when reranking fails."""
+        return candidates[:max_results or self.top_n]
 
     def _score_query_document_pair(
         self, query: str, document: Dict[str, Any]

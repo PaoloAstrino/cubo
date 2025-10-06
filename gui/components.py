@@ -1,6 +1,10 @@
 """
 CUBO GUI Components
 Reusable UI components for the desktop interface.
+
+This module provides PySide6-based GUI components for the CUBO application,
+including document management widgets, chat interfaces, and settings panels.
+All components follow a consistent dark theme and provide professional user experience.
 """
 
 from PySide6.QtWidgets import (
@@ -11,7 +15,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QScrollArea, QFrame, QLineEdit, QStackedWidget,
     QCheckBox, QListView, QStyledItemDelegate, QStyleOptionViewItem
 )
-from PySide6.QtCore import Qt, Signal, QThread, QAbstractListModel, QModelIndex, QSize
+from PySide6.QtCore import Qt, Signal, QThread, QAbstractListModel, QModelIndex, QSize, QRect
 from PySide6.QtGui import QFont, QPixmap, QIcon, QPainter, QColor
 
 from pathlib import Path
@@ -23,37 +27,193 @@ from typing import List, Dict, Any
 logger = logging.getLogger(__name__)
 
 
+# Common UI Style Constants
+class UIStyles:
+    """Common UI styling constants for consistent appearance."""
+
+    # Button Styles
+    PRIMARY_BUTTON_STYLE = """
+        QPushButton {
+            background-color: #555555;
+            color: #000000;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #666666;
+            opacity: 0.8;
+        }
+    """
+
+    SECONDARY_BUTTON_STYLE = """
+        QPushButton {
+            background-color: #555555;
+            color: #000000;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #666666;
+            opacity: 0.8;
+        }
+    """
+
+    ACTION_BUTTON_STYLE = """
+        QPushButton {
+            background-color: #555555;
+            color: #000000;
+            border: none;
+            border-radius: 10px;
+            padding: 8px 20px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #666666;
+            opacity: 0.8;
+        }
+        QPushButton:pressed {
+            background-color: #444444;
+            opacity: 0.6;
+        }
+    """
+
+    # GroupBox Styles
+    PRIMARY_GROUP_STYLE = """
+        QGroupBox {
+            border: none;
+            margin-top: 5px;
+            font-weight: bold;
+            padding-top: 5px;
+            background-color: #252525;
+            border-radius: 5px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 5px 0 5px;
+        }
+    """
+
+    SECONDARY_GROUP_STYLE = """
+        QGroupBox {
+            border: none;
+            margin-top: 0px;
+            font-weight: bold;
+            padding-top: 5px;
+            background-color: #1a1a1a;
+            border-radius: 5px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 5px 0 5px;
+        }
+    """
+
+    # Label Styles
+    INFO_LABEL_STYLE = "color: #666666; margin-top: 12px;"
+    DRAG_DROP_LABEL_STYLE = """
+        QLabel {
+            padding: 8px;
+            border-radius: 3px;
+            color: #888888;
+            font-size: 12px;
+        }
+    """
+
+
+class UIHelpers:
+    """Helper methods for common UI operations."""
+
+    @staticmethod
+    def show_error_dialog(parent, title: str, message: str, details: str = None):
+        """Show a critical error dialog."""
+        if details:
+            QMessageBox.critical(parent, title, f"{message}\n\nError: {details}")
+        else:
+            QMessageBox.critical(parent, title, message)
+
+    @staticmethod
+    def show_warning_dialog(parent, title: str, message: str):
+        """Show a warning dialog."""
+        QMessageBox.warning(parent, title, message)
+
+    @staticmethod
+    def show_info_dialog(parent, title: str, message: str):
+        """Show an information dialog."""
+        QMessageBox.information(parent, title, message)
+
+    @staticmethod
+    def show_confirmation_dialog(parent, title: str, message: str) -> bool:
+        """Show a confirmation dialog and return True if user confirms."""
+        reply = QMessageBox.question(
+            parent, title, message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        return reply == QMessageBox.Yes
+
+
 class MessageModel(QAbstractListModel):
-    """Model for chat messages using Qt's Model-View-Delegate pattern."""
+    """
+    Model for chat messages using Qt's Model-View-Delegate pattern.
+
+    This model manages the chat conversation data and provides it to the view
+    through the standard Qt model interface. It supports different message types
+    (user, system, error, typing) and includes metadata for each message.
+    """
 
     def __init__(self):
+        """Initialize the message model with an empty message list."""
         super().__init__()
         self._messages = []  # List of message dicts
 
     def rowCount(self, parent=QModelIndex()):
-        """Return the number of messages."""
+        """Return the number of messages in the model."""
         return len(self._messages)
 
     def data(self, index, role=Qt.DisplayRole):
-        """Return data for the given index and role."""
+        """
+        Return data for the given index and role.
+
+        Args:
+            index: The model index to get data for
+            role: The data role (DisplayRole, UserRole, etc.)
+
+        Returns:
+            The requested data or None if not available
+        """
         if not index.isValid() or index.row() >= len(self._messages):
             return None
 
         message = self._messages[index.row()]
 
-        if role == Qt.DisplayRole:
-            return message.get('content', '')
-        elif role == Qt.UserRole:  # Full message data
-            return message
-        elif role == Qt.UserRole + 1:  # Message type
-            return message.get('type', 'user')  # 'user', 'system', 'error'
-        elif role == Qt.UserRole + 2:  # Timestamp
-            return message.get('timestamp')
+        # Define role handlers
+        role_handlers = {
+            Qt.DisplayRole: lambda msg: msg.get('content', ''),
+            Qt.UserRole: lambda msg: msg,  # Full message data
+            Qt.UserRole + 1: lambda msg: msg.get('type', 'user'),  # Message type
+            Qt.UserRole + 2: lambda msg: msg.get('timestamp'),  # Timestamp
+        }
 
-        return None
+        # Get handler for the role
+        handler = role_handlers.get(role)
+        return handler(message) if handler else None
 
     def add_message(self, content: str, msg_type: str = 'user', metadata: Dict[str, Any] = None):
-        """Add a new message to the model."""
+        """
+        Add a new message to the model.
+
+        Args:
+            content: The message content
+            msg_type: Type of message ('user', 'system', 'error', 'typing')
+            metadata: Additional metadata for the message
+        """
         message = {
             'content': content,
             'type': msg_type,
@@ -66,63 +226,54 @@ class MessageModel(QAbstractListModel):
         self.endInsertRows()
 
     def clear_messages(self):
-        """Clear all messages."""
+        """Clear all messages from the model."""
         self.beginResetModel()
         self._messages.clear()
         self.endResetModel()
 
     def get_messages(self) -> List[Dict[str, Any]]:
-        """Get all messages."""
+        """Get all messages in the model."""
         return self._messages.copy()
 
 
 class MessageDelegate(QStyledItemDelegate):
-    """Custom delegate for rendering chat messages as bubbles."""
+    """
+    Custom delegate for rendering chat messages as bubbles.
+
+    This delegate handles the visual representation of chat messages,
+    drawing them as colored bubbles with appropriate alignment and styling
+    based on message type.
+    """
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
-        """Paint the message item."""
+        """
+        Paint the message item as a chat bubble.
+
+        Args:
+            painter: The painter to use for drawing
+            option: Style options for the item
+            index: The model index of the item to paint
+        """
         message = index.data(Qt.UserRole)
         msg_type = index.data(Qt.UserRole + 1)
 
-        # Set colors and alignment based on message type
-        if msg_type == 'user':
-            bg_color = QColor('#0078D4')  # Blue for user
-            text_color = QColor('white')
-            alignment = Qt.AlignRight
-        elif msg_type == 'system':
-            bg_color = QColor('#107C10')  # Green for system
-            text_color = QColor('white')
-            alignment = Qt.AlignLeft
-        elif msg_type == 'error':
-            bg_color = QColor('#D13438')  # Red for errors
-            text_color = QColor('white')
-            alignment = Qt.AlignLeft
-        elif msg_type == 'typing':
-            bg_color = QColor('#2a2a2a')  # Dark gray for typing indicator
-            text_color = QColor('#888888')  # Muted text
-            alignment = Qt.AlignLeft
-        else:
-            bg_color = QColor('#2a2a2a')  # Default
-            text_color = QColor('#cccccc')
-            alignment = Qt.AlignLeft
+        # Get styling information for message type
+        bg_color, text_color, alignment = self._get_message_styling(msg_type)
 
-        # Draw message bubble
-        rect = option.rect.adjusted(10, 5, -10, -5)
-
-        # Bubble background
-        painter.fillRect(rect, bg_color)
-
-        # Bubble text
-        painter.setPen(text_color)
-        font = painter.font()
-        font.setPointSize(10)
-        painter.setFont(font)
-
-        text_rect = rect.adjusted(10, 5, -10, -5)
-        painter.drawText(text_rect, alignment | Qt.TextWordWrap, message['content'])
+        # Draw the message bubble
+        self._draw_message_bubble(painter, option.rect, bg_color, text_color, alignment, message['content'])
 
     def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex):
-        """Calculate the size needed for each message."""
+        """
+        Calculate the size needed for each message.
+
+        Args:
+            option: Style options for the item
+            index: The model index
+
+        Returns:
+            The recommended size for the item
+        """
         message = index.data(Qt.UserRole)
         content = message['content']
 
@@ -131,14 +282,73 @@ class MessageDelegate(QStyledItemDelegate):
         lines = max(1, len(content) // 50 + 1)
         return QSize(option.rect.width(), max(40, lines * 20 + 10))
 
+    def _get_message_styling(self, msg_type: str) -> tuple[QColor, QColor, Qt.AlignmentFlag]:
+        """
+        Get the styling information for a message type.
+
+        Args:
+            msg_type: The type of message (user, system, error, typing, etc.)
+
+        Returns:
+            Tuple of (background_color, text_color, alignment)
+        """
+        if msg_type == 'user':
+            return QColor('#0078D4'), QColor('white'), Qt.AlignRight
+        elif msg_type == 'system':
+            return QColor('#107C10'), QColor('white'), Qt.AlignLeft
+        elif msg_type == 'error':
+            return QColor('#D13438'), QColor('white'), Qt.AlignLeft
+        elif msg_type == 'typing':
+            return QColor('#2a2a2a'), QColor('#888888'), Qt.AlignLeft
+        else:
+            return QColor('#2a2a2a'), QColor('#cccccc'), Qt.AlignLeft
+
+    def _draw_message_bubble(self, painter: QPainter, rect: QRect, bg_color: QColor,
+                           text_color: QColor, alignment: Qt.AlignmentFlag, content: str):
+        """
+        Draw a message bubble with the specified styling.
+
+        Args:
+            painter: The painter to use for drawing
+            rect: The rectangle to draw in
+            bg_color: Background color for the bubble
+            text_color: Text color for the content
+            alignment: Text alignment (left/right)
+            content: The message content to draw
+        """
+        # Adjust rectangle for padding
+        bubble_rect = rect.adjusted(10, 5, -10, -5)
+
+        # Draw bubble background
+        painter.fillRect(bubble_rect, bg_color)
+
+        # Set up text drawing
+        painter.setPen(text_color)
+        font = painter.font()
+        font.setPointSize(10)
+        painter.setFont(font)
+
+        # Draw text with padding
+        text_rect = bubble_rect.adjusted(10, 5, -10, -5)
+        painter.drawText(text_rect, alignment | Qt.TextWordWrap, content)
+
 
 class DocumentWidget(QWidget):
-    """Widget for document management - upload, list, and manage documents."""
+    """
+    Widget for document management - upload, list, and manage documents.
+
+    This widget provides a complete document management interface with:
+    - File/folder upload capabilities
+    - Document listing and management
+    - Progress tracking for bulk operations
+    - Support for multiple document formats
+    """
 
     document_uploaded = Signal(list)  # Signal emitted when document(s) are uploaded
     document_deleted = Signal(str)   # Signal emitted when document is deleted
 
     def __init__(self):
+        """Initialize the document management widget."""
         super().__init__()
         self.documents = []  # List of loaded documents
         self.supported_extensions = {'.pdf', '.docx', '.txt', '.md'}
@@ -206,21 +416,7 @@ class DocumentWidget(QWidget):
         # Unified upload button
         self.upload_btn = QPushButton("📄📁 Select Files or Folders")
         self.upload_btn.setFont(QFont("Arial", 11, QFont.Bold))
-        self.upload_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #555555;
-                color: #000000;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 20px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #666666;
-                opacity: 0.8;
-            }
-        """)
+        self.upload_btn.setStyleSheet(UIStyles.PRIMARY_BUTTON_STYLE)
         self.upload_btn.clicked.connect(self.unified_upload)
         upload_inner_layout.addWidget(self.upload_btn)
 
@@ -242,81 +438,49 @@ class DocumentWidget(QWidget):
         list_page = QWidget()
         list_layout = QVBoxLayout(list_page)
         list_layout.setContentsMargins(10, 10, 10, 10)
-        list_layout.setSpacing(10)  # Add spacing between sections
+        list_layout.setSpacing(10)
 
-        # Top 50%: Compact upload section
+        # Create upload and list sections
+        upload_section = self._create_upload_section()
+        list_section = self._create_document_list_section()
+
+        # Set up layout with equal stretch
+        list_layout.addWidget(upload_section, stretch=1)
+        list_layout.addWidget(list_section, stretch=1)
+
+        self.stacked_widget.addWidget(list_page)
+
+    def _create_upload_section(self):
+        """Create the upload section with button and drag label."""
         upload_group = QGroupBox("Add Documents")
-        upload_group.setStyleSheet("""
-            QGroupBox {
-                border: none;
-                margin-top: 5px;
-                font-weight: bold;
-                padding-top: 5px;
-                background-color: #252525;
-                border-radius: 5px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        upload_group.setStyleSheet(UIStyles.PRIMARY_GROUP_STYLE)
+
         upload_layout = QVBoxLayout(upload_group)
         upload_layout.setContentsMargins(10, 10, 10, 10)
 
+        # Upload button
         self.upload_btn_list = QPushButton("📄📁 Add Files/Folders")
         self.upload_btn_list.clicked.connect(self.unified_upload)
-        self.upload_btn_list.setStyleSheet("""
-            QPushButton {
-                background-color: #555555;
-                color: #000000;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #666666;
-                opacity: 0.8;
-            }
-        """)
+        self.upload_btn_list.setStyleSheet(UIStyles.SECONDARY_BUTTON_STYLE)
         upload_layout.addWidget(self.upload_btn_list)
 
+        # Drag and drop label
         self.drag_label = QLabel("Or drag and drop files/folders here")
         self.drag_label.setAlignment(Qt.AlignCenter)
-        self.drag_label.setStyleSheet("""
-            QLabel {
-                padding: 8px;
-                border-radius: 3px;
-                color: #888888;
-                font-size: 12px;
-            }
-        """)
+        self.drag_label.setStyleSheet(UIStyles.DRAG_DROP_LABEL_STYLE)
         upload_layout.addWidget(self.drag_label)
 
-        # Set stretch factor to make upload section take 50% of space
-        list_layout.addWidget(upload_group, stretch=1)
+        return upload_group
 
-        # Bottom 50%: Documents list starting from middle
+    def _create_document_list_section(self):
+        """Create the document list section."""
         list_group = QGroupBox("Loaded Documents")
-        list_group.setStyleSheet("""
-            QGroupBox {
-                border: none;
-                margin-top: 0px;
-                font-weight: bold;
-                padding-top: 5px;
-                background-color: #1a1a1a;
-                border-radius: 5px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        list_group.setStyleSheet(UIStyles.SECONDARY_GROUP_STYLE)
+
         list_inner_layout = QVBoxLayout(list_group)
         list_inner_layout.setContentsMargins(10, 10, 10, 10)
 
+        # Document list widget
         self.document_list = QListWidget()
         self.document_list.setStyleSheet("""
             QListWidget {
@@ -327,168 +491,134 @@ class DocumentWidget(QWidget):
                 selection-color: #000000;
             }
             QListWidget::item {
-                padding: 5px 0px; /* Add vertical padding */
+                padding: 5px 0px;
             }
         """)
         list_inner_layout.addWidget(self.document_list)
 
-        # Set stretch factor to make document list take 50% of space
-        list_layout.addWidget(list_group, stretch=1)
-
-        self.stacked_widget.addWidget(list_page)
+        return list_group
 
     def unified_upload(self):
         """Unified upload method that handles both files and folders."""
         try:
-            file_dialog = QFileDialog()
-            
-            # Allow selection of both files and directories
-            file_dialog.setFileMode(QFileDialog.ExistingFiles)
-            file_dialog.setOption(QFileDialog.ShowDirsOnly, False)  # Allow both files and folders
-            file_dialog.setNameFilter("All Files (*);;Documents (*.pdf *.docx *.txt *.md)")
-            
-            if file_dialog.exec():
-                selected_paths = file_dialog.selectedFiles()
-                
-                if not selected_paths:
-                    return
-                    
-                # Check if any selected item is a directory
-                folders = []
-                files = []
-                
-                for path in selected_paths:
-                    try:
-                        if os.path.isdir(path):
-                            folders.append(path)
-                        elif os.path.isfile(path):
-                            # Only add supported file types
-                            if Path(path).suffix.lower() in self.supported_extensions:
-                                files.append(path)
-                        else:
-                            logger.warning(f"Skipping invalid path: {path}")
-                    except (OSError, ValueError) as e:
-                        logger.error(f"Error checking path {path}: {e}")
-                        QMessageBox.warning(
-                            self, 
-                            "Path Error", 
-                            f"Could not access path: {path}\n\nError: {str(e)}"
-                        )
-                        continue
-                
-                # Process folders first (they might contain many files)
-                for folder in folders:
-                    try:
-                        self.process_folder(folder)
-                    except Exception as e:
-                        logger.error(f"Error processing folder {folder}: {e}")
-                        QMessageBox.critical(
-                            self,
-                            "Folder Processing Error",
-                            f"Failed to process folder: {folder}\n\nError: {str(e)}"
-                        )
-                
-                # Then process individual files
-                if files:
-                    try:
-                        self.process_files(files)
-                    except Exception as e:
-                        logger.error(f"Error processing files: {e}")
-                        QMessageBox.critical(
-                            self,
-                            "File Processing Error",
-                            f"Failed to process some files.\n\nError: {str(e)}"
-                        )
-                
-                # If no valid files/folders were found
-                if not folders and not files:
-                    QMessageBox.warning(
-                        self, 
-                        "No Valid Files", 
-                        "No supported document files (.pdf, .docx, .txt, .md) were found in your selection."
-                    )
+            selected_paths = self._show_file_dialog()
+            if not selected_paths:
+                return
+
+            folders, files = self._categorize_paths(selected_paths)
+            self._process_selected_items(folders, files)
+
         except Exception as e:
             logger.error(f"Unexpected error in unified upload: {e}")
-            QMessageBox.critical(
+            UIHelpers.show_error_dialog(
                 self,
                 "Upload Error",
-                f"An unexpected error occurred during upload.\n\nError: {str(e)}"
+                "An unexpected error occurred during upload.",
+                str(e)
+            )
+
+    def _show_file_dialog(self):
+        """Show file dialog and return selected paths."""
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.ExistingFiles)
+        file_dialog.setOption(QFileDialog.ShowDirsOnly, False)
+        file_dialog.setNameFilter("All Files (*);;Documents (*.pdf *.docx *.txt *.md)")
+
+        if file_dialog.exec():
+            return file_dialog.selectedFiles()
+        return []
+
+    def _categorize_paths(self, paths):
+        """Categorize selected paths into folders and files."""
+        folders = []
+        files = []
+
+        for path in paths:
+            try:
+                if os.path.isdir(path):
+                    folders.append(path)
+                elif os.path.isfile(path):
+                    if Path(path).suffix.lower() in self.supported_extensions:
+                        files.append(path)
+                else:
+                    logger.warning(f"Skipping invalid path: {path}")
+            except (OSError, ValueError) as e:
+                logger.error(f"Error checking path {path}: {e}")
+                UIHelpers.show_warning_dialog(
+                    self,
+                    "Path Error",
+                    f"Could not access path: {path}\n\nError: {str(e)}"
+                )
+
+        return folders, files
+
+    def _process_selected_items(self, folders, files):
+        """Process selected folders and files."""
+        # Process folders first
+        for folder in folders:
+            try:
+                self.process_folder(folder)
+            except Exception as e:
+                logger.error(f"Error processing folder {folder}: {e}")
+                UIHelpers.show_error_dialog(
+                    self,
+                    "Folder Processing Error",
+                    f"Failed to process folder: {folder}",
+                    str(e)
+                )
+
+        # Process individual files
+        if files:
+            try:
+                self.process_files(files)
+            except Exception as e:
+                logger.error(f"Error processing files: {e}")
+                UIHelpers.show_error_dialog(
+                    self,
+                    "File Processing Error",
+                    "Failed to process some files.",
+                    str(e)
+                )
+
+        # Show warning if no valid files/folders found
+        if not folders and not files:
+            UIHelpers.show_warning_dialog(
+                self,
+                "No Valid Files",
+                "No supported document files (.pdf, .docx, .txt, .md) were found in your selection."
             )
 
     def process_folder(self, folder_path):
         """Process a folder recursively for supported documents."""
         try:
             folder_name = Path(folder_path).name
-            
+
             # Show scanning message
-            QMessageBox.information(
-                self, 
-                "Folder Processing", 
+            UIHelpers.show_info_dialog(
+                self,
+                "Folder Processing",
                 f"Scanning folder '{folder_name}' for documents...\n\n"
                 "This may take a moment for large folders."
             )
-            
-            # Recursively find all supported files
-            supported_files = []
-            skipped_files = 0
-            try:
-                for root, dirs, files in os.walk(folder_path):
-                    for file in files:
-                        file_ext = Path(file).suffix.lower()
-                        if file_ext in self.supported_extensions:
-                            full_path = os.path.join(root, file)
-                            supported_files.append(full_path)
-                        else:
-                            # Log skipped files for debugging
-                            logger.debug(f"Skipping unsupported file: {file} (extension: {file_ext})")
-                            skipped_files += 1
-                            
-                if skipped_files > 0:
-                    logger.info(f"Skipped {skipped_files} unsupported files during folder scan")
-                    
-            except (OSError, PermissionError) as e:
-                logger.error(f"Error scanning folder {folder_path}: {e}")
-                QMessageBox.critical(
-                    self,
-                    "Folder Access Error",
-                    f"Cannot access folder: {folder_path}\n\nError: {str(e)}"
-                )
-                return
-            
+
+            # Scan folder for documents
+            supported_files, skipped_count = self._scan_folder_for_documents(folder_path)
+
             if not supported_files:
                 QMessageBox.warning(
-                    self, 
-                    "No Documents Found", 
+                    self,
+                    "No Documents Found",
                     f"No supported documents (.pdf, .docx, .txt, .md) found in folder '{folder_name}'."
                 )
                 return
-            
-            # Confirm with user for large uploads
-            if len(supported_files) > 10:
-                skip_info = f" ({skipped_files} unsupported files skipped)" if skipped_files > 0 else ""
-                reply = QMessageBox.question(
-                    self,
-                    "Confirm Upload",
-                    f"Found {len(supported_files)} supported documents in folder '{folder_name}'{skip_info}.\n\n"
-                    "Do you want to upload all of them?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.Yes
-                )
-                
-                if reply != QMessageBox.Yes:
-                    return
-            elif skipped_files > 0:
-                # Show info about skipped files for smaller uploads too
-                QMessageBox.information(
-                    self,
-                    "Files Found",
-                    f"Found {len(supported_files)} supported documents.\n"
-                    f"Skipped {skipped_files} unsupported files."
-                )
-            
+
+            # Handle user confirmation for large uploads
+            if not self._confirm_large_upload(supported_files, folder_name, skipped_count):
+                return
+
             # Process the files
             self.process_files(supported_files)
-            
+
         except Exception as e:
             logger.error(f"Unexpected error processing folder {folder_path}: {e}")
             QMessageBox.critical(
@@ -497,52 +627,160 @@ class DocumentWidget(QWidget):
                 f"Failed to process folder: {folder_path}\n\nError: {str(e)}"
             )
 
+    def _scan_folder_for_documents(self, folder_path):
+        """Scan folder recursively and return supported files and skipped count."""
+        supported_files = []
+        skipped_files = 0
+
+        try:
+            for root, dirs, files in os.walk(folder_path):
+                for file in files:
+                    file_ext = Path(file).suffix.lower()
+                    if file_ext in self.supported_extensions:
+                        full_path = os.path.join(root, file)
+                        supported_files.append(full_path)
+                    else:
+                        logger.debug(f"Skipping unsupported file: {file} (extension: {file_ext})")
+                        skipped_files += 1
+
+            if skipped_files > 0:
+                logger.info(f"Skipped {skipped_files} unsupported files during folder scan")
+
+        except (OSError, PermissionError) as e:
+            logger.error(f"Error scanning folder {folder_path}: {e}")
+            QMessageBox.critical(
+                self,
+                "Folder Access Error",
+                f"Cannot access folder: {folder_path}\n\nError: {str(e)}"
+            )
+            return [], 0
+
+        return supported_files, skipped_files
+
+    def _confirm_large_upload(self, supported_files, folder_name, skipped_count):
+        """Get user confirmation for large uploads and show results."""
+        if len(supported_files) > 10:
+            skip_info = f" ({skipped_count} unsupported files skipped)" if skipped_count > 0 else ""
+            if not UIHelpers.show_confirmation_dialog(
+                self,
+                "Confirm Upload",
+                f"Found {len(supported_files)} supported documents in folder '{folder_name}'{skip_info}.\n\n"
+                "Do you want to upload all of them?"
+            ):
+                return False
+        elif skipped_count > 0:
+            # Show info about skipped files for smaller uploads too
+            UIHelpers.show_info_dialog(
+                self,
+                "Files Found",
+                f"Found {len(supported_files)} supported documents.\n"
+                f"Skipped {skipped_count} unsupported files."
+            )
+
+        return True
+
     def process_files(self, file_paths):
         """Process multiple files."""
         if not file_paths:
             return
-            
+
         try:
-            # Show progress for bulk uploads
-            if len(file_paths) > 5:
+            # Initialize progress tracking for bulk uploads
+            should_show_progress = self._should_show_progress(len(file_paths))
+            if should_show_progress:
                 self.set_processing_progress(True, 0)
-                
-            processed_files = []
-            
-            for i, filepath in enumerate(file_paths):
-                try:
-                    self.add_document(filepath)
-                    processed_files.append(filepath)
-                except Exception as e:
-                    logger.error(f"Error adding document {filepath}: {e}")
-                    # Continue processing other files but show warning
-                    QMessageBox.warning(
-                        self,
-                        "Document Error",
-                        f"Failed to add document: {Path(filepath).name}\n\nError: {str(e)}\n\nContinuing with other files..."
-                    )
-                
-                # Update progress
-                if len(file_paths) > 5:
-                    progress = int((i + 1) / len(file_paths) * 100)
-                    self.set_processing_progress(True, progress)
-            
-            # Hide progress when done
-            if len(file_paths) > 5:
-                self.set_processing_progress(False)
-                
-            # Emit all processed files at once
-            if processed_files:
-                logger.info(f"Emitting document_uploaded signal with {len(processed_files)} files: {[Path(fp).name for fp in processed_files]}")
-                self.document_uploaded.emit(processed_files)
-                
+
+            # Process all files
+            processed_files = self._process_file_list(file_paths, should_show_progress)
+
+            # Finalize processing
+            self._finalize_file_processing(processed_files, should_show_progress)
+
         except Exception as e:
-            logger.error(f"Unexpected error in process_files: {e}")
-            QMessageBox.critical(
-                self,
-                "Processing Error",
-                f"An error occurred while processing files.\n\nError: {str(e)}"
-            )
+            self._handle_processing_error(e)
+
+    def _should_show_progress(self, file_count: int) -> bool:
+        """
+        Determine if progress should be shown for the given number of files.
+
+        Args:
+            file_count: Number of files to process
+
+        Returns:
+            True if progress should be displayed
+        """
+        return file_count > 5
+
+    def _process_file_list(self, file_paths: list, should_show_progress: bool) -> list:
+        """
+        Process a list of files, handling errors individually.
+
+        Args:
+            file_paths: List of file paths to process
+            should_show_progress: Whether to show progress updates
+
+        Returns:
+            List of successfully processed file paths
+        """
+        processed_files = []
+
+        for i, filepath in enumerate(file_paths):
+            try:
+                self.add_document(filepath)
+                processed_files.append(filepath)
+            except Exception as e:
+                self._handle_individual_file_error(filepath, e)
+
+            # Update progress if needed
+            if should_show_progress:
+                progress = int((i + 1) / len(file_paths) * 100)
+                self.set_processing_progress(True, progress)
+
+        return processed_files
+
+    def _finalize_file_processing(self, processed_files: list, should_show_progress: bool):
+        """
+        Finalize the file processing by hiding progress and emitting signals.
+
+        Args:
+            processed_files: List of successfully processed files
+            should_show_progress: Whether progress was being shown
+        """
+        if should_show_progress:
+            self.set_processing_progress(False)
+
+        if processed_files:
+            logger.info(f"Emitting document_uploaded signal with {len(processed_files)} files: {[Path(fp).name for fp in processed_files]}")
+            self.document_uploaded.emit(processed_files)
+
+    def _handle_individual_file_error(self, filepath: str, error: Exception):
+        """
+        Handle an error that occurred while processing an individual file.
+
+        Args:
+            filepath: Path to the file that failed
+            error: The exception that occurred
+        """
+        logger.error(f"Error adding document {filepath}: {error}")
+        QMessageBox.warning(
+            self,
+            "Document Error",
+            f"Failed to add document: {Path(filepath).name}\n\nError: {str(error)}\n\nContinuing with other files..."
+        )
+
+    def _handle_processing_error(self, error: Exception):
+        """
+        Handle a critical error that occurred during file processing.
+
+        Args:
+            error: The exception that occurred
+        """
+        logger.error(f"Unexpected error in process_files: {error}")
+        QMessageBox.critical(
+            self,
+            "Processing Error",
+            f"An error occurred while processing files.\n\nError: {str(error)}"
+        )
 
     def add_document(self, filepath):
         """Add a document to the list."""
@@ -575,11 +813,18 @@ class DocumentWidget(QWidget):
 
 
 class QueryWidget(QWidget):
-    """Widget for chat-based query interface with company expert persona."""
+    """
+    Widget for chat-based query interface with company expert persona.
+
+    This widget provides a complete chat interface for interacting with documents,
+    featuring a modern chat bubble design, typing indicators, and professional
+    message formatting with source citations.
+    """
 
     query_submitted = Signal(str)  # Signal emitted when query is submitted
 
     def __init__(self):
+        """Initialize the chat query widget."""
         super().__init__()
         self.conversation_history = []
         self.typing_indicator_position = None
@@ -595,13 +840,25 @@ class QueryWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Simple clean header
+        # Create UI components
+        header = self._create_header()
+        chat_display = self._create_chat_display()
+        input_area = self._create_input_area()
+
+        # Add components to layout
+        layout.addWidget(header)
+        layout.addWidget(chat_display)
+        layout.addLayout(input_area)
+
+    def _create_header(self):
+        """Create the chat interface header."""
         header = QLabel("Cubo is ready to assist you!")
         header.setFont(QFont("Arial", 14, QFont.Bold))
         header.setStyleSheet("color: #cccccc; padding: 5px;")
-        layout.addWidget(header)
+        return header
 
-        # Chat history area (main chat window)
+    def _create_chat_display(self):
+        """Create the chat display area with model-view-delegate pattern."""
         chat_group = QGroupBox()
         chat_group.setStyleSheet("""
             QGroupBox {
@@ -615,6 +872,7 @@ class QueryWidget(QWidget):
                 padding: 0 5px 0 5px;
             }
         """)
+
         chat_layout = QVBoxLayout(chat_group)
 
         # Use QListView with model-view-delegate pattern for better performance
@@ -635,11 +893,13 @@ class QueryWidget(QWidget):
         self.chat_display.setSelectionMode(QListView.SelectionMode.NoSelection)
         chat_layout.addWidget(self.chat_display)
 
-        layout.addWidget(chat_group)
+        return chat_group
 
-        # Input area at bottom
+    def _create_input_area(self):
+        """Create the input area with text field and send button."""
         input_layout = QHBoxLayout()
 
+        # Query input field
         self.query_input = QLineEdit()
         self.query_input.setPlaceholderText("Ask a question about your documents...")
         self.query_input.setStyleSheet("""
@@ -658,29 +918,13 @@ class QueryWidget(QWidget):
         self.query_input.returnPressed.connect(self.submit_query)
         input_layout.addWidget(self.query_input)
 
+        # Send button
         self.submit_btn = QPushButton("Send")
-        self.submit_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #555555;
-                color: #000000;
-                border: none;
-                border-radius: 10px;
-                padding: 8px 20px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #666666;
-                opacity: 0.8;
-            }
-            QPushButton:pressed {
-                background-color: #444444;
-                opacity: 0.6;
-            }
-        """)
+        self.submit_btn.setStyleSheet(UIStyles.ACTION_BUTTON_STYLE)
         self.submit_btn.clicked.connect(self.submit_query)
         input_layout.addWidget(self.submit_btn)
 
-        layout.addLayout(input_layout)
+        return input_layout
 
     def submit_query(self):
         """Submit the query and add it to chat."""
@@ -713,13 +957,8 @@ class QueryWidget(QWidget):
         """Display query results in chat format."""
         print(f"DEBUG: display_results called with response length: {len(response) if response else 0}")
 
-        # Remove typing indicator (last message) and add actual response
-        messages = self.message_model.get_messages()
-        if messages and messages[-1]['type'] == 'typing':
-            # Remove the typing indicator by clearing and re-adding all messages except the last
-            self.message_model.clear_messages()
-            for msg in messages[:-1]:  # All messages except the typing indicator
-                self.message_model.add_message(msg['content'], msg['type'], msg['metadata'])
+        # Remove typing indicator if present
+        self._remove_typing_indicator()
 
         # Add the actual response
         self._add_response_message(response, sources)
@@ -727,36 +966,102 @@ class QueryWidget(QWidget):
         # Scroll to bottom
         self.chat_display.scrollToBottom()
 
+    def _remove_typing_indicator(self):
+        """Remove typing indicator from messages if present."""
+        messages = self.message_model.get_messages()
+        if messages and messages[-1]['type'] == 'typing':
+            # Remove the typing indicator by clearing and re-adding all messages except the last
+            self.message_model.clear_messages()
+            for msg in messages[:-1]:  # All messages except the typing indicator
+                self.message_model.add_message(msg['content'], msg['type'], msg['metadata'])
+
     def _add_response_message(self, response, sources):
         """Add response message to the model with production-ready formatting."""
         print(f"DEBUG: _add_response_message called with response: {response[:100] if response else 'None'}...")
 
-        # Format response with professional source citations
-        formatted_response = response
+        formatted_sources = self._format_sources(sources)
+        formatted_response = f"{response}{formatted_sources}"
 
-        if sources:
-            # Handle sources as string or list
-            if isinstance(sources, list):
-                sources_list = sources
-            else:
-                sources_list = [str(sources).strip()]
-
-            # Filter out empty sources and format nicely
-            valid_sources = [s for s in sources_list if s.strip()]
-
-            if valid_sources:
-                # Create user-friendly source citations
-                if len(valid_sources) == 1:
-                    formatted_response += f"\n\n� Source: {valid_sources[0]}"
-                else:
-                    source_list = "\n".join(f"  • {source}" for source in valid_sources[:5])  # Limit to 5 sources
-                    formatted_response += f"\n\n📚 Sources:\n{source_list}"
-
-                    if len(valid_sources) > 5:
-                        formatted_response += f"\n  ... and {len(valid_sources) - 5} more"
-
-        # Add to model
         self.message_model.add_message(formatted_response, 'system')
+
+    def _format_sources(self, sources):
+        """Format sources into user-friendly citations."""
+        if not sources:
+            return ""
+
+        # Normalize sources to list format
+        sources_list = self._normalize_sources_to_list(sources)
+
+        # Filter and validate sources
+        valid_sources = self._filter_valid_sources(sources_list)
+
+        if not valid_sources:
+            return ""
+
+        # Format based on number of sources
+        return self._format_source_citations(valid_sources)
+
+    def _normalize_sources_to_list(self, sources) -> list:
+        """
+        Normalize sources input to a list format.
+
+        Args:
+            sources: Sources input (can be string, list, or other)
+
+        Returns:
+            List of source strings
+        """
+        if isinstance(sources, list):
+            return sources
+        else:
+            return [str(sources).strip()]
+
+    def _filter_valid_sources(self, sources_list: list) -> list:
+        """
+        Filter out empty or invalid sources.
+
+        Args:
+            sources_list: List of source strings
+
+        Returns:
+            List of valid (non-empty) source strings
+        """
+        return [s for s in sources_list if s.strip()]
+
+    def _format_source_citations(self, valid_sources: list) -> str:
+        """
+        Format valid sources into user-friendly citation text.
+
+        Args:
+            valid_sources: List of valid source strings
+
+        Returns:
+            Formatted citation string
+        """
+        if len(valid_sources) == 1:
+            return f"\n\n📖 Source: {valid_sources[0]}"
+        else:
+            return self._format_multiple_sources(valid_sources)
+
+    def _format_multiple_sources(self, valid_sources: list) -> str:
+        """
+        Format multiple sources with truncation for readability.
+
+        Args:
+            valid_sources: List of valid source strings
+
+        Returns:
+            Formatted multiple sources string
+        """
+        # Show up to 5 sources in the list
+        source_list = "\n".join(f"  • {source}" for source in valid_sources[:5])
+        formatted = f"\n\n📚 Sources:\n{source_list}"
+
+        # Add truncation indicator if there are more sources
+        if len(valid_sources) > 5:
+            formatted += f"\n  ... and {len(valid_sources) - 5} more"
+
+        return formatted
 
     def show_error(self, error_message):
         """Display user-friendly error message in chat format."""
@@ -781,25 +1086,53 @@ class QueryWidget(QWidget):
         """Convert technical errors to user-friendly messages."""
         error_lower = str(error_message).lower()
 
-        # Network-related errors
-        if any(keyword in error_lower for keyword in ['network', 'connection', 'timeout', 'unreachable']):
-            return "🤖 I'm having trouble connecting right now. Please check your internet connection and try again."
+        # Check different error categories
+        error_category = self._categorize_error(error_lower)
 
-        # Document processing errors
-        elif any(keyword in error_lower for keyword in ['document', 'file', 'pdf', 'processing']):
-            return "📄 I couldn't process your documents properly. Please try uploading them again or check the file format."
+        return self._get_user_friendly_message(error_category)
 
-        # Model/embedding errors
-        elif any(keyword in error_lower for keyword in ['model', 'embedding', 'transform', 'tensor']):
-            return "🧠 I'm experiencing technical difficulties. Please try again in a moment, or contact support if the issue persists."
+    def _categorize_error(self, error_lower: str) -> str:
+        """
+        Categorize an error message into predefined categories.
 
-        # Query too long/complex
-        elif any(keyword in error_lower for keyword in ['length', 'complex', 'limit']):
-            return "📝 Your question is quite detailed! Try breaking it down into smaller, more specific questions."
+        Args:
+            error_lower: Lowercase error message
 
-        # Generic fallback
-        else:
-            return "😅 Something went wrong while processing your request. Please try again, or rephrase your question."
+        Returns:
+            Error category string
+        """
+        error_categories = {
+            'network': {'network', 'connection', 'timeout', 'unreachable'},
+            'document': {'document', 'file', 'pdf', 'processing'},
+            'model': {'model', 'embedding', 'transform', 'tensor'},
+            'query': {'length', 'complex', 'limit'}
+        }
+
+        for category, keywords in error_categories.items():
+            if any(keyword in error_lower for keyword in keywords):
+                return category
+
+        return 'generic'
+
+    def _get_user_friendly_message(self, error_category: str) -> str:
+        """
+        Get a user-friendly message for an error category.
+
+        Args:
+            error_category: The categorized error type
+
+        Returns:
+            User-friendly error message
+        """
+        messages = {
+            'network': "🤖 I'm having trouble connecting right now. Please check your internet connection and try again.",
+            'document': "📄 I couldn't process your documents properly. Please try uploading them again or check the file format.",
+            'model': "🧠 I'm experiencing technical difficulties. Please try again in a moment, or contact support if the issue persists.",
+            'query': "📝 Your question is quite detailed! Try breaking it down into smaller, more specific questions.",
+            'generic': "😅 Something went wrong while processing your request. Please try again, or rephrase your question."
+        }
+
+        return messages.get(error_category, messages['generic'])
 
     def clear_chat(self):
         """Clear the chat display."""
@@ -809,11 +1142,18 @@ class QueryWidget(QWidget):
 
 
 class SettingsWidget(QWidget):
-    """Widget for application settings and configuration."""
+    """
+    Widget for application settings and configuration.
+
+    This widget provides a centralized interface for configuring application
+    settings, including document processing options, retrieval parameters,
+    and other user preferences.
+    """
 
     settings_changed = Signal(dict)  # Signal emitted when settings change
 
     def __init__(self):
+        """Initialize the settings widget."""
         super().__init__()
         self.init_ui()
 
@@ -878,6 +1218,7 @@ class SettingsWidget(QWidget):
 
         # Save button
         self.save_btn = QPushButton("💾 Save Settings")
+        self.save_btn.setStyleSheet(UIStyles.ACTION_BUTTON_STYLE)
         self.save_btn.clicked.connect(self.save_settings)
         layout.addWidget(self.save_btn)
 
@@ -981,6 +1322,7 @@ class AnalyticsWidget(QWidget):
 
         # Refresh button
         self.refresh_btn = QPushButton("🔄 Refresh Status")
+        self.refresh_btn.setStyleSheet(UIStyles.SECONDARY_BUTTON_STYLE)
         self.refresh_btn.clicked.connect(self.refresh_status)
         layout.addWidget(self.refresh_btn)
 

@@ -68,47 +68,76 @@ class AdvancedEvaluator:
     def evaluate_answer_quality(self, answer: str) -> Dict[str, Any]:
         """Evaluate answer quality metrics."""
         if not answer or answer.startswith("Error"):
-            return {
-                'answer_quality': {
-                    'length': 0,
-                    'word_count': 0,
-                    'sentence_count': 0,
-                    'avg_sentence_length': 0,
-                    'readability_score': 0,
-                    'has_structure': False,
-                    'has_examples': False,
-                    'has_conclusion': False
-                }
-            }
+            return self._create_empty_answer_quality_result()
 
-        # Basic text metrics
-        word_count = len(answer.split())
-        sentences = re.split(r'[.!?]+', answer)
-        sentence_count = len([s for s in sentences if s.strip()])
-
-        # Readability (simplified)
-        avg_word_length = np.mean([len(word) for word in answer.split()])
-        avg_sentence_length = word_count / max(sentence_count, 1)
-
-        # Flesch Reading Ease (simplified approximation)
-        readability_score = max(0, min(100, 206.835 - 1.015 * avg_sentence_length - 84.6 * avg_word_length))
-
-        # Content structure analysis
-        has_structure = bool(re.search(r'\d+\.|\•|- |\(|\)', answer))  # Lists, bullets
-        has_examples = bool(re.search(r'(?:for example|such as|e\.g\.|example)', answer.lower()))
-        has_conclusion = bool(re.search(r'(?:in conclusion|therefore|thus|summary)', answer.lower()))
+        # Calculate basic text metrics
+        basic_metrics = self._calculate_basic_text_metrics(answer)
+        
+        # Calculate readability score
+        readability_score = self._calculate_readability_score(answer, basic_metrics)
+        
+        # Analyze content structure
+        structure_analysis = self._analyze_content_structure(answer)
 
         return {
             'answer_quality': {
                 'length': len(answer),
-                'word_count': word_count,
-                'sentence_count': sentence_count,
-                'avg_sentence_length': avg_sentence_length,
+                'word_count': basic_metrics['word_count'],
+                'sentence_count': basic_metrics['sentence_count'],
+                'avg_sentence_length': basic_metrics['avg_sentence_length'],
                 'readability_score': readability_score,
-                'has_structure': has_structure,
-                'has_examples': has_examples,
-                'has_conclusion': has_conclusion
+                'has_structure': structure_analysis['has_structure'],
+                'has_examples': structure_analysis['has_examples'],
+                'has_conclusion': structure_analysis['has_conclusion']
             }
+        }
+
+    def _create_empty_answer_quality_result(self) -> Dict[str, Any]:
+        """Create empty answer quality result for invalid inputs."""
+        return {
+            'answer_quality': {
+                'length': 0,
+                'word_count': 0,
+                'sentence_count': 0,
+                'avg_sentence_length': 0,
+                'readability_score': 0,
+                'has_structure': False,
+                'has_examples': False,
+                'has_conclusion': False
+            }
+        }
+
+    def _calculate_basic_text_metrics(self, answer: str) -> Dict[str, Any]:
+        """Calculate basic text metrics like word count, sentence count, etc."""
+        word_count = len(answer.split())
+        sentences = re.split(r'[.!?]+', answer)
+        sentence_count = len([s for s in sentences if s.strip()])
+        avg_sentence_length = word_count / max(sentence_count, 1)
+        
+        return {
+            'word_count': word_count,
+            'sentence_count': sentence_count,
+            'avg_sentence_length': avg_sentence_length
+        }
+
+    def _calculate_readability_score(self, answer: str, basic_metrics: Dict[str, Any]) -> float:
+        """Calculate Flesch Reading Ease score."""
+        avg_word_length = np.mean([len(word) for word in answer.split()])
+        avg_sentence_length = basic_metrics['avg_sentence_length']
+        
+        # Flesch Reading Ease (simplified approximation)
+        return max(0, min(100, 206.835 - 1.015 * avg_sentence_length - 84.6 * avg_word_length))
+
+    def _analyze_content_structure(self, answer: str) -> Dict[str, bool]:
+        """Analyze content structure for lists, examples, and conclusions."""
+        has_structure = bool(re.search(r'\d+\.|\•|- |\(|\)', answer))  # Lists, bullets
+        has_examples = bool(re.search(r'(?:for example|such as|e\.g\.|example)', answer.lower()))
+        has_conclusion = bool(re.search(r'(?:in conclusion|therefore|thus|summary)', answer.lower()))
+        
+        return {
+            'has_structure': has_structure,
+            'has_examples': has_examples,
+            'has_conclusion': has_conclusion
         }
 
     async def evaluate_answer_relevance(self, question: str, answer: str) -> float:
@@ -213,70 +242,143 @@ class AdvancedEvaluator:
             return self._evaluate_context_relevance_heuristic(question, contexts)
 
     def _evaluate_answer_relevance_heuristic(self, question: str, answer: str) -> float:
-        """Evaluate answer quality metrics."""
-        if not answer or answer.startswith("Error"):
-            return {
-                'answer_quality': {
-                    'length': 0,
-                    'word_count': 0,
-                    'sentence_count': 0,
-                    'avg_sentence_length': 0,
-                    'readability_score': 0,
-                    'has_structure': False,
-                    'has_examples': False,
-                    'has_conclusion': False
-                }
-            }
+        """Evaluate answer relevance using heuristic methods."""
+        if not question or not answer or answer.startswith("Error"):
+            return 0.0
 
-        # Basic text metrics
-        word_count = len(answer.split())
-        sentences = re.split(r'[.!?]+', answer)
-        sentence_count = len([s for s in sentences if s.strip()])
+        # Extract keywords from question
+        question_keywords = self._extract_question_keywords(question)
+        
+        # Calculate semantic overlap
+        semantic_overlap = self._calculate_semantic_overlap(question, answer, question_keywords)
+        
+        # Calculate structural relevance
+        structural_relevance = self._calculate_structural_relevance(question, answer)
+        
+        # Combine scores (weighted average)
+        relevance_score = 0.7 * semantic_overlap + 0.3 * structural_relevance
+        
+        return min(1.0, max(0.0, relevance_score))
 
-        # Readability (simplified)
-        avg_word_length = np.mean([len(word) for word in answer.split()])
-        avg_sentence_length = word_count / max(sentence_count, 1)
+    def _extract_question_keywords(self, question: str) -> set:
+        """Extract important keywords from the question."""
+        # Remove common question words
+        stop_words = {'what', 'how', 'why', 'when', 'where', 'who', 'which', 'is', 'are', 'was', 'were', 
+                     'do', 'does', 'did', 'can', 'could', 'will', 'would', 'should', 'the', 'a', 'an'}
+        
+        words = re.findall(r'\b\w+\b', question.lower())
+        keywords = {word for word in words if word not in stop_words and len(word) > 2}
+        
+        return keywords
 
-        # Flesch Reading Ease (simplified approximation)
-        readability_score = max(0, min(100, 206.835 - 1.015 * avg_sentence_length - 84.6 * avg_word_length))
+    def _calculate_semantic_overlap(self, question: str, answer: str, question_keywords: set) -> float:
+        """Calculate semantic overlap between question and answer."""
+        answer_words = set(re.findall(r'\b\w+\b', answer.lower()))
+        
+        # Direct keyword overlap
+        direct_overlap = len(question_keywords.intersection(answer_words))
+        max_possible = len(question_keywords)
+        
+        if max_possible == 0:
+            return 0.0
+            
+        # Check for partial matches and synonyms (simplified)
+        partial_score = 0.0
+        for q_word in question_keywords:
+            if q_word in answer_words:
+                partial_score += 1.0
+            else:
+                # Check for partial matches
+                for a_word in answer_words:
+                    if q_word in a_word or a_word in q_word:
+                        partial_score += 0.5
+                        break
+        
+        return min(1.0, partial_score / max_possible)
 
-        # Content structure analysis
-        has_structure = bool(re.search(r'\d+\.|\•|- |\(|\)', answer))  # Lists, bullets
-        has_examples = bool(re.search(r'(?:for example|such as|e\.g\.|example)', answer.lower()))
-        has_conclusion = bool(re.search(r'(?:in conclusion|therefore|thus|summary)', answer.lower()))
-
-        return {
-            'answer_quality': {
-                'length': len(answer),
-                'word_count': word_count,
-                'sentence_count': sentence_count,
-                'avg_sentence_length': round(avg_sentence_length, 1),
-                'readability_score': round(readability_score, 1),
-                'has_structure': has_structure,
-                'has_examples': has_examples,
-                'has_conclusion': has_conclusion
-            }
-        }
+    def _calculate_structural_relevance(self, question: str, answer: str) -> float:
+        """Calculate structural relevance based on answer completeness."""
+        score = 0.0
+        
+        # Length appropriateness (answers should be substantial but not too long)
+        answer_length = len(answer.split())
+        if 10 <= answer_length <= 200:
+            score += 0.3
+        elif answer_length < 10:
+            score += 0.1
+        else:
+            score += 0.2
+            
+        # Check if answer seems to address the question type
+        question_lower = question.lower()
+        answer_lower = answer.lower()
+        
+        # For "why" questions, look for explanations
+        if question_lower.startswith('why'):
+            if any(word in answer_lower for word in ['because', 'due to', 'since', 'as', 'so']):
+                score += 0.3
+                
+        # For "how" questions, look for process descriptions
+        elif question_lower.startswith('how'):
+            if any(word in answer_lower for word in ['by', 'through', 'using', 'with', 'step']):
+                score += 0.3
+                
+        # For "what" questions, look for definitions or descriptions
+        elif question_lower.startswith('what'):
+            if len(answer.split()) > 5:  # Substantial response
+                score += 0.3
+        
+        return min(1.0, score)
 
     def evaluate_context_utilization(self, question: str, contexts: List[str]) -> Dict[str, Any]:
         """Evaluate how well contexts are utilized."""
         if not contexts:
-            return {
-                'context_utilization': {
-                    'total_contexts': 0,
-                    'total_context_length': 0,
-                    'avg_context_length': 0,
-                    'context_diversity': 0,
-                    'question_context_overlap': 0
-                }
-            }
+            return self._create_empty_context_utilization_result()
 
-        # Basic context metrics
+        # Calculate basic context metrics
+        basic_metrics = self._calculate_basic_context_metrics(contexts)
+        
+        # Calculate context diversity
+        diversity = self._calculate_context_diversity(contexts)
+        
+        # Calculate question-context overlap
+        overlap = self._calculate_question_context_overlap(question, contexts)
+
+        return {
+            'context_utilization': {
+                'total_contexts': len(contexts),
+                'total_context_length': basic_metrics['total_length'],
+                'avg_context_length': round(basic_metrics['avg_length'], 1),
+                'context_diversity': round(diversity, 3),
+                'question_context_overlap': round(overlap, 3)
+            }
+        }
+
+    def _create_empty_context_utilization_result(self) -> Dict[str, Any]:
+        """Create empty context utilization result for invalid inputs."""
+        return {
+            'context_utilization': {
+                'total_contexts': 0,
+                'total_context_length': 0,
+                'avg_context_length': 0,
+                'context_diversity': 0,
+                'question_context_overlap': 0
+            }
+        }
+
+    def _calculate_basic_context_metrics(self, contexts: List[str]) -> Dict[str, Any]:
+        """Calculate basic context metrics like lengths and counts."""
         context_lengths = [len(ctx) for ctx in contexts]
         total_length = sum(context_lengths)
         avg_length = total_length / len(contexts)
+        
+        return {
+            'total_length': total_length,
+            'avg_length': avg_length
+        }
 
-        # Context diversity (unique words / total words)
+    def _calculate_context_diversity(self, contexts: List[str]) -> float:
+        """Calculate context diversity based on unique words."""
         all_words = []
         for ctx in contexts:
             words = re.findall(r'\b\w+\b', ctx.lower())
@@ -285,22 +387,22 @@ class AdvancedEvaluator:
         word_counts = Counter(all_words)
         unique_words = len(word_counts)
         total_words = sum(word_counts.values())
-        diversity = unique_words / max(total_words, 1)
+        
+        return unique_words / max(total_words, 1)
 
-        # Question-context overlap
+    def _calculate_question_context_overlap(self, question: str, contexts: List[str]) -> float:
+        """Calculate overlap between question and context words."""
+        # Get all words from contexts
+        all_context_words = []
+        for ctx in contexts:
+            words = re.findall(r'\b\w+\b', ctx.lower())
+            all_context_words.extend(words)
+        
         question_words = set(re.findall(r'\b\w+\b', question.lower()))
-        context_words = set(all_words)
+        context_words = set(all_context_words)
+        
         overlap = len(question_words.intersection(context_words)) / max(len(question_words), 1)
-
-        return {
-            'context_utilization': {
-                'total_contexts': len(contexts),
-                'total_context_length': total_length,
-                'avg_context_length': round(avg_length, 1),
-                'context_diversity': round(diversity, 3),
-                'question_context_overlap': round(overlap, 3)
-            }
-        }
+        return overlap
 
     def evaluate_response_efficiency(self, answer: str, response_time: float) -> Dict[str, Any]:
         """Evaluate response efficiency metrics."""
@@ -623,25 +725,48 @@ class PerformanceAnalyzer:
 
         if 'trends' in trends:
             trend_data = trends['trends']
+            
+            # Generate performance-based recommendations
+            recommendations.extend(self._generate_performance_recommendations(trend_data))
+            
+            # Generate quality-based recommendations  
+            recommendations.extend(self._generate_quality_recommendations(trend_data))
 
-            # Performance recommendations
-            if 'avg_response_time' in trend_data:
-                rt_trend = trend_data['avg_response_time']
-                if rt_trend['direction'] == 'declining':
-                    recommendations.append("Optimize retrieval or model inference to reduce response times")
-
-            # Quality recommendations
-            if 'avg_answer_relevance' in trend_data:
-                ar_trend = trend_data['avg_answer_relevance']
-                if ar_trend['direction'] == 'declining':
-                    recommendations.append("Review recent document additions or model fine-tuning")
-                elif ar_trend['slope'] < 0.001:  # Very slow improvement
-                    recommendations.append("Consider additional training data or model improvements")
-
-        recommendations.append("Monitor evaluation metrics regularly for system health")
-        recommendations.append("Review low-performing queries to identify improvement areas")
+        # Add general recommendations
+        recommendations.extend(self._generate_general_recommendations())
 
         return recommendations
+
+    def _generate_performance_recommendations(self, trend_data: Dict) -> List[str]:
+        """Generate recommendations based on performance trends."""
+        recommendations = []
+        
+        if 'avg_response_time' in trend_data:
+            rt_trend = trend_data['avg_response_time']
+            if rt_trend.get('direction') == 'declining':
+                recommendations.append("Optimize retrieval or model inference to reduce response times")
+                
+        return recommendations
+
+    def _generate_quality_recommendations(self, trend_data: Dict) -> List[str]:
+        """Generate recommendations based on quality trends."""
+        recommendations = []
+        
+        if 'avg_answer_relevance' in trend_data:
+            ar_trend = trend_data['avg_answer_relevance']
+            if ar_trend.get('direction') == 'declining':
+                recommendations.append("Review recent document additions or model fine-tuning")
+            elif ar_trend.get('slope', 0) < 0.001:  # Very slow improvement
+                recommendations.append("Consider additional training data or model improvements")
+                
+        return recommendations
+
+    def _generate_general_recommendations(self) -> List[str]:
+        """Generate general monitoring recommendations."""
+        return [
+            "Monitor evaluation metrics regularly for system health",
+            "Review low-performing queries to identify improvement areas"
+        ]
 
     def _evaluate_answer_relevance_heuristic(self, question: str, answer: str) -> float:
         """Heuristic answer relevance evaluation when LLM is not available."""

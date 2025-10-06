@@ -5,7 +5,7 @@ Implements hierarchical chunking and intelligent merging without LlamaIndex.
 
 import hashlib
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 from collections import defaultdict
 
@@ -103,11 +103,35 @@ class HierarchicalChunker:
     def build_hierarchy(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Build parent-child relationships between chunks."""
         # Group chunks by level
+        level_groups = self._group_chunks_by_level(chunks)
+
+        # Establish parent-child relationships for each level
+        self._establish_parent_child_relationships(level_groups)
+
+        return chunks
+
+    def _group_chunks_by_level(self, chunks: List[Dict[str, Any]]) -> Dict[int, List[Dict[str, Any]]]:
+        """
+        Group chunks by their hierarchical level.
+
+        Args:
+            chunks: List of chunk dictionaries
+
+        Returns:
+            Dictionary mapping level numbers to lists of chunks
+        """
         level_groups = defaultdict(list)
         for chunk in chunks:
             level_groups[chunk['level']].append(chunk)
+        return level_groups
 
-        # For each level, establish parent-child relationships
+    def _establish_parent_child_relationships(self, level_groups: Dict[int, List[Dict[str, Any]]]) -> None:
+        """
+        Establish parent-child relationships between chunks at different levels.
+
+        Args:
+            level_groups: Dictionary mapping level numbers to lists of chunks
+        """
         for level in range(len(self.chunk_sizes) - 1):  # Don't process leaf level
             parent_level = level
             child_level = level + 1
@@ -118,136 +142,47 @@ class HierarchicalChunker:
 
                 # Assign children to parents based on position overlap
                 for parent in parents:
-                    parent_children = []
-                    parent_start = parent['start_pos']
-                    parent_end = parent['end_pos']
+                    self._assign_children_to_parent(parent, children)
 
-                    for child in children:
-                        child_start = child['start_pos']
-                        child_end = child['end_pos']
+    def _assign_children_to_parent(self, parent: Dict[str, Any], children: List[Dict[str, Any]]) -> None:
+        """
+        Assign child chunks to a parent chunk based on position overlap.
 
-                        # Check if child overlaps with parent
-                        if (child_start >= parent_start and child_start <= parent_end) or \
-                           (child_end >= parent_start and child_end <= parent_end) or \
-                           (child_start <= parent_start and child_end >= parent_end):
-                            parent_children.append(child['id'])
-                            child['parent_id'] = parent['id']
+        Args:
+            parent: Parent chunk dictionary
+            children: List of potential child chunks
+        """
+        parent_children = []
+        parent_start = parent['start_pos']
+        parent_end = parent['end_pos']
 
-                    parent['child_ids'] = parent_children
+        for child in children:
+            child_start = child['start_pos']
+            child_end = child['end_pos']
 
-        return chunks
+            # Check if child overlaps with parent
+            if self._chunks_overlap(parent_start, parent_end, child_start, child_end):
+                parent_children.append(child['id'])
+                child['parent_id'] = parent['id']
 
+        parent['child_ids'] = parent_children
 
-class AutoMergingRetriever:
-    """Auto-merging retrieval system using ChromaDB."""
+    def _chunks_overlap(self, parent_start: int, parent_end: int, child_start: int, child_end: int) -> bool:
+        """
+        Check if two chunks overlap in position.
 
-    def __init__(self, model: SentenceTransformer, chunk_sizes: List[int] = None):
-        self.model = model
-        self.chunker = HierarchicalChunker(chunk_sizes)
+        Args:
+            parent_start: Start position of parent chunk
+            parent_end: End position of parent chunk
+            child_start: Start position of child chunk
+            child_end: End position of child chunk
 
-        # Use config for collection name and db path
-        self.collection_name = config.get("auto_merging_collection_name", "cubo_auto_merging")
-
-        # Configurable parameters
-        self.candidate_multiplier = config.get("auto_merging_candidate_multiplier", 3)
-        self.parent_similarity_threshold = config.get("auto_merging_parent_similarity_threshold", 0.1)
-
-        # Initialize ChromaDB
-        chroma_path = config.get("vector_db_path", "./chroma_db")
-        self.client = chromadb.PersistentClient(
-            path=chroma_path
-        )
-        self.collection = self.client.get_or_create_collection(
-            name=self.collection_name
-        )
-
-        # Track loaded documents
-        self.loaded_documents = set()
-
-    def add_document(self, filepath: str, force_reindex: bool = False) -> bool:
-        """Add document with hierarchical chunking."""
-        filename = Path(filepath).name
-
-        if filename in self.loaded_documents and not force_reindex:
-            logger.info(f"Document {filename} already loaded")
-            return False
-
-        # Read and process document
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                text = f.read()
-            text = Utils.clean_text(text)
-        except Exception as e:
-            logger.error(f"Failed to read {filepath}: {e}")
-            return False
-
-        # Create hierarchical chunks
-        chunks = self.chunker.create_hierarchical_chunks(text, filename)
-        chunks = self.chunker.build_hierarchy(chunks)
-
-        # Prepare data for ChromaDB
-        ids = []
-        documents = []
-        metadatas = []
-
-        for chunk in chunks:
-            ids.append(chunk['id'])
-            documents.append(chunk['text'])
-
-            metadata = {
-                'filename': chunk['filename'],
-                'level': chunk['level'],
-                'chunk_size': chunk['chunk_size'],
-                'token_count': chunk['token_count'],
-                'start_pos': chunk['start_pos'],
-                'end_pos': chunk['end_pos'],
-                'child_ids': json.dumps(chunk['child_ids'])
-            }
-
-            # Only add parent_id if it's not None
-            if chunk['parent_id'] is not None:
-                metadata['parent_id'] = chunk['parent_id']
-            metadatas.append(metadata)
-
-        # Generate embeddings
-        embeddings = self.model.encode(documents).tolist()
-
-        # Add to ChromaDB
-        try:
-            self.collection.add(
-                ids=ids,
-                documents=documents,
-                embeddings=embeddings,
-                metadatas=metadatas
-            )
-
-            self.loaded_documents.add(filename)
-            logger.info(f"Added {len(chunks)} hierarchical chunks for {filename}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to add chunks to ChromaDB: {e}")
-            return False
-
-    def retrieve(self, query: str, top_k: int = 6) -> List[Dict[str, Any]]:
-        """Retrieve with auto-merging logic."""
-        # Generate query embedding
-        query_embedding = self.model.encode([query]).tolist()[0]
-
-        # Get candidate chunks (more than needed for merging)
-        candidates = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k * self.candidate_multiplier,  # Get more candidates
-            include=['documents', 'metadatas', 'distances']
-        )
-
-        if not candidates['documents']:
-            return []
-
-        # Process candidates and apply merging
-        merged_results = self._merge_chunks(candidates, top_k)
-
-        return merged_results
+        Returns:
+            True if chunks overlap
+        """
+        return (child_start >= parent_start and child_start <= parent_end) or \
+               (child_end >= parent_start and child_end <= parent_end) or \
+               (child_start <= parent_start and child_end >= parent_end)
 
     def _merge_chunks(self, candidates, top_k: int) -> List[Dict[str, Any]]:
         """Apply auto-merging logic to retrieved chunks."""
@@ -303,26 +238,66 @@ class AutoMergingRetriever:
         current_level = chunk['level']
         parent_id = chunk['metadata'].get('parent_id')
 
-        # If this chunk has a parent and the parent would provide better context
-        if parent_id and current_level > 0:
-            parent_level = current_level - 1
-            if parent_level in level_chunks:
-                # Look for the parent chunk
-                for parent_chunk in level_chunks[parent_level]:
-                    if parent_chunk['metadata'].get('id') == parent_id:
-                        # Check if parent has significantly higher similarity
-                        parent_similarity = parent_chunk['similarity']
-                        child_similarity = chunk['similarity']
+        # Check if parent chunk should be used instead
+        if self._should_use_parent_chunk(chunk, level_chunks):
+            parent_chunk = self._find_parent_chunk(chunk, level_chunks)
+            if parent_chunk:
+                return self._create_chunk_result(parent_chunk)
 
-                        # If parent is much better, use it
-                        if parent_similarity > child_similarity + self.parent_similarity_threshold:
-                            return {
-                                'document': parent_chunk['text'],
-                                'metadata': parent_chunk['metadata'],
-                                'similarity': parent_similarity
-                            }
+        # Return the original chunk
+        return self._create_chunk_result(chunk)
 
-        # Otherwise, return the original chunk
+    def _should_use_parent_chunk(self, chunk: Dict[str, Any], level_chunks: Dict[int, List]) -> bool:
+        """
+        Determine if a parent chunk should be used instead of the current chunk.
+
+        Args:
+            chunk: Current chunk dictionary
+            level_chunks: Dictionary of chunks by level
+
+        Returns:
+            True if parent chunk should be used
+        """
+        parent_id = chunk['metadata'].get('parent_id')
+        current_level = chunk['level']
+
+        return parent_id and current_level > 0 and (current_level - 1) in level_chunks
+
+    def _find_parent_chunk(self, chunk: Dict[str, Any], level_chunks: Dict[int, List]) -> Optional[Dict[str, Any]]:
+        """
+        Find the parent chunk for a given chunk.
+
+        Args:
+            chunk: Current chunk dictionary
+            level_chunks: Dictionary of chunks by level
+
+        Returns:
+            Parent chunk if found and better, None otherwise
+        """
+        parent_id = chunk['metadata'].get('parent_id')
+        parent_level = chunk['level'] - 1
+
+        for parent_chunk in level_chunks[parent_level]:
+            if parent_chunk['metadata'].get('id') == parent_id:
+                # Check if parent has significantly higher similarity
+                parent_similarity = parent_chunk['similarity']
+                child_similarity = chunk['similarity']
+
+                if parent_similarity > child_similarity + getattr(self, 'parent_similarity_threshold', 0.1):
+                    return parent_chunk
+
+        return None
+
+    def _create_chunk_result(self, chunk: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a standardized result dictionary for a chunk.
+
+        Args:
+            chunk: Chunk dictionary
+
+        Returns:
+            Standardized result dictionary
+        """
         return {
             'document': chunk['text'],
             'metadata': chunk['metadata'],
