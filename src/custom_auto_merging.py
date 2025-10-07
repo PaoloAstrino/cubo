@@ -4,17 +4,14 @@ Implements hierarchical chunking and intelligent merging without LlamaIndex.
 """
 
 import hashlib
-import json
 from typing import List, Dict, Any, Optional
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 from sentence_transformers import SentenceTransformer
-import chromadb
 
 from src.logger import logger
 from src.config import config
-from src.utils import Utils
 
 
 class HierarchicalChunker:
@@ -41,14 +38,14 @@ class HierarchicalChunker:
         """Create chunks at a specific hierarchical level."""
         chunks = []
         words = text.split()
-        
+
         # Initialize chunking variables
         current_chunk, current_tokens = self._initialize_chunking_variables()
 
         # Process each word
         for word in words:
             current_chunk, current_tokens, chunks = self._process_word_in_chunk(
-                word, current_chunk, current_tokens, chunk_size, 
+                word, current_chunk, current_tokens, chunk_size,
                 level, filename, chunks, words
             )
 
@@ -64,9 +61,9 @@ class HierarchicalChunker:
         """Initialize variables for the chunking process."""
         return [], 0
 
-    def _process_word_in_chunk(self, word: str, current_chunk: List[str], current_tokens: int, 
-                              chunk_size: int, level: int, filename: str, chunks: List[Dict[str, Any]], 
-                              words: List[str]) -> tuple:
+    def _process_word_in_chunk(self, word: str, current_chunk: List[str], current_tokens: int,
+                               chunk_size: int, level: int, filename: str, chunks: List[Dict[str, Any]],
+                               words: List[str]) -> tuple:
         """Process a word and determine if a new chunk should be created."""
         word_tokens = len(word.split())  # Approximate token count
 
@@ -85,9 +82,9 @@ class HierarchicalChunker:
 
         return current_chunk, current_tokens, chunks
 
-    def _create_chunk_from_current(self, current_chunk: List[str], current_tokens: int, 
-                                  level: int, filename: str, chunks: List[Dict[str, Any]], 
-                                  words: List[str]) -> List[Dict[str, Any]]:
+    def _create_chunk_from_current(self, current_chunk: List[str], current_tokens: int,
+                                   level: int, filename: str, chunks: List[Dict[str, Any]],
+                                   words: List[str]) -> List[Dict[str, Any]]:
         """Create a chunk from the currently accumulated words."""
         chunk_text = ' '.join(current_chunk)
         chunk_id = self._generate_chunk_id(filename, level, len(chunks))
@@ -107,9 +104,9 @@ class HierarchicalChunker:
         chunks.append(chunk)
         return chunks
 
-    def _finalize_remaining_chunk(self, current_chunk: List[str], current_tokens: int, 
-                                 level: int, filename: str, chunks: List[Dict[str, Any]], 
-                                 text: str) -> List[Dict[str, Any]]:
+    def _finalize_remaining_chunk(self, current_chunk: List[str], current_tokens: int,
+                                  level: int, filename: str, chunks: List[Dict[str, Any]],
+                                  text: str) -> List[Dict[str, Any]]:
         """Create the final chunk from any remaining words."""
         chunk_text = ' '.join(current_chunk)
         chunk_id = self._generate_chunk_id(filename, level, len(chunks))
@@ -269,9 +266,6 @@ class HierarchicalChunker:
 
     def _get_merged_content(self, chunk: Dict[str, Any], level_chunks: Dict[int, List]) -> Dict[str, Any]:
         """Get merged content for a chunk, preferring larger parent chunks when beneficial."""
-        current_level = chunk['level']
-        parent_id = chunk['metadata'].get('parent_id')
-
         # Check if parent chunk should be used instead
         if self._should_use_parent_chunk(chunk, level_chunks):
             parent_chunk = self._find_parent_chunk(chunk, level_chunks)
@@ -337,6 +331,187 @@ class HierarchicalChunker:
             'metadata': chunk['metadata'],
             'similarity': chunk['similarity']
         }
+
+
+class AutoMergingRetriever:
+    """
+    Auto-merging retriever that uses hierarchical chunking and intelligent merging.
+    """
+
+    def __init__(self, model: SentenceTransformer):
+        """
+        Initialize the auto-merging retriever.
+
+        Args:
+            model: SentenceTransformer model for embeddings
+        """
+        self.model = model
+        self.chunker = HierarchicalChunker()
+        self.collection_name = "cubo_auto_merging"
+        self.loaded_documents = set()
+
+        # Initialize ChromaDB
+        import chromadb
+        self.client = chromadb.PersistentClient(path=config.get("chroma_db_path", "./chroma_db"))
+        self.collection = self.client.get_or_create_collection(name=self.collection_name)
+
+        logger.info("AutoMergingRetriever initialized")
+
+    def add_document(self, file_path: str) -> bool:
+        """
+        Add a document to the retriever using hierarchical chunking.
+
+        Args:
+            file_path: Path to the document file
+
+        Returns:
+            True if successful, False otherwise
+        """
+        filename = Path(file_path).name
+        
+        # Check if document is already loaded
+        if filename in self.loaded_documents:
+            logger.info(f"Document {filename} already loaded in auto-merging retriever")
+            return True
+            
+        try:
+            # Read the document
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+
+            # Create hierarchical chunks
+            chunks = self.chunker.create_hierarchical_chunks(text, filename)
+            
+            # Build parent-child relationships
+            chunks = self.chunker.build_hierarchy(chunks)
+
+            # Generate embeddings for all chunks
+            chunk_texts = [chunk['text'] for chunk in chunks]
+            embeddings = self.model.encode(chunk_texts)
+            embeddings_list = [emb.tolist() for emb in embeddings]
+            
+            # Prepare batch data
+            chunk_ids = []
+            documents = []
+            metadatas = []
+            
+            for chunk, embedding in zip(chunks, embeddings_list):
+                chunk_id = chunk['id']
+                chunk_ids.append(chunk_id)
+                documents.append(chunk['text'])
+                
+                # Create metadata dict from chunk fields
+                # ChromaDB only accepts str, int, float, bool - not None or lists
+                metadata = {
+                    'id': chunk['id'],
+                    'filename': chunk['filename'],
+                    'level': chunk['level'],
+                    'chunk_size': chunk.get('chunk_size', 0),
+                    'token_count': chunk.get('token_count', 0),
+                    'start_pos': chunk.get('start_pos', 0),
+                    'end_pos': chunk.get('end_pos', 0),
+                    'parent_id': chunk.get('parent_id', ''),  # Empty string instead of None
+                    # child_ids is a list, ChromaDB doesn't support lists, skip it
+                }
+                metadatas.append(metadata)
+            
+            # Add all chunks in batch
+            self.collection.add(
+                ids=chunk_ids,
+                documents=documents,
+                embeddings=embeddings_list,
+                metadatas=metadatas
+            )
+
+            self.loaded_documents.add(filename)
+            logger.info(f"Added document {filename} with {len(chunks)} chunks")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to add document {file_path}: {e}")
+            return False
+
+    def retrieve(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+        """
+        Retrieve documents using auto-merging retrieval.
+
+        Args:
+            query: Search query
+            top_k: Number of results to return
+
+        Returns:
+            List of retrieval results with document, metadata, and similarity
+        """
+        try:
+            # Generate query embedding
+            query_embedding = self.model.encode([query])[0]
+            # Convert numpy array to list for ChromaDB
+            query_embedding = query_embedding.tolist()
+
+            # Search ChromaDB
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k * 3  # Get more results for merging
+            )
+
+            if not results['documents']:
+                return []
+
+            # Process results and apply auto-merging
+            processed_results = []
+            for i, (doc, metadata, distance) in enumerate(zip(
+                results['documents'][0],
+                results['metadatas'][0],
+                results['distances'][0]
+            )):
+                # Convert distance to similarity (ChromaDB returns cosine distance)
+                similarity = 1 - distance
+
+                # Ensure metadata has required fields
+                if not metadata:
+                    metadata = {}
+                if 'id' not in metadata:
+                    metadata['id'] = f"chunk_{i}"
+                if 'level' not in metadata:
+                    metadata['level'] = 0
+
+                chunk = {
+                    'text': doc,
+                    'metadata': metadata,
+                    'similarity': similarity,
+                    'level': metadata.get('level', 0)
+                }
+                processed_results.append(chunk)
+
+            # Apply auto-merging logic using the chunker's sophisticated merging
+            try:
+                # Format results for the chunker's merge method
+                candidates = {
+                    'documents': [results['documents'][0]],
+                    'metadatas': [results['metadatas'][0]], 
+                    'distances': [results['distances'][0]]
+                }
+                merged_results = self.chunker._merge_chunks(candidates, top_k)
+            except Exception as e:
+                logger.error(f"Error in auto-merging: {e}")
+                # Fallback: just return top results without merging
+                processed_results.sort(key=lambda x: x['similarity'], reverse=True)
+                merged_results = processed_results[:top_k]
+
+            # Convert to expected format
+            final_results = []
+            for result in merged_results:
+                final_results.append({
+                    'document': result['document'],
+                    'metadata': result['metadata'],
+                    'similarity': result['similarity']
+                })
+
+            return final_results
+
+        except Exception as e:
+            logger.error(f"Error during retrieval: {e}")
+            return []
 
     def get_loaded_documents(self) -> List[str]:
         """Get list of loaded document filenames."""

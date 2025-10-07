@@ -62,7 +62,7 @@ class ModelManager:
         logger.warning(f"GPU loading failed ({gpu_error}). Falling back to CPU...")
         logger.warning(f"GPU loading failed: {gpu_error}. Retrying with CPU.")
         self.device = 'cpu'
-        
+
         try:
             self.model = self._load_model_on_device(self.device)
             self._log_cpu_fallback_success(start_time)

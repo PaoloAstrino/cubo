@@ -15,10 +15,10 @@ from src.config import config
 from src.service_manager import get_service_manager
 from src.model_inference_threading import get_model_inference_threading
 from src.exceptions import (
-    CUBOError, DatabaseError, EmbeddingError, FileOperationError,
-    DocumentAlreadyExistsError, DocumentNotFoundError, EmbeddingGenerationError,
-    ModelNotAvailableError, RetrievalMethodUnavailableError, FileAccessError, RetrievalError
+    CUBOError, DatabaseError, DocumentAlreadyExistsError, EmbeddingGenerationError,
+    ModelNotAvailableError, FileAccessError, RetrievalError
 )
+
 from .reranker import LocalReranker
 
 
@@ -29,7 +29,7 @@ class DocumentRetriever:
                  use_auto_merging: bool = False, auto_merge_for_complex: bool = True,
                  window_size: int = 3, top_k: int = 3):
         self._set_basic_attributes(model, use_sentence_window, use_auto_merging,
-                                 auto_merge_for_complex, window_size, top_k)
+                                   auto_merge_for_complex, window_size, top_k)
         self._initialize_auto_merging_retriever()
         self._setup_chromadb()
         self._setup_caching()
@@ -37,8 +37,8 @@ class DocumentRetriever:
         self._log_initialization_status()
 
     def _set_basic_attributes(self, model: SentenceTransformer, use_sentence_window: bool,
-                            use_auto_merging: bool, auto_merge_for_complex: bool,
-                            window_size: int, top_k: int) -> None:
+                              use_auto_merging: bool, auto_merge_for_complex: bool,
+                              window_size: int, top_k: int) -> None:
         """Set basic instance attributes."""
         self.model = model
         self.service_manager = get_service_manager()
@@ -93,7 +93,9 @@ class DocumentRetriever:
 
     def _log_initialization_status(self) -> None:
         """Log the initialization status."""
-        logger.info(f"Document retriever initialized (sentence_window={self.use_sentence_window}, auto_merging={self.use_auto_merging})")
+        logger.info(f"Document retriever initialized "
+                    f"(sentence_window={self.use_sentence_window}, "
+                    f"auto_merging={self.use_auto_merging})")
 
     def _get_file_hash(self, filepath: str) -> str:
         """Get hash of file content for caching."""
@@ -134,7 +136,7 @@ class DocumentRetriever:
         """
         try:
             return self.service_manager.execute_sync('document_processing',
-                                                   lambda: self._add_document_operation(filepath, chunks))
+                                                     lambda: self._add_document_operation(filepath, chunks))
         except DocumentAlreadyExistsError:
             # Document already exists - this is not an error, just return False
             logger.info(f"Document {self._get_filename_from_path(filepath)} already exists")
@@ -154,8 +156,21 @@ class DocumentRetriever:
         self._validate_document_for_addition(filepath, filename)
 
         chunk_data = self._prepare_chunk_data(chunks, filename,
-                                            self._get_file_hash(filepath), filepath)
-        return self._process_and_add_document(chunk_data, filename)
+                                              self._get_file_hash(filepath), filepath)
+        success = self._process_and_add_document(chunk_data, filename)
+
+        # Also add to auto-merging retriever if available
+        if success and self.auto_merging_retriever:
+            try:
+                auto_merge_success = self.auto_merging_retriever.add_document(filepath)
+                if auto_merge_success:
+                    logger.info(f"Document {filename} also added to auto-merging retriever")
+                else:
+                    logger.warning(f"Failed to add document {filename} to auto-merging retriever")
+            except Exception as e:
+                logger.error(f"Error adding document {filename} to auto-merging retriever: {e}")
+
+        return success
 
     def add_documents(self, documents: List[str]) -> bool:
         """
@@ -207,8 +222,8 @@ class DocumentRetriever:
 
     def retrieve_top_documents(self, query: str, top_k: int = 6) -> List[Dict]:
         """
-        Retrieve top-k most relevant document chunks for the current session.
-        Smart selection between sentence window and auto-merging retrieval.
+        Retrieve top-k most relevant document chunks using hybrid retrieval.
+        Combines sentence window and auto-merging for better coverage.
 
         Args:
             query: Search query
@@ -222,11 +237,33 @@ class DocumentRetriever:
             RetrievalError: If retrieval operation fails
         """
         try:
-            # Analyze query complexity to choose retrieval method
-            retrieval_method = self._choose_retrieval_method(query)
+            # Perform both retrieval methods
+            sentence_results = self._retrieve_sentence_window(query, top_k // 2 + top_k % 2)  # Slightly more for sentence window
+            auto_results = self._retrieve_auto_merging_safe(query, top_k // 2)
 
-            # Execute retrieval with fallback handling
-            return self._execute_retrieval(retrieval_method, query, top_k)
+            # Combine results
+            combined_results = sentence_results + auto_results
+
+            # Deduplicate by document content
+            seen_content = set()
+            unique_results = []
+            for result in combined_results:
+                # Use 'document' field for deduplication
+                content = result.get('document', result.get('content', ''))
+                if content not in seen_content:
+                    seen_content.add(content)
+                    unique_results.append(result)
+
+            # Re-sort by similarity score after deduplication
+            # This ensures best matches across all documents come first
+            unique_results.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
+            
+            # Log the source distribution for debugging
+            source_files = [r.get('metadata', {}).get('filename', 'Unknown') for r in unique_results[:top_k]]
+            logger.info(f"Hybrid retrieval returning results from: {source_files}")
+
+            # Return top_k unique results
+            return unique_results[:top_k]
 
         except CUBOError:
             # Re-raise custom exceptions as-is
@@ -261,23 +298,34 @@ class DocumentRetriever:
         def _retrieve_operation():
             if not self._has_loaded_documents():
                 return []
-            
+
             query_embedding = self._generate_query_embedding(query)
             initial_top_k = self._calculate_initial_top_k(top_k)
-            candidates = self._query_collection_for_candidates(query_embedding, initial_top_k)
+            candidates = self._query_collection_for_candidates(query_embedding, initial_top_k, query)
             candidates = self._apply_sentence_window_postprocessing(candidates, top_k, query)
-            
+
             self._log_retrieval_results(candidates, "sentence window")
             return candidates
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
 
     def _has_loaded_documents(self) -> bool:
-        """Check if any documents are loaded in the current session."""
-        if not self.current_documents:
-            logger.warning("No documents loaded in current session")
-            return False
-        return True
+        """Check if any documents are available for retrieval."""
+        # If we have documents in current session, use them
+        if self.current_documents:
+            return True
+        
+        # Otherwise, check if there are ANY documents in the database
+        try:
+            result = self.collection.count()
+            if result > 0:
+                logger.info(f"No session documents, but found {result} chunks in database - allowing retrieval")
+                return True
+        except Exception as e:
+            logger.error(f"Error checking database: {e}")
+        
+        logger.warning("No documents available for retrieval")
+        return False
 
     def _log_retrieval_results(self, candidates: List[Dict], method: str):
         """Log the results of a retrieval operation."""
@@ -291,7 +339,7 @@ class DocumentRetriever:
 
             results = self.auto_merging_retriever.retrieve(query, top_k=top_k)
             formatted_results = self._format_auto_merging_results(results)
-            
+
             self._log_retrieval_results(formatted_results, "auto-merging")
             return formatted_results
 
@@ -494,15 +542,15 @@ class DocumentRetriever:
             ModelNotAvailableError: If the model is not available
         """
         self._validate_model_availability()
-        
+
         try:
             logger.info(f"Generating embeddings for {filename} ({len(texts)} chunks)")
             embeddings = self.inference_threading.generate_embeddings_threaded(texts, self.model)
-            
+
             self._validate_embeddings_result(embeddings, texts, filename)
-            
+
             return embeddings
-            
+
         except Exception as e:
             # Re-raise with more context
             error_msg = f"Failed to generate embeddings for {filename}: {str(e)}"
@@ -559,7 +607,9 @@ class DocumentRetriever:
                 chunk_ids.append(f"{filename}_chunk_{i}")
         return chunk_ids
 
-    def _add_chunks_to_collection(self, embeddings: List[List[float]],         texts: List[str], metadatas: List[Dict], chunk_ids: List[str], filename: str) -> None:
+    def _add_chunks_to_collection(self, embeddings: List[List[float]],
+                                  texts: List[str], metadatas: List[Dict],
+                                  chunk_ids: List[str], filename: str) -> None:
         """
         Add chunks to the ChromaDB collection.
 
@@ -607,13 +657,14 @@ class DocumentRetriever:
         """
         return min(top_k * 2, 10) if self.use_sentence_window else top_k
 
-    def _query_collection_for_candidates(self, query_embedding: List[float], initial_top_k: int) -> List[dict]:
+    def _query_collection_for_candidates(self, query_embedding: List[float], initial_top_k: int, query: str = "") -> List[dict]:
         """
         Query the collection for candidate documents.
 
         Args:
             query_embedding: Query embedding vector
             initial_top_k: Number of candidates to retrieve
+            query: Original query text for keyword boosting
 
         Returns:
             List[dict]: Candidate documents with metadata
@@ -623,7 +674,7 @@ class DocumentRetriever:
         """
         try:
             results = self._execute_collection_query(query_embedding, initial_top_k)
-            return self._process_query_results(results)
+            return self._process_query_results(results, query)
         except Exception as e:
             error_msg = f"Failed to query document collection: {str(e)}"
             logger.error(error_msg)
@@ -635,15 +686,24 @@ class DocumentRetriever:
 
     def _execute_collection_query(self, query_embedding: List[float], initial_top_k: int):
         """Execute the ChromaDB collection query."""
-        return self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=initial_top_k,
-            where={"filename": {"$in": list(self.current_documents)}},  # Only current docs
-            include=['documents', 'metadatas', 'distances']
-        )
+        # If no documents in current session, search ALL documents in database
+        # Otherwise, only search current session documents
+        query_params = {
+            "query_embeddings": [query_embedding],
+            "n_results": initial_top_k,
+            "include": ['documents', 'metadatas', 'distances']
+        }
+        
+        if self.current_documents:
+            query_params["where"] = {"filename": {"$in": list(self.current_documents)}}
+            logger.debug(f"Searching in session documents: {self.current_documents}")
+        else:
+            logger.debug("No session filter - searching all documents in database")
+        
+        return self.collection.query(**query_params)
 
-    def _process_query_results(self, results) -> List[dict]:
-        """Process raw query results into candidate format."""
+    def _process_query_results(self, results, query: str = "") -> List[dict]:
+        """Process raw query results into candidate format with optional keyword boosting."""
         candidates = []
         if results['documents'] and results['metadatas'] and results['distances']:
             for doc, metadata, distance in zip(
@@ -651,12 +711,54 @@ class DocumentRetriever:
                 results['metadatas'][0],
                 results['distances'][0]
             ):
+                base_similarity = 1 - distance  # Convert distance to similarity
+                
+                # Apply keyword boost if query contains specific terms
+                boosted_similarity = self._apply_keyword_boost(doc, query, base_similarity)
+                
                 candidates.append({
                     "document": doc,
                     "metadata": metadata,
-                    "similarity": 1 - distance  # Convert distance to similarity
+                    "similarity": boosted_similarity,
+                    "base_similarity": base_similarity  # Keep original for debugging
                 })
         return candidates
+    
+    def _apply_keyword_boost(self, document: str, query: str, base_similarity: float) -> float:
+        """
+        Boost similarity score if document contains important keywords from query.
+        
+        Args:
+            document: Document text
+            query: Query text
+            base_similarity: Original similarity score
+            
+        Returns:
+            Boosted similarity score
+        """
+        if not query:
+            return base_similarity
+            
+        # Extract important words from query (remove common words)
+        stop_words = {'tell', 'me', 'about', 'the', 'what', 'is', 'a', 'an', 'describe', 'explain', 'how', 'why'}
+        query_words = [word.lower().strip('.,!?') for word in query.split() if word.lower() not in stop_words]
+        
+        if not query_words:
+            return base_similarity
+        
+        # Check if any important query words appear in the document
+        doc_lower = document.lower()
+        matches = sum(1 for word in query_words if word in doc_lower)
+        
+        if matches > 0:
+            # Boost by 0.3 * (proportion of query words found)
+            boost = 0.3 * (matches / len(query_words))
+            boosted = min(base_similarity + boost, 1.0)  # Cap at 1.0
+            logger.debug(f"Keyword boost: {matches}/{len(query_words)} words matched, "
+                        f"similarity {base_similarity:.4f} -> {boosted:.4f}")
+            return boosted
+        
+        return base_similarity
 
     def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:
         """
@@ -826,8 +928,9 @@ class DocumentRetriever:
         }]
         return chunk_ids, metadatas
 
-    def _add_test_chunks_to_collection(self, embeddings: List[List[float]], documents: List[str],
-                                     metadatas: List[Dict], chunk_ids: List[str], filename: str) -> None:
+    def _add_test_chunks_to_collection(self, embeddings: List[List[float]],
+                                       documents: List[str], metadatas: List[Dict],
+                                       chunk_ids: List[str], filename: str) -> None:
         """Add test chunks to the collection."""
         self.collection.add(
             embeddings=embeddings,

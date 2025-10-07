@@ -69,9 +69,9 @@ class DolphinProcessor:
             Extracted text/content from the image
         """
         self._ensure_model_loaded()
-        
+
         prompt = self._get_processing_prompt(prompt)
-        
+
         try:
             inputs = self._prepare_model_inputs(prompt, image)
             generated_ids = self._generate_model_response(inputs)

@@ -5,11 +5,9 @@ Monitors system health and component status with alerting capabilities.
 
 import time
 import psutil
-import logging
 from typing import Dict, Any, List, Callable, Optional
 from dataclasses import dataclass
 from enum import Enum
-from src.exceptions import HealthCheckError, ServiceError, CUBOError
 from src.logger import logger
 
 
@@ -335,7 +333,11 @@ class HealthMonitor:
             'timestamp': time.time()
         }
 
-    def _calculate_overall_status(self, current_overall: HealthStatus, status_info: Dict) -> HealthStatus:
+    def _calculate_overall_status(
+        self,
+        current_overall: HealthStatus,
+        status_info: Dict
+    ) -> HealthStatus:
         """
         Calculate the overall health status based on individual check status.
 

@@ -102,7 +102,7 @@ class DocumentLoader:
         text = Utils.clean_text(text)
         cfg = self._configure_chunking(chunking_config)
         chunks = self._create_sentence_window_chunks(text, cfg)
-        
+
         self._log_chunking_results(file_path, chunks, cfg)
         return chunks
 

@@ -27,15 +27,15 @@ class ResponseGenerator:
         """Generate a response using the LLM."""
         conversation_messages = self._prepare_conversation_messages(messages)
         self._add_user_message(conversation_messages, query, context)
-        
+
         start_time = time.time()
         print(Fore.BLUE + "Generating response..." + Style.RESET_ALL)
-        
+
         assistant_content = self._generate_with_ollama(conversation_messages)
-        
+
         self._update_conversation_history(conversation_messages, assistant_content, messages)
         self._log_generation_time(start_time)
-        
+
         return assistant_content
 
     def _prepare_conversation_messages(self, messages: List[Dict[str, str]] = None) -> List[Dict[str, str]]:
@@ -58,11 +58,11 @@ class ResponseGenerator:
             model_name = config.get("selected_llm_model") or config.get("llm_model")
             response = ollama.chat(model=model_name, messages=conversation_messages)
             return response['message']['content']
-        
+
         return self.service_manager.execute_sync('llm_generation', _generate_operation)
 
-    def _update_conversation_history(self, conversation_messages: List[Dict[str, str]], 
-                                   assistant_content: str, messages: List[Dict[str, str]] = None):
+    def _update_conversation_history(self, conversation_messages: List[Dict[str, str]],
+                                     assistant_content: str, messages: List[Dict[str, str]] = None):
         """Update the conversation history if using instance messages."""
         if messages is None:
             conversation_messages.append({"role": "assistant", "content": assistant_content})

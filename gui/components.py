@@ -93,7 +93,7 @@ class UIStyles:
             border-radius: 5px;
         }
         QGroupBox::title {
-            subcontrol-origin: margin;
+            subcontrol-origin: padding-box;
             left: 10px;
             padding: 0 5px 0 5px;
         }
@@ -265,7 +265,7 @@ class MessageDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex):
         """
-        Calculate the size needed for each message.
+        Calculate the size needed for each message with proper text metrics.
 
         Args:
             option: Style options for the item
@@ -276,15 +276,32 @@ class MessageDelegate(QStyledItemDelegate):
         """
         message = index.data(Qt.UserRole)
         content = message['content']
+        msg_type = index.data(Qt.UserRole + 1)
 
-        # Estimate height based on text length
-        # Rough estimate: ~50 chars per line
-        lines = max(1, len(content) // 50 + 1)
-        return QSize(option.rect.width(), max(40, lines * 20 + 10))
+        # Get font metrics for accurate calculation
+        font = QFont()
+        font.setPointSize(10)
+        font.setFamily("Segoe UI")
+        from PySide6.QtGui import QFontMetrics
+        metrics = QFontMetrics(font)
+
+        # Calculate available width (70% of widget for bubble, with margins)
+        available_width = int(option.rect.width() * 0.7) - 40  # margins and padding
+        
+        # Calculate text rectangle with proper wrapping
+        text_rect = metrics.boundingRect(
+            0, 0, available_width, 10000,
+            Qt.TextWordWrap | Qt.AlignLeft,
+            content
+        )
+        
+        # Add padding and margins
+        height = text_rect.height() + 30  # vertical padding + margins
+        return QSize(option.rect.width(), max(50, height))
 
     def _get_message_styling(self, msg_type: str) -> tuple[QColor, QColor, Qt.AlignmentFlag]:
         """
-        Get the styling information for a message type.
+        Get the styling information for a message type with improved colors.
 
         Args:
             msg_type: The type of message (user, system, error, typing, etc.)
@@ -293,20 +310,25 @@ class MessageDelegate(QStyledItemDelegate):
             Tuple of (background_color, text_color, alignment)
         """
         if msg_type == 'user':
-            return QColor('#0078D4'), QColor('white'), Qt.AlignRight
+            # User messages: blue bubble on the right
+            return QColor('#0084FF'), QColor('#FFFFFF'), Qt.AlignRight
         elif msg_type == 'system':
-            return QColor('#107C10'), QColor('white'), Qt.AlignLeft
+            # System/bot messages: gray bubble on the left
+            return QColor('#3a3a3a'), QColor('#E8E8E8'), Qt.AlignLeft
         elif msg_type == 'error':
-            return QColor('#D13438'), QColor('white'), Qt.AlignLeft
+            # Error messages: red bubble on the left
+            return QColor('#E74C3C'), QColor('#FFFFFF'), Qt.AlignLeft
         elif msg_type == 'typing':
-            return QColor('#2a2a2a'), QColor('#888888'), Qt.AlignLeft
+            # Typing indicator: subtle gray on the left
+            return QColor('#2a2a2a'), QColor('#999999'), Qt.AlignLeft
         else:
-            return QColor('#2a2a2a'), QColor('#cccccc'), Qt.AlignLeft
+            # Default: neutral gray on the left
+            return QColor('#3a3a3a'), QColor('#E8E8E8'), Qt.AlignLeft
 
     def _draw_message_bubble(self, painter: QPainter, rect: QRect, bg_color: QColor,
                            text_color: QColor, alignment: Qt.AlignmentFlag, content: str):
         """
-        Draw a message bubble with the specified styling.
+        Draw a message bubble with the specified styling and proper alignment.
 
         Args:
             painter: The painter to use for drawing
@@ -316,21 +338,49 @@ class MessageDelegate(QStyledItemDelegate):
             alignment: Text alignment (left/right)
             content: The message content to draw
         """
-        # Adjust rectangle for padding
-        bubble_rect = rect.adjusted(10, 5, -10, -5)
-
-        # Draw bubble background
-        painter.fillRect(bubble_rect, bg_color)
-
-        # Set up text drawing
-        painter.setPen(text_color)
-        font = painter.font()
-        font.setPointSize(10)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        
+        # Set up font for text metrics
+        font = QFont("Segoe UI", 10)
         painter.setFont(font)
-
-        # Draw text with padding
-        text_rect = bubble_rect.adjusted(10, 5, -10, -5)
-        painter.drawText(text_rect, alignment | Qt.TextWordWrap, content)
+        from PySide6.QtGui import QFontMetrics
+        metrics = QFontMetrics(font)
+        
+        # Calculate bubble width (max 70% of available width)
+        max_bubble_width = int(rect.width() * 0.7)
+        
+        # Calculate actual text size with wrapping
+        text_rect = metrics.boundingRect(
+            0, 0, max_bubble_width - 20, 10000,
+            Qt.TextWordWrap | Qt.AlignLeft,
+            content
+        )
+        
+        # Add padding to text dimensions
+        bubble_width = min(text_rect.width() + 20, max_bubble_width)
+        bubble_height = text_rect.height() + 16
+        
+        # Position bubble based on alignment
+        margin = 15
+        if alignment == Qt.AlignRight:
+            # User messages on the right
+            bubble_x = rect.right() - bubble_width - margin
+        else:
+            # System messages on the left
+            bubble_x = rect.left() + margin
+        
+        bubble_y = rect.top() + 8
+        bubble_rect = QRect(bubble_x, bubble_y, bubble_width, bubble_height)
+        
+        # Draw bubble background with rounded corners and shadow effect
+        painter.setBrush(bg_color)
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(bubble_rect, 12, 12)
+        
+        # Draw text with proper alignment and padding
+        painter.setPen(text_color)
+        text_draw_rect = bubble_rect.adjusted(10, 8, -10, -8)
+        painter.drawText(text_draw_rect, Qt.AlignLeft | Qt.TextWordWrap, content)
 
 
 class DocumentWidget(QWidget):
@@ -870,6 +920,20 @@ class QueryWidget(QWidget):
         layout.addWidget(chat_display)
         layout.addLayout(input_area)
 
+    def add_message(self, content: str, msg_type: str = 'user', metadata: Dict[str, Any] = None):
+        """
+        Add a message to the chat display by adding it to the model.
+
+        Args:
+            content: The message content
+            msg_type: Type of message ('user', 'system', 'error', 'typing')
+            metadata: Additional metadata for the message
+        """
+        self.message_model.add_message(content, msg_type, metadata)
+        # Schedule scroll to bottom after the view updates
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(50, self.chat_display.scrollToBottom)
+
     def _create_header(self):
         """Create the chat interface header."""
         header = QLabel("Cubo is ready to assist you!")
@@ -878,7 +942,7 @@ class QueryWidget(QWidget):
         return header
 
     def _create_chat_display(self):
-        """Create the chat display area with model-view-delegate pattern."""
+        """Create the chat display area using QListView with a custom delegate."""
         chat_group = QGroupBox()
         chat_group.setStyleSheet("""
             QGroupBox {
@@ -895,7 +959,7 @@ class QueryWidget(QWidget):
 
         chat_layout = QVBoxLayout(chat_group)
 
-        # Use QListView with model-view-delegate pattern for better performance
+        # Use QListView with the custom model and delegate
         self.chat_display = QListView()
         self.chat_display.setModel(self.message_model)
         self.chat_display.setItemDelegate(self.message_delegate)
@@ -905,12 +969,26 @@ class QueryWidget(QWidget):
                 background-color: #1a1a1a;
                 color: #cccccc;
                 font-size: 12px;
-                line-height: 1.4;
+                outline: none;
+            }
+            QListView::item {
+                border: none;
+                padding: 0px;
+                margin: 0px;
+            }
+            QListView::item:selected {
+                background: transparent;
             }
         """)
         self.chat_display.setMinimumHeight(300)
-        # Disable selection since this is a chat display
-        self.chat_display.setSelectionMode(QListView.SelectionMode.NoSelection)
+        self.chat_display.setSpacing(2)  # Consistent spacing between messages
+        self.chat_display.setVerticalScrollMode(QListView.ScrollPerPixel)
+        self.chat_display.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.chat_display.setSelectionMode(QListView.NoSelection)
+        self.chat_display.setFocusPolicy(Qt.NoFocus)
+        # Enable smooth scrolling
+        self.chat_display.setUniformItemSizes(False)
+
         chat_layout.addWidget(self.chat_display)
 
         return chat_group
@@ -990,10 +1068,10 @@ class QueryWidget(QWidget):
         """Remove typing indicator from messages if present."""
         messages = self.message_model.get_messages()
         if messages and messages[-1]['type'] == 'typing':
-            # Remove the typing indicator by clearing and re-adding all messages except the last
-            self.message_model.clear_messages()
-            for msg in messages[:-1]:  # All messages except the typing indicator
-                self.message_model.add_message(msg['content'], msg['type'], msg['metadata'])
+            # A more efficient way to remove the last item from the model
+            self.message_model.beginRemoveRows(QModelIndex(), len(messages) - 1, len(messages) - 1)
+            self.message_model._messages.pop()
+            self.message_model.endRemoveRows()
 
     def _add_response_message(self, response, sources):
         """Add response message to the model with production-ready formatting."""
@@ -1086,12 +1164,7 @@ class QueryWidget(QWidget):
     def show_error(self, error_message):
         """Display user-friendly error message in chat format."""
         # Remove typing indicator if it exists and replace with error
-        messages = self.message_model.get_messages()
-        if messages and messages[-1]['type'] == 'typing':
-            # Remove the typing indicator by clearing and re-adding all messages except the last
-            self.message_model.clear_messages()
-            for msg in messages[:-1]:  # All messages except the typing indicator
-                self.message_model.add_message(msg['content'], msg['type'], msg['metadata'])
+        self._remove_typing_indicator()
 
         # Create user-friendly error message based on error type
         friendly_error = self._format_error_message(error_message)

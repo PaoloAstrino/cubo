@@ -23,10 +23,10 @@ class WindowReplacementPostProcessor:
     def _process_single_result(self, result: Dict) -> Dict:
         """Process a single retrieval result."""
         processed_result = result.copy()
-        
+
         if self._should_replace_with_window(result):
             self._replace_with_window_context(processed_result, result)
-        
+
         return processed_result
 
     def _should_replace_with_window(self, result: Dict) -> bool:
@@ -34,7 +34,7 @@ class WindowReplacementPostProcessor:
         metadata = result.get('metadata', {})
         if self.target_metadata_key not in metadata:
             return False
-        
+
         window_text = metadata[self.target_metadata_key]
         return window_text and len(window_text.strip()) > 0
 
@@ -42,7 +42,7 @@ class WindowReplacementPostProcessor:
         """Replace document text with window context."""
         metadata = original_result.get('metadata', {})
         window_text = metadata[self.target_metadata_key]
-        
+
         processed_result['document'] = window_text
         logger.debug(
             f"Replaced sentence with window context "

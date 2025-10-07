@@ -88,7 +88,7 @@ class EnhancedDocumentProcessor:
     def _combine_page_contents(self, page_contents: List[str]) -> str:
         """Combine page contents into a single document."""
         return "\n\n".join(f"--- Page {i+1} ---\n{content}"
-                          for i, content in enumerate(page_contents))
+                           for i, content in enumerate(page_contents))
 
     def process_image_with_dolphin(self, image_path: str) -> List[Dict[str, Any]]:
         """

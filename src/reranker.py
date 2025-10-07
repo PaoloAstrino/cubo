@@ -5,17 +5,17 @@ cross-encoder approach.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
 import numpy as np
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class LocalReranker:
     """
-    Local reranker that uses cross-encoder approach for better
-    relevance scoring. Uses the embedding model to score
-    query-document pairs.
+    Local reranker that uses semantic similarity for better
+    relevance scoring. Uses the embedding model to compute
+    cosine similarity between query and document embeddings.
     """
 
     def __init__(self, model, top_n: int = 10):
@@ -64,7 +64,7 @@ class LocalReranker:
         return True
 
     def _perform_reranking(self, query: str, candidates: List[Dict[str, Any]],
-                          max_results: Optional[int]) -> List[Dict[str, Any]]:
+                           max_results: Optional[int]) -> List[Dict[str, Any]]:
         """Perform the actual reranking operation."""
         scored_candidates = self._score_candidates(query, candidates)
         sorted_candidates = self._sort_candidates_by_score(scored_candidates)
@@ -89,7 +89,11 @@ class LocalReranker:
         max_results = max_results or self.top_n
         return candidates[:max_results]
 
-    def _fallback_to_original_order(self, candidates: List[Dict[str, Any]], max_results: Optional[int]) -> List[Dict[str, Any]]:
+    def _fallback_to_original_order(
+        self,
+        candidates: List[Dict[str, Any]],
+        max_results: Optional[int]
+    ) -> List[Dict[str, Any]]:
         """Return original candidates when reranking fails."""
         return candidates[:max_results or self.top_n]
 
@@ -97,10 +101,9 @@ class LocalReranker:
         self, query: str, document: Dict[str, Any]
     ) -> float:
         """
-        Score a query-document pair using cross-encoder approach.
+        Score a query-document pair using semantic similarity.
 
-        Uses cosine similarity between query and document embeddings as proxy.
-        In a full implementation, this would use a proper cross-encoder model.
+        Uses cosine similarity between query and document embeddings.
         """
         try:
             # Get document content
@@ -108,37 +111,20 @@ class LocalReranker:
             if not doc_content:
                 return 0.0
 
-            # Simple approach: compute similarity between query and document
-            # This is a placeholder - a real cross-encoder would be better
+            # Encode query and document
+            query_emb = self.model.encode(query, convert_to_tensor=False)
+            doc_emb = self.model.encode(doc_content, convert_to_tensor=False)
 
-            # For now, use a simple heuristic based on term overlap and length
-            query_terms = set(query.lower().split())
-            doc_terms = set(doc_content.lower().split())
+            # Compute cosine similarity
+            dot_product = np.dot(query_emb, doc_emb)
+            query_norm = np.linalg.norm(query_emb)
+            doc_norm = np.linalg.norm(doc_emb)
 
-            # Jaccard similarity
-            intersection = len(query_terms & doc_terms)
-            union = len(query_terms | doc_terms)
-
-            if union == 0:
+            if query_norm == 0 or doc_norm == 0:
                 return 0.0
 
-            jaccard_score = intersection / union
-
-            # Boost score for documents that contain more query terms
-            term_overlap_ratio = (
-                intersection / len(query_terms) if query_terms else 0
-            )
-
-            # Length penalty (prefer concise relevant documents)
-            length_penalty = min(1.0, 1000 / max(len(doc_content), 100))
-
-            final_score = (
-                jaccard_score * 0.4 +
-                term_overlap_ratio * 0.4 +
-                length_penalty * 0.2
-            )
-
-            return float(final_score)
+            similarity = dot_product / (query_norm * doc_norm)
+            return float(similarity)
 
         except Exception as e:
             logger.error(f"Error scoring query-document pair: {e}")

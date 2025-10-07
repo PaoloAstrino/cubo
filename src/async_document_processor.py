@@ -51,10 +51,10 @@ class DocumentProcessorWorker(QObject):
         try:
             # Setup processing environment
             start_time, all_chunks, total_files = self._setup_processing()
-            
+
             # Process all documents
             all_chunks = self._process_document_batch(all_chunks, total_files, start_time)
-            
+
             # Handle successful completion
             if not self.is_cancelled:
                 self._handle_processing_completion(all_chunks, total_files, start_time)
@@ -71,7 +71,7 @@ class DocumentProcessorWorker(QObject):
 
         self.progress_updated.emit(0, "Initializing processors...")
         self._initialize_processors()
-        
+
         return start_time, all_chunks, total_files
 
     def _process_document_batch(self, all_chunks: List, total_files: int, start_time: float) -> List:
