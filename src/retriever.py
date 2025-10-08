@@ -238,7 +238,9 @@ class DocumentRetriever:
         """
         try:
             # Perform both retrieval methods
-            sentence_results = self._retrieve_sentence_window(query, top_k // 2 + top_k % 2)  # Slightly more for sentence window
+            sentence_results = self._retrieve_sentence_window(
+                query, top_k // 2 + top_k % 2
+            )  # Slightly more for sentence window
             auto_results = self._retrieve_auto_merging_safe(query, top_k // 2)
 
             # Combine results
@@ -257,7 +259,7 @@ class DocumentRetriever:
             # Re-sort by similarity score after deduplication
             # This ensures best matches across all documents come first
             unique_results.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
-            
+
             # Log the source distribution for debugging
             source_files = [r.get('metadata', {}).get('filename', 'Unknown') for r in unique_results[:top_k]]
             logger.info(f"Hybrid retrieval returning results from: {source_files}")
@@ -314,7 +316,7 @@ class DocumentRetriever:
         # If we have documents in current session, use them
         if self.current_documents:
             return True
-        
+
         # Otherwise, check if there are ANY documents in the database
         try:
             result = self.collection.count()
@@ -323,7 +325,7 @@ class DocumentRetriever:
                 return True
         except Exception as e:
             logger.error(f"Error checking database: {e}")
-        
+
         logger.warning("No documents available for retrieval")
         return False
 
@@ -657,7 +659,9 @@ class DocumentRetriever:
         """
         return min(top_k * 2, 10) if self.use_sentence_window else top_k
 
-    def _query_collection_for_candidates(self, query_embedding: List[float], initial_top_k: int, query: str = "") -> List[dict]:
+    def _query_collection_for_candidates(
+        self, query_embedding: List[float], initial_top_k: int, query: str = ""
+    ) -> List[dict]:
         """
         Query the collection for candidate documents.
 
@@ -693,13 +697,13 @@ class DocumentRetriever:
             "n_results": initial_top_k,
             "include": ['documents', 'metadatas', 'distances']
         }
-        
+
         if self.current_documents:
             query_params["where"] = {"filename": {"$in": list(self.current_documents)}}
             logger.debug(f"Searching in session documents: {self.current_documents}")
         else:
             logger.debug("No session filter - searching all documents in database")
-        
+
         return self.collection.query(**query_params)
 
     def _process_query_results(self, results, query: str = "") -> List[dict]:
@@ -712,10 +716,10 @@ class DocumentRetriever:
                 results['distances'][0]
             ):
                 base_similarity = 1 - distance  # Convert distance to similarity
-                
+
                 # Apply keyword boost if query contains specific terms
                 boosted_similarity = self._apply_keyword_boost(doc, query, base_similarity)
-                
+
                 candidates.append({
                     "document": doc,
                     "metadata": metadata,
@@ -723,41 +727,41 @@ class DocumentRetriever:
                     "base_similarity": base_similarity  # Keep original for debugging
                 })
         return candidates
-    
+
     def _apply_keyword_boost(self, document: str, query: str, base_similarity: float) -> float:
         """
         Boost similarity score if document contains important keywords from query.
-        
+
         Args:
             document: Document text
             query: Query text
             base_similarity: Original similarity score
-            
+
         Returns:
             Boosted similarity score
         """
         if not query:
             return base_similarity
-            
+
         # Extract important words from query (remove common words)
         stop_words = {'tell', 'me', 'about', 'the', 'what', 'is', 'a', 'an', 'describe', 'explain', 'how', 'why'}
         query_words = [word.lower().strip('.,!?') for word in query.split() if word.lower() not in stop_words]
-        
+
         if not query_words:
             return base_similarity
-        
+
         # Check if any important query words appear in the document
         doc_lower = document.lower()
         matches = sum(1 for word in query_words if word in doc_lower)
-        
+
         if matches > 0:
             # Boost by 0.3 * (proportion of query words found)
             boost = 0.3 * (matches / len(query_words))
             boosted = min(base_similarity + boost, 1.0)  # Cap at 1.0
             logger.debug(f"Keyword boost: {matches}/{len(query_words)} words matched, "
-                        f"similarity {base_similarity:.4f} -> {boosted:.4f}")
+                         f"similarity {base_similarity:.4f} -> {boosted:.4f}")
             return boosted
-        
+
         return base_similarity
 
     def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:

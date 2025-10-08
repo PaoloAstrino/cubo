@@ -368,12 +368,12 @@ class AutoMergingRetriever:
             True if successful, False otherwise
         """
         filename = Path(file_path).name
-        
+
         # Check if document is already loaded
         if filename in self.loaded_documents:
             logger.info(f"Document {filename} already loaded in auto-merging retriever")
             return True
-            
+
         try:
             # Read the document
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -381,7 +381,7 @@ class AutoMergingRetriever:
 
             # Create hierarchical chunks
             chunks = self.chunker.create_hierarchical_chunks(text, filename)
-            
+
             # Build parent-child relationships
             chunks = self.chunker.build_hierarchy(chunks)
 
@@ -389,17 +389,17 @@ class AutoMergingRetriever:
             chunk_texts = [chunk['text'] for chunk in chunks]
             embeddings = self.model.encode(chunk_texts)
             embeddings_list = [emb.tolist() for emb in embeddings]
-            
+
             # Prepare batch data
             chunk_ids = []
             documents = []
             metadatas = []
-            
+
             for chunk, embedding in zip(chunks, embeddings_list):
                 chunk_id = chunk['id']
                 chunk_ids.append(chunk_id)
                 documents.append(chunk['text'])
-                
+
                 # Create metadata dict from chunk fields
                 # ChromaDB only accepts str, int, float, bool - not None or lists
                 metadata = {
@@ -414,7 +414,7 @@ class AutoMergingRetriever:
                     # child_ids is a list, ChromaDB doesn't support lists, skip it
                 }
                 metadatas.append(metadata)
-            
+
             # Add all chunks in batch
             self.collection.add(
                 ids=chunk_ids,
@@ -443,75 +443,84 @@ class AutoMergingRetriever:
             List of retrieval results with document, metadata, and similarity
         """
         try:
-            # Generate query embedding
-            query_embedding = self.model.encode([query])[0]
-            # Convert numpy array to list for ChromaDB
-            query_embedding = query_embedding.tolist()
-
-            # Search ChromaDB
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k * 3  # Get more results for merging
-            )
+            query_embedding = self._generate_query_embedding(query)
+            results = self._query_chromadb(query_embedding, top_k)
 
             if not results['documents']:
                 return []
 
-            # Process results and apply auto-merging
-            processed_results = []
-            for i, (doc, metadata, distance) in enumerate(zip(
-                results['documents'][0],
-                results['metadatas'][0],
-                results['distances'][0]
-            )):
-                # Convert distance to similarity (ChromaDB returns cosine distance)
-                similarity = 1 - distance
-
-                # Ensure metadata has required fields
-                if not metadata:
-                    metadata = {}
-                if 'id' not in metadata:
-                    metadata['id'] = f"chunk_{i}"
-                if 'level' not in metadata:
-                    metadata['level'] = 0
-
-                chunk = {
-                    'text': doc,
-                    'metadata': metadata,
-                    'similarity': similarity,
-                    'level': metadata.get('level', 0)
-                }
-                processed_results.append(chunk)
-
-            # Apply auto-merging logic using the chunker's sophisticated merging
-            try:
-                # Format results for the chunker's merge method
-                candidates = {
-                    'documents': [results['documents'][0]],
-                    'metadatas': [results['metadatas'][0]], 
-                    'distances': [results['distances'][0]]
-                }
-                merged_results = self.chunker._merge_chunks(candidates, top_k)
-            except Exception as e:
-                logger.error(f"Error in auto-merging: {e}")
-                # Fallback: just return top results without merging
-                processed_results.sort(key=lambda x: x['similarity'], reverse=True)
-                merged_results = processed_results[:top_k]
-
-            # Convert to expected format
-            final_results = []
-            for result in merged_results:
-                final_results.append({
-                    'document': result['document'],
-                    'metadata': result['metadata'],
-                    'similarity': result['similarity']
-                })
-
-            return final_results
+            processed_results = self._process_chromadb_results(results)
+            merged_results = self._apply_auto_merging(results, processed_results, top_k)
+            return self._format_final_results(merged_results)
 
         except Exception as e:
             logger.error(f"Error during retrieval: {e}")
             return []
+
+    def _generate_query_embedding(self, query: str) -> List[float]:
+        """Generate embedding for the query."""
+        embedding = self.model.encode([query])[0]
+        return embedding.tolist()
+
+    def _query_chromadb(self, query_embedding: List[float], top_k: int) -> Dict:
+        """Query ChromaDB for results."""
+        return self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k * 3  # Get more results for merging
+        )
+
+    def _process_chromadb_results(self, results: Dict) -> List[Dict]:
+        """Process raw ChromaDB results into structured format."""
+        processed_results = []
+        for i, (doc, metadata, distance) in enumerate(zip(
+            results['documents'][0],
+            results['metadatas'][0],
+            results['distances'][0]
+        )):
+            similarity = 1 - distance
+
+            # Ensure metadata has required fields
+            if not metadata:
+                metadata = {}
+            if 'id' not in metadata:
+                metadata['id'] = f"chunk_{i}"
+            if 'level' not in metadata:
+                metadata['level'] = 0
+
+            chunk = {
+                'text': doc,
+                'metadata': metadata,
+                'similarity': similarity,
+                'level': metadata.get('level', 0)
+            }
+            processed_results.append(chunk)
+        return processed_results
+
+    def _apply_auto_merging(self, results: Dict, processed_results: List[Dict], top_k: int) -> List[Dict]:
+        """Apply auto-merging logic to results."""
+        try:
+            candidates = {
+                'documents': [results['documents'][0]],
+                'metadatas': [results['metadatas'][0]],
+                'distances': [results['distances'][0]]
+            }
+            return self.chunker._merge_chunks(candidates, top_k)
+        except Exception as e:
+            logger.error(f"Error in auto-merging: {e}")
+            # Fallback: just return top results without merging
+            processed_results.sort(key=lambda x: x['similarity'], reverse=True)
+            return processed_results[:top_k]
+
+    def _format_final_results(self, merged_results: List[Dict]) -> List[Dict]:
+        """Format merged results into expected output format."""
+        final_results = []
+        for result in merged_results:
+            final_results.append({
+                'document': result['document'],
+                'metadata': result['metadata'],
+                'similarity': result['similarity']
+            })
+        return final_results
 
     def get_loaded_documents(self) -> List[str]:
         """Get list of loaded document filenames."""
