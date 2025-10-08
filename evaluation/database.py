@@ -146,13 +146,36 @@ class EvaluationDatabase:
 
         logger.info(f"Stored evaluation for query: {evaluation.question[:50]}...")
 
-    def get_recent_evaluations(self, limit: int = 100) -> List[QueryEvaluation]:
-        """Get recent evaluations."""
+    def get_recent_evaluations(self, limit: int = 100, sort_by: str = "timestamp", sort_order: str = "DESC") -> List[QueryEvaluation]:
+        """Get recent evaluations with optional sorting.
+
+        Args:
+            limit: Maximum number of evaluations to return
+            sort_by: Column to sort by (timestamp, answer_relevance_score, context_relevance_score, groundedness_score, response_time)
+            sort_order: Sort order (ASC or DESC)
+        """
+        # Map sort options to database columns
+        sort_column_map = {
+            "timestamp": "timestamp",
+            "answer_relevance": "answer_relevance_score",
+            "context_relevance": "context_relevance_score",
+            "groundedness": "groundedness_score",
+            "response_time": "response_time"
+        }
+
+        sort_column = sort_column_map.get(sort_by, "timestamp")
+
+        # Handle NULL values in sorting (NULLs last)
+        if sort_column in ["answer_relevance_score", "context_relevance_score", "groundedness_score"]:
+            order_clause = f"ORDER BY {sort_column} IS NULL, {sort_column} {sort_order}"
+        else:
+            order_clause = f"ORDER BY {sort_column} {sort_order}"
+
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute('''
+            rows = conn.execute(f'''
                 SELECT * FROM evaluations
-                ORDER BY timestamp DESC
+                {order_clause}
                 LIMIT ?
             ''', (limit,)).fetchall()
 
@@ -241,6 +264,105 @@ class EvaluationDatabase:
 
         # Build response
         return self._build_trends_response(daily_stats, trends, days)
+
+    def _get_daily_statistics(self, conn: sqlite3.Connection, cutoff_date: str) -> pd.DataFrame:
+        """
+        Get daily statistics from the database.
+
+        Args:
+            conn: Database connection
+            cutoff_date: ISO format cutoff date
+
+        Returns:
+            DataFrame with daily statistics
+        """
+        query = """
+        SELECT
+            DATE(timestamp) as date,
+            COUNT(*) as query_count,
+            AVG(answer_relevance_score) as avg_answer_relevance,
+            AVG(context_relevance_score) as avg_context_relevance,
+            AVG(groundedness_score) as avg_groundedness,
+            SUM(CASE WHEN error_occurred = 1 THEN 1 ELSE 0 END) as error_count
+        FROM evaluations
+        WHERE timestamp >= ?
+        GROUP BY DATE(timestamp)
+        ORDER BY date DESC
+        """
+
+        df = pd.read_sql_query(query, conn, params=[cutoff_date])
+        return df
+
+    def _calculate_trends(self, daily_stats: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Calculate trend analysis from daily statistics.
+
+        Args:
+            daily_stats: DataFrame with daily statistics
+
+        Returns:
+            Dictionary with trend calculations
+        """
+        if daily_stats.empty:
+            return {}
+
+        trends = {}
+
+        # Calculate score trends
+        for score_col in ['avg_answer_relevance', 'avg_context_relevance', 'avg_groundedness']:
+            if score_col in daily_stats.columns:
+                values = daily_stats[score_col].dropna()
+                if len(values) > 1:
+                    trends[f'{score_col}_trend'] = values.iloc[-1] - values.iloc[0]  # Recent - oldest
+                    trends[f'{score_col}_volatility'] = values.std()
+                else:
+                    trends[f'{score_col}_trend'] = 0.0
+                    trends[f'{score_col}_volatility'] = 0.0
+
+        # Query count trends
+        if 'query_count' in daily_stats.columns:
+            query_counts = daily_stats['query_count']
+            trends['query_count_trend'] = query_counts.iloc[-1] - query_counts.iloc[0] if len(query_counts) > 1 else 0
+            trends['avg_daily_queries'] = query_counts.mean()
+
+        # Error rate trends
+        if 'error_count' in daily_stats.columns and 'query_count' in daily_stats.columns:
+            error_rates = daily_stats['error_count'] / daily_stats['query_count']
+            trends['error_rate_trend'] = error_rates.iloc[-1] - error_rates.iloc[0] if len(error_rates) > 1 else 0
+            trends['avg_error_rate'] = error_rates.mean()
+
+        return trends
+
+    def _build_trends_response(self, daily_stats: pd.DataFrame, trends: Dict[str, Any], days: int) -> Dict[str, Any]:
+        """
+        Build the trends response dictionary.
+
+        Args:
+            daily_stats: DataFrame with daily statistics
+            trends: Calculated trends
+            days: Number of days analyzed
+
+        Returns:
+            Dictionary with trends response
+        """
+        # Convert DataFrame to list of dictionaries for the dashboard
+        daily_stats_list = []
+        for _, row in daily_stats.iterrows():
+            daily_stats_list.append({
+                'date': row['date'],
+                'query_count': int(row['query_count']),
+                'avg_answer_relevance': row['avg_answer_relevance'] if pd.notna(row['avg_answer_relevance']) else None,
+                'avg_context_relevance': row['avg_context_relevance'] if pd.notna(row['avg_context_relevance']) else None,
+                'avg_groundedness': row['avg_groundedness'] if pd.notna(row['avg_groundedness']) else None,
+                'error_count': int(row['error_count']) if pd.notna(row['error_count']) else 0
+            })
+
+        return {
+            'daily_stats': daily_stats_list,
+            'trends': trends,
+            'period_days': days,
+            'total_days_with_data': len(daily_stats)
+        }
 
     def get_queries_needing_evaluation(self, session_id: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """

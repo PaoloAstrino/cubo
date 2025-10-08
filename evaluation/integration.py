@@ -80,9 +80,17 @@ class EvaluationIntegrator:
             return self._init_basic_evaluator()
 
     def _init_basic_evaluator(self) -> AdvancedEvaluator:
-        """Initialize basic evaluator without LLM client."""
-        logger.info("Using basic evaluation (no LLM client)")
-        return AdvancedEvaluator(llm_provider='ollama')
+        """Initialize basic evaluator, trying Ollama first."""
+        try:
+            import ollama
+            # Test if Ollama is available
+            ollama.list()
+            logger.info("Ollama client available for evaluation")
+            return AdvancedEvaluator(ollama_client=ollama, llm_provider='ollama')
+        except Exception as e:
+            logger.warning(f"Ollama not available for evaluation: {e}")
+            logger.info("Using basic evaluation (no LLM client)")
+            return AdvancedEvaluator(llm_provider='ollama')
 
     def set_components(self, generator, retriever):
         """Set or update the generator and retriever components."""
@@ -152,13 +160,13 @@ class EvaluationIntegrator:
                     question, answer, contexts, response_time
                 )
 
-                # Extract RAG triad scores using LLM evaluation
+                # Extract RAG triad scores (pure LLM evaluation only)
                 logger.debug(f"Evaluating query: {question[:50]}...")
                 answer_relevance = await self.evaluator.evaluate_answer_relevance(question, answer)
                 context_relevance = await self.evaluator.evaluate_context_relevance(question, contexts)
                 groundedness = await self.evaluator.evaluate_groundedness(contexts, answer)
 
-                # Only proceed if we have valid LLM scores for all three core metrics
+                # Only proceed if ALL LLM evaluations succeeded (no heuristics allowed)
                 if (answer_relevance is not None and
                         context_relevance is not None and
                         groundedness is not None):
@@ -183,8 +191,8 @@ class EvaluationIntegrator:
                     # Mark as successfully evaluated
                     evaluation_completed = True
                 else:
-                    logger.warning(f"LLM evaluation failed for query: {question[:50]}... - AR={answer_relevance}, CR={context_relevance}, G={groundedness}")
-                    # Don't store this evaluation, leave it for retry
+                    logger.warning(f"LLM evaluation unavailable for query: {question[:50]}... - Skipping evaluation entirely")
+                    # Skip evaluation entirely when LLM is not available
                     return None
 
             except Exception as e:
@@ -202,56 +210,6 @@ class EvaluationIntegrator:
             else:
                 logger.warning(f"Skipping storage due to error for: {question[:50]}...")
             return None
-
-    def _compute_answer_relevance(self, question: str, answer: str) -> float:
-        """Simple heuristic for answer relevance."""
-        if not answer or answer.startswith("Error"):
-            return 0.0
-
-        # Simple keyword overlap
-        question_words = set(question.lower().split())
-        answer_words = set(answer.lower().split())
-
-        overlap = len(question_words.intersection(answer_words))
-        coverage = overlap / max(len(question_words), 1)
-
-        return min(coverage * 1.5, 1.0)  # Boost slightly, cap at 1.0
-
-    def _compute_context_relevance(self, question: str, contexts: List[str]) -> float:
-        """Simple heuristic for context relevance."""
-        if not contexts:
-            return 0.0
-
-        question_words = set(question.lower().split())
-        total_overlap = 0
-
-        for context in contexts:
-            context_words = set(context.lower().split())
-            overlap = len(question_words.intersection(context_words))
-            total_overlap += overlap
-
-        avg_overlap = total_overlap / len(contexts)
-        coverage = avg_overlap / max(len(question_words), 1)
-
-        return min(coverage * 2.0, 1.0)  # Boost more, cap at 1.0
-
-    def _compute_groundedness(self, contexts: List[str], answer: str) -> float:
-        """Simple heuristic for groundedness."""
-        if not contexts or not answer or answer.startswith("Error"):
-            return 0.0
-
-        # Check if answer contains phrases from contexts
-        context_text = ' '.join(contexts).lower()
-        answer_lower = answer.lower()
-
-        # Simple word overlap check
-        answer_words = set(answer_lower.split())
-        context_words = set(context_text.split())
-
-        overlap = len(answer_words.intersection(context_words))
-        coverage = overlap / max(len(answer_words), 1)
-
-        return min(coverage, 1.0)
 
     def get_recent_evaluations(self, limit: int = 10) -> List[QueryEvaluation]:
         """Get recent evaluations."""

@@ -22,13 +22,176 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QTabWidget, QComboBox,
     QSpinBox, QGroupBox, QFormLayout, QProgressBar,
     QTextEdit, QSplitter, QScrollArea, QFrame, QMessageBox,
-    QDateEdit, QCheckBox
+    QDateEdit, QCheckBox, QDialog
 )
 from PySide6.QtCore import Qt, QThread, Signal, QDate
 from PySide6.QtGui import QFont, QPixmap, QIcon, QColor
 
 from evaluation.database import EvaluationDatabase
 from evaluation.metrics import PerformanceAnalyzer
+
+class EvaluationDetailsDialog(QDialog):
+    """Dialog to show detailed evaluation information."""
+
+    def __init__(self, eval_data, parent=None):
+        super().__init__(parent)
+        self.eval_data = eval_data
+        self.setWindowTitle("Evaluation Details")
+        self.resize(800, 600)
+        self.init_ui()
+
+    def init_ui(self):
+        """Initialize the dialog UI."""
+        layout = QVBoxLayout(self)
+
+        # Create tab widget for different sections
+        tabs = QTabWidget()
+
+        # Query tab
+        query_tab = self.create_query_tab()
+        tabs.addTab(query_tab, "Query & Answer")
+
+        # Documents tab
+        docs_tab = self.create_documents_tab()
+        tabs.addTab(docs_tab, "Retrieved Documents")
+
+        # Metadata tab
+        meta_tab = self.create_metadata_tab()
+        tabs.addTab(meta_tab, "Metadata")
+
+        layout.addWidget(tabs)
+
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+    def create_query_tab(self) -> QWidget:
+        """Create the query and answer tab."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Query section
+        query_group = QGroupBox("Query")
+        query_layout = QVBoxLayout(query_group)
+
+        query_text = QTextEdit()
+        query_text.setPlainText(self.eval_data.question)
+        query_text.setReadOnly(True)
+        query_text.setMaximumHeight(100)
+        query_layout.addWidget(query_text)
+
+        layout.addWidget(query_group)
+
+        # Answer section
+        answer_group = QGroupBox("Answer")
+        answer_layout = QVBoxLayout(answer_group)
+
+        answer_text = QTextEdit()
+        answer_text.setPlainText(self.eval_data.answer)
+        answer_text.setReadOnly(True)
+        answer_text.setMaximumHeight(200)
+        answer_layout.addWidget(answer_text)
+
+        layout.addWidget(answer_group)
+
+        return widget
+
+    def create_documents_tab(self) -> QWidget:
+        """Create the retrieved documents tab."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Documents table
+        docs_table = QTableWidget()
+        docs_table.setColumnCount(4)
+        docs_table.setHorizontalHeaderLabels([
+            "Document", "Content Preview", "Similarity Score", "Metadata"
+        ])
+
+        # Populate documents
+        contexts = self.eval_data.contexts or []
+        metadata = self.eval_data.context_metadata or []
+
+        docs_table.setRowCount(len(contexts))
+
+        for row, (context, meta) in enumerate(zip(contexts, metadata)):
+            # Document name
+            doc_name = meta.get('filename', 'Unknown') if meta else 'Unknown'
+            docs_table.setItem(row, 0, QTableWidgetItem(doc_name))
+
+            # Content preview (first 200 chars)
+            preview = context[:200] + "..." if len(context) > 200 else context
+            docs_table.setItem(row, 1, QTableWidgetItem(preview))
+
+            # Similarity score
+            similarity = meta.get('similarity_score', 'N/A') if meta else 'N/A'
+            if isinstance(similarity, float):
+                similarity = f"{similarity:.3f}"
+            docs_table.setItem(row, 2, QTableWidgetItem(str(similarity)))
+
+            # Additional metadata
+            meta_str = ""
+            if meta:
+                chunk_id = meta.get('chunk_id', '')
+                if chunk_id:
+                    meta_str += f"Chunk: {chunk_id}\n"
+                for key, value in meta.items():
+                    if key not in ['filename', 'similarity_score', 'chunk_id']:
+                        meta_str += f"{key}: {value}\n"
+
+            meta_item = QTableWidgetItem(meta_str.strip())
+            meta_item.setToolTip(meta_str.strip())
+            docs_table.setItem(row, 3, meta_item)
+
+        docs_table.resizeColumnsToContents()
+        docs_table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(docs_table)
+
+        return widget
+
+    def create_metadata_tab(self) -> QWidget:
+        """Create the metadata tab."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Create form layout for metadata
+        form_layout = QFormLayout()
+
+        # Basic info
+        form_layout.addRow("Timestamp:", QLabel(self.eval_data.timestamp))
+        form_layout.addRow("Session ID:", QLabel(self.eval_data.session_id))
+        form_layout.addRow("Model Used:", QLabel(self.eval_data.model_used))
+        form_layout.addRow("Embedding Model:", QLabel(self.eval_data.embedding_model))
+        form_layout.addRow("Retrieval Method:", QLabel(self.eval_data.retrieval_method))
+        form_layout.addRow("Chunking Method:", QLabel(self.eval_data.chunking_method))
+
+        # Performance metrics
+        form_layout.addRow("Response Time:", QLabel(f"{self.eval_data.response_time:.2f}s"))
+        form_layout.addRow("Answer Length:", QLabel(str(self.eval_data.answer_length)))
+        form_layout.addRow("Context Count:", QLabel(str(self.eval_data.context_count)))
+        form_layout.addRow("Total Context Length:", QLabel(str(self.eval_data.total_context_length)))
+        form_layout.addRow("Avg Context Similarity:", QLabel(f"{self.eval_data.average_context_similarity:.3f}"))
+
+        # Scores
+        ar_score = self.eval_data.answer_relevance_score
+        cr_score = self.eval_data.context_relevance_score
+        g_score = self.eval_data.groundedness_score
+
+        form_layout.addRow("Answer Relevance:", QLabel(f"{ar_score:.2f}" if ar_score else "Not evaluated"))
+        form_layout.addRow("Context Relevance:", QLabel(f"{cr_score:.2f}" if cr_score else "Not evaluated"))
+        form_layout.addRow("Groundedness:", QLabel(f"{g_score:.2f}" if g_score else "Not evaluated"))
+
+        # Flags
+        form_layout.addRow("Has Answer:", QLabel("Yes" if self.eval_data.has_answer else "No"))
+        form_layout.addRow("Is Fallback:", QLabel("Yes" if self.eval_data.is_fallback_response else "No"))
+        form_layout.addRow("Error Occurred:", QLabel("Yes" if self.eval_data.error_occurred else "No"))
+
+        if self.eval_data.error_message:
+            form_layout.addRow("Error Message:", QLabel(self.eval_data.error_message))
+
+        widget.setLayout(form_layout)
+        return widget
 
 class EvaluationDashboard(QWidget):
     """Main evaluation dashboard widget."""
@@ -120,9 +283,17 @@ class EvaluationDashboard(QWidget):
         triad_group = QGroupBox("RAG Triad Scores")
         triad_layout = QVBoxLayout(triad_group)
 
+        # Create larger font for emphasis
+        large_font = QFont()
+        large_font.setPointSize(12)
+        large_font.setBold(True)
+
         self.answer_relevance_label = QLabel("Answer Relevance: --")
+        self.answer_relevance_label.setFont(large_font)
         self.context_relevance_label = QLabel("Context Relevance: --")
+        self.context_relevance_label.setFont(large_font)
         self.groundedness_label = QLabel("Groundedness: --")
+        self.groundedness_label.setFont(large_font)
 
         triad_layout.addWidget(self.answer_relevance_label)
         triad_layout.addWidget(self.context_relevance_label)
@@ -177,13 +348,33 @@ class EvaluationDashboard(QWidget):
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(QLabel("Show last"))
 
-        self.recent_count_spin = QSpinBox()
-        self.recent_count_spin.setRange(10, 1000)
-        self.recent_count_spin.setValue(50)
-        self.recent_count_spin.valueChanged.connect(self.load_recent_evaluations)
-        controls_layout.addWidget(self.recent_count_spin)
+        self.recent_count_combo = QComboBox()
+        self.recent_count_combo.addItems(["10", "50", "100", "500", "All"])
+        self.recent_count_combo.setCurrentText("50")
+        self.recent_count_combo.currentTextChanged.connect(self.load_recent_evaluations)
+        controls_layout.addWidget(self.recent_count_combo)
 
         controls_layout.addWidget(QLabel("evaluations"))
+
+        # Sort controls
+        controls_layout.addWidget(QLabel("Sort by:"))
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItems([
+            "Newest First",
+            "Oldest First",
+            "Answer Relevance (High to Low)",
+            "Answer Relevance (Low to High)",
+            "Context Relevance (High to Low)",
+            "Context Relevance (Low to High)",
+            "Groundedness (High to Low)",
+            "Groundedness (Low to High)",
+            "Response Time (Fastest)",
+            "Response Time (Slowest)"
+        ])
+        self.sort_combo.setCurrentText("Newest First")
+        self.sort_combo.currentTextChanged.connect(self.load_recent_evaluations)
+        controls_layout.addWidget(self.sort_combo)
+
         controls_layout.addStretch()
 
         layout.addLayout(controls_layout)
@@ -196,6 +387,8 @@ class EvaluationDashboard(QWidget):
             "Groundedness", "Response Time", "Status"
         ])
         self.recent_table.horizontalHeader().setStretchLastSection(True)
+        self.recent_table.setEditTriggers(QTableWidget.NoEditTriggers)  # Make table read-only
+        self.recent_table.cellDoubleClicked.connect(self.show_evaluation_details)
         layout.addWidget(self.recent_table)
 
         return widget
@@ -342,8 +535,18 @@ class EvaluationDashboard(QWidget):
     def load_recent_evaluations(self):
         """Load recent evaluations into table."""
         try:
-            count = self.recent_count_spin.value()
-            evaluations = self.db.get_recent_evaluations(count)
+            # Parse count
+            count_text = self.recent_count_combo.currentText()
+            if count_text == "All":
+                count = 999999  # Large number to get all evaluations
+            else:
+                count = int(count_text)
+
+            # Parse sort criteria
+            sort_text = self.sort_combo.currentText()
+            sort_by, sort_order = self._parse_sort_criteria(sort_text)
+
+            evaluations = self.db.get_recent_evaluations(count, sort_by, sort_order)
 
             self._setup_table_for_evaluations(len(evaluations))
 
@@ -354,6 +557,27 @@ class EvaluationDashboard(QWidget):
 
         except Exception as e:
             logger.error(f"Failed to load recent evaluations: {e}")
+
+    def _parse_sort_criteria(self, sort_text: str) -> tuple:
+        """Parse sort criteria from combo box text.
+
+        Returns:
+            tuple: (sort_by, sort_order)
+        """
+        sort_map = {
+            "Newest First": ("timestamp", "DESC"),
+            "Oldest First": ("timestamp", "ASC"),
+            "Answer Relevance (High to Low)": ("answer_relevance", "DESC"),
+            "Answer Relevance (Low to High)": ("answer_relevance", "ASC"),
+            "Context Relevance (High to Low)": ("context_relevance", "DESC"),
+            "Context Relevance (Low to High)": ("context_relevance", "ASC"),
+            "Groundedness (High to Low)": ("groundedness", "DESC"),
+            "Groundedness (Low to High)": ("groundedness", "ASC"),
+            "Response Time (Fastest)": ("response_time", "ASC"),
+            "Response Time (Slowest)": ("response_time", "DESC")
+        }
+
+        return sort_map.get(sort_text, ("timestamp", "DESC"))
 
     def _setup_table_for_evaluations(self, row_count: int):
         """
@@ -467,6 +691,51 @@ class EvaluationDashboard(QWidget):
             status_item.setBackground(QColor(144, 238, 144))  # Light green
 
         self.recent_table.setItem(row, 6, status_item)
+
+    def _color_code_score(self, item: QTableWidgetItem, score: float):
+        """
+        Color-code a score item based on its value.
+
+        Args:
+            item: Table item to color
+            score: Score value (0.0 to 1.0)
+        """
+        if score >= 0.8:
+            item.setBackground(QColor(144, 238, 144))  # Light green for good scores
+            item.setForeground(QColor(0, 0, 0))  # Black text for readability
+        elif score >= 0.6:
+            item.setBackground(QColor(255, 255, 224))  # Light yellow for medium scores
+            item.setForeground(QColor(0, 0, 0))  # Black text for readability
+        else:
+            item.setBackground(QColor(255, 182, 193))  # Light red for poor scores
+            item.setForeground(QColor(0, 0, 0))  # Black text for readability
+
+    def show_evaluation_details(self, row: int, column: int):
+        """Show detailed evaluation information in a dialog."""
+        try:
+            # Get the evaluation data for this row
+            count_text = self.recent_count_combo.currentText()
+            if count_text == "All":
+                count = 999999
+            else:
+                count = int(count_text)
+
+            # Parse sort criteria
+            sort_text = self.sort_combo.currentText()
+            sort_by, sort_order = self._parse_sort_criteria(sort_text)
+
+            evaluations = self.db.get_recent_evaluations(count, sort_by, sort_order)
+            if row >= len(evaluations):
+                return
+
+            eval_data = evaluations[row]
+
+            # Create and show the details dialog
+            dialog = EvaluationDetailsDialog(eval_data, self)
+            dialog.exec()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to show evaluation details: {e}")
 
     def load_trends(self):
         """Load performance trends."""

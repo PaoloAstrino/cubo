@@ -153,7 +153,7 @@ class AdvancedEvaluator:
             return None
 
         if not self.ollama_client and not self.gemini_client:
-            # No LLM available, cannot evaluate
+            # No LLM available for evaluation
             return None
 
         try:
@@ -186,7 +186,6 @@ class AdvancedEvaluator:
 
         except Exception as e:
             logger.error(f"LLM answer relevance evaluation failed: {e}")
-            # No fallback - return None to indicate failure
             return None
 
     async def evaluate_context_relevance(self, question: str, contexts: List[str]) -> float:
@@ -202,7 +201,7 @@ class AdvancedEvaluator:
             return None
 
         if not self.ollama_client and not self.gemini_client:
-            # No LLM available, cannot evaluate
+            # No LLM available for evaluation
             return None
 
         try:
@@ -238,92 +237,14 @@ class AdvancedEvaluator:
 
         except Exception as e:
             logger.error(f"LLM context relevance evaluation failed: {e}")
-            # No fallback - return None to indicate failure
             return None
 
-    def _evaluate_answer_relevance_heuristic(self, question: str, answer: str) -> float:
-        """Evaluate answer relevance using heuristic methods."""
-        if not question or not answer or answer.startswith("Error"):
-            return 0.0
 
-        # Extract keywords from question
-        question_keywords = self._extract_question_keywords(question)
 
-        # Calculate semantic overlap
-        semantic_overlap = self._calculate_semantic_overlap(question, answer, question_keywords)
 
-        # Calculate structural relevance
-        structural_relevance = self._calculate_structural_relevance(question, answer)
 
-        # Combine scores (weighted average)
-        relevance_score = 0.7 * semantic_overlap + 0.3 * structural_relevance
 
-        return min(1.0, max(0.0, relevance_score))
 
-    def _extract_question_keywords(self, question: str) -> set:
-        """Extract important keywords from the question."""
-        # Remove common question words
-        stop_words = {'what', 'how', 'why', 'when', 'where', 'who', 'which', 'is', 'are', 'was', 'were',
-                      'do', 'does', 'did', 'can', 'could', 'will', 'would', 'should', 'the', 'a', 'an'}
-
-        words = re.findall(r'\b\w+\b', question.lower())
-        keywords = {word for word in words if word not in stop_words and len(word) > 2}
-
-        return keywords
-
-    def _calculate_semantic_overlap(self, question: str, answer: str, question_keywords: set) -> float:
-        """Calculate semantic overlap between question and answer."""
-        answer_words = set(re.findall(r'\b\w+\b', answer.lower()))
-
-        # Direct keyword overlap
-        direct_overlap, max_possible = self._calculate_direct_overlap_score(question_keywords, answer_words)
-
-        if max_possible == 0:
-            return 0.0
-
-        # Check for partial matches and synonyms (simplified)
-        partial_score = self._calculate_partial_overlap_score(question_keywords, answer_words)
-
-        return self._normalize_overlap_score(partial_score, max_possible)
-
-    def _calculate_direct_overlap_score(self, question_keywords: set, answer_words: set) -> tuple:
-        """Calculate direct keyword overlap and return overlap count and max possible."""
-        direct_overlap = len(question_keywords.intersection(answer_words))
-        max_possible = len(question_keywords)
-        return direct_overlap, max_possible
-
-    def _calculate_partial_overlap_score(self, question_keywords: set, answer_words: set) -> float:
-        """Calculate partial overlap score including substring matches."""
-        partial_score = 0.0
-        for q_word in question_keywords:
-            if q_word in answer_words:
-                partial_score += 1.0
-            else:
-                # Check for partial matches
-                for a_word in answer_words:
-                    if q_word in a_word or a_word in q_word:
-                        partial_score += 0.5
-                        break
-        return partial_score
-
-    def _normalize_overlap_score(self, score: float, max_possible: int) -> float:
-        """Normalize overlap score to [0, 1] range."""
-        if max_possible == 0:
-            return 0.0
-        return min(1.0, score / max_possible)
-
-    def _calculate_structural_relevance(self, question: str, answer: str) -> float:
-        """Calculate structural relevance based on answer completeness."""
-        score = 0.0
-
-        # Length appropriateness (answers should be substantial but not too long)
-        score += self._calculate_length_appropriateness_score(answer)
-
-        # Check if answer seems to address the question type
-        question_type = self._detect_question_type(question)
-        score += self._calculate_question_type_relevance(question_type, answer)
-
-        return min(1.0, score)
 
     def _calculate_length_appropriateness_score(self, answer: str) -> float:
         """Calculate score based on answer length appropriateness."""
@@ -369,17 +290,7 @@ class AdvancedEvaluator:
             return 0.3
         return 0.0
 
-    def _check_how_question_relevance(self, answer_lower: str) -> float:
-        """Check if answer addresses a 'how' question with process descriptions."""
-        if any(word in answer_lower for word in ['by', 'through', 'using', 'with', 'step']):
-            return 0.3
-        return 0.0
 
-    def _check_what_question_relevance(self, answer: str) -> float:
-        """Check if answer addresses a 'what' question with substantial content."""
-        if len(answer.split()) > 5:  # Substantial response
-            return 0.3
-        return 0.0
 
     def evaluate_context_utilization(self, question: str, contexts: List[str]) -> Dict[str, Any]:
         """Evaluate how well contexts are utilized."""
@@ -497,7 +408,7 @@ class AdvancedEvaluator:
                 }
             }
 
-        # Simple heuristics for completeness
+        # Basic calculations for completeness
         answer_words = set(re.findall(r'\b\w+\b', answer.lower()))
         context_words = set()
         for ctx in contexts:
@@ -649,13 +560,56 @@ class AdvancedEvaluator:
     async def _get_ollama_score(self, prompt: str) -> float:
         """Get score from Ollama."""
         try:
-            # This would use the actual Ollama client
-            # For now, return a mock score until Ollama integration is implemented
-            import random
-            return round(random.uniform(1, 5), 1)
+            import ollama
+            import asyncio
+
+            # Get model name from config or use default
+            try:
+                from src.config import config
+                model_name = config.get("selected_llm_model") or config.get("llm_model") or "llama3.2"
+            except:
+                model_name = "llama3.2"  # Default fallback
+
+            # Create scoring prompt
+            scoring_messages = [
+                {
+                    "role": "system",
+                    "content": "You are an expert evaluator. Rate the given item on a scale of 1-5 and respond ONLY with a single number (1, 2, 3, 4, or 5). Do not include any other text or explanation."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+
+            # Run Ollama scoring with timeout
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: ollama.chat(model=model_name, messages=scoring_messages)),
+                timeout=30.0  # 30 second timeout
+            )
+
+            # Extract numerical score from response
+            text = response['message']['content'].strip()
+            logger.debug(f"Ollama response for scoring: {text}")
+
+            # Look for a number between 1-5
+            import re
+            match = re.search(r'(\d+(?:\.\d+)?)', text)
+            if match:
+                score = float(match.group(1))
+                logger.debug(f"Extracted Ollama score: {score}")
+                return max(1.0, min(5.0, score))  # Clamp to 1-5 range
+            else:
+                logger.warning(f"Could not extract numerical score from Ollama response: {text}")
+                return None
+
+        except asyncio.TimeoutError:
+            logger.error("Ollama scoring timed out")
+            return None
         except Exception as e:
             logger.error(f"Ollama scoring failed: {e}")
-            return 3.0
+            return None
 
     async def evaluate_groundedness(self, contexts: List[str], answer: str) -> float:
         """
@@ -671,8 +625,8 @@ class AdvancedEvaluator:
             return 0.0
 
         if not self.ollama_client and not self.gemini_client:
-            # Fallback heuristic evaluation
-            return self._evaluate_groundedness_heuristic(contexts, answer)
+            # No LLM available for evaluation
+            return None
 
         try:
             # Combine contexts for evaluation
@@ -707,37 +661,7 @@ class AdvancedEvaluator:
 
         except Exception as e:
             logger.error(f"LLM groundedness evaluation failed: {e}")
-            # No fallback - return None to indicate failure
             return None
-
-    def _evaluate_groundedness_heuristic(self, contexts: List[str], answer: str) -> float:
-        """
-        Heuristic groundedness evaluation when LLM is not available.
-
-        Returns:
-            Float between 0-1
-        """
-        if not contexts or not answer:
-            return 0.0
-
-        # Simple heuristic: check for keyword overlap
-        context_text = ' '.join(contexts).lower()
-        answer_words = set(answer.lower().split())
-        context_words = set(context_text.split())
-
-        # Calculate overlap
-        overlap = len(answer_words.intersection(context_words))
-        total_answer_words = len(answer_words)
-
-        if total_answer_words == 0:
-            return 0.0
-
-        overlap_ratio = overlap / total_answer_words
-
-        # Boost score if answer is concise and overlaps well
-        if overlap_ratio > 0.3:
-            return min(1.0, overlap_ratio * 1.2)  # Slight boost for good overlap
-
 
 class PerformanceAnalyzer:
     """Analyze performance trends and patterns in evaluation data."""
@@ -834,35 +758,3 @@ class PerformanceAnalyzer:
             "Monitor evaluation metrics regularly for system health",
             "Review low-performing queries to identify improvement areas"
         ]
-
-    def _evaluate_answer_relevance_heuristic(self, question: str, answer: str) -> float:
-        """Heuristic answer relevance evaluation when LLM is not available."""
-        if not answer or answer.startswith("Error"):
-            return 0.0
-
-        # Simple keyword overlap
-        question_words = set(question.lower().split())
-        answer_words = set(answer.lower().split())
-
-        overlap = len(question_words.intersection(answer_words))
-        coverage = overlap / max(len(question_words), 1)
-
-        return min(coverage * 1.5, 1.0)  # Boost slightly, cap at 1.0
-
-    def _evaluate_context_relevance_heuristic(self, question: str, contexts: List[str]) -> float:
-        """Heuristic context relevance evaluation when LLM is not available."""
-        if not contexts:
-            return 0.0
-
-        question_words = set(question.lower().split())
-        total_overlap = 0
-
-        for context in contexts:
-            context_words = set(context.lower().split())
-            overlap = len(question_words.intersection(context_words))
-            total_overlap += overlap
-
-        avg_overlap = total_overlap / len(contexts)
-        max_possible = len(question_words)
-
-        return min(avg_overlap / max(max_possible, 1) * 2.0, 1.0)  # Boost and cap

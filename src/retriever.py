@@ -892,7 +892,7 @@ class DocumentRetriever:
             return base_similarity
 
         # Compute BM25 score (use a pseudo doc_id based on document hash)
-        doc_id = hashlib.md5(document.encode()).hexdigest()[:8]
+        doc_id = hashlib.md5(document.encode(), usedforsecurity=False).hexdigest()[:8]
         bm25_score = self._compute_bm25_score(query_terms, doc_id, document)
 
         # Normalize BM25 score to [0, 1] range (rough approximation)
@@ -946,7 +946,7 @@ class DocumentRetriever:
             # Score all documents by BM25
             scored_docs = []
             for doc, metadata in zip(all_docs['documents'], all_docs['metadatas']):
-                doc_id = hashlib.md5(doc.encode()).hexdigest()[:8]
+                doc_id = hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()[:8]
                 bm25_score = self._compute_bm25_score(query_terms, doc_id, doc)
                 
                 # Normalize to [0, 1]
