@@ -113,7 +113,7 @@ class ErrorRecoveryManager:
 
                 # Special handling for document processing: DocumentAlreadyExistsError is success
                 if (operation_type == 'document_processing' and
-                    isinstance(e, DocumentAlreadyExistsError)):
+                        isinstance(e, DocumentAlreadyExistsError)):
                     logger.info(f"Document already exists, treating as success: {e}")
                     self._record_success(operation_type)  # Reset error counts
                     return False  # DocumentAlreadyExistsError returns False from add_document

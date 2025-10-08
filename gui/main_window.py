@@ -11,7 +11,7 @@ CUBO Desktop GUI - Main Application Window
                 logger.info("Embedding model loaded successfully")
             except Exception as model_error:
                 logger.error(f"Failed to load embedding model: {model_error}")
-                QMessageBox.warning(self, "Model Loading Warning", 
+                QMessageBox.warning(self, "Model Loading Warning",
                     f"Failed to load embedding model: {model_error}\n\n"
                     "The application will start but document processing may not work. "
                     "Please check your model installation and try restarting.")
@@ -41,17 +41,17 @@ from src.logger import logger
 
 class BackendInitializationWorker(QThread):
     """Worker thread for backend initialization to prevent GUI freezing."""
-    
+
     # Signals for progress updates
     progress_update = Signal(int, str)  # value, message
     log_message = Signal(str)
     initialization_complete = Signal()
     initialization_error = Signal(str)
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
-        
+
     def run(self):
         """Run the backend initialization in a separate thread."""
         try:
@@ -59,25 +59,25 @@ class BackendInitializationWorker(QThread):
             self.initialization_complete.emit()
         except Exception as e:
             self.initialization_error.emit(str(e))
-    
+
     def _initialize_backend(self):
         """Initialize backend components with progress updates."""
         import logging
         logger = logging.getLogger(__name__)
-        
+
         try:
             self.log_message.emit("Initializing backend components...")
             logger.info("Initializing backend components...")
 
             # Initialize document loader
             self._initialize_document_loader()
-            
+
             # Validate model configuration
             self._validate_model_configuration()
-            
+
             # Load embedding model
             self._load_embedding_model()
-            
+
             # Initialize document retriever
             self._initialize_document_retriever()
 
@@ -101,7 +101,7 @@ class BackendInitializationWorker(QThread):
         from src.config import config
         import os
         model_path = config.get("model_path")
-        
+
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"Configuration loaded. Model path: {model_path}")
@@ -118,7 +118,7 @@ class BackendInitializationWorker(QThread):
         """Load the embedding model with error handling."""
         import logging
         logger = logging.getLogger(__name__)
-        
+
         try:
             # Import model_loader only when needed to avoid circular imports
             import importlib
@@ -139,7 +139,7 @@ class BackendInitializationWorker(QThread):
         """Initialize the document retriever if model is available."""
         import logging
         logger = logging.getLogger(__name__)
-        
+
         # Initialize retriever (only if model loaded successfully)
         if self.parent.model:
             try:
@@ -350,14 +350,14 @@ class CUBOGUI(QMainWindow):
         """Start the backend initialization in a separate thread."""
         # Create worker thread
         self.init_worker = BackendInitializationWorker(self)
-        
+
         # Connect signals
         self.init_worker.progress_update.connect(self.loading_dialog.update_progress)
         # Log messages are no longer displayed in the loading dialog
         # self.init_worker.log_message.connect(self.loading_dialog.add_log_message)
         self.init_worker.initialization_complete.connect(self._on_initialization_complete)
         self.init_worker.initialization_error.connect(self._on_initialization_error)
-        
+
         # Start the thread
         self.init_worker.start()
 
@@ -390,10 +390,10 @@ class CUBOGUI(QMainWindow):
             self.loading_dialog.hide()
             self.loading_dialog.deleteLater()
             self.loading_dialog = None
-        
+
         # Now show the main window
         self.show()
-        
+
         # Update status bar to indicate manual document loading is required
         self.status_bar.showMessage("Ready - Please upload documents to get started")
 
@@ -439,23 +439,23 @@ class CUBOGUI(QMainWindow):
         """Get appropriate error messages based on error category."""
         error_messages = {
             "model_loading": ("Model Loading Error",
-                            "Failed to load the AI model. Please check that model files are properly installed.",
-                            "Model loading failed"),
+                              "Failed to load the AI model. Please check that model files are properly installed.",
+                              "Model loading failed"),
             "database": ("Database Error",
-                        "Failed to initialize the document database. Check file permissions and disk space.",
-                        "Database initialization failed"),
+                         "Failed to initialize the document database. Check file permissions and disk space.",
+                         "Database initialization failed"),
             "memory": ("Memory/Resource Error",
-                      "Insufficient memory or GPU resources. Try closing other applications or reducing model size.",
-                      "Insufficient resources"),
+                       "Insufficient memory or GPU resources. Try closing other applications or reducing model size.",
+                       "Insufficient resources"),
             "permission": ("Permission Error",
-                          "Permission denied accessing required files. Check file permissions in the application directory.",
-                          "Permission denied"),
+                           "Permission denied accessing required files. Check file permissions in the application directory.",
+                           "Permission denied"),
             "connection": ("Connection Error",
-                          "Network connection error during initialization. Check your internet connection.",
-                          "Connection error"),
+                           "Network connection error during initialization. Check your internet connection.",
+                           "Connection error"),
             "generic": ("Backend Error",
-                       f"Failed to initialize backend components: {error_msg}",
-                       "Backend initialization failed")
+                        f"Failed to initialize backend components: {error_msg}",
+                        "Backend initialization failed")
         }
 
         return error_messages.get(error_category, error_messages["generic"])
@@ -864,7 +864,7 @@ class CUBOGUI(QMainWindow):
         # Convert single filepath to list if needed
         if isinstance(filepaths, str):
             filepaths = [filepaths]
-            
+
         logger.info(f"Document upload triggered with {len(filepaths)} files: {[Path(fp).name for fp in filepaths]}")
 
         try:
@@ -948,7 +948,7 @@ class CUBOGUI(QMainWindow):
     def _load_and_validate_document(self, filepath, filename, counts):
         """Load document content and validate it was extracted successfully."""
         logger = logging.getLogger(__name__)
-        
+
         self.status_bar.showMessage(f"Loading {filename}...")
 
         # Load and chunk the document
@@ -965,7 +965,7 @@ class CUBOGUI(QMainWindow):
     def _index_document(self, filepath, filename, documents, counts):
         """Index the document in the retriever and update UI."""
         logger = logging.getLogger(__name__)
-        
+
         self.status_bar.showMessage(f"Indexing {filename} ({len(documents)} chunks)...")
 
         # Add to retriever
@@ -1054,7 +1054,7 @@ class CUBOGUI(QMainWindow):
         if not self.retriever.get_loaded_documents():
             self.status_bar.showMessage("No documents loaded")
             QMessageBox.warning(self, "No Documents",
-                "Please upload some documents first before asking questions.")
+                              "Please upload some documents first before asking questions.")
             return None
 
         self.status_bar.showMessage("Retrieving relevant content...")
@@ -1066,7 +1066,7 @@ class CUBOGUI(QMainWindow):
         if not relevant_docs_data:
             self.status_bar.showMessage("No relevant documents found")
             QMessageBox.information(self, "No Results",
-                "No relevant documents were found for your query. Try rephrasing or upload more documents.")
+                              "No relevant documents were found for your query. Try rephrasing or upload more documents.")
             return None
 
         return relevant_docs_data

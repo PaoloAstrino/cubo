@@ -15,9 +15,7 @@ class ResponseGenerator:
         self.service_manager = get_service_manager()
         self.system_prompt = ("You are an AI assistant that answers queries strictly based on the "
                               "provided context from documents. Do not use any external knowledge, "
-                              "assumptions, or invented information. If the context does not contain "
-                              "relevant information to answer the query, respond with: 'The provided "
-                              "documents do not contain information to answer this query.'")
+                              "assumptions, or invented information.")
 
     def initialize_conversation(self):
         """Initialize the conversation with system prompt."""

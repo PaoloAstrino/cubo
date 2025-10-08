@@ -43,7 +43,7 @@ class EvaluationDashboard(QWidget):
         except Exception as e:
             logger.error(f"Failed to initialize dashboard components: {e}")
             QMessageBox.critical(self, "Initialization Error",
-                               f"Failed to initialize dashboard: {e}")
+                                 f"Failed to initialize dashboard: {e}")
             raise
         self.init_ui()
         self.load_data()
@@ -134,12 +134,12 @@ class EvaluationDashboard(QWidget):
         quality_group = QGroupBox("Quality Indicators")
         quality_layout = QVBoxLayout(quality_group)
 
-        self.readability_label = QLabel("Avg Readability: --")
-        self.completeness_label = QLabel("Avg Completeness: --")
+        self.answer_length_label = QLabel("Avg Answer Length: --")
+        self.context_count_label = QLabel("Avg Context Count: --")
         self.error_rate_label = QLabel("Error Rate: --")
 
-        quality_layout.addWidget(self.readability_label)
-        quality_layout.addWidget(self.completeness_label)
+        quality_layout.addWidget(self.answer_length_label)
+        quality_layout.addWidget(self.context_count_label)
         quality_layout.addWidget(self.error_rate_label)
 
         layout.addWidget(quality_group)
@@ -290,7 +290,7 @@ class EvaluationDashboard(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, "Data Loading Error",
-                               f"Failed to load evaluation data: {e}")
+                                 f"Failed to load evaluation data: {e}")
 
     def parse_days_selection(self) -> int:
         """Parse days selection from combo box."""
@@ -332,9 +332,11 @@ class EvaluationDashboard(QWidget):
         self.context_relevance_label.setText(f"Context Relevance: {cr:.2f}")
         self.groundedness_label.setText(f"Groundedness: {g:.2f}")
 
-        # Quality indicators (placeholder for now)
-        self.readability_label.setText("Avg Readability: --")
-        self.completeness_label.setText("Avg Completeness: --")
+        # Quality indicators
+        answer_length = avg_scores.get('avg_answer_length', 0)
+        context_count = avg_scores.get('avg_context_count', 0)
+        self.answer_length_label.setText(f"Avg Answer Length: {answer_length:.0f} chars" if answer_length else "Avg Answer Length: --")
+        self.context_count_label.setText(f"Avg Context Count: {context_count:.1f}" if context_count else "Avg Context Count: --")
         self.error_rate_label.setText(f"Error Rate: {(1-success_rate):.1%}")
 
     def load_recent_evaluations(self):
@@ -502,7 +504,10 @@ class EvaluationDashboard(QWidget):
             # Update trends summary
             if 'summary' in trends:
                 summary = trends['summary']
-                summary_text = f"""
+                if summary.get('total_days', 0) == 0:
+                    summary_text = f"No evaluation data available for the last {days} days.\n\nRun some queries through the system to start collecting metrics."
+                else:
+                    summary_text = f"""
 Period: {days} days
 Total Days: {summary.get('total_days', 0)}
 Avg Daily Queries: {summary.get('avg_daily_queries', 0):.1f}
@@ -531,7 +536,10 @@ Worst Day: {summary.get('worst_day', 'N/A')}
 
         except Exception as e:
             logger.error(f"Failed to load insights: {e}")
-            self.insights_text.setText(f"Error loading insights: {e}")
+            if "No data" in str(e) or not analysis.get('insights'):
+                self.insights_text.setText("No evaluation data available yet.\n\nStart using the system to generate insights from your query performance.")
+            else:
+                self.insights_text.setText(f"Error loading insights: {e}")
 
     def export_data(self):
         """Export evaluation data."""
@@ -562,7 +570,7 @@ Worst Day: {summary.get('worst_day', 'N/A')}
 
         except Exception as e:
             QMessageBox.critical(self, "Export Error",
-                               f"Failed to export data: {e}")
+                                 f"Failed to export data: {e}")
             logger.error(f"Error exporting data: {e}")
 
 
@@ -593,7 +601,7 @@ def show_evaluation_dashboard():
     except Exception as e:
         logger.error(f"Failed to launch evaluation dashboard: {e}")
         QMessageBox.critical(None, "Dashboard Error",
-                           f"Failed to launch evaluation dashboard: {e}")
+                             f"Failed to launch evaluation dashboard: {e}")
         raise
 
 

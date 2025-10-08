@@ -18,13 +18,13 @@ def test_upload_and_retrieval():
     print("=" * 80)
     print("UPLOAD AND RETRIEVAL TEST")
     print("=" * 80)
-    
+
     # Load model
     print("\n1. Loading embedding model...")
     model_manager = ModelManager()
     model = model_manager.load_model()
     print(f"   [OK] Model loaded")
-    
+
     # Initialize retriever and document loader
     print("\n2. Initializing retriever...")
     retriever = DocumentRetriever(
@@ -34,20 +34,20 @@ def test_upload_and_retrieval():
     )
     doc_loader = DocumentLoader()
     print(f"   [OK] Retriever initialized")
-    
+
     # Upload all animal story files
     print("\n3. Uploading animal story files...")
     data_dir = Path("data")
     animal_stories = [
         "cat_story.txt",
-        "dog_story.txt", 
+        "dog_story.txt",
         "elephant_story.txt",
         "frog_story.txt",
         "horse_story.txt",
         "lion_story.txt",
         "rabbit_story.txt"
     ]
-    
+
     uploaded_count = 0
     for filename in animal_stories:
         filepath = data_dir / filename
@@ -65,9 +65,9 @@ def test_upload_and_retrieval():
                 print(f"[X] Error: {e}")
         else:
             print(f"   [X] {filename} not found")
-    
+
     print(f"\n   Total uploaded: {uploaded_count}/{len(animal_stories)} files")
-    
+
     # Check what's in the database
     print("\n4. Verifying database contents...")
     all_data = retriever.collection.get()
@@ -77,7 +77,7 @@ def test_upload_and_retrieval():
         print(f"   Files in database: {len(file_counts)}")
         for filename, count in sorted(file_counts.items()):
             print(f"     - {filename}: {count} chunks")
-    
+
     # Test queries
     test_queries = [
         ("tell me about the frog", "frog_story.txt"),
@@ -88,23 +88,23 @@ def test_upload_and_retrieval():
         ("tell me about the dog", "dog_story.txt"),
         ("what is a rabbit", "rabbit_story.txt"),
     ]
-    
+
     print("\n" + "=" * 80)
     print("TESTING RETRIEVAL")
     print("=" * 80)
-    
+
     correct_retrievals = 0
     total_queries = len(test_queries)
-    
+
     for query, expected_file in test_queries:
         print(f"\n{'='*80}")
         print(f"Query: '{query}'")
         print(f"Expected: {expected_file}")
         print(f"{'='*80}")
-        
+
         try:
             results = retriever.retrieve_top_documents(query, top_k=6)
-            
+
             if results:
                 print(f"\nRetrieved {len(results)} results:")
                 retrieved_files = []
@@ -116,7 +116,7 @@ def test_upload_and_retrieval():
                     print(f"     {doc_preview}...")
                     if filename not in retrieved_files:
                         retrieved_files.append(filename)
-                
+
                 # Check if expected file is in top result
                 top_file = results[0].get('metadata', {}).get('filename', 'Unknown')
                 if expected_file in top_file:
@@ -127,19 +127,19 @@ def test_upload_and_retrieval():
                     print(f"     Files retrieved: {retrieved_files}")
             else:
                 print("  [X] No results returned!")
-                
+
         except Exception as e:
             print(f"  [X] Error: {e}")
             import traceback
             traceback.print_exc()
-    
+
     # Summary
     print("\n" + "=" * 80)
     print("SUMMARY")
     print("=" * 80)
     accuracy = (correct_retrievals / total_queries * 100) if total_queries > 0 else 0
     print(f"Correct retrievals: {correct_retrievals}/{total_queries} ({accuracy:.1f}%)")
-    
+
     if accuracy >= 80:
         print("[OK] Retrieval is working well!")
     elif accuracy >= 50:

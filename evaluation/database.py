@@ -288,8 +288,8 @@ class EvaluationDatabase:
             return results
 
     def update_evaluation_metrics(self, evaluation_id: int, answer_relevance: float,
-                                context_relevance: float, groundedness: float,
-                                llm_metrics: Optional[Dict[str, Any]] = None):
+                                  context_relevance: float, groundedness: float,
+                                  llm_metrics: Optional[Dict[str, Any]] = None):
         """
         Update evaluation metrics for an existing query.
 
@@ -357,7 +357,11 @@ class EvaluationDatabase:
                 AVG(context_relevance_score) as avg_context_relevance,
                 AVG(groundedness_score) as avg_groundedness,
                 AVG(response_time) as avg_response_time,
-                AVG(answer_length) as avg_answer_length
+                AVG(answer_length) as avg_answer_length,
+                AVG(context_count) as avg_context_count,
+                AVG(total_context_length) as avg_total_context_length,
+                AVG(average_context_similarity) as avg_context_similarity,
+                AVG(answer_confidence) as avg_answer_confidence
             FROM evaluations
             WHERE timestamp >= ? AND error_occurred = 0
         ''', (cutoff_date,)).fetchone()
@@ -439,8 +443,8 @@ class EvaluationDatabase:
         return error_types
 
     def _build_metrics_summary_response(self, days: int, total_queries: int, successful_queries: int,
-                                      average_scores: tuple, score_distributions: Dict[str, Dict[str, int]],
-                                      top_queries: List[tuple], common_errors: List[tuple]) -> Dict[str, Any]:
+                                        average_scores: tuple, score_distributions: Dict[str, Dict[str, int]],
+                                        top_queries: List[tuple], common_errors: List[tuple]) -> Dict[str, Any]:
         """
         Build the final metrics summary response dictionary.
 
@@ -472,12 +476,17 @@ class EvaluationDatabase:
         """Build the average scores section of the response."""
         if not average_scores:
             return {}
-            
+
         return {
             'avg_answer_relevance': average_scores[0],
             'avg_context_relevance': average_scores[1],
             'avg_groundedness': average_scores[2],
-            'avg_response_time': average_scores[3]
+            'avg_response_time': average_scores[3],
+            'avg_answer_length': average_scores[4],
+            'avg_context_count': average_scores[5],
+            'avg_total_context_length': average_scores[6],
+            'avg_context_similarity': average_scores[7],
+            'avg_answer_confidence': average_scores[8]
         }
 
     def _build_top_queries_section(self, top_queries: List[tuple]) -> List[Dict[str, Any]]:

@@ -406,13 +406,15 @@ class AutoMergingRetriever:
                     'id': chunk['id'],
                     'filename': chunk['filename'],
                     'level': chunk['level'],
-                    'chunk_size': chunk.get('chunk_size', 0),
-                    'token_count': chunk.get('token_count', 0),
-                    'start_pos': chunk.get('start_pos', 0),
-                    'end_pos': chunk.get('end_pos', 0),
-                    'parent_id': chunk.get('parent_id', ''),  # Empty string instead of None
-                    # child_ids is a list, ChromaDB doesn't support lists, skip it
+                    'chunk_size': chunk.get('chunk_size', 0) or 0,
+                    'token_count': chunk.get('token_count', 0) or 0,
+                    'start_pos': chunk.get('start_pos', 0) or 0,
+                    'end_pos': chunk.get('end_pos', 0) or 0,
                 }
+                # Only add parent_id if it's not None
+                if chunk.get('parent_id'):
+                    metadata['parent_id'] = chunk['parent_id']
+                # child_ids is a list, ChromaDB doesn't support lists, skip it
                 metadatas.append(metadata)
 
             # Add all chunks in batch

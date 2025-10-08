@@ -83,8 +83,8 @@ async def evaluate_saved_queries(limit: Optional[int] = None, session_id: Option
 
                     evaluated_count += 1
                     logger.info(f"✓ Evaluation completed: AR={evaluation_result.answer_relevance_score:.2f}, "
-                              f"CR={evaluation_result.context_relevance_score:.2f}, "
-                              f"G={evaluation_result.groundedness_score:.2f}")
+                                f"CR={evaluation_result.context_relevance_score:.2f}, "
+                                f"G={evaluation_result.groundedness_score:.2f}")
                 else:
                     # LLM evaluation failed - leave record unchanged so it will be retried later
                     logger.warning(f"⚠ LLM evaluation failed for query: {query_data['question'][:50]}... - will retry later")

@@ -135,7 +135,9 @@ class HealthMonitor:
         if len(self.status_history[check_name]) > 10:
             self.status_history[check_name].pop(0)
 
-    def _handle_check_error(self, check_name: str, check: HealthCheck, error: Exception) -> Dict[str, Any]:
+    def _handle_check_error(
+        self, check_name: str, check: HealthCheck, error: Exception
+    ) -> Dict[str, Any]:
         """Handle errors during health check execution."""
         error_result = {
             'status': HealthStatus.CRITICAL.value,

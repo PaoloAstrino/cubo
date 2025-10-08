@@ -18,13 +18,13 @@ def test_retrieval():
     print("=" * 80)
     print("RETRIEVAL DEBUG TEST")
     print("=" * 80)
-    
+
     # Load model
     print("\n1. Loading embedding model...")
     model_manager = ModelManager()
     model = model_manager.load_model()
     print(f"   Model loaded: {model is not None}")
-    
+
     # Initialize retriever
     print("\n2. Initializing retriever...")
     retriever = DocumentRetriever(
@@ -34,7 +34,7 @@ def test_retrieval():
     )
     print(f"   Retriever initialized")
     print(f"   Current documents in session: {retriever.current_documents}")
-    
+
     # Check what's in the database
     print("\n3. Checking database contents...")
     try:
@@ -44,7 +44,7 @@ def test_retrieval():
         print(f"   Filenames in session: {collection_info.get('current_session_filenames', [])}")
     except:
         print(f"   Current session docs: {len(retriever.current_documents)}")
-    
+
     # Get all metadata to see what files are actually in the database
     print("\n4. Querying all documents in ChromaDB...")
     all_data = retriever.collection.get()
@@ -55,7 +55,7 @@ def test_retrieval():
                 filenames_in_db.add(metadata['filename'])
         print(f"   Files in database: {sorted(filenames_in_db)}")
         print(f"   Total chunks: {len(all_data['ids'])}")
-        
+
         # Count chunks per file
         from collections import Counter
         file_counts = Counter(m.get('filename', 'Unknown') for m in all_data['metadatas'])
@@ -65,7 +65,7 @@ def test_retrieval():
     else:
         print("   No documents found in database!")
         return
-    
+
     # Check auto-merging retriever
     print("\n5. Checking auto-merging retriever...")
     if retriever.auto_merging_retriever:
@@ -81,7 +81,7 @@ def test_retrieval():
             print("   No documents in auto-merging collection")
     else:
         print("   Auto-merging retriever not available")
-    
+
     # Test queries
     test_queries = [
         "tell me about the frog",
@@ -90,16 +90,16 @@ def test_retrieval():
         "what is a cat",
         "describe the elephant"
     ]
-    
+
     print("\n" + "=" * 80)
     print("TESTING QUERIES")
     print("=" * 80)
-    
+
     for query in test_queries:
         print(f"\n{'='*80}")
         print(f"Query: '{query}'")
         print(f"{'='*80}")
-        
+
         # Test sentence window retrieval
         print("\n  [Sentence Window Retrieval]")
         try:
@@ -113,7 +113,7 @@ def test_retrieval():
                 print(f"       Preview: {doc_preview}...")
         except Exception as e:
             print(f"  Error: {e}")
-        
+
         # Test auto-merging retrieval
         print("\n  [Auto-Merging Retrieval]")
         try:
@@ -127,7 +127,7 @@ def test_retrieval():
                 print(f"       Preview: {doc_preview}...")
         except Exception as e:
             print(f"  Error: {e}")
-        
+
         # Test hybrid retrieval
         print("\n  [Hybrid Retrieval (Combined)]")
         try:

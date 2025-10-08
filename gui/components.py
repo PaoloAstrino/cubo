@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QListView, QStyledItemDelegate, QStyleOptionViewItem
 )
 from PySide6.QtCore import Qt, Signal, QThread, QAbstractListModel, QModelIndex, QSize, QRect
-from PySide6.QtGui import QFont, QPixmap, QIcon, QPainter, QColor
+from PySide6.QtGui import QFont, QPixmap, QIcon, QPainter, QColor, QPen
 
 from pathlib import Path
 import os
@@ -256,12 +256,17 @@ class MessageDelegate(QStyledItemDelegate):
         """
         message = index.data(Qt.UserRole)
         msg_type = index.data(Qt.UserRole + 1)
+        metadata = message.get('metadata', {})
 
         # Get styling information for message type
         bg_color, text_color, alignment = self._get_message_styling(msg_type)
 
         # Draw the message bubble
-        self._draw_message_bubble(painter, option.rect, bg_color, text_color, alignment, message['content'])
+        bubble_rect, text_y_offset = self._draw_message_bubble(painter, option.rect, bg_color, text_color, alignment, message['content'])
+
+        # Draw source rectangles below system messages
+        if msg_type == 'system' and metadata.get('sources'):
+            self._draw_source_rectangles(painter, option.rect, bubble_rect, metadata['sources'])
 
     def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex):
         """
@@ -277,6 +282,7 @@ class MessageDelegate(QStyledItemDelegate):
         message = index.data(Qt.UserRole)
         content = message['content']
         msg_type = index.data(Qt.UserRole + 1)
+        metadata = message.get('metadata', {})
 
         # Get font metrics for accurate calculation
         font = QFont()
@@ -287,16 +293,27 @@ class MessageDelegate(QStyledItemDelegate):
 
         # Calculate available width (70% of widget for bubble, with margins)
         available_width = int(option.rect.width() * 0.7) - 40  # margins and padding
-        
+
         # Calculate text rectangle with proper wrapping
         text_rect = metrics.boundingRect(
             0, 0, available_width, 10000,
             Qt.TextWordWrap | Qt.AlignLeft,
             content
         )
-        
-        # Add padding and margins
+
+        # Base height for text bubble
         height = text_rect.height() + 30  # vertical padding + margins
+
+        # Add height for source rectangles if present (only for system messages)
+        if msg_type == 'system' and metadata.get('sources'):
+            sources = metadata['sources']
+            if sources:
+                # Each source rectangle is about 25px high + 5px spacing
+                # Arrange in horizontal layout, max 3 per row
+                num_rows = (len(sources) + 2) // 3  # Ceiling division
+                source_height = num_rows * 30 + 10  # rectangles + spacing + margin
+                height += source_height
+
         return QSize(option.rect.width(), max(50, height))
 
     def _get_message_styling(self, msg_type: str) -> tuple[QColor, QColor, Qt.AlignmentFlag]:
@@ -326,7 +343,7 @@ class MessageDelegate(QStyledItemDelegate):
             return QColor('#3a3a3a'), QColor('#E8E8E8'), Qt.AlignLeft
 
     def _draw_message_bubble(self, painter: QPainter, rect: QRect, bg_color: QColor,
-                           text_color: QColor, alignment: Qt.AlignmentFlag, content: str):
+                             text_color: QColor, alignment: Qt.AlignmentFlag, content: str):
         """
         Draw a message bubble with the specified styling and proper alignment.
 
@@ -337,29 +354,32 @@ class MessageDelegate(QStyledItemDelegate):
             text_color: Text color for the content
             alignment: Text alignment (left/right)
             content: The message content to draw
+
+        Returns:
+            Tuple of (bubble_rect, text_y_offset) for positioning source rectangles
         """
         painter.setRenderHint(QPainter.Antialiasing, True)
-        
+
         # Set up font for text metrics
         font = QFont("Segoe UI", 10)
         painter.setFont(font)
         from PySide6.QtGui import QFontMetrics
         metrics = QFontMetrics(font)
-        
+
         # Calculate bubble width (max 70% of available width)
         max_bubble_width = int(rect.width() * 0.7)
-        
+
         # Calculate actual text size with wrapping
         text_rect = metrics.boundingRect(
             0, 0, max_bubble_width - 20, 10000,
             Qt.TextWordWrap | Qt.AlignLeft,
             content
         )
-        
+
         # Add padding to text dimensions
         bubble_width = min(text_rect.width() + 20, max_bubble_width)
         bubble_height = text_rect.height() + 16
-        
+
         # Position bubble based on alignment
         margin = 15
         if alignment == Qt.AlignRight:
@@ -368,19 +388,84 @@ class MessageDelegate(QStyledItemDelegate):
         else:
             # System messages on the left
             bubble_x = rect.left() + margin
-        
+
         bubble_y = rect.top() + 8
         bubble_rect = QRect(bubble_x, bubble_y, bubble_width, bubble_height)
-        
+
         # Draw bubble background with rounded corners and shadow effect
         painter.setBrush(bg_color)
         painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(bubble_rect, 12, 12)
-        
+
         # Draw text with proper alignment and padding
         painter.setPen(text_color)
         text_draw_rect = bubble_rect.adjusted(10, 8, -10, -8)
         painter.drawText(text_draw_rect, Qt.AlignLeft | Qt.TextWordWrap, content)
+
+        return bubble_rect, bubble_y + bubble_height
+
+    def _draw_source_rectangles(self, painter: QPainter, item_rect: QRect, bubble_rect: QRect, sources: list):
+        """
+        Draw source rectangles below a system message bubble.
+
+        Args:
+            painter: The painter to use for drawing
+            item_rect: The full item rectangle
+            bubble_rect: The message bubble rectangle
+            sources: List of source strings to display
+        """
+        if not sources:
+            return
+
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        # Set up font for source text
+        font = QFont("Segoe UI", 9)
+        painter.setFont(font)
+        from PySide6.QtGui import QFontMetrics
+        metrics = QFontMetrics(font)
+
+        # Rectangle styling
+        rect_height = 25
+        rect_margin = 3
+        row_spacing = 5
+
+        # Start position below the bubble
+        start_y = bubble_rect.bottom() + 10
+        start_x = bubble_rect.left()  # Align with bubble
+
+        # Calculate rectangle width (fit up to 3 per row)
+        available_width = bubble_rect.width()
+        rect_width = (available_width - 2 * rect_margin) // 3 - rect_margin
+
+        # Draw rectangles in rows of up to 3
+        for i, source in enumerate(sources):
+            row = i // 3
+            col = i % 3
+
+            # Calculate position
+            x = start_x + col * (rect_width + rect_margin)
+            y = start_y + row * (rect_height + row_spacing)
+
+            # Create rectangle
+            rect = QRect(x, y, rect_width, rect_height)
+
+            # Draw rectangle background
+            painter.setBrush(QColor('#4a4a4a'))
+            painter.setPen(QPen(QColor('#666666'), 1))
+            painter.drawRoundedRect(rect, 6, 6)
+
+            # Draw source text (truncate if too long)
+            text = source
+            if metrics.horizontalAdvance(text) > rect_width - 10:
+                # Truncate text to fit
+                while metrics.horizontalAdvance(text + '...') > rect_width - 10 and len(text) > 3:
+                    text = text[:-1]
+                text += '...'
+
+            painter.setPen(QColor('#E8E8E8'))
+            text_rect = rect.adjusted(5, 2, -5, -2)
+            painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, text)
 
 
 class DocumentWidget(QWidget):
@@ -450,7 +535,7 @@ class DocumentWidget(QWidget):
                 border-radius: 10px;
             }
         """)
-        
+
         upload_inner_layout = QVBoxLayout(upload_widget)
         upload_inner_layout.setAlignment(Qt.AlignCenter)
 
@@ -1077,10 +1162,15 @@ class QueryWidget(QWidget):
         """Add response message to the model with production-ready formatting."""
         print(f"DEBUG: _add_response_message called with response: {response[:100] if response else 'None'}...")
 
-        formatted_sources = self._format_sources(sources)
-        formatted_response = f"{response}{formatted_sources}"
+        # Prepare sources for metadata (limit to top 5 unique sources)
+        sources_list = self._normalize_sources_to_list(sources)
+        valid_sources = self._filter_valid_sources(sources_list)
+        limited_sources = list(dict.fromkeys(valid_sources))[:5]  # Remove duplicates and limit to 5
 
-        self.message_model.add_message(formatted_response, 'system')
+        # Store sources in metadata instead of appending to content
+        metadata = {'sources': limited_sources} if limited_sources else {}
+
+        self.message_model.add_message(response, 'system', metadata)
 
     def _format_sources(self, sources):
         """Format sources into user-friendly citations."""

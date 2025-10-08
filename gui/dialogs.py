@@ -90,7 +90,7 @@ class SettingsDialog(QDialog):
         self.chunking_method = QComboBox()
         self.chunking_method.addItems(["Character-based (Legacy)", "Sentence Window (Recommended)"])
         self.chunking_method.setCurrentText(
-            "Sentence Window (Recommended)" if self.current_settings.get("chunking", {}).get("method") == "sentence_window" 
+            "Sentence Window (Recommended)" if self.current_settings.get("chunking", {}).get("method") == "sentence_window"
             else "Character-based (Legacy)"
         )
         chunking_layout.addRow("Chunking Method:", self.chunking_method)
@@ -364,7 +364,7 @@ class ModelSelectionDialog(QDialog):
         """Convert technical model names to user-friendly names."""
         friendly_names = {
             "llama3.2:latest": "Llama 3.2 (Recommended)",
-            "llama3.2": "Llama 3.2 (Recommended)", 
+            "llama3.2": "Llama 3.2 (Recommended)",
             "granite3.2:2b": "Granite 3.2 (Fast & Light)",
             "llama3.1": "Llama 3.1",
             "llama3": "Llama 3",
@@ -374,16 +374,16 @@ class ModelSelectionDialog(QDialog):
             "phi3": "Phi-3 (Microsoft)",
             "gemma": "Gemma (Google)"
         }
-        
+
         # Try exact match first
         if model_name in friendly_names:
             return friendly_names[model_name]
-            
+
         # Try partial matches
         for key, friendly in friendly_names.items():
             if key in model_name.lower():
                 return friendly
-                
+
         # Default: clean up the name a bit
         clean_name = model_name.replace(":latest", "").replace("_", " ").title()
         return clean_name

@@ -37,7 +37,7 @@ class AdvancedEvaluator:
         self.llm_provider = llm_provider
 
     async def evaluate_comprehensive(self, question: str, answer: str,
-                                   contexts: List[str], response_time: float) -> Dict[str, Any]:
+                                     contexts: List[str], response_time: float) -> Dict[str, Any]:
         """
         Run comprehensive evaluation suite.
 
@@ -72,10 +72,10 @@ class AdvancedEvaluator:
 
         # Calculate basic text metrics
         basic_metrics = self._calculate_basic_text_metrics(answer)
-        
+
         # Calculate readability score
         readability_score = self._calculate_readability_score(answer, basic_metrics)
-        
+
         # Analyze content structure
         structure_analysis = self._analyze_content_structure(answer)
 
@@ -113,7 +113,7 @@ class AdvancedEvaluator:
         sentences = re.split(r'[.!?]+', answer)
         sentence_count = len([s for s in sentences if s.strip()])
         avg_sentence_length = word_count / max(sentence_count, 1)
-        
+
         return {
             'word_count': word_count,
             'sentence_count': sentence_count,
@@ -124,7 +124,7 @@ class AdvancedEvaluator:
         """Calculate Flesch Reading Ease score."""
         avg_word_length = np.mean([len(word) for word in answer.split()])
         avg_sentence_length = basic_metrics['avg_sentence_length']
-        
+
         # Flesch Reading Ease (simplified approximation)
         return max(0, min(100, 206.835 - 1.015 * avg_sentence_length - 84.6 * avg_word_length))
 
@@ -133,7 +133,7 @@ class AdvancedEvaluator:
         has_structure = bool(re.search(r'\d+\.|\•|- |\(|\)', answer))  # Lists, bullets
         has_examples = bool(re.search(r'(?:for example|such as|e\.g\.|example)', answer.lower()))
         has_conclusion = bool(re.search(r'(?:in conclusion|therefore|thus|summary)', answer.lower()))
-        
+
         return {
             'has_structure': has_structure,
             'has_examples': has_examples,
@@ -248,42 +248,42 @@ class AdvancedEvaluator:
 
         # Extract keywords from question
         question_keywords = self._extract_question_keywords(question)
-        
+
         # Calculate semantic overlap
         semantic_overlap = self._calculate_semantic_overlap(question, answer, question_keywords)
-        
+
         # Calculate structural relevance
         structural_relevance = self._calculate_structural_relevance(question, answer)
-        
+
         # Combine scores (weighted average)
         relevance_score = 0.7 * semantic_overlap + 0.3 * structural_relevance
-        
+
         return min(1.0, max(0.0, relevance_score))
 
     def _extract_question_keywords(self, question: str) -> set:
         """Extract important keywords from the question."""
         # Remove common question words
-        stop_words = {'what', 'how', 'why', 'when', 'where', 'who', 'which', 'is', 'are', 'was', 'were', 
-                     'do', 'does', 'did', 'can', 'could', 'will', 'would', 'should', 'the', 'a', 'an'}
-        
+        stop_words = {'what', 'how', 'why', 'when', 'where', 'who', 'which', 'is', 'are', 'was', 'were',
+                      'do', 'does', 'did', 'can', 'could', 'will', 'would', 'should', 'the', 'a', 'an'}
+
         words = re.findall(r'\b\w+\b', question.lower())
         keywords = {word for word in words if word not in stop_words and len(word) > 2}
-        
+
         return keywords
 
     def _calculate_semantic_overlap(self, question: str, answer: str, question_keywords: set) -> float:
         """Calculate semantic overlap between question and answer."""
         answer_words = set(re.findall(r'\b\w+\b', answer.lower()))
-        
+
         # Direct keyword overlap
         direct_overlap, max_possible = self._calculate_direct_overlap_score(question_keywords, answer_words)
-        
+
         if max_possible == 0:
             return 0.0
-            
+
         # Check for partial matches and synonyms (simplified)
         partial_score = self._calculate_partial_overlap_score(question_keywords, answer_words)
-        
+
         return self._normalize_overlap_score(partial_score, max_possible)
 
     def _calculate_direct_overlap_score(self, question_keywords: set, answer_words: set) -> tuple:
@@ -315,14 +315,14 @@ class AdvancedEvaluator:
     def _calculate_structural_relevance(self, question: str, answer: str) -> float:
         """Calculate structural relevance based on answer completeness."""
         score = 0.0
-        
+
         # Length appropriateness (answers should be substantial but not too long)
         score += self._calculate_length_appropriateness_score(answer)
-            
+
         # Check if answer seems to address the question type
         question_type = self._detect_question_type(question)
         score += self._calculate_question_type_relevance(question_type, answer)
-        
+
         return min(1.0, score)
 
     def _calculate_length_appropriateness_score(self, answer: str) -> float:
@@ -350,7 +350,7 @@ class AdvancedEvaluator:
     def _calculate_question_type_relevance(self, question_type: str, answer: str) -> float:
         """Calculate relevance score based on question type and answer structure."""
         answer_lower = answer.lower()
-        
+
         if question_type == 'why':
             # For "why" questions, look for explanations
             return self._check_why_question_relevance(answer_lower)
@@ -360,7 +360,7 @@ class AdvancedEvaluator:
         elif question_type == 'what':
             # For "what" questions, look for definitions or descriptions
             return self._check_what_question_relevance(answer)
-        
+
         return 0.0
 
     def _check_why_question_relevance(self, answer_lower: str) -> float:
@@ -388,10 +388,10 @@ class AdvancedEvaluator:
 
         # Calculate basic context metrics
         basic_metrics = self._calculate_basic_context_metrics(contexts)
-        
+
         # Calculate context diversity
         diversity = self._calculate_context_diversity(contexts)
-        
+
         # Calculate question-context overlap
         overlap = self._calculate_question_context_overlap(question, contexts)
 
@@ -422,7 +422,7 @@ class AdvancedEvaluator:
         context_lengths = [len(ctx) for ctx in contexts]
         total_length = sum(context_lengths)
         avg_length = total_length / len(contexts)
-        
+
         return {
             'total_length': total_length,
             'avg_length': avg_length
@@ -438,7 +438,7 @@ class AdvancedEvaluator:
         word_counts = Counter(all_words)
         unique_words = len(word_counts)
         total_words = sum(word_counts.values())
-        
+
         return unique_words / max(total_words, 1)
 
     def _calculate_question_context_overlap(self, question: str, contexts: List[str]) -> float:
@@ -448,10 +448,10 @@ class AdvancedEvaluator:
         for ctx in contexts:
             words = re.findall(r'\b\w+\b', ctx.lower())
             all_context_words.extend(words)
-        
+
         question_words = set(re.findall(r'\b\w+\b', question.lower()))
         context_words = set(all_context_words)
-        
+
         overlap = len(question_words.intersection(context_words)) / max(len(question_words), 1)
         return overlap
 
@@ -486,7 +486,7 @@ class AdvancedEvaluator:
         }
 
     def evaluate_information_completeness(self, question: str, answer: str,
-                                        contexts: List[str]) -> Dict[str, Any]:
+                                          contexts: List[str]) -> Dict[str, Any]:
         """Evaluate information completeness."""
         if not answer or not contexts:
             return {
@@ -522,7 +522,7 @@ class AdvancedEvaluator:
         }
 
     async def evaluate_llm_based_metrics(self, question: str, answer: str,
-                                       contexts: List[str]) -> Dict[str, Any]:
+                                        contexts: List[str]) -> Dict[str, Any]:
         """Advanced LLM-based evaluation metrics."""
         if not self.ollama_client and not self.gemini_client:
             return {}
@@ -641,7 +641,7 @@ class AdvancedEvaluator:
             # If all models failed, return None to indicate complete failure
             logger.error(f"All Gemini models failed for scoring")
             return None
-            
+
         except Exception as e:
             logger.error(f"Gemini scoring failed: {e}")
             return None
@@ -660,84 +660,84 @@ class AdvancedEvaluator:
     async def evaluate_groundedness(self, contexts: List[str], answer: str) -> float:
         """
         Evaluate how well the answer is grounded in the provided contexts.
-        
+
         Groundedness measures whether the answer is supported by the contexts
         and doesn't contain unsupported claims (hallucinations).
-        
+
         Returns:
             Float between 0-1, where 1.0 means fully grounded
         """
         if not contexts or not answer:
             return 0.0
-            
+
         if not self.ollama_client and not self.gemini_client:
             # Fallback heuristic evaluation
             return self._evaluate_groundedness_heuristic(contexts, answer)
-        
+
         try:
             # Combine contexts for evaluation
             context_text = ' '.join(contexts[:3])  # Use first 3 contexts to avoid token limits
-            
+
             groundedness_prompt = f"""
             Evaluate how well this answer is grounded in the provided contexts.
-            
+
             Contexts: {context_text}
-            
+
             Answer: {answer}
-            
+
             Rate the groundedness on a scale of 1-5:
             1 = Answer contains significant unsupported claims or hallucinations
             2 = Answer has some unsupported information but mostly grounded
             3 = Answer is reasonably grounded with minor gaps
             4 = Answer is well-grounded with good support from contexts
             5 = Answer is perfectly grounded and fully supported by contexts
-            
+
             Consider:
             - Does the answer make claims not supported by contexts?
             - Are key facts and information backed by the provided contexts?
             - Does the answer stay within the bounds of the given information?
-            
+
             Rate only with a number (1-5):
             """
-            
+
             score = await self._get_llm_score(groundedness_prompt)
-            
+
             # Convert 1-5 scale to 0-1 scale
             return (score - 1) / 4.0
-            
+
         except Exception as e:
             logger.error(f"LLM groundedness evaluation failed: {e}")
             # No fallback - return None to indicate failure
             return None
-    
+
     def _evaluate_groundedness_heuristic(self, contexts: List[str], answer: str) -> float:
         """
         Heuristic groundedness evaluation when LLM is not available.
-        
+
         Returns:
             Float between 0-1
         """
         if not contexts or not answer:
             return 0.0
-            
+
         # Simple heuristic: check for keyword overlap
         context_text = ' '.join(contexts).lower()
         answer_words = set(answer.lower().split())
         context_words = set(context_text.split())
-        
+
         # Calculate overlap
         overlap = len(answer_words.intersection(context_words))
         total_answer_words = len(answer_words)
-        
+
         if total_answer_words == 0:
             return 0.0
-            
+
         overlap_ratio = overlap / total_answer_words
-        
+
         # Boost score if answer is concise and overlaps well
         if overlap_ratio > 0.3:
             return min(1.0, overlap_ratio * 1.2)  # Slight boost for good overlap
-        
+
 
 class PerformanceAnalyzer:
     """Analyze performance trends and patterns in evaluation data."""
@@ -792,11 +792,11 @@ class PerformanceAnalyzer:
 
         if 'trends' in trends:
             trend_data = trends['trends']
-            
+
             # Generate performance-based recommendations
             recommendations.extend(self._generate_performance_recommendations(trend_data))
-            
-            # Generate quality-based recommendations  
+
+            # Generate quality-based recommendations
             recommendations.extend(self._generate_quality_recommendations(trend_data))
 
         # Add general recommendations
@@ -807,25 +807,25 @@ class PerformanceAnalyzer:
     def _generate_performance_recommendations(self, trend_data: Dict) -> List[str]:
         """Generate recommendations based on performance trends."""
         recommendations = []
-        
+
         if 'avg_response_time' in trend_data:
             rt_trend = trend_data['avg_response_time']
             if rt_trend.get('direction') == 'declining':
                 recommendations.append("Optimize retrieval or model inference to reduce response times")
-                
+
         return recommendations
 
     def _generate_quality_recommendations(self, trend_data: Dict) -> List[str]:
         """Generate recommendations based on quality trends."""
         recommendations = []
-        
+
         if 'avg_answer_relevance' in trend_data:
             ar_trend = trend_data['avg_answer_relevance']
             if ar_trend.get('direction') == 'declining':
                 recommendations.append("Review recent document additions or model fine-tuning")
             elif ar_trend.get('slope', 0) < 0.001:  # Very slow improvement
                 recommendations.append("Consider additional training data or model improvements")
-                
+
         return recommendations
 
     def _generate_general_recommendations(self) -> List[str]:

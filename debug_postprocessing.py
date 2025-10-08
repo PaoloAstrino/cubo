@@ -41,7 +41,7 @@ for i, (doc, metadata, distance) in enumerate(zip(
     filename = metadata.get('filename', 'Unknown')
     sentence_idx = metadata.get('sentence_index', -1)
     window = metadata.get('window', '')[:200]
-    
+
     print(f"\n{i}. {filename} (sentence {sentence_idx}, similarity: {similarity:.4f})")
     print(f"   Matched sentence: {doc[:150]}...")
     print(f"   Window preview: {window}...")
@@ -70,6 +70,6 @@ for i, result in enumerate(processed, 1):
     filename = result['metadata'].get('filename', 'Unknown')
     similarity = result.get('similarity', 0)
     doc_preview = result.get('document', '')[:200]
-    
+
     print(f"\n{i}. {filename} (similarity: {similarity:.4f})")
     print(f"   Content: {doc_preview}...")

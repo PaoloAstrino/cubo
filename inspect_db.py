@@ -30,19 +30,19 @@ else:
             'text': doc,
             'metadata': metadata
         })
-    
+
     # Show first 3 chunks from each file
     for filename in sorted(file_chunks.keys()):
         chunks = file_chunks[filename]
         print(f"\n{'='*80}")
         print(f"File: {filename} ({len(chunks)} chunks)")
         print(f"{'='*80}")
-        
+
         for i, chunk in enumerate(chunks[:3]):
             print(f"\nChunk {i+1} (ID: {chunk['id']}):")
             print(f"Text length: {len(chunk['text'])} chars")
             print(f"First 200 chars: {chunk['text'][:200]}")
             print(f"Last 100 chars: ...{chunk['text'][-100:]}")
-            
+
         if len(chunks) > 3:
             print(f"\n... and {len(chunks) - 3} more chunks")

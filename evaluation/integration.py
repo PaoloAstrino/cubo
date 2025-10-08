@@ -90,10 +90,10 @@ class EvaluationIntegrator:
         self.retriever = retriever
 
     async def evaluate_query(self, question: str, answer: str,
-                           contexts: List[str], response_time: float,
-                           model_used: str = "llama3.2:latest",
-                           error_occurred: bool = False,
-                           error_message: Optional[str] = None) -> QueryEvaluation:
+                             contexts: List[str], response_time: float,
+                             model_used: str = "llama3.2:latest",
+                             error_occurred: bool = False,
+                             error_message: Optional[str] = None) -> QueryEvaluation:
         """
         Evaluate a complete query and store results.
 
@@ -159,9 +159,9 @@ class EvaluationIntegrator:
                 groundedness = await self.evaluator.evaluate_groundedness(contexts, answer)
 
                 # Only proceed if we have valid LLM scores for all three core metrics
-                if (answer_relevance is not None and 
-                    context_relevance is not None and 
-                    groundedness is not None):
+                if (answer_relevance is not None and
+                        context_relevance is not None and
+                        groundedness is not None):
                     evaluation.answer_relevance_score = answer_relevance
                     evaluation.context_relevance_score = context_relevance
                     evaluation.groundedness_score = groundedness
@@ -301,7 +301,7 @@ def get_evaluation_integrator(generator=None, retriever=None) -> EvaluationInteg
     return _evaluation_integrator
 
 async def evaluate_query_async(question: str, answer: str, contexts: List[str],
-                             response_time: float, **kwargs) -> Optional[QueryEvaluation]:
+                               response_time: float, **kwargs) -> Optional[QueryEvaluation]:
     """
     Convenience function to evaluate a query asynchronously.
 
@@ -315,7 +315,7 @@ async def evaluate_query_async(question: str, answer: str, contexts: List[str],
         return None
 
 def evaluate_query_sync(question: str, answer: str, contexts: List[str],
-                       response_time: float, **kwargs) -> Optional[QueryEvaluation]:
+                      response_time: float, **kwargs) -> Optional[QueryEvaluation]:
     """
     Convenience function to evaluate a query synchronously.
 
@@ -342,8 +342,8 @@ def evaluate_query_sync(question: str, answer: str, contexts: List[str],
 
 
 def save_query_data_sync(question: str, answer: str, contexts: List[str],
-                        response_time: float, model_used: str = "llama3.2:latest",
-                        error_occurred: bool = False, error_message: Optional[str] = None) -> bool:
+                       response_time: float, model_used: str = "llama3.2:latest",
+                       error_occurred: bool = False, error_message: Optional[str] = None) -> bool:
     """
     Save query data without running evaluation.
 
@@ -354,16 +354,16 @@ def save_query_data_sync(question: str, answer: str, contexts: List[str],
     """
     try:
         integrator = get_evaluation_integrator()
-        
+
         # Create evaluation record
         evaluation = _create_basic_evaluation_record(
-            question, answer, contexts, response_time, model_used, 
+            question, answer, contexts, response_time, model_used,
             error_occurred, error_message, integrator.session_id
         )
-        
+
         # Store in database
         _store_evaluation_record(evaluation, integrator.db, question)
-        
+
         return True
 
     except Exception as e:
@@ -372,12 +372,12 @@ def save_query_data_sync(question: str, answer: str, contexts: List[str],
 
 
 def _create_basic_evaluation_record(question: str, answer: str, contexts: List[str],
-                                  response_time: float, model_used: str,
-                                  error_occurred: bool, error_message: Optional[str],
-                                  session_id: str) -> QueryEvaluation:
+                                   response_time: float, model_used: str,
+                                   error_occurred: bool, error_message: Optional[str],
+                                   session_id: str) -> QueryEvaluation:
     """Create a basic evaluation record without computed metrics."""
     import datetime
-    
+
     return QueryEvaluation(
         timestamp=datetime.datetime.now().isoformat(),
         session_id=session_id,

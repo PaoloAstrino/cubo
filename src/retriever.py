@@ -10,6 +10,9 @@ import hashlib
 import os
 from pathlib import Path
 import json
+import math
+import re
+from collections import Counter, defaultdict
 from src.logger import logger
 from src.config import config
 from src.service_manager import get_service_manager
@@ -76,6 +79,14 @@ class DocumentRetriever:
         self.query_cache = {}
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
         self._load_cache()
+        
+        # BM25 parameters and document statistics
+        self.bm25_k1 = 1.5  # Term frequency saturation parameter
+        self.bm25_b = 0.75  # Length normalization parameter
+        self.doc_lengths = {}  # Document ID -> length
+        self.avg_doc_length = 0
+        self.term_doc_freq = defaultdict(int)  # Term -> number of docs containing it
+        self.doc_term_freq = {}  # Doc ID -> {term: frequency}
 
     def _initialize_postprocessors(self) -> None:
         """Initialize postprocessors and reranker based on configuration."""
@@ -237,35 +248,40 @@ class DocumentRetriever:
             RetrievalError: If retrieval operation fails
         """
         try:
-            # Perform both retrieval methods
-            sentence_results = self._retrieve_sentence_window(
-                query, top_k // 2 + top_k % 2
-            )  # Slightly more for sentence window
-            auto_results = self._retrieve_auto_merging_safe(query, top_k // 2)
+            # If both retrieval methods are available, use hybrid approach
+            if self.use_auto_merging and self._is_auto_merging_available():
+                # Perform both retrieval methods
+                sentence_results = self._retrieve_sentence_window(
+                    query, top_k // 2 + top_k % 2
+                )  # Slightly more for sentence window
+                auto_results = self._retrieve_auto_merging_safe(query, top_k // 2)
 
-            # Combine results
-            combined_results = sentence_results + auto_results
+                # Combine results
+                combined_results = sentence_results + auto_results
 
-            # Deduplicate by document content
-            seen_content = set()
-            unique_results = []
-            for result in combined_results:
-                # Use 'document' field for deduplication
-                content = result.get('document', result.get('content', ''))
-                if content not in seen_content:
-                    seen_content.add(content)
-                    unique_results.append(result)
+                # Deduplicate by document content
+                seen_content = set()
+                unique_results = []
+                for result in combined_results:
+                    # Use 'document' field for deduplication
+                    content = result.get('document', result.get('content', ''))
+                    if content not in seen_content:
+                        seen_content.add(content)
+                        unique_results.append(result)
 
-            # Re-sort by similarity score after deduplication
-            # This ensures best matches across all documents come first
-            unique_results.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
+                # Re-sort by similarity score after deduplication
+                # This ensures best matches across all documents come first
+                unique_results.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
 
-            # Log the source distribution for debugging
-            source_files = [r.get('metadata', {}).get('filename', 'Unknown') for r in unique_results[:top_k]]
-            logger.info(f"Hybrid retrieval returning results from: {source_files}")
+                # Log the source distribution for debugging
+                source_files = [r.get('metadata', {}).get('filename', 'Unknown') for r in unique_results[:top_k]]
+                logger.info(f"Hybrid retrieval returning results from: {source_files}")
 
-            # Return top_k unique results
-            return unique_results[:top_k]
+                # Return top_k unique results
+                return unique_results[:top_k]
+            else:
+                # Use only sentence window retrieval
+                return self._retrieve_sentence_window(query, top_k)
 
         except CUBOError:
             # Re-raise custom exceptions as-is
@@ -295,19 +311,45 @@ class DocumentRetriever:
         return has_complex_keywords or is_long_query
 
     def _retrieve_sentence_window(self, query: str, top_k: int) -> List[Dict]:
-        """Retrieve using sentence window method."""
+        """
+        Retrieve using sentence window method with hybrid semantic + BM25 scoring.
+        
+        Does two parallel retrievals:
+        1. Pure semantic similarity search
+        2. Pure BM25 keyword search
+        
+        Then combines results with 50/50 weighting.
+        """
 
         def _retrieve_operation():
             if not self._has_loaded_documents():
                 return []
 
             query_embedding = self._generate_query_embedding(query)
-            initial_top_k = self._calculate_initial_top_k(top_k)
-            candidates = self._query_collection_for_candidates(query_embedding, initial_top_k, query)
-            candidates = self._apply_sentence_window_postprocessing(candidates, top_k, query)
+            
+            # Retrieve more candidates for each method
+            retrieval_k = top_k * 3
+            
+            # Method 1: Pure semantic retrieval
+            semantic_candidates = self._query_collection_for_candidates(
+                query_embedding, retrieval_k, query=""
+            )
+            
+            # Method 2: Pure BM25 retrieval (scan all docs and score by BM25)
+            bm25_candidates = self._retrieve_by_bm25(query, retrieval_k)
+            
+            # Combine with 50/50 weighting
+            combined_candidates = self._combine_semantic_and_bm25(
+                semantic_candidates, bm25_candidates, top_k
+            )
+            
+            # Apply sentence window postprocessing
+            combined_candidates = self._apply_sentence_window_postprocessing(
+                combined_candidates, top_k, query
+            )
 
-            self._log_retrieval_results(candidates, "sentence window")
-            return candidates
+            self._log_retrieval_results(combined_candidates, "sentence window (hybrid)")
+            return combined_candidates
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
 
@@ -632,6 +674,9 @@ class DocumentRetriever:
         # Track as loaded in current session
         self.current_documents.add(filename)
 
+        # Update BM25 statistics for keyword search
+        self._update_bm25_statistics(texts, chunk_ids)
+
         logger.info(f"Successfully added {filename} with {len(chunk_ids)} chunks")
 
     def _generate_query_embedding(self, query: str) -> List[float]:
@@ -650,6 +695,9 @@ class DocumentRetriever:
     def _calculate_initial_top_k(self, top_k: int) -> int:
         """
         Calculate initial number of candidates to retrieve before reranking.
+        
+        Retrieve more candidates to allow BM25 keyword scoring to find
+        semantically dissimilar but lexically relevant documents.
 
         Args:
             top_k: Final number of results desired
@@ -657,7 +705,8 @@ class DocumentRetriever:
         Returns:
             int: Initial number of candidates to retrieve
         """
-        return min(top_k * 2, 10) if self.use_sentence_window else top_k
+        # Retrieve 5x more candidates to allow BM25 reranking to work effectively
+        return top_k * 5 if self.use_sentence_window else top_k
 
     def _query_collection_for_candidates(
         self, query_embedding: List[float], initial_top_k: int, query: str = ""
@@ -728,41 +777,277 @@ class DocumentRetriever:
                 })
         return candidates
 
+    def _update_bm25_statistics(self, texts: List[str], doc_ids: List[str]) -> None:
+        """
+        Update BM25 statistics when documents are added.
+
+        Args:
+            texts: List of document texts
+            doc_ids: List of document IDs
+        """
+        for doc_id, text in zip(doc_ids, texts):
+            # Tokenize document
+            tokens = self._tokenize(text)
+            
+            # Store term frequencies for this document
+            term_freq = Counter(tokens)
+            self.doc_term_freq[doc_id] = term_freq
+            self.doc_lengths[doc_id] = len(tokens)
+            
+            # Update document frequency for each unique term
+            for term in term_freq.keys():
+                self.term_doc_freq[term] += 1
+        
+        # Update average document length
+        if self.doc_lengths:
+            self.avg_doc_length = sum(self.doc_lengths.values()) / len(self.doc_lengths)
+        
+        logger.debug(f"Updated BM25 stats: {len(doc_ids)} chunks, "
+                     f"total chunks={len(self.doc_lengths)}, avg_len={self.avg_doc_length:.1f}, "
+                     f"unique_terms={len(self.term_doc_freq)}")
+
+    def _tokenize(self, text: str) -> List[str]:
+        """Tokenize text into words, removing punctuation and lowercasing."""
+        # Remove punctuation and split into words
+        words = re.findall(r'\b\w+\b', text.lower())
+        # Remove common stop words
+        stop_words = {'tell', 'me', 'about', 'the', 'what', 'is', 'a', 'an', 'and', 'or',
+                      'describe', 'explain', 'how', 'why', 'when', 'where', 'who', 'which',
+                      'that', 'this', 'these', 'those', 'was', 'were', 'are', 'be', 'been',
+                      'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+                      'could', 'should', 'of', 'at', 'by', 'for', 'with', 'from', 'to', 'in', 'on'}
+        return [w for w in words if w not in stop_words and len(w) > 2]
+
+    def _compute_bm25_score(self, query_terms: List[str], doc_id: str, doc_text: str) -> float:
+        """
+        Compute BM25 score for a document given query terms.
+
+        BM25 formula:
+        score = sum over each query term t of:
+            IDF(t) * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_len / avg_doc_len)))
+
+        where:
+        - IDF(t) = log((N - df + 0.5) / (df + 0.5))
+        - tf = term frequency in document
+        - doc_len = document length
+        - N = total number of documents
+        - df = document frequency of term
+        """
+        if doc_id not in self.doc_term_freq:
+            # Build term frequencies for this document on-the-fly
+            tokens = self._tokenize(doc_text)
+            self.doc_term_freq[doc_id] = Counter(tokens)
+            self.doc_lengths[doc_id] = len(tokens)
+
+        doc_len = self.doc_lengths.get(doc_id, 0)
+        if doc_len == 0:
+            return 0.0
+
+        # Get total number of documents
+        total_docs = len(self.doc_lengths) if self.doc_lengths else 1
+        avg_len = self.avg_doc_length if self.avg_doc_length > 0 else doc_len
+
+        score = 0.0
+        doc_terms = self.doc_term_freq.get(doc_id, {})
+
+        for term in query_terms:
+            # Term frequency in this document
+            tf = doc_terms.get(term, 0)
+            if tf == 0:
+                continue
+
+            # Document frequency (how many docs contain this term)
+            df = self.term_doc_freq.get(term, 0)
+
+            # IDF calculation
+            idf = math.log((total_docs - df + 0.5) / (df + 0.5) + 1.0)
+
+            # BM25 term score
+            numerator = tf * (self.bm25_k1 + 1)
+            denominator = tf + self.bm25_k1 * (1 - self.bm25_b + self.bm25_b * (doc_len / avg_len))
+            term_score = idf * (numerator / denominator)
+
+            score += term_score
+
+        return score
+
     def _apply_keyword_boost(self, document: str, query: str, base_similarity: float) -> float:
         """
-        Boost similarity score if document contains important keywords from query.
+        Boost similarity score using BM25 keyword scoring.
 
         Args:
             document: Document text
             query: Query text
-            base_similarity: Original similarity score
+            base_similarity: Original semantic similarity score
 
         Returns:
-            Boosted similarity score
+            Combined score (weighted average of semantic and BM25)
         """
-        if not query:
+        if not query or not document:
             return base_similarity
 
-        # Extract important words from query (remove common words)
-        stop_words = {'tell', 'me', 'about', 'the', 'what', 'is', 'a', 'an', 'describe', 'explain', 'how', 'why'}
-        query_words = [word.lower().strip('.,!?') for word in query.split() if word.lower() not in stop_words]
-
-        if not query_words:
+        # Tokenize query
+        query_terms = self._tokenize(query)
+        if not query_terms:
             return base_similarity
 
-        # Check if any important query words appear in the document
-        doc_lower = document.lower()
-        matches = sum(1 for word in query_words if word in doc_lower)
+        # Compute BM25 score (use a pseudo doc_id based on document hash)
+        doc_id = hashlib.md5(document.encode()).hexdigest()[:8]
+        bm25_score = self._compute_bm25_score(query_terms, doc_id, document)
 
-        if matches > 0:
-            # Boost by 0.3 * (proportion of query words found)
-            boost = 0.3 * (matches / len(query_words))
-            boosted = min(base_similarity + boost, 1.0)  # Cap at 1.0
-            logger.debug(f"Keyword boost: {matches}/{len(query_words)} words matched, "
-                         f"similarity {base_similarity:.4f} -> {boosted:.4f}")
-            return boosted
+        # Normalize BM25 score to [0, 1] range (rough approximation)
+        # BM25 scores typically range from 0 to ~10-20 for relevant docs
+        normalized_bm25 = min(bm25_score / 15.0, 1.0)
 
-        return base_similarity
+        # Apply BM25 boost ONLY when there's a keyword match
+        # This avoids penalizing documents with no keyword matches
+        if normalized_bm25 > 0.05:
+            # Add up to 30% boost based on BM25 score
+            boost_factor = 0.3 * normalized_bm25
+            combined_score = base_similarity + boost_factor
+            # Cap at 1.0 to keep in valid similarity range
+            combined_score = min(combined_score, 1.0)
+            
+            logger.debug(f"BM25 BOOST: raw={bm25_score:.3f}, norm={normalized_bm25:.3f}, "
+                         f"semantic={base_similarity:.3f}, boost={boost_factor:.3f}, combined={combined_score:.3f}")
+            return combined_score
+        else:
+            # No meaningful keyword match, return original semantic similarity
+            return base_similarity
+
+    def _retrieve_by_bm25(self, query: str, top_k: int) -> List[dict]:
+        """
+        Retrieve documents using pure BM25 scoring.
+        
+        Scans all documents in the collection and ranks by BM25 score only.
+        
+        Args:
+            query: Search query
+            top_k: Number of results to return
+            
+        Returns:
+            List of documents ranked by BM25 score
+        """
+        # Get all documents from collection
+        try:
+            all_docs = self.collection.get(
+                include=['documents', 'metadatas'],
+                where={"filename": {"$in": list(self.current_documents)}} if self.current_documents else None
+            )
+            
+            if not all_docs['documents']:
+                return []
+            
+            # Tokenize query
+            query_terms = self._tokenize(query)
+            if not query_terms:
+                return []
+            
+            # Score all documents by BM25
+            scored_docs = []
+            for doc, metadata in zip(all_docs['documents'], all_docs['metadatas']):
+                doc_id = hashlib.md5(doc.encode()).hexdigest()[:8]
+                bm25_score = self._compute_bm25_score(query_terms, doc_id, doc)
+                
+                # Normalize to [0, 1]
+                normalized_score = min(bm25_score / 15.0, 1.0)
+                
+                if normalized_score > 0.01:  # Only include docs with some keyword match
+                    scored_docs.append({
+                        "document": doc,
+                        "metadata": metadata,
+                        "similarity": normalized_score,
+                        "base_similarity": 0.0,  # No semantic score for pure BM25
+                        "bm25_score": bm25_score
+                    })
+            
+            # Sort by BM25 score and return top_k
+            scored_docs.sort(key=lambda x: x['similarity'], reverse=True)
+            logger.info(f"BM25 retrieval: scored {len(scored_docs)} docs, returning top {min(top_k, len(scored_docs))}")
+            
+            return scored_docs[:top_k]
+            
+        except Exception as e:
+            logger.error(f"Error in BM25 retrieval: {e}")
+            return []
+
+    def _combine_semantic_and_bm25(
+        self, semantic_candidates: List[dict], bm25_candidates: List[dict], top_k: int
+    ) -> List[dict]:
+        """
+        Combine semantic and BM25 retrieval results with 50/50 weighting.
+        
+        Args:
+            semantic_candidates: Results from semantic similarity search
+            bm25_candidates: Results from BM25 keyword search
+            top_k: Number of final results to return
+            
+        Returns:
+            Combined and re-ranked results
+        """
+        # Create a document index for deduplication
+        combined = {}
+        
+        # Add semantic results (50% weight)
+        for cand in semantic_candidates:
+            doc_key = cand['document'][:100]  # Use first 100 chars as key
+            if doc_key not in combined:
+                combined[doc_key] = {
+                    "document": cand['document'],
+                    "metadata": cand['metadata'],
+                    "semantic_score": cand.get('base_similarity', cand['similarity']),
+                    "bm25_score": 0.0
+                }
+            else:
+                # Update semantic score if we have a better one
+                combined[doc_key]['semantic_score'] = max(
+                    combined[doc_key]['semantic_score'],
+                    cand.get('base_similarity', cand['similarity'])
+                )
+        
+        # Add BM25 results (50% weight)
+        for cand in bm25_candidates:
+            doc_key = cand['document'][:100]
+            if doc_key not in combined:
+                combined[doc_key] = {
+                    "document": cand['document'],
+                    "metadata": cand['metadata'],
+                    "semantic_score": 0.0,
+                    "bm25_score": cand['similarity']
+                }
+            else:
+                # Update BM25 score
+                combined[doc_key]['bm25_score'] = max(
+                    combined[doc_key]['bm25_score'],
+                    cand['similarity']
+                )
+        
+        # Compute combined scores (10% semantic + 90% BM25)
+        # Give strong preference to keyword matches for entity-specific retrieval
+        final_results = []
+        for doc_data in combined.values():
+            combined_score = 0.1 * doc_data['semantic_score'] + 0.9 * doc_data['bm25_score']
+            final_results.append({
+                "document": doc_data['document'],
+                "metadata": doc_data['metadata'],
+                "similarity": combined_score,
+                "base_similarity": doc_data['semantic_score'],
+                "bm25_normalized": doc_data['bm25_score']
+            })
+            
+            # Debug logging (commented out for production)
+            # if doc_data['bm25_score'] > 0.05 or doc_data['semantic_score'] > 0.4:
+            #     filename = doc_data['metadata'].get('filename', 'unknown')
+            #     logger.info(f"  {filename}: sem={doc_data['semantic_score']:.3f}, "
+            #                f"bm25={doc_data['bm25_score']:.3f}, combined={combined_score:.3f}")
+        
+        # Sort by combined score
+        final_results.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        logger.info(f"Combined {len(semantic_candidates)} semantic + {len(bm25_candidates)} BM25 "
+                   f"results into {len(final_results)} unique docs")
+        
+        return final_results[:top_k]
 
     def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:
         """
