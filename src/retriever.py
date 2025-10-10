@@ -766,13 +766,17 @@ class DocumentRetriever:
             ):
                 base_similarity = 1 - distance  # Convert distance to similarity
 
-                # Apply keyword boost if query contains specific terms
-                boosted_similarity = self._apply_keyword_boost(doc, query, base_similarity)
+                # Apply keyword boost with detailed breakdown
+                score_breakdown = self._apply_keyword_boost_detailed(doc, query, base_similarity)
+
+                # Update metadata with score breakdown for tracking
+                updated_metadata = metadata.copy()
+                updated_metadata['score_breakdown'] = score_breakdown
 
                 candidates.append({
                     "document": doc,
-                    "metadata": metadata,
-                    "similarity": boosted_similarity,
+                    "metadata": updated_metadata,
+                    "similarity": score_breakdown["final_score"],
                     "base_similarity": base_similarity  # Keep original for debugging
                 })
         return candidates
@@ -914,6 +918,69 @@ class DocumentRetriever:
         else:
             # No meaningful keyword match, return original semantic similarity
             return base_similarity
+
+    def _apply_keyword_boost_detailed(self, document: str, query: str, base_similarity: float) -> Dict[str, float]:
+        """
+        Boost similarity score using BM25 keyword scoring and return detailed breakdown.
+
+        Args:
+            document: Document text
+            query: Query text
+            base_similarity: Original semantic similarity score
+
+        Returns:
+            Dict with final_score, semantic_score, bm25_score, semantic_contribution, bm25_contribution
+        """
+        if not query or not document:
+            return {
+                "final_score": base_similarity,
+                "semantic_score": base_similarity,
+                "bm25_score": 0.0,
+                "semantic_contribution": base_similarity,
+                "bm25_contribution": 0.0
+            }
+
+        # Tokenize query
+        query_terms = self._tokenize(query)
+        if not query_terms:
+            return {
+                "final_score": base_similarity,
+                "semantic_score": base_similarity,
+                "bm25_score": 0.0,
+                "semantic_contribution": base_similarity,
+                "bm25_contribution": 0.0
+            }
+
+        # Compute BM25 score (use a pseudo doc_id based on document hash)
+        doc_id = hashlib.md5(document.encode(), usedforsecurity=False).hexdigest()[:8]
+        bm25_score = self._compute_bm25_score(query_terms, doc_id, document)
+
+        # Normalize BM25 score to [0, 1] range (rough approximation)
+        # BM25 scores typically range from 0 to ~10-20 for relevant docs
+        normalized_bm25 = min(bm25_score / 15.0, 1.0)
+
+        # Calculate weighted contributions: 10% semantic + 90% BM25
+        semantic_weight = 0.1
+        bm25_weight = 0.9
+
+        semantic_contribution = semantic_weight * base_similarity
+        bm25_contribution = bm25_weight * normalized_bm25
+        final_score = semantic_contribution + bm25_contribution
+
+        # Cap at 1.0 to keep in valid similarity range
+        final_score = min(final_score, 1.0)
+
+        logger.debug(f"DETAILED SCORE: semantic={base_similarity:.3f} (contrib={semantic_contribution:.3f}), "
+                     f"bm25_raw={bm25_score:.3f}, bm25_norm={normalized_bm25:.3f} (contrib={bm25_contribution:.3f}), "
+                     f"final={final_score:.3f}")
+
+        return {
+            "final_score": final_score,
+            "semantic_score": base_similarity,
+            "bm25_score": bm25_score,
+            "semantic_contribution": semantic_contribution,
+            "bm25_contribution": bm25_contribution
+        }
 
     def _retrieve_by_bm25(self, query: str, top_k: int) -> List[dict]:
         """

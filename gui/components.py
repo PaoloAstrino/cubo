@@ -607,10 +607,17 @@ class DocumentWidget(QWidget):
 
     def _create_upload_section(self):
         """Create the upload section with button and drag label."""
-        upload_group = QGroupBox("Add Documents")
-        upload_group.setStyleSheet(UIStyles.PRIMARY_GROUP_STYLE)
+        upload_widget = QWidget()
+        upload_widget.setStyleSheet("""
+            QWidget {
+                background-color: #252525;
+                border-radius: 5px;
+                border: none;
+                margin-top: 5px;
+            }
+        """)
 
-        upload_layout = QVBoxLayout(upload_group)
+        upload_layout = QVBoxLayout(upload_widget)
         upload_layout.setContentsMargins(10, 10, 10, 10)
 
         # Upload button
@@ -625,7 +632,7 @@ class DocumentWidget(QWidget):
         self.drag_label.setStyleSheet(UIStyles.DRAG_DROP_LABEL_STYLE)
         upload_layout.addWidget(self.drag_label)
 
-        return upload_group
+        return upload_widget
 
     def _create_document_list_section(self):
         """Create the document list section."""

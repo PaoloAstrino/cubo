@@ -1,0 +1,427 @@
+{
+  "metadata": {
+    "test_run_timestamp": 1760013103.7701888,
+    "total_questions": 3,
+    "questions_by_difficulty": {
+      "easy": {
+        "total": 1,
+        "successful": 1,
+        "success_rate": 1.0,
+        "avg_processing_time": 3.8957431316375732,
+        "avg_answer_relevance": 0.0,
+        "avg_context_relevance": 0.0,
+        "avg_groundedness": 0.5
+      },
+      "medium": {
+        "total": 1,
+        "successful": 1,
+        "success_rate": 1.0,
+        "avg_processing_time": 10.75670051574707,
+        "avg_answer_relevance": 0.0,
+        "avg_context_relevance": 0.0,
+        "avg_groundedness": 0.75
+      },
+      "hard": {
+        "total": 1,
+        "successful": 1,
+        "success_rate": 1.0,
+        "avg_processing_time": 25.6967830657959,
+        "avg_answer_relevance": 0.0,
+        "avg_context_relevance": 0.0,
+        "avg_groundedness": 0.75
+      }
+    },
+    "success_rate": 1.0,
+    "successful_questions": 3,
+    "total_processing_time": 40.34922671318054,
+    "avg_answer_relevance": 0.0,
+    "avg_context_relevance": 0.0,
+    "avg_groundedness": 0.6666666666666666
+  },
+  "results": {
+    "easy": [
+      {
+        "question": "What is the name of the curious cat in the story?",
+        "difficulty": "easy",
+        "response": "The text does not explicitly mention the name of the curious cat. The main character is referred to as \"the cat\" or \"he\", but his name, \"Whiskers\", is mentioned later in the story.",
+        "contexts": [
+          {
+            "document": "the forest a changed cat. He shared his discoveries with all the animals, organizing expeditions to the river and garden. He became the greatest adventurer in the forest, leading safaris and teaching survival skills. His fame spread, and animals from distant lands sought his counsel. Whiskers married a beautiful calico cat named Luna, and together they raised kittens who inherited his spirit. He built a legacy of exploration, founding the \"Forest Explorers Guild,\" where animals learned to balance curiosity with caution.\n\nYears later, as Whiskers grew old, his coat silvered and his steps slowed, he passed on his wisdom to the next generation. \"Curiosity is the spark of life,\" he would say, \"but wisdom is the flame that guides it.\" And whenever the moon shone bright, Whiskers would sit by the river with Oliver and Tweet, dreaming of new horizons, his heart forever young.\n\nAnd so, Whiskers the cat lived a life of endless adventure, his story becoming legend, reminding everyone that curios",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "b0d72541f0140034436b771deff449a8",
+              "filename": "test_doc_8.txt",
+              "filepath": "test_doc_8.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.4793171637686386,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.5325746264095984
+          },
+          {
+            "document": "A Implementation Details A.1 Threat Model and Privacy Considerations We assume an honest-but-curious external ad- versary and potential compromised client host, but a trusted server enclave.",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "81a27ee43365e039ae595bc93059c4c6",
+              "filename": "test_doc_340.txt",
+              "filepath": "test_doc_340.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.3893522958795191,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.4326136620883545
+          },
+          {
+            "document": "e river with Oliver and Tweet, dreaming of new horizons, his heart forever young.\n\nAnd so, Whiskers the cat lived a life of endless adventure, his story becoming legend, reminding everyone that curiosity, when guided by wisdom and friendship, leads to the most beautiful adventures imaginable.",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "88d8de0eb4144b0de08aa6680c607f88",
+              "filename": "test_doc_9.txt",
+              "filepath": "test_doc_9.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.3709250944029979,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.4121389937811088
+          },
+          {
+            "document": "n beyond guards its secrets jealously.\" Just then, as if on cue, Whiskers spotted a shiny object glinting in the shallow water—a golden key, intricately carved with symbols that seemed to tell a story of their own, runes of ancient forest lore. His heart raced with excitement. \"That's it! That's the treasure!\" he thought, his emerald eyes widening.\n\nWithout hesitation, Whiskers leaped into the river, his paws splashing in the cool, rushing water. But the current was stronger than he expected, pulling him downstream like an invisible hand. He struggled against the flow, his fur becoming soaked and heavy, water filling his ears and blurring his vision. \"Help!\" he yowled, but the water muffled his cries, carrying them away. Panic set in as he fought to stay afloat, his legs kicking furiously. Oliver, seeing the cat's plight from above, swooped down with powerful wings, his talons grasping Whiskers' scruff gently but firmly, pulling him to safety on the mossy bank.\n\n\"Thank you, Oliver,\" Wh",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "62036a4cb8627066dfb6175f48d7ac84",
+              "filename": "test_doc_4.txt",
+              "filepath": "test_doc_4.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.29818879797456005,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.33132088663840004
+          },
+          {
+            "document": "s as white as fresh snow, and his eyes piercing and knowing, as if they held the wisdom of centuries. \"Hello, young cat,\" Oliver hooted softly, his voice a deep, soothing rumble. \"What brings you to these misty parts of the forest?\"\n\n\"I'm seeking adventure,\" Whiskers replied, his tail swishing excitedly, sending leaves fluttering. \"The forest is full of wonders, but I want to see more. Tweet told me about this river, and I had to come. There must be something magical here.\"\n\nOliver chuckled, a sound that echoed through the trees like rolling thunder. \"Adventure is everywhere, my friend, but remember, curiosity can lead to trouble if not tempered with wisdom. Many have come here seeking treasures, but few understand the true value of what they find. The river has claimed many, and the garden beyond guards its secrets jealously.\" Just then, as if on cue, Whiskers spotted a shiny object glinting in the shallow water—a golden key, intricately carved with symbols that seemed to tell a story",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "69113c618365e2e442f5765a20c866c7",
+              "filename": "test_doc_3.txt",
+              "filepath": "test_doc_3.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.2763102111592855,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.30701134573253946
+          },
+          {
+            "document": " help, and to make a difference.</content>\n<parameter name=\"filePath\">c:\\Users\\paolo\\Desktop\\cubo\\data\\frog_story.txt",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "0be0b215e4e8639072985da6bd9132e5",
+              "filename": "test_doc_36.txt",
+              "filepath": "test_doc_36.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.25984400041717987,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.2887155560190887
+          }
+        ],
+        "processing_time": 3.8957431316375732,
+        "evaluation": {
+          "answer_relevance": 0,
+          "context_relevance": 0,
+          "groundedness": 0.5,
+          "answer_quality": {
+            "length": 180,
+            "word_count": 33,
+            "sentence_count": 2,
+            "avg_sentence_length": 16.5,
+            "readability_score": 0,
+            "has_structure": false,
+            "has_examples": false,
+            "has_conclusion": false
+          },
+          "context_utilization": {
+            "total_contexts": 6,
+            "total_context_length": 3600,
+            "avg_context_length": 600.0,
+            "context_diversity": 0.539,
+            "question_context_overlap": 1.0
+          },
+          "response_efficiency": {
+            "response_time": 3.896,
+            "words_per_second": 8.47,
+            "chars_per_second": 46.2,
+            "efficiency_score": 0.169
+          },
+          "information_completeness": {
+            "answer_context_coverage": 0.64,
+            "unique_information_ratio": 0.36,
+            "question_answer_alignment": 0.889
+          },
+          "llm_metrics": {
+            "coherence_score": 4.0,
+            "specificity_score": 4.0,
+            "factual_accuracy_score": 3.0
+          }
+        },
+        "success": true,
+        "timestamp": 1760013110.6242688
+      }
+    ],
+    "medium": [
+      {
+        "question": "Why does Whiskers decide to explore the river?",
+        "difficulty": "medium",
+        "response": "According to the text, Whiskers decides to explore the river because Tweet, his friend and sparrow companion, has told him about its wonders and mysteries. Specifically, Tweet mentions that the river is full of things like fish that leap like silver arrows, rocks that glow at night, and legends of hidden treasures. This piques Whiskers' curiosity and motivates him to follow Tweet's description of a hidden path to see the river for himself.",
+        "contexts": [
+          {
+            "document": "ak trees whose branches reached for the heavens, and exploring hidden burrows where small creatures scurried about in their secret worlds.\n\nWhiskers' early life was filled with wonder. Born in a litter of three, he was the smallest but the most adventurous. His mother, a sleek gray cat named Shadow, taught him the ways of the forest: how to hunt mice, avoid predators, and find the best napping spots. His siblings preferred the safety of the den, but Whiskers dreamed of the unknown. \"The forest is vast,\" he would say, \"and I want to see it all.\" As he grew, he made friends with birds and squirrels, learning their languages and secrets. His best friend was a sparrow named Tweet, a chatterbox who flew far and wide. Tweet would return with tales of distant lands, sparking Whiskers' imagination.\n\nOne crisp autumn morning, Tweet landed on Whiskers' favorite branch, his feathers ruffled from a long flight. \"Whiskers, you must see the sparkling river!\" Tweet chirped excitedly. \"It's full of wo",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "c2e883c848dd8da1992582dbf4901c1c",
+              "filename": "test_doc_1.txt",
+              "filepath": "test_doc_1.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": ".\n\nOne crisp autumn morning, Tweet landed on Whiskers' favorite branch, his feathers ruffled from a long flight. \"Whiskers, you must see the sparkling river!\" Tweet chirped excitedly. \"It's full of wonders and mysteries—fish that leap like silver arrows, rocks that glow at night, and legends of hidden treasures.\" Intrigued, Whiskers decided to follow a hidden path that Tweet had described. The path was overgrown with ferns and dotted with dew-kissed flowers, and as he ventured deeper, the sounds of the forest changed from familiar bird calls to the distant rush of water, like a symphony of nature.\n\nAlong the riverbank, where the water sparkled like diamonds in the sun and mist rose like gentle ghosts, Whiskers met a wise old owl named Oliver. Oliver perched on a gnarled branch, his feathers as white as fresh snow, and his eyes piercing and knowing, as if they held the wisdom of centuries. \"Hello, young cat,\" Oliver hooted softly, his voice a deep, soothing rumble. \"What brings you to t",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "761984de4bf073cb15725bcf3f554ad1",
+              "filename": "test_doc_2.txt",
+              "filepath": "test_doc_2.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": "s as white as fresh snow, and his eyes piercing and knowing, as if they held the wisdom of centuries. \"Hello, young cat,\" Oliver hooted softly, his voice a deep, soothing rumble. \"What brings you to these misty parts of the forest?\"\n\n\"I'm seeking adventure,\" Whiskers replied, his tail swishing excitedly, sending leaves fluttering. \"The forest is full of wonders, but I want to see more. Tweet told me about this river, and I had to come. There must be something magical here.\"\n\nOliver chuckled, a sound that echoed through the trees like rolling thunder. \"Adventure is everywhere, my friend, but remember, curiosity can lead to trouble if not tempered with wisdom. Many have come here seeking treasures, but few understand the true value of what they find. The river has claimed many, and the garden beyond guards its secrets jealously.\" Just then, as if on cue, Whiskers spotted a shiny object glinting in the shallow water—a golden key, intricately carved with symbols that seemed to tell a story",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "69113c618365e2e442f5765a20c866c7",
+              "filename": "test_doc_3.txt",
+              "filepath": "test_doc_3.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": "n beyond guards its secrets jealously.\" Just then, as if on cue, Whiskers spotted a shiny object glinting in the shallow water—a golden key, intricately carved with symbols that seemed to tell a story of their own, runes of ancient forest lore. His heart raced with excitement. \"That's it! That's the treasure!\" he thought, his emerald eyes widening.\n\nWithout hesitation, Whiskers leaped into the river, his paws splashing in the cool, rushing water. But the current was stronger than he expected, pulling him downstream like an invisible hand. He struggled against the flow, his fur becoming soaked and heavy, water filling his ears and blurring his vision. \"Help!\" he yowled, but the water muffled his cries, carrying them away. Panic set in as he fought to stay afloat, his legs kicking furiously. Oliver, seeing the cat's plight from above, swooped down with powerful wings, his talons grasping Whiskers' scruff gently but firmly, pulling him to safety on the mossy bank.\n\n\"Thank you, Oliver,\" Wh",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "62036a4cb8627066dfb6175f48d7ac84",
+              "filename": "test_doc_4.txt",
+              "filepath": "test_doc_4.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": " of growth; a fox named Sly, with fur like autumn leaves, who showed him the art of cleverness and strategy; and a turtle named Wise, who shared tales of endurance. They shared stories around a fire made of glowing mushrooms, their flames casting eerie shadows. Whiskers learned that true adventure wasn't just about finding treasures, but about the friends made along the way, the lessons learned, and the wisdom gained.\n\nAs days turned to weeks, Whiskers explored every corner of the garden. He discovered healing herbs that cured ailments, fruits that granted temporary strength, and a mirror pond that showed visions of the future. But with knowledge came responsibility. The garden's magic began to fade if not cared for, so Whiskers vowed to protect it.\n\nFrom that day on, Whiskers returned to the forest a changed cat. He shared his discoveries with all the animals, organizing expeditions to the river and garden. He became the greatest adventurer in the forest, leading safaris and teaching ",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "5062487c0c0179ac835aea182b5eed4d",
+              "filename": "test_doc_7.txt",
+              "filepath": "test_doc_7.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": "the forest a changed cat. He shared his discoveries with all the animals, organizing expeditions to the river and garden. He became the greatest adventurer in the forest, leading safaris and teaching survival skills. His fame spread, and animals from distant lands sought his counsel. Whiskers married a beautiful calico cat named Luna, and together they raised kittens who inherited his spirit. He built a legacy of exploration, founding the \"Forest Explorers Guild,\" where animals learned to balance curiosity with caution.\n\nYears later, as Whiskers grew old, his coat silvered and his steps slowed, he passed on his wisdom to the next generation. \"Curiosity is the spark of life,\" he would say, \"but wisdom is the flame that guides it.\" And whenever the moon shone bright, Whiskers would sit by the river with Oliver and Tweet, dreaming of new horizons, his heart forever young.\n\nAnd so, Whiskers the cat lived a life of endless adventure, his story becoming legend, reminding everyone that curios",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "b0d72541f0140034436b771deff449a8",
+              "filename": "test_doc_8.txt",
+              "filepath": "test_doc_8.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          }
+        ],
+        "processing_time": 10.75670051574707,
+        "evaluation": {
+          "answer_relevance": 0,
+          "context_relevance": 0,
+          "groundedness": 0.75,
+          "answer_quality": {
+            "length": 443,
+            "word_count": 73,
+            "sentence_count": 3,
+            "avg_sentence_length": 24.333333333333332,
+            "readability_score": 0,
+            "has_structure": false,
+            "has_examples": false,
+            "has_conclusion": false
+          },
+          "context_utilization": {
+            "total_contexts": 6,
+            "total_context_length": 6000,
+            "avg_context_length": 1000.0,
+            "context_diversity": 0.444,
+            "question_context_overlap": 0.5
+          },
+          "response_efficiency": {
+            "response_time": 10.757,
+            "words_per_second": 6.79,
+            "chars_per_second": 41.18,
+            "efficiency_score": 0.136
+          },
+          "information_completeness": {
+            "answer_context_coverage": 0.755,
+            "unique_information_ratio": 0.245,
+            "question_answer_alignment": 0.625
+          },
+          "llm_metrics": {
+            "coherence_score": 4.0,
+            "specificity_score": 5.0,
+            "factual_accuracy_score": 4.0
+          }
+        },
+        "success": true,
+        "timestamp": 1760013124.522524
+      }
+    ],
+    "hard": [
+      {
+        "question": "What is the deeper meaning of adventure in the cat story?",
+        "difficulty": "hard",
+        "response": "The text suggests that the deeper meaning of adventure in the cat story is not just about finding treasures or overcoming obstacles, but also about learning valuable lessons and forming meaningful connections with others.\n\nOliver's wisdom and guidance are instrumental in helping Whiskers navigate the challenges he faces, illustrating the importance of seeking guidance from experienced and knowledgeable individuals. The story highlights that true adventure is not about going it alone, but about being willing to learn, adapt, and grow alongside others.\n\nFurthermore, the story implies that curiosity can lead to trouble if not tempered with wisdom, suggesting that a balanced approach to exploration is essential. Whiskers' eagerness and impulsiveness are matched by Oliver's caution and advice, demonstrating the value of balancing excitement with prudence.\n\nUltimately, the story suggests that adventure is about embracing the journey, learning from our experiences, and forming meaningful relationships along the way. By doing so, we can cultivate wisdom, gain new insights, and discover new horizons – both literal and metaphorical.",
+        "contexts": [
+          {
+            "document": "s as white as fresh snow, and his eyes piercing and knowing, as if they held the wisdom of centuries. \"Hello, young cat,\" Oliver hooted softly, his voice a deep, soothing rumble. \"What brings you to these misty parts of the forest?\"\n\n\"I'm seeking adventure,\" Whiskers replied, his tail swishing excitedly, sending leaves fluttering. \"The forest is full of wonders, but I want to see more. Tweet told me about this river, and I had to come. There must be something magical here.\"\n\nOliver chuckled, a sound that echoed through the trees like rolling thunder. \"Adventure is everywhere, my friend, but remember, curiosity can lead to trouble if not tempered with wisdom. Many have come here seeking treasures, but few understand the true value of what they find. The river has claimed many, and the garden beyond guards its secrets jealously.\" Just then, as if on cue, Whiskers spotted a shiny object glinting in the shallow water—a golden key, intricately carved with symbols that seemed to tell a story",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "69113c618365e2e442f5765a20c866c7",
+              "filename": "test_doc_3.txt",
+              "filepath": "test_doc_3.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": "the forest a changed cat. He shared his discoveries with all the animals, organizing expeditions to the river and garden. He became the greatest adventurer in the forest, leading safaris and teaching survival skills. His fame spread, and animals from distant lands sought his counsel. Whiskers married a beautiful calico cat named Luna, and together they raised kittens who inherited his spirit. He built a legacy of exploration, founding the \"Forest Explorers Guild,\" where animals learned to balance curiosity with caution.\n\nYears later, as Whiskers grew old, his coat silvered and his steps slowed, he passed on his wisdom to the next generation. \"Curiosity is the spark of life,\" he would say, \"but wisdom is the flame that guides it.\" And whenever the moon shone bright, Whiskers would sit by the river with Oliver and Tweet, dreaming of new horizons, his heart forever young.\n\nAnd so, Whiskers the cat lived a life of endless adventure, his story becoming legend, reminding everyone that curios",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "b0d72541f0140034436b771deff449a8",
+              "filename": "test_doc_8.txt",
+              "filepath": "test_doc_8.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": "e river with Oliver and Tweet, dreaming of new horizons, his heart forever young.\n\nAnd so, Whiskers the cat lived a life of endless adventure, his story becoming legend, reminding everyone that curiosity, when guided by wisdom and friendship, leads to the most beautiful adventures imaginable.",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "88d8de0eb4144b0de08aa6680c607f88",
+              "filename": "test_doc_9.txt",
+              "filepath": "test_doc_9.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.9,
+            "base_similarity": 0.0,
+            "bm25_normalized": 1.0
+          },
+          {
+            "document": ".\n\nOne crisp autumn morning, Tweet landed on Whiskers' favorite branch, his feathers ruffled from a long flight. \"Whiskers, you must see the sparkling river!\" Tweet chirped excitedly. \"It's full of wonders and mysteries—fish that leap like silver arrows, rocks that glow at night, and legends of hidden treasures.\" Intrigued, Whiskers decided to follow a hidden path that Tweet had described. The path was overgrown with ferns and dotted with dew-kissed flowers, and as he ventured deeper, the sounds of the forest changed from familiar bird calls to the distant rush of water, like a symphony of nature.\n\nAlong the riverbank, where the water sparkled like diamonds in the sun and mist rose like gentle ghosts, Whiskers met a wise old owl named Oliver. Oliver perched on a gnarled branch, his feathers as white as fresh snow, and his eyes piercing and knowing, as if they held the wisdom of centuries. \"Hello, young cat,\" Oliver hooted softly, his voice a deep, soothing rumble. \"What brings you to t",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "761984de4bf073cb15725bcf3f554ad1",
+              "filename": "test_doc_2.txt",
+              "filepath": "test_doc_2.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.7854419592401305,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.8727132880445894
+          },
+          {
+            "document": "n beyond guards its secrets jealously.\" Just then, as if on cue, Whiskers spotted a shiny object glinting in the shallow water—a golden key, intricately carved with symbols that seemed to tell a story of their own, runes of ancient forest lore. His heart raced with excitement. \"That's it! That's the treasure!\" he thought, his emerald eyes widening.\n\nWithout hesitation, Whiskers leaped into the river, his paws splashing in the cool, rushing water. But the current was stronger than he expected, pulling him downstream like an invisible hand. He struggled against the flow, his fur becoming soaked and heavy, water filling his ears and blurring his vision. \"Help!\" he yowled, but the water muffled his cries, carrying them away. Panic set in as he fought to stay afloat, his legs kicking furiously. Oliver, seeing the cat's plight from above, swooped down with powerful wings, his talons grasping Whiskers' scruff gently but firmly, pulling him to safety on the mossy bank.\n\n\"Thank you, Oliver,\" Wh",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "62036a4cb8627066dfb6175f48d7ac84",
+              "filename": "test_doc_4.txt",
+              "filepath": "test_doc_4.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.7854419592401305,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.8727132880445894
+          },
+          {
+            "document": " Oliver, seeing the cat's plight from above, swooped down with powerful wings, his talons grasping Whiskers' scruff gently but firmly, pulling him to safety on the mossy bank.\n\n\"Thank you, Oliver,\" Whiskers panted, shaking water from his coat in a cascade of droplets. \"I was so foolish. I thought I could handle it alone.\"\n\n\"Not foolish, just eager,\" Oliver replied, preening his feathers. \"Youth is for learning. Now, let's see what this key unlocks. It seems to be a relic from the old times.\" Together, they examined the key, deciphering the symbols—a map of sorts that led to a hidden grove, marked by a twisted oak and a stone altar. Following the clues, they ventured deeper, crossing streams and navigating thorny thickets. Along the way, they encountered challenges: a swarm of bees guarding a hive, which Oliver distracted with his wisdom, and a fallen log blocking the path, which Whiskers' agility helped them overcome.\n\nAt last, they reached the hidden grove. There, beneath a canopy of ",
+            "metadata": {
+              "chunk_index": 0,
+              "file_hash": "f40b2596fc38aade522805e4283faa95",
+              "filename": "test_doc_5.txt",
+              "filepath": "test_doc_5.txt",
+              "total_chunks": 1
+            },
+            "similarity": 0.7854419592401305,
+            "base_similarity": 0.0,
+            "bm25_normalized": 0.8727132880445894
+          }
+        ],
+        "processing_time": 25.6967830657959,
+        "evaluation": {
+          "answer_relevance": 0,
+          "context_relevance": 0,
+          "groundedness": 0.75,
+          "answer_quality": {
+            "length": 1140,
+            "word_count": 166,
+            "sentence_count": 7,
+            "avg_sentence_length": 23.714285714285715,
+            "readability_score": 0,
+            "has_structure": false,
+            "has_examples": false,
+            "has_conclusion": false
+          },
+          "context_utilization": {
+            "total_contexts": 6,
+            "total_context_length": 5293,
+            "avg_context_length": 882.2,
+            "context_diversity": 0.452,
+            "question_context_overlap": 0.9
+          },
+          "response_efficiency": {
+            "response_time": 25.697,
+            "words_per_second": 6.46,
+            "chars_per_second": 44.36,
+            "efficiency_score": 0.129
+          },
+          "information_completeness": {
+            "answer_context_coverage": 0.43,
+            "unique_information_ratio": 0.57,
+            "question_answer_alignment": 0.9
+          },
+          "llm_metrics": {
+            "coherence_score": 4.0,
+            "specificity_score": 5.0,
+            "factual_accuracy_score": 5.0
+          }
+        },
+        "success": true,
+        "timestamp": 1760013153.6358926
+      }
+    ]
+  }
+}

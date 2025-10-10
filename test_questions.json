@@ -1,7 +1,16 @@
 {
   "metadata": {
     "description": "CUBO RAG Testing Questions - Comprehensive test suite with 150 questions across 3 difficulty levels covering all data files",
-    "based_on_files": ["cat_story.txt", "dog_story.txt", "frog_story.txt", "elephant_story.txt", "horse_story.txt", "lion_story.txt", "rabbit_story.txt", "RAG_paoloastrino.pdf"],
+    "based_on_files": [
+      "cat_story.txt",
+      "dog_story.txt",
+      "frog_story.txt",
+      "elephant_story.txt",
+      "horse_story.txt",
+      "lion_story.txt",
+      "rabbit_story.txt",
+      "RAG_paoloastrino.pdf"
+    ],
     "total_questions": 150,
     "difficulty_distribution": {
       "easy": 50,

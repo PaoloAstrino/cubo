@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from gui.components import DocumentWidget, QueryWidget
 from src.service_manager import get_service_manager
 from src.logger import logger
+from evaluation.database import EvaluationDatabase, QueryEvaluation
 
 
 class BackendInitializationWorker(QThread):
@@ -395,7 +396,8 @@ class CUBOGUI(QMainWindow):
         self.show()
 
         # Update status bar to indicate manual document loading is required
-        self.status_bar.showMessage("Ready - Please upload documents to get started")
+        self._current_status = "🔄 Ready - Please upload documents to get started"
+        self._update_status_bar_info()
 
     def _on_initialization_error(self, error_msg):
         """Called when backend initialization fails with detailed error categorization."""
@@ -407,7 +409,8 @@ class CUBOGUI(QMainWindow):
 
         # Set status bar message
         if hasattr(self, 'status_bar'):
-            self.status_bar.showMessage(status_msg)
+            self._current_status = status_msg
+            self._update_status_bar_info()
 
         # Set components to None so the app can still run in limited mode
         self._reset_components_on_error()
@@ -504,7 +507,8 @@ class CUBOGUI(QMainWindow):
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"Auto-loading failed: {e}")
-            self.status_bar.showMessage("Auto-loading failed - check logs")
+            self._current_status = "Auto-loading failed - check logs"
+            self._update_status_bar_info()
 
     def _find_documents_in_data_dir(self):
         """
@@ -540,7 +544,8 @@ class CUBOGUI(QMainWindow):
         """Validate that the data directory exists."""
         if not data_dir.exists():
             logger.info("Data directory not found, skipping auto-load")
-            self.status_bar.showMessage("Data directory not found")
+            self._current_status = "Data directory not found"
+            self._update_status_bar_info()
             return False
         return True
 
@@ -556,11 +561,13 @@ class CUBOGUI(QMainWindow):
 
         if not document_files:
             logger.info("No documents found in data directory")
-            self.status_bar.showMessage("No documents found in data directory")
+            self._current_status = "No documents found in data directory"
+            self._update_status_bar_info()
             return []
 
         logger.info(f"Found {len(document_files)} documents to auto-load from {data_dir}")
-        self.status_bar.showMessage(f"Auto-loading {len(document_files)} documents...")
+        self._current_status = f"Auto-loading {len(document_files)} documents..."
+        self._update_status_bar_info()
         return document_files
 
     def _load_all_documents_with_status(self, document_files):
@@ -635,7 +642,8 @@ class CUBOGUI(QMainWindow):
 
     def _load_and_process_document(self, filepath_str, filename, logger):
         """Load document content and add to retriever."""
-        self.status_bar.showMessage(f"Loading {filename}...")
+        self._current_status = f"Loading {filename}..."
+        self._update_status_bar_info()
 
         # Load and chunk the document
         documents = self.document_loader.load_single_document(filepath_str)
@@ -644,7 +652,8 @@ class CUBOGUI(QMainWindow):
             logger.warning(f"No content extracted from: {filename}")
             return "failed"
 
-        self.status_bar.showMessage(f"Indexing {filename}...")
+        self._current_status = f"Indexing {filename}..."
+        self._update_status_bar_info()
 
         # Add to retriever
         success = self.retriever.add_document(filepath_str, documents)
@@ -673,13 +682,14 @@ class CUBOGUI(QMainWindow):
         logger.info(f"Auto-loading completed: {loaded_count} loaded, {skipped_count} skipped, {failed_count} failed")
 
         if failed_count == 0 and skipped_count == 0:
-            self.status_bar.showMessage(f"Ready - {loaded_count} documents loaded")
+            self._current_status = f"🔄 Ready - {loaded_count} documents loaded"
         elif failed_count == 0:
-            self.status_bar.showMessage(f"Ready - {total_processed} documents available ({skipped_count} already loaded)")
+            self._current_status = f"🔄 Ready - {total_processed} documents available ({skipped_count} already loaded)"
         elif skipped_count == 0:
-            self.status_bar.showMessage(f"Ready - {loaded_count} documents loaded ({failed_count} failed)")
+            self._current_status = f"🔄 Ready - {loaded_count} documents loaded ({failed_count} failed)"
         else:
-            self.status_bar.showMessage(f"Ready - {total_processed} documents available ({loaded_count} new, {skipped_count} cached, {failed_count} failed)")
+            self._current_status = f"🔄 Ready - {total_processed} documents available ({loaded_count} new, {skipped_count} cached, {failed_count} failed)"
+        self._update_status_bar_info()
 
     def init_ui(self):
         """Initialize the user interface."""
@@ -740,10 +750,62 @@ class CUBOGUI(QMainWindow):
         self.query_widget.query_submitted.connect(self.on_query_submitted)
 
     def _setup_status_bar(self):
-        """Set up the status bar."""
+        """Set up the status bar with multiple information widgets."""
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready")
+
+        # Create permanent status widgets
+        self.status_label = QLabel("🔄 Ready")
+        self.docs_label = QLabel("📊 0 documents")
+        self.model_label = QLabel("🤖 No model")
+        self.response_time_label = QLabel("⚡ --")
+
+        # Add widgets to status bar (permanent widgets)
+        self.status_bar.addWidget(self.status_label)
+        self.status_bar.addWidget(self.docs_label)
+        self.status_bar.addWidget(self.model_label)
+        self.status_bar.addWidget(self.response_time_label)
+
+        # Set initial values
+        self._update_status_bar_info()
+
+    def _update_status_bar_info(self):
+        """Update all status bar information widgets."""
+        # Status (Ready/Loading/etc)
+        status_text = getattr(self, '_current_status', '🔄 Ready')
+        self.status_label.setText(status_text)
+
+        # Documents count
+        if hasattr(self, 'retriever') and self.retriever:
+            loaded_docs = len(self.retriever.get_loaded_documents())
+            self.docs_label.setText(f"📊 {loaded_docs} documents")
+        else:
+            self.docs_label.setText("📊 0 documents")
+
+        # Model info
+        if hasattr(self, 'model') and self.model:
+            # Try to get model name from config or model object
+            model_name = "🤖 Unknown"
+            try:
+                if hasattr(self.model, 'model_name'):
+                    model_name = f"🤖 {self.model.model_name.split('/')[-1]}"
+                elif hasattr(self, 'model_loader') and self.model_loader:
+                    # Try to get from model loader config
+                    model_name = "🤖 Model loaded"
+                else:
+                    model_name = "🤖 Model loaded"
+            except:
+                model_name = "🤖 Model loaded"
+            self.model_label.setText(model_name)
+        else:
+            self.model_label.setText("🤖 No model")
+
+        # Response time (if available)
+        response_time = getattr(self, '_last_response_time', None)
+        if response_time is not None:
+            self.response_time_label.setText(f"⚡ {response_time:.1f}s")
+        else:
+            self.response_time_label.setText("⚡ --")
 
     def change_retrieval_method(self):
         """Change the retrieval method."""
@@ -804,7 +866,8 @@ class CUBOGUI(QMainWindow):
 
     def _update_status_for_method_change(self, method):
         """Update status bar and log successful method change."""
-        self.status_bar.showMessage(f"Switched to {method} retrieval")
+        self._current_status = f"Switched to {method} retrieval"
+        self._update_status_bar_info()
         logger.info(f"Retrieval method changed to: {method}")
 
     def _handle_retrieval_method_change_error(self, error):
@@ -893,7 +956,8 @@ class CUBOGUI(QMainWindow):
 
         except Exception as e:
             logger.error(f"Synchronous processing failed: {e}")
-            self.status_bar.showMessage("Critical error during document processing")
+            self._current_status = "Critical error during document processing"
+            self._update_status_bar_info()
             QMessageBox.critical(self, "Processing Error", f"Failed to process documents: {e}")
 
     def _initialize_processing_counts(self):
@@ -941,7 +1005,8 @@ class CUBOGUI(QMainWindow):
             logger.info(f"Document already loaded: {filepath}")
             counts["skipped"] += 1
             counts["processed"] += 1
-            self.status_bar.showMessage(f"Skipped {filename} (already loaded)")
+            self._current_status = f"Skipped {filename} (already loaded)"
+            self._update_status_bar_info()
             return True
         return False
 
@@ -949,7 +1014,8 @@ class CUBOGUI(QMainWindow):
         """Load document content and validate it was extracted successfully."""
         logger = logging.getLogger(__name__)
 
-        self.status_bar.showMessage(f"Loading {filename}...")
+        self._current_status = f"Loading {filename}..."
+        self._update_status_bar_info()
 
         # Load and chunk the document
         documents = self.document_loader.load_single_document(filepath)
@@ -957,7 +1023,8 @@ class CUBOGUI(QMainWindow):
         if not documents:
             logger.warning(f"No content extracted from {filename}")
             counts["failed"] += 1
-            self.status_bar.showMessage(f"Failed to extract content from {filename}")
+            self._current_status = f"Failed to extract content from {filename}"
+            self._update_status_bar_info()
             return None
 
         return documents
@@ -966,14 +1033,16 @@ class CUBOGUI(QMainWindow):
         """Index the document in the retriever and update UI."""
         logger = logging.getLogger(__name__)
 
-        self.status_bar.showMessage(f"Indexing {filename} ({len(documents)} chunks)...")
+        self._current_status = f"Indexing {filename} ({len(documents)} chunks)..."
+        self._update_status_bar_info()
 
         # Add to retriever
         success = self.retriever.add_document(filepath, documents)
         if success or self.retriever.is_document_loaded(filepath):
             counts["processed"] += 1
             logger.info(f"Processed {filename}: {len(documents)} chunks")
-            self.status_bar.showMessage(f"Indexed {filename} successfully")
+            self._current_status = f"Indexed {filename} successfully"
+            self._update_status_bar_info()
 
             # Add to document widget UI if not already present
             try:
@@ -983,7 +1052,8 @@ class CUBOGUI(QMainWindow):
         else:
             counts["failed"] += 1
             logger.warning(f"Failed to index {filename}")
-            self.status_bar.showMessage(f"Failed to index {filename}")
+            self._current_status = f"Failed to index {filename}"
+            self._update_status_bar_info()
 
     def _update_processing_status(self, total_files, processing_counts):
         """
@@ -1001,13 +1071,14 @@ class CUBOGUI(QMainWindow):
         logger.info(f"Document processing completed: {processed} processed, {skipped} skipped, {failed} failed")
 
         if failed == 0 and skipped == 0:
-            self.status_bar.showMessage(f"Ready - {processed} documents processed")
+            self._current_status = f"🔄 Ready - {processed} documents processed"
         elif failed == 0:
-            self.status_bar.showMessage(f"Ready - {processed} documents available ({skipped} already loaded)")
+            self._current_status = f"🔄 Ready - {processed} documents available ({skipped} already loaded)"
         elif skipped == 0:
-            self.status_bar.showMessage(f"Ready - {processed - failed} documents processed ({failed} failed)")
+            self._current_status = f"🔄 Ready - {processed - failed} documents processed ({failed} failed)"
         else:
-            self.status_bar.showMessage(f"Ready - {processed} documents available ({processed - skipped - failed} new, {skipped} cached, {failed} failed)")
+            self._current_status = f"🔄 Ready - {processed} documents available ({processed - skipped - failed} new, {skipped} cached, {failed} failed)"
+        self._update_status_bar_info()
 
     def on_query_submitted(self, query):
         """Handle query submission with detailed status reporting."""
@@ -1035,13 +1106,15 @@ class CUBOGUI(QMainWindow):
         if not self.retriever:
             error_msg = "Backend components not initialized. Please restart the application."
             logger.error(error_msg)
-            self.status_bar.showMessage("Backend not ready - restart required")
+            self._current_status = "Backend not ready - restart required"
+            self._update_status_bar_info()
             QMessageBox.critical(self, "Backend Error", error_msg)
             return False
 
         # Validate query
         if not query or not query.strip():
-            self.status_bar.showMessage("Query cannot be empty")
+            self._current_status = "Query cannot be empty"
+            self._update_status_bar_info()
             QMessageBox.warning(self, "Invalid Query", "Please enter a question.")
             return False
 
@@ -1049,22 +1122,26 @@ class CUBOGUI(QMainWindow):
 
     def _retrieve_relevant_documents(self, query, settings):
         """Retrieve relevant documents for the query."""
-        self.status_bar.showMessage("Searching documents...")
+        self._current_status = "Searching documents..."
+        self._update_status_bar_info()
 
         if not self.retriever.get_loaded_documents():
-            self.status_bar.showMessage("No documents loaded")
+            self._current_status = "No documents loaded"
+            self._update_status_bar_info()
             QMessageBox.warning(self, "No Documents",
                               "Please upload some documents first before asking questions.")
             return None
 
-        self.status_bar.showMessage("Retrieving relevant content...")
+        self._current_status = "Retrieving relevant content..."
+        self._update_status_bar_info()
 
         # Get retrieval settings and retrieve documents
         top_k = settings.get("retrieval", {}).get("top_k", 6)
         relevant_docs_data = self.retriever.retrieve_top_documents(query, top_k=top_k)
 
         if not relevant_docs_data:
-            self.status_bar.showMessage("No relevant documents found")
+            self._current_status = "No relevant documents found"
+            self._update_status_bar_info()
             QMessageBox.information(self, "No Results",
                               "No relevant documents were found for your query. Try rephrasing or upload more documents.")
             return None
@@ -1073,7 +1150,12 @@ class CUBOGUI(QMainWindow):
 
     def _generate_query_response(self, query, relevant_docs_data, settings):
         """Generate response using retrieved documents."""
-        self.status_bar.showMessage(f"Found {len(relevant_docs_data)} relevant sections, generating response...")
+        self._current_status = f"Found {len(relevant_docs_data)} relevant sections, generating response..."
+        self._update_status_bar_info()
+
+        # Record query start time for response time calculation
+        import time
+        self._query_start_time = time.time()
 
         # Extract document text and build context
         relevant_docs = [doc_data['document'] for doc_data in relevant_docs_data]
@@ -1098,17 +1180,28 @@ class CUBOGUI(QMainWindow):
         )
 
         # Set up completion callbacks
-        self._setup_response_callbacks(future, sources)
+        self._setup_response_callbacks(future, sources, query, relevant_docs_data, settings)
 
-    def _setup_response_callbacks(self, future, sources):
+    def _setup_response_callbacks(self, future, sources, query, relevant_docs_data, settings):
         """Set up callbacks for async response generation."""
         def on_complete(response):
+            # Calculate response time
+            import time
+            response_time = time.time() - getattr(self, '_query_start_time', time.time())
+            self._last_response_time = response_time
+
             if not response or len(response.strip()) == 0:
-                self.status_bar.showMessage("Generated empty response")
+                self._current_status = "Generated empty response"
+                self._update_status_bar_info()
                 QMessageBox.warning(self, "Empty Response",
                     "The AI generated an empty response. This might indicate an issue with the model or context.")
             else:
-                self.status_bar.showMessage("Response generated successfully")
+                self._current_status = "Response generated successfully"
+                self._update_status_bar_info()
+
+            # Save evaluation data with chunk scores
+            self._save_query_evaluation(query, response, relevant_docs_data, settings)
+
             # Update UI in main thread using signal
             self.update_results_signal.emit(response, sources)
 
@@ -1118,17 +1211,86 @@ class CUBOGUI(QMainWindow):
         # Set up callbacks
         future.add_done_callback(lambda f: on_complete(f.result()) if not f.exception() else on_error(f.exception()))
 
+    def _save_query_evaluation(self, query, response, relevant_docs_data, settings):
+        """Save query evaluation data with detailed chunk scores."""
+        try:
+            from datetime import datetime
+            import uuid
+
+            # Extract chunk scores from metadata
+            chunk_scores = []
+            context_metadata = []
+            contexts = []
+
+            for doc_data in relevant_docs_data:
+                contexts.append(doc_data['document'])
+                metadata = doc_data['metadata']
+                context_metadata.append({
+                    'filename': metadata.get('filename', 'Unknown'),
+                    'chunk_id': metadata.get('chunk_id', ''),
+                    'similarity_score': metadata.get('similarity_score', 0.0)
+                })
+
+                # Extract detailed score breakdown if available
+                if 'score_breakdown' in metadata:
+                    breakdown = metadata['score_breakdown']
+                    chunk_scores.append({
+                        'filename': metadata.get('filename', 'Unknown'),
+                        'chunk_id': metadata.get('chunk_id', ''),
+                        'final_score': breakdown.get('final_score', 0.0),
+                        'semantic_score': breakdown.get('semantic_score', 0.0),
+                        'bm25_score': breakdown.get('bm25_score', 0.0),
+                        'semantic_contribution': breakdown.get('semantic_contribution', 0.0),
+                        'bm25_contribution': breakdown.get('bm25_contribution', 0.0)
+                    })
+
+            # Create evaluation record
+            evaluation = QueryEvaluation(
+                timestamp=datetime.now().isoformat(),
+                session_id=str(uuid.uuid4()),
+                question=query,
+                answer=response,
+                response_time=0.0,  # Not tracking response time in GUI yet
+                contexts=contexts,
+                context_metadata=context_metadata,
+                model_used=settings.get("generation", {}).get("model", "unknown"),
+                embedding_model=settings.get("embedding", {}).get("model", "unknown"),
+                retrieval_method=settings.get("retrieval", {}).get("method", "hybrid"),
+                chunking_method=settings.get("chunking", {}).get("method", "sentence_window"),
+                answer_length=len(response),
+                context_count=len(relevant_docs_data),
+                total_context_length=sum(len(doc['document']) for doc in relevant_docs_data),
+                average_context_similarity=sum(doc['similarity'] for doc in relevant_docs_data) / len(relevant_docs_data) if relevant_docs_data else 0.0,
+                answer_confidence=0.5,  # Default confidence
+                has_answer=bool(response and len(response.strip()) > 0),
+                is_fallback_response=False,
+                error_occurred=False,
+                error_message=None,
+                chunk_scores=chunk_scores if chunk_scores else None
+            )
+
+            # Save to database
+            eval_db = EvaluationDatabase()
+            eval_db.store_evaluation(evaluation)
+
+            logger.info(f"Saved evaluation for query: {query[:50]}... with {len(chunk_scores)} chunk scores")
+
+        except Exception as e:
+            logger.error(f"Failed to save query evaluation: {e}")
+            # Don't show error to user as this is not critical functionality
+
     def _handle_response_generation_error(self, error):
         """Handle errors during response generation."""
         error_msg = str(error)
         if "timeout" in error_msg.lower():
-            self.status_bar.showMessage("Response generation timed out")
+            self._current_status = "Response generation timed out"
         elif "memory" in error_msg.lower():
-            self.status_bar.showMessage("Insufficient memory for response generation")
+            self._current_status = "Insufficient memory for response generation"
         elif "connection" in error_msg.lower():
-            self.status_bar.showMessage("Connection error during response generation")
+            self._current_status = "Connection error during response generation"
         else:
-            self.status_bar.showMessage("Error generating response")
+            self._current_status = "Error generating response"
+        self._update_status_bar_info()
 
         # Update UI in main thread
         from PySide6.QtCore import QTimer
@@ -1138,43 +1300,49 @@ class CUBOGUI(QMainWindow):
         """Handle errors during overall query processing."""
         error_msg = str(error)
         if "model" in error_msg.lower():
-            self.status_bar.showMessage("Model error - check configuration")
+            self._current_status = "Model error - check configuration"
         elif "database" in error_msg.lower():
-            self.status_bar.showMessage("Database error - check connection")
+            self._current_status = "Database error - check connection"
         else:
-            self.status_bar.showMessage("Unexpected error during query processing")
+            self._current_status = "Unexpected error during query processing"
+        self._update_status_bar_info()
         QMessageBox.critical(self, "Query Error", f"Failed to process query: {error}")
 
     def _update_ui_with_results(self, response, sources):
         """Update UI with query results (called in main thread)."""
         try:
             if not response:
-                self.status_bar.showMessage("No response generated")
+                self._current_status = "No response generated"
+                self._update_status_bar_info()
                 QMessageBox.warning(self, "No Response",
                     "The AI did not generate a response. This might indicate an issue with the model or context.")
                 return
 
             if len(response.strip()) == 0:
-                self.status_bar.showMessage("Empty response generated")
+                self._current_status = "Empty response generated"
+                self._update_status_bar_info()
                 QMessageBox.warning(self, "Empty Response",
                     "The AI generated an empty response. Try rephrasing your question.")
                 return
 
             # Check for very short responses that might indicate issues
             if len(response.strip()) < 10:
-                self.status_bar.showMessage("Very short response - may be incomplete")
+                self._current_status = "Very short response - may be incomplete"
+                self._update_status_bar_info()
                 QMessageBox.information(self, "Short Response",
                     "The response seems unusually short. The AI might not have had enough relevant context.")
 
             self.query_widget.display_results(response, sources)
-            self.status_bar.showMessage("Ready")
+            self._current_status = "🔄 Ready"
+            self._update_status_bar_info()
 
         except Exception as e:
             import traceback
             logger = logging.getLogger(__name__)
             logger.error(f"Error updating UI with results: {e}")
             logger.error(traceback.format_exc())
-            self.status_bar.showMessage("Error displaying results")
+            self._current_status = "Error displaying results"
+            self._update_status_bar_info()
             QMessageBox.critical(self, "Display Error", f"Failed to display results: {e}")
 
     def _handle_query_error(self, error):
@@ -1194,7 +1362,8 @@ class CUBOGUI(QMainWindow):
             # Fallback error handling
             logger = logging.getLogger(__name__)
             logger.error(f"Error in error handler: {e}")
-            self.status_bar.showMessage("Critical error")
+            self._current_status = "Critical error"
+            self._update_status_bar_info()
             QMessageBox.critical(self, "Critical Error", "An unexpected error occurred while handling the previous error.")
 
     def _categorize_query_error(self, error_msg):
@@ -1249,7 +1418,8 @@ class CUBOGUI(QMainWindow):
             user_msg: Detailed message for the dialog
             status_msg: Short message for the status bar
         """
-        self.status_bar.showMessage(status_msg)
+        self._current_status = status_msg
+        self._update_status_bar_info()
         QMessageBox.critical(self, "Query Error", user_msg)
 
     def show_advanced_settings(self):
@@ -1338,7 +1508,6 @@ def main():
 
 def _setup_logging():
     """Configure application logging."""
-    import logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

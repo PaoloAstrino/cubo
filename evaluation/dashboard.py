@@ -59,6 +59,11 @@ class EvaluationDetailsDialog(QDialog):
         meta_tab = self.create_metadata_tab()
         tabs.addTab(meta_tab, "Metadata")
 
+        # Chunk Scores tab (if available)
+        if self.eval_data.chunk_scores:
+            scores_tab = self.create_chunk_scores_tab()
+            tabs.addTab(scores_tab, "Chunk Scores")
+
         layout.addWidget(tabs)
 
         # Close button
@@ -191,6 +196,77 @@ class EvaluationDetailsDialog(QDialog):
             form_layout.addRow("Error Message:", QLabel(self.eval_data.error_message))
 
         widget.setLayout(form_layout)
+        return widget
+
+    def create_chunk_scores_tab(self) -> QWidget:
+        """Create the chunk scores breakdown tab."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Info label
+        info_label = QLabel("Detailed breakdown of how each chunk's score was calculated:")
+        info_label.setStyleSheet("font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(info_label)
+
+        # Explanation
+        explanation = QLabel(
+            "Final Score = (0.1 × Semantic Similarity) + (0.9 × BM25 Keyword Score)\n"
+            "Semantic Contribution: How semantically similar the chunk is to the query\n"
+            "BM25 Contribution: How well the chunk matches query keywords"
+        )
+        explanation.setWordWrap(True)
+        explanation.setStyleSheet("color: #666; margin-bottom: 10px;")
+        layout.addWidget(explanation)
+
+        # Chunk scores table
+        scores_table = QTableWidget()
+        scores_table.setColumnCount(7)
+        scores_table.setHorizontalHeaderLabels([
+            "File", "Final Score", "Semantic", "BM25", "Semantic Contribution", "BM25 Contribution", "Preview"
+        ])
+
+        # Populate chunk scores
+        chunk_scores = self.eval_data.chunk_scores or []
+        scores_table.setRowCount(len(chunk_scores))
+
+        for row, score_data in enumerate(chunk_scores):
+            # File name
+            filename = score_data.get('filename', 'Unknown')
+            scores_table.setItem(row, 0, QTableWidgetItem(filename))
+
+            # Scores with formatting
+            final_score = score_data.get('final_score', 0.0)
+            semantic_score = score_data.get('semantic_score', 0.0)
+            bm25_score = score_data.get('bm25_score', 0.0)
+            semantic_contrib = score_data.get('semantic_contribution', 0.0)
+            bm25_contrib = score_data.get('bm25_contribution', 0.0)
+
+            # Format scores
+            scores_table.setItem(row, 1, QTableWidgetItem(f"{final_score:.3f}"))
+            scores_table.setItem(row, 2, QTableWidgetItem(f"{semantic_score:.3f}"))
+            scores_table.setItem(row, 3, QTableWidgetItem(f"{bm25_score:.3f}"))
+            scores_table.setItem(row, 4, QTableWidgetItem(f"{semantic_contrib:.3f}"))
+            scores_table.setItem(row, 5, QTableWidgetItem(f"{bm25_contrib:.3f}"))
+
+            # Content preview from contexts (find matching context)
+            preview = "Preview not available"
+            contexts = self.eval_data.contexts or []
+            metadata = self.eval_data.context_metadata or []
+
+            # Try to find matching context by filename
+            for context, meta in zip(contexts, metadata):
+                if meta.get('filename') == filename:
+                    preview = context[:150] + "..." if len(context) > 150 else context
+                    break
+
+            preview_item = QTableWidgetItem(preview)
+            preview_item.setToolTip(preview)
+            scores_table.setItem(row, 6, preview_item)
+
+        scores_table.resizeColumnsToContents()
+        scores_table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(scores_table)
+
         return widget
 
 class EvaluationDashboard(QWidget):

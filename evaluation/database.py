@@ -54,6 +54,9 @@ class QueryEvaluation:
     # LLM-based Metrics
     llm_metrics: Optional[Dict[str, Any]] = None
 
+    # Chunk Score Breakdowns (detailed scoring transparency)
+    chunk_scores: Optional[List[Dict[str, Any]]] = None
+
     # User Feedback (future)
     user_rating: Optional[int] = None  # 1-5 stars
     user_feedback: Optional[str] = None
@@ -66,6 +69,19 @@ class EvaluationDatabase:
         self.db_path = db_path
         self._ensure_db_exists()
         self._create_tables()
+        self._migrate_database()
+
+    def _migrate_database(self):
+        """Migrate database schema to add new columns if needed."""
+        with sqlite3.connect(self.db_path) as conn:
+            # Check if chunk_scores column exists
+            cursor = conn.execute("PRAGMA table_info(evaluations)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'chunk_scores' not in columns:
+                logger.info("Adding chunk_scores column to evaluations table")
+                conn.execute("ALTER TABLE evaluations ADD COLUMN chunk_scores TEXT")
+                logger.info("Database migration completed")
 
     def _ensure_db_exists(self):
         """Ensure database directory exists."""
@@ -110,6 +126,9 @@ class EvaluationDatabase:
                     -- LLM Metrics
                     llm_metrics TEXT,
 
+                    -- Chunk Score Breakdowns
+                    chunk_scores TEXT,
+
                     -- User Feedback
                     user_rating INTEGER,
                     user_feedback TEXT
@@ -133,6 +152,7 @@ class EvaluationDatabase:
         data['contexts'] = json.dumps(data['contexts'])
         data['context_metadata'] = json.dumps(data['context_metadata'])
         data['llm_metrics'] = json.dumps(data['llm_metrics'])
+        data['chunk_scores'] = json.dumps(data['chunk_scores'])
 
         with sqlite3.connect(self.db_path) as conn:
             columns = ', '.join(data.keys())
@@ -201,6 +221,7 @@ class EvaluationDatabase:
         data['contexts'] = json.loads(data['contexts'] or '[]')
         data['context_metadata'] = json.loads(data['context_metadata'] or '[]')
         data['llm_metrics'] = json.loads(data['llm_metrics'] or 'null')
+        data['chunk_scores'] = json.loads(data['chunk_scores'] or 'null')
 
         return QueryEvaluation(**data)
 

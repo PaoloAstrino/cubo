@@ -30,16 +30,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+try:
+    import ollama
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+    logger.warning("Ollama client not available, LLM-based evaluations will be disabled")
+
 class RAGTester:
     """Comprehensive RAG testing framework."""
 
-    def __init__(self, questions_file: str = "test_questions.json"):
-        """Initialize the tester with question data."""
+    def __init__(self, questions_file: str = "test_questions.json", data_folder: str = "data"):
+        """Initialize the tester with question data and CUBO system."""
         self.questions_file = questions_file
         self.questions = self.load_questions()
+        self.data_folder = data_folder
 
         # Initialize evaluator
-        self.evaluator = AdvancedEvaluator()
+        if OLLAMA_AVAILABLE:
+            self.evaluator = AdvancedEvaluator(ollama_client=ollama.Client())
+            logger.info("AdvancedEvaluator initialized with Ollama client for LLM-based metrics")
+        else:
+            self.evaluator = AdvancedEvaluator()
+            logger.info("AdvancedEvaluator initialized without LLM client (LLM-based metrics disabled)")
+
+        # Initialize CUBO system
+        self.cubo_app = None
+        self._initialize_cubo_system()
 
         self.results = {
             "metadata": {
@@ -54,6 +71,52 @@ class RAGTester:
                 "hard": []
             }
         }
+
+    def _initialize_cubo_system(self):
+        """Initialize the CUBO RAG system for testing."""
+        try:
+            logger.info("Initializing CUBO system for testing...")
+            self.cubo_app = CUBOApp()
+
+            # Skip the setup wizard - assume system is already configured
+            if not self.cubo_app.initialize_components():
+                logger.error("Failed to initialize CUBO components")
+                return
+
+            # Load all documents from data folder
+            if not os.path.exists(self.data_folder):
+                logger.error(f"Data folder '{self.data_folder}' not found")
+                return
+
+            logger.info(f"Loading documents from {self.data_folder}...")
+            documents = self.cubo_app.doc_loader.load_documents_from_folder(self.data_folder)
+            if not documents:
+                logger.error("No documents loaded")
+                return
+
+            logger.info(f"Adding {len(documents)} document chunks to vector database...")
+            # Extract text content from chunk dictionaries
+            document_texts = []
+            for chunk in documents:
+                if isinstance(chunk, dict) and 'text' in chunk:
+                    document_texts.append(chunk['text'])
+                elif isinstance(chunk, str):
+                    document_texts.append(chunk)
+                else:
+                    logger.warning(f"Skipping invalid chunk format: {type(chunk)}")
+            
+            if document_texts:
+                self.cubo_app.retriever.add_documents(document_texts)
+                logger.info("Documents added to vector database successfully")
+            else:
+                logger.error("No valid document texts found to add")
+                return
+
+            logger.info("CUBO system ready for testing!")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize CUBO system: {e}")
+            self.cubo_app = None
 
     def load_questions(self) -> Dict[str, List[str]]:
         """Load questions from JSON file."""
@@ -73,26 +136,21 @@ class RAGTester:
         start_time = time.time()
 
         try:
-            # TODO: Replace with actual RAG system integration
-            # To integrate with real CUBO system:
-            # 1. Initialize CUBOApp instance
-            # 2. Load documents from data folder
-            # 3. Run query through retriever and generator
-            # 4. Capture actual response and retrieved contexts
+            if not self.cubo_app:
+                raise Exception("CUBO system not initialized")
 
-            # For now, simulate a realistic RAG response based on the question
-            # This should be replaced with actual CUBO query processing
+            # Get actual retrieved contexts from CUBO
+            contexts = self.cubo_app.retriever.retrieve_top_documents(question)
 
-            # Mock response - replace with actual RAG call
-            response = self._generate_mock_response(question)
-
-            # Mock contexts - replace with actual retrieved documents
-            contexts = self._generate_mock_contexts(question)
+            # Generate actual response using CUBO
+            context_texts = [ctx.get('document', '') if isinstance(ctx, dict) else str(ctx) for ctx in contexts]
+            context_text = "\n".join(context_texts)
+            response = self.cubo_app.generator.generate_response(question, context_text)
 
             processing_time = time.time() - start_time
 
             # Evaluate the response using AdvancedEvaluator from metrics.py
-            evaluation_results = asyncio.run(self.evaluate_response(question, response, contexts, processing_time))
+            evaluation_results = asyncio.run(self.evaluate_response(question, response, context_texts, processing_time))
 
             result = {
                 "question": question,
@@ -152,45 +210,6 @@ class RAGTester:
                 'context_relevance': 0,
                 'groundedness': 0
             }
-
-    def _generate_mock_response(self, question: str) -> str:
-        """Generate a mock response for testing purposes."""
-        # This is a placeholder - replace with actual RAG system call
-        if "whiskers" in question.lower() or "cat" in question.lower():
-            return "Whiskers is a curious cat who explores the forest, discovers a magical garden, and becomes a protector of nature."
-        elif "buddy" in question.lower() or "dog" in question.lower():
-            return "Buddy is a loyal farm dog who saves the village from a storm and becomes a local hero."
-        elif "hopper" in question.lower() or "frog" in question.lower():
-            return "Hopper is a wise frog who organizes wetland life, predicts weather, and helps during droughts."
-        elif "elephant" in question.lower() or "ellie" in question.lower():
-            return "Ellie is an elephant who leads animals to an oasis during drought and teaches unity and compassion."
-        elif "horse" in question.lower() or "thunder" in question.lower():
-            return "Thunder is a strong horse who helps on the farm and becomes a hero by moving a fallen tree during a storm."
-        elif "lion" in question.lower() or "leo" in question.lower():
-            return "Leo is a wise lion who organizes jungle cooperation during drought and teaches leadership."
-        elif "rabbit" in question.lower() or "hopper" in question.lower():
-            return "Hopper is a clever rabbit who outsmarts a fox to share a garden and becomes a meadow peacemaker."
-        else:
-            return f"This appears to be a question about animal stories. The answer would be found in the relevant story documents."
-
-    def _generate_mock_contexts(self, question: str) -> List[str]:
-        """Generate mock contexts for testing purposes."""
-        # This is a placeholder - replace with actual retrieved documents
-        base_contexts = [
-            "This is a sample context paragraph from one of the animal stories.",
-            "It contains relevant information that would help answer the question.",
-            "The context provides background and details about the characters and events."
-        ]
-
-        # Add some question-specific context
-        if "whiskers" in question.lower():
-            base_contexts.append("Whiskers the cat is known for his curiosity and adventures in the forest.")
-        elif "buddy" in question.lower():
-            base_contexts.append("Buddy the dog showed great loyalty and courage during the village storm.")
-        elif "hopper" in question.lower():
-            base_contexts.append("Hopper the frog is wise and helps organize the wetland community.")
-
-        return base_contexts
 
     def run_difficulty_tests(self, difficulty: str, limit: int = None) -> List[Dict[str, Any]]:
         """Run all tests for a specific difficulty level."""
@@ -345,6 +364,8 @@ def main():
     parser = argparse.ArgumentParser(description="CUBO RAG Testing Framework")
     parser.add_argument("--questions", default="test_questions.json",
                        help="Path to questions JSON file")
+    parser.add_argument("--data-folder", default="data",
+                       help="Path to data folder containing documents")
     parser.add_argument("--easy-limit", type=int,
                        help="Limit number of easy questions")
     parser.add_argument("--medium-limit", type=int,
@@ -356,8 +377,8 @@ def main():
 
     args = parser.parse_args()
 
-    # Initialize tester
-    tester = RAGTester(args.questions)
+    # Initialize tester with data folder
+    tester = RAGTester(args.questions, args.data_folder)
 
     # Run tests
     results = tester.run_all_tests(
