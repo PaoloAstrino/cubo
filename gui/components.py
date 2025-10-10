@@ -264,6 +264,10 @@ class MessageDelegate(QStyledItemDelegate):
         # Draw the message bubble
         bubble_rect, text_y_offset = self._draw_message_bubble(painter, option.rect, bg_color, text_color, alignment, message['content'])
 
+        # Draw copy button for system messages
+        if msg_type == 'system':
+            self._draw_copy_button(painter, bubble_rect, text_color)
+
         # Draw source rectangles below system messages
         if msg_type == 'system' and metadata.get('sources'):
             self._draw_source_rectangles(painter, option.rect, bubble_rect, metadata['sources'])
@@ -403,6 +407,120 @@ class MessageDelegate(QStyledItemDelegate):
         painter.drawText(text_draw_rect, Qt.AlignLeft | Qt.TextWordWrap, content)
 
         return bubble_rect, bubble_y + bubble_height
+
+    def _draw_copy_button(self, painter: QPainter, bubble_rect: QRect, text_color: QColor):
+        """
+        Draw a small copy button icon in the top-right corner of system message bubbles.
+
+        Args:
+            painter: The painter to use for drawing
+            bubble_rect: The message bubble rectangle
+            text_color: The text color to use for the icon
+        """
+        # Position copy button in top-right corner of bubble
+        button_size = 16
+        button_x = bubble_rect.right() - button_size - 8
+        button_y = bubble_rect.top() + 8
+        button_rect = QRect(button_x, button_y, button_size, button_size)
+
+        # Draw subtle background circle
+        painter.setBrush(QColor(255, 255, 255, 30))  # Very faded white
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(button_rect)
+
+        # Draw copy icon (simple square with corner)
+        painter.setPen(QPen(text_color, 1, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setBrush(Qt.NoBrush)
+
+        # Draw the copy icon: square with small corner square
+        icon_margin = 3
+        icon_rect = button_rect.adjusted(icon_margin, icon_margin, -icon_margin, -icon_margin)
+
+        # Main square
+        painter.drawRect(icon_rect)
+
+        # Corner square (copy indication)
+        corner_size = 4
+        corner_rect = QRect(icon_rect.right() - corner_size, icon_rect.top(), corner_size, corner_size)
+        painter.fillRect(corner_rect, text_color)
+
+    def editorEvent(self, event, model, option, index):
+        """
+        Handle mouse events for interactive elements like the copy button.
+
+        Args:
+            event: The event to handle
+            model: The model
+            option: Style options
+            index: The model index
+
+        Returns:
+            True if the event was handled, False otherwise
+        """
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            message = index.data(Qt.UserRole)
+            msg_type = index.data(Qt.UserRole + 1)
+
+            if msg_type == 'system':
+                # Check if click is within copy button area
+                bubble_rect = self._get_bubble_rect(option.rect, message['content'], Qt.AlignLeft)
+                button_size = 16
+                button_x = bubble_rect.right() - button_size - 8
+                button_y = bubble_rect.top() + 8
+                button_rect = QRect(button_x, button_y, button_size, button_size)
+
+                if button_rect.contains(event.pos()):
+                    # Copy message content to clipboard
+                    from PySide6.QtWidgets import QApplication
+                    clipboard = QApplication.clipboard()
+                    clipboard.setText(message['content'])
+                    return True
+
+        return super().editorEvent(event, model, option, index)
+
+    def _get_bubble_rect(self, item_rect: QRect, content: str, alignment: Qt.AlignmentFlag) -> QRect:
+        """
+        Calculate the bubble rectangle for a message (helper for editorEvent).
+
+        Args:
+            item_rect: The item rectangle
+            content: The message content
+            alignment: Text alignment
+
+        Returns:
+            The bubble rectangle
+        """
+        # Set up font for text metrics
+        font = QFont("Segoe UI", 10)
+        from PySide6.QtGui import QFontMetrics
+        metrics = QFontMetrics(font)
+
+        # Calculate bubble width (max 70% of available width)
+        max_bubble_width = int(item_rect.width() * 0.7)
+
+        # Calculate actual text size with wrapping
+        text_rect = metrics.boundingRect(
+            0, 0, max_bubble_width - 20, 10000,
+            Qt.TextWordWrap | Qt.AlignLeft,
+            content
+        )
+
+        # Add padding to text dimensions
+        bubble_width = min(text_rect.width() + 20, max_bubble_width)
+        bubble_height = text_rect.height() + 16
+
+        # Position bubble based on alignment
+        margin = 15
+        if alignment == Qt.AlignRight:
+            # User messages on the right
+            bubble_x = item_rect.right() - bubble_width - margin
+        else:
+            # System messages on the left
+            bubble_x = item_rect.left() + margin
+
+        bubble_y = item_rect.top() + 8
+        return QRect(bubble_x, bubble_y, bubble_width, bubble_height)
 
     def _draw_source_rectangles(self, painter: QPainter, item_rect: QRect, bubble_rect: QRect, sources: list):
         """
@@ -967,11 +1085,13 @@ class DocumentWidget(QWidget):
         # No action needed since delete button was removed
         pass
 
-    def set_processing_progress(self, visible, value=None):
-        """Show/hide processing progress."""
-        self.progress_bar.setVisible(visible)
-        if value is not None:
-            self.progress_bar.setValue(value)
+    def clear_documents(self):
+        """Clear all documents from the list and UI."""
+        self.documents.clear()
+        self.document_list.clear()
+        # Switch back to upload page if no documents
+        self.stacked_widget.setCurrentIndex(0)
+        logger.info("Cleared all documents from UI list")
 
 
 class QueryWidget(QWidget):
@@ -1078,6 +1198,7 @@ class QueryWidget(QWidget):
         self.chat_display.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.chat_display.setSelectionMode(QListView.NoSelection)
         self.chat_display.setFocusPolicy(Qt.NoFocus)
+        self.chat_display.setMouseTracking(True)  # Enable mouse tracking for delegate events
         # Enable smooth scrolling
         self.chat_display.setUniformItemSizes(False)
 

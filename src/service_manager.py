@@ -360,7 +360,7 @@ class ServiceManager:
 
     def _create_evaluation_data(
         self, question: str, answer: str, contexts: List[str],
-        response_time: float
+        response_time: float, context_metadata: List[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Create evaluation data dictionary."""
         import json
@@ -374,7 +374,7 @@ class ServiceManager:
             'answer': answer,
             'response_time': response_time,
             'contexts': json.dumps(contexts),
-            'context_metadata': json.dumps([]),
+            'context_metadata': json.dumps(context_metadata or []),
             'model_used': 'llama3.2:latest',
             'embedding_model': 'embeddinggemma-300m',
             'retrieval_method': 'sentence_window',

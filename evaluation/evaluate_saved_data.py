@@ -56,19 +56,53 @@ async def evaluate_saved_queries(limit: Optional[int] = None, session_id: Option
                 # Run evaluation with timeout to prevent hanging
                 import asyncio
                 try:
-                    evaluation_result = await asyncio.wait_for(
-                        integrator.evaluate_query(
-                            question=query_data['question'],
-                            answer=query_data['answer'],
-                            contexts=query_data['contexts'],
-                            response_time=query_data['response_time'],
-                            model_used=query_data['model_used']
+                    # Call evaluator methods directly to avoid creating duplicate records
+                    answer_relevance = await asyncio.wait_for(
+                        integrator.evaluator.evaluate_answer_relevance(
+                            query_data['question'], query_data['answer']
                         ),
-                        timeout=60.0  # 60 second timeout per evaluation
+                        timeout=30.0
                     )
+                    context_relevance = await asyncio.wait_for(
+                        integrator.evaluator.evaluate_context_relevance(
+                            query_data['question'], query_data['contexts']
+                        ),
+                        timeout=30.0
+                    )
+                    groundedness = await asyncio.wait_for(
+                        integrator.evaluator.evaluate_groundedness(
+                            query_data['contexts'], query_data['answer']
+                        ),
+                        timeout=30.0
+                    )
+
+                    # Get LLM metrics if available
+                    llm_metrics = None
+                    try:
+                        advanced_metrics = await asyncio.wait_for(
+                            integrator.evaluator.evaluate_comprehensive(
+                                query_data['question'], query_data['answer'],
+                                query_data['contexts'], query_data['response_time']
+                            ),
+                            timeout=30.0
+                        )
+                        llm_metrics = advanced_metrics.get('llm_metrics')
+                    except:
+                        pass  # LLM metrics are optional
+
+                    evaluation_result = type('EvaluationResult', (), {
+                        'answer_relevance_score': answer_relevance,
+                        'context_relevance_score': context_relevance,
+                        'groundedness_score': groundedness,
+                        'llm_metrics': llm_metrics
+                    })()
+
                 except asyncio.TimeoutError:
                     logger.warning(f"⚠ Evaluation timed out for query: {query_data['question'][:50]}... - will retry later")
                     # Don't increment failed_count, leave record for retry
+                    continue
+                except Exception as e:
+                    logger.warning(f"⚠ Evaluation failed for query: {query_data['question'][:50]}... - {e} - will retry later")
                     continue
 
                 if evaluation_result:

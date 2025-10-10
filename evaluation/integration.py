@@ -182,11 +182,8 @@ class EvaluationIntegrator:
                     if llm_metrics:
                         evaluation.llm_metrics = llm_metrics
 
-                    # Store advanced metrics in metadata
-                    evaluation.context_metadata = [{
-                        'metric_type': 'advanced_evaluation',
-                        'data': advanced_metrics
-                    }]
+                    # Note: context_metadata is reserved for retriever metadata (filenames, similarity scores)
+                    # Advanced evaluation metrics are stored in individual score fields and llm_metrics
 
                     # Mark as successfully evaluated
                     evaluation_completed = True

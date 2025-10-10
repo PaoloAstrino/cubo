@@ -122,7 +122,7 @@ class EvaluationDetailsDialog(QDialog):
 
         for row, (context, meta) in enumerate(zip(contexts, metadata)):
             # Document name
-            doc_name = meta.get('filename', 'Unknown') if meta else 'Unknown'
+            doc_name = meta.get('filename', 'Unknown') if meta else 'Document'
             docs_table.setItem(row, 0, QTableWidgetItem(doc_name))
 
             # Content preview (first 200 chars)
@@ -133,6 +133,8 @@ class EvaluationDetailsDialog(QDialog):
             similarity = meta.get('similarity_score', 'N/A') if meta else 'N/A'
             if isinstance(similarity, float):
                 similarity = f"{similarity:.3f}"
+            elif similarity == 'N/A' or similarity is None:
+                similarity = "Not available"
             docs_table.setItem(row, 2, QTableWidgetItem(str(similarity)))
 
             # Additional metadata

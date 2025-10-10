@@ -25,11 +25,14 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QSplitter, QStatusBar, QToolBar, QMenuBar, QMenu,
-    QMessageBox, QComboBox, QProgressBar, QTextEdit, QDialog
+    QMessageBox, QComboBox, QProgressBar, QTextEdit, QDialog, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, QThread
+from PySide6.QtGui import QIcon
 import logging
 from PySide6.QtGui import QAction
+import ctypes
+import platform
 
 # Add src to path for backend imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -696,15 +699,63 @@ class CUBOGUI(QMainWindow):
         self._setup_window_properties()
         self._setup_central_widget()
         self._setup_main_layout()
-        self._setup_document_widget()
-        self._setup_query_widget()
         self._connect_widget_signals()
         self._setup_status_bar()
 
     def _setup_window_properties(self):
-        """Set up window title, geometry, and icon."""
+        """Set up window title, geometry, and icon for full screen adaptation."""
         self.setWindowTitle("CUBO")
-        self.setGeometry(100, 100, 1200, 800)
+
+        # Set window icon for taskbar
+        self._set_window_icon()
+
+        # Get screen size for proportional scaling
+        screen = QApplication.primaryScreen().availableGeometry()
+        screen_width = screen.width()
+        screen_height = screen.height()
+
+        # Target aspect ratio (same as original 1200:800 = 1.5)
+        target_ratio = 1200 / 800
+
+        # Calculate window size maintaining proportions
+        if screen_width / screen_height > target_ratio:
+            # Screen is wider - fit height, center horizontally
+            window_height = int(screen_height * 0.9)  # Use 90% of screen height
+            window_width = int(window_height * target_ratio)
+        else:
+            # Screen is taller - fit width, center vertically
+            window_width = int(screen_width * 0.9)   # Use 90% of screen width
+            window_height = int(window_width / target_ratio)
+
+        # Center the window
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+
+        self.setGeometry(x, y, window_width, window_height)
+        self.setMinimumSize(1000, 667)  # Minimum size maintaining 1.5 aspect ratio
+
+    def _set_window_icon(self):
+        """Set the window icon for proper taskbar display."""
+        try:
+            # Get the project root directory
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_dir)
+
+            # Use the new Windows-specific ICO file with multiple resolutions
+            icon_path = os.path.join(project_root, "assets", "logo_windows.ico")
+            if not os.path.exists(icon_path):
+                # Fallback to PNG
+                icon_path = os.path.join(project_root, "assets", "logo.png")
+
+            if os.path.exists(icon_path):
+                from PySide6.QtGui import QIcon
+                self.setWindowIcon(QIcon(icon_path))
+                print(f"Window icon set from: {icon_path}")
+            else:
+                print("Icon file not found")
+        except Exception as e:
+            print(f"Error setting window icon: {e}")
 
         # Set window icon - prefer ICO for Windows compatibility
         from PySide6.QtGui import QIcon
@@ -723,26 +774,56 @@ class CUBOGUI(QMainWindow):
         return central_widget
 
     def _setup_main_layout(self):
-        """Set up the main layout for the central widget."""
+        """Set up responsive main layout for full screen adaptation."""
+        # Create main horizontal layout
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+
+        # Left sidebar (maintains ~29% of width)
+        self.sidebar_widget = self._create_sidebar()
+        self.sidebar_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.sidebar_widget.setMinimumWidth(300)
+        self.sidebar_widget.setMaximumWidth(500)
+        main_layout.addWidget(self.sidebar_widget, 0)  # Fixed width
+
+        # Right content area (takes remaining ~71% of width)
+        self.content_widget = self._create_main_content()
+        self.content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        main_layout.addWidget(self.content_widget, 1)  # Stretches
+
+        # Set layout on central widget
         central_widget = self.centralWidget()
-        main_layout = QHBoxLayout(central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        return main_layout
+        central_widget.setLayout(main_layout)
 
-    def _setup_document_widget(self):
-        """Set up the document widget."""
-        main_layout = self.centralWidget().layout()
+    def _create_sidebar(self):
+        """Create responsive sidebar."""
+        sidebar = QWidget()
+        sidebar.setFixedWidth(350)  # Maintain original width
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(10, 10, 10, 10)
+        sidebar_layout.setSpacing(10)
+
+        # Document list - expands to fill available height
         self.document_widget = DocumentWidget()
-        self.document_widget.setFixedWidth(350)  # Fixed width
-        main_layout.addWidget(self.document_widget)
+        self.document_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        sidebar_layout.addWidget(self.document_widget)
 
-    def _setup_query_widget(self):
-        """Set up the query widget."""
-        main_layout = self.centralWidget().layout()
+        return sidebar
+
+    def _create_main_content(self):
+        """Create responsive main content area."""
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
+
+        # Query widget takes all available space (includes chat display and input)
         self.query_widget = QueryWidget()
-        self.query_widget.setFixedWidth(850)  # Fixed width
-        main_layout.addWidget(self.query_widget)
+        self.query_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        content_layout.addWidget(self.query_widget)
+
+        return content_widget
 
     def _connect_widget_signals(self):
         """Connect widget signals to slots."""
@@ -782,23 +863,18 @@ class CUBOGUI(QMainWindow):
         else:
             self.docs_label.setText("📊 0 documents")
 
-        # Model info
-        if hasattr(self, 'model') and self.model:
-            # Try to get model name from config or model object
-            model_name = "🤖 Unknown"
-            try:
-                if hasattr(self.model, 'model_name'):
-                    model_name = f"🤖 {self.model.model_name.split('/')[-1]}"
-                elif hasattr(self, 'model_loader') and self.model_loader:
-                    # Try to get from model loader config
-                    model_name = "🤖 Model loaded"
-                else:
-                    model_name = "🤖 Model loaded"
-            except:
-                model_name = "🤖 Model loaded"
-            self.model_label.setText(model_name)
-        else:
-            self.model_label.setText("🤖 No model")
+        # Model info - show LLM model name
+        try:
+            from src.config import config
+            llm_model = config.get("selected_llm_model") or config.get("llm_model", "llama3.2:latest")
+            # Extract just the model name without tag
+            model_short_name = llm_model.split(':')[0] if ':' in llm_model else llm_model
+            self.model_label.setText(f"🤖 {model_short_name}")
+            self.model_label.update()  # Force repaint
+        except Exception as e:
+            logger.warning(f"Could not get LLM model name: {e}")
+            self.model_label.setText("🤖 llama3.2")  # Fallback
+            self.model_label.update()
 
         # Response time (if available)
         response_time = getattr(self, '_last_response_time', None)
@@ -931,6 +1007,15 @@ class CUBOGUI(QMainWindow):
         logger.info(f"Document upload triggered with {len(filepaths)} files: {[Path(fp).name for fp in filepaths]}")
 
         try:
+            # Clear previous session documents before processing new ones
+            # This ensures each upload session only uses chunks from the current session
+            if hasattr(self.retriever, 'clear_current_session'):
+                self.retriever.clear_current_session()
+                logger.info("Cleared previous session documents for new upload session")
+
+            # Also clear the document widget UI
+            self.document_widget.clear_documents()
+            logger.info("Cleared document list UI for new upload session")
 
             # Process documents synchronously
             self._process_documents_synchronously(filepaths)
@@ -1227,8 +1312,8 @@ class CUBOGUI(QMainWindow):
                 metadata = doc_data['metadata']
                 context_metadata.append({
                     'filename': metadata.get('filename', 'Unknown'),
-                    'chunk_id': metadata.get('chunk_id', ''),
-                    'similarity_score': metadata.get('similarity_score', 0.0)
+                    'chunk_id': metadata.get('chunk_index', ''),
+                    'similarity_score': doc_data.get('similarity', 0.0)
                 })
 
                 # Extract detailed score breakdown if available
@@ -1563,6 +1648,16 @@ def _create_and_run_application():
 
 def _setup_qt_application():
     """Set up the Qt application with basic configuration."""
+    # Windows-specific: Set the app user model ID for proper taskbar icon grouping
+    if platform.system() == 'Windows':
+        try:
+            # This tells Windows to use a custom app ID instead of python.exe
+            myappid = 'CUBO.DesktopRAG.Application.1.0'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            print(f"Windows AppUserModelID set: {myappid}")
+        except Exception as e:
+            print(f"Failed to set AppUserModelID: {e}")
+    
     app = QApplication(sys.argv)
     app.setApplicationName("CUBO")
     app.setApplicationVersion("1.0")
@@ -1576,14 +1671,25 @@ def _setup_qt_application():
 
 def _set_application_icon(app):
     """Set the application icon from assets folder."""
-    from PySide6.QtGui import QIcon
-    from pathlib import Path
-    icon_path = Path(__file__).parent.parent / "assets" / "logo.ico"
-    if not icon_path.exists():
-        # Fallback to PNG if ICO doesn't exist
-        icon_path = Path(__file__).parent.parent / "assets" / "logo.png"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    try:
+        from PySide6.QtGui import QIcon
+        import os
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+
+        # Use the new Windows-specific ICO file with multiple resolutions
+        icon_path = os.path.join(project_root, "assets", "logo_windows.ico")
+        if not os.path.exists(icon_path):
+            # Fallback to PNG
+            icon_path = os.path.join(project_root, "assets", "logo.png")
+
+        if os.path.exists(icon_path):
+            app.setWindowIcon(QIcon(icon_path))
+            print(f"Application icon set from: {icon_path}")
+        else:
+            print("Application icon file not found")
+    except Exception as e:
+        print(f"Error setting application icon: {e}")
 
 
 def _create_main_window_and_server():

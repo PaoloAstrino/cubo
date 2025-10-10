@@ -422,6 +422,15 @@ class DocumentRetriever:
     def clear_current_session(self):
         """Clear current session document tracking."""
         self.current_documents.clear()
+
+        # Also clear auto-merging retriever if available
+        if self.auto_merging_retriever and hasattr(self.auto_merging_retriever, 'clear_documents'):
+            try:
+                self.auto_merging_retriever.clear_documents()
+                logger.info("Cleared auto-merging retriever documents")
+            except Exception as e:
+                logger.warning(f"Failed to clear auto-merging retriever: {e}")
+
         logger.info("Cleared current session document tracking")
 
     def debug_collection_info(self) -> Dict:
