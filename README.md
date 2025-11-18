@@ -55,6 +55,38 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - **Comprehensive Logging**: Detailed logging with configurable levels
 - **Interactive & CLI Modes**: Both interactive conversation and command-line interfaces
 
+### Deep Ingestor
+
+The `DeepIngestor` adds a background deep-processing path to the ingestion pipeline. It generates deterministic, reproducible chunks and writes them to `chunks_deep.parquet` for downstream processing like embedding and retrieval.
+
+Key behavior:
+- Supports `.txt`, `.docx`, `.pdf`, `.csv`, and `.xlsx` files.
+- Produces `chunk_id` using the file-content hash by default; this can be toggled via `deep_chunk_id_use_file_hash` in `config.json`.
+- CSV chunking can be configured via `deep_csv_rows_per_chunk`.
+- Outputs are written atomically as parquet (`chunks_deep.parquet`) and an `ingestion_manifest.json`.
+
+Run the CLI script to start deep ingestion:
+
+```pwsh
+python scripts/deep_ingest.py --input data/docs --output data/deep
+```
+
+To run fast-pass ingestion then deep ingestion in one command:
+
+```pwsh
+python scripts/fast_pass_ingest.py data/docs --output data/fastpass --deep
+```
+
+CI & Testing Notes
+- `pyarrow` and `openpyxl` are required to write/read parquet and xlsx files. See `requirements.txt`.
+- Add `reportlab` to `requirements-dev.txt` for PDF creation during tests.
+- Run tests with the `PYTHONPATH` set to the repo root:
+
+```pwsh
+$env:PYTHONPATH = "${PWD}"; pytest -q
+```
+
+
 ## Project Structure
 
 ```

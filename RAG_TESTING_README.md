@@ -25,6 +25,16 @@ This directory contains a comprehensive testing framework for evaluating your RA
 ### Hard Questions (50)
 
 - Deep analysis and critical thinking
+
+Run deep ingestion:
+
+```pwsh
+# Run DeepIngestor on a folder and save results to default deep dir
+python scripts/deep_ingest.py --input data/docs --output data/deep
+
+# Run fast pass ingestion then deep ingestion
+python scripts/fast_pass_ingest.py data/docs --output data/fastpass --deep
+```
 - Thematic understanding
 - Complex synthesis across multiple concepts
 

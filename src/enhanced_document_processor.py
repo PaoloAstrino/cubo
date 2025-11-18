@@ -22,7 +22,7 @@ class EnhancedDocumentProcessor:
     with EmbeddingGemma-300M semantic embeddings.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], skip_model: bool = False):
         """
         Initialize enhanced document processor.
 
@@ -43,10 +43,12 @@ class EnhancedDocumentProcessor:
             logger.warning(f"Dolphin not available: {e}")
             logger.info("Falling back to text-only processing")
 
-        # Load embedding model
-        model_loader = ModelManager()
-        self.embedding_model = model_loader.load_model()
-        logger.info("EmbeddingGemma-300M loaded")
+        # Load embedding model if not skipping models
+        self.embedding_model = None
+        if not skip_model:
+            model_loader = ModelManager()
+            self.embedding_model = model_loader.load_model()
+            logger.info("EmbeddingGemma-300M loaded")
 
     def process_pdf_with_dolphin(self, pdf_path: str) -> List[Dict[str, Any]]:
         """

@@ -41,4 +41,7 @@
     "max_pages": 50,
     "vision_prompt": "You are an expert document analyzer. Extract all text, tables, and structured information from this document image. Maintain the original formatting and structure as much as possible. If there are tables, represent them in markdown format. Be thorough and accurate."
   }
+  ,
+  "fast_pass_output_dir": "data/fastpass",
+  "bm25_stats_path": "data/fastpass/bm25_stats.json"
 }

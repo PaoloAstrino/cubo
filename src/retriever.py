@@ -4,15 +4,20 @@ Handles document embedding, storage, and retrieval with ChromaDB.
 """
 
 from typing import List, Dict
+import math
+import os
+import json
+import re
+from pathlib import Path
+from collections import Counter, defaultdict
+
+import numpy as np
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+
 import chromadb
 from sentence_transformers import SentenceTransformer
 import hashlib
-import os
-from pathlib import Path
-import json
-import math
-import re
-from collections import Counter, defaultdict
 from src.logger import logger
 from src.config import config
 from src.service_manager import get_service_manager
@@ -87,6 +92,14 @@ class DocumentRetriever:
         self.avg_doc_length = 0
         self.term_doc_freq = defaultdict(int)  # Term -> number of docs containing it
         self.doc_term_freq = {}  # Doc ID -> {term: frequency}
+        # Attempt to load persisted BM25 stats if configured
+        bm25_stats_path = config.get("bm25_stats_path", "data/bm25_stats.json")
+        if bm25_stats_path and os.path.exists(bm25_stats_path):
+            try:
+                self.load_bm25_stats(bm25_stats_path)
+                logger.info(f"Loaded BM25 stats from {bm25_stats_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load BM25 stats from {bm25_stats_path}: {e}")
 
     def _initialize_postprocessors(self) -> None:
         """Initialize postprocessors and reranker based on configuration."""
@@ -650,14 +663,22 @@ class DocumentRetriever:
             List[str]: Unique IDs for each chunk
         """
         chunk_ids = []
+        # If configured, prefer stable file-hash based chunk IDs
+        prefer_hash = config.get("deep_chunk_id_use_file_hash", True)
         for i, metadata in enumerate(metadatas):
+            base = None
+            if prefer_hash and metadata.get("file_hash"):
+                base = metadata.get("file_hash")
+            else:
+                base = filename
+
             if self.use_sentence_window and "sentence_index" in metadata:
                 # Use sentence-based ID for sentence windows
                 sentence_idx = metadata["sentence_index"]
-                chunk_ids.append(f"{filename}_s{sentence_idx}")
+                chunk_ids.append(f"{base}_s{sentence_idx}")
             else:
                 # Use chunk index for character-based
-                chunk_ids.append(f"{filename}_chunk_{i}")
+                chunk_ids.append(f"{base}_chunk_{i}")
         return chunk_ids
 
     def _add_chunks_to_collection(self, embeddings: List[List[float]],
@@ -883,6 +904,39 @@ class DocumentRetriever:
             score += term_score
 
         return score
+
+    def save_bm25_stats(self, output_path: str) -> None:
+        """
+        Persist BM25 statistics to disk for fast recovery.
+        """
+        try:
+            data = {
+                "doc_lengths": self.doc_lengths,
+                "avg_doc_length": self.avg_doc_length,
+                "term_doc_freq": dict(self.term_doc_freq),
+                # doc_term_freq: convert Counter to regular dicts
+                "doc_term_freq": {doc_id: dict(freqs) for doc_id, freqs in self.doc_term_freq.items()}
+            }
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f)
+            logger.info(f"Saved BM25 stats to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to save BM25 stats to {output_path}: {e}")
+
+    def load_bm25_stats(self, input_path: str) -> None:
+        """
+        Load BM25 statistics from disk into the retriever instance.
+        """
+        with open(input_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        self.doc_lengths = {k: int(v) for k, v in data.get('doc_lengths', {}).items()}
+        self.avg_doc_length = float(data.get('avg_doc_length', 0.0))
+        self.term_doc_freq = defaultdict(int, {k: int(v) for k, v in data.get('term_doc_freq', {}).items()})
+
+        # Convert nested dicts back to Counter-like dicts
+        self.doc_term_freq = {k: {tk: int(tv) for tk, tv in v.items()} for k, v in data.get('doc_term_freq', {}).items()}
 
     def _apply_keyword_boost(self, document: str, query: str, base_similarity: float) -> float:
         """

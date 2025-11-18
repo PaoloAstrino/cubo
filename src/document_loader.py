@@ -1,3 +1,4 @@
+import hashlib
 import os
 from typing import List, Optional
 from docx import Document
@@ -10,15 +11,16 @@ from src.logger import logger
 class DocumentLoader:
     """Handles loading and processing of various document types for CUBO."""
 
-    def __init__(self):
+    def __init__(self, skip_model: bool = False):
         self.supported_extensions = config.get("supported_extensions", [".txt", ".docx", ".pdf", ".md"])
         self.enhanced_processor = None
+        self.skip_model = skip_model
 
         # Try to load enhanced processor if Dolphin is enabled
-        if config.get("dolphin", {}).get("enabled", False):
+        if not self.skip_model and config.get("dolphin", {}).get("enabled", False):
             try:
                 from .enhanced_document_processor import EnhancedDocumentProcessor
-                self.enhanced_processor = EnhancedDocumentProcessor(config)
+                self.enhanced_processor = EnhancedDocumentProcessor(config, skip_model=self.skip_model)
                 logger.info("Enhanced document processor (Dolphin) loaded")
             except Exception as e:
                 logger.warning(f"Enhanced processor not available: {e}")
@@ -103,6 +105,7 @@ class DocumentLoader:
         cfg = self._configure_chunking(chunking_config)
         chunks = self._create_sentence_window_chunks(text, cfg)
 
+        self._embed_file_metadata(chunks, file_path)
         self._log_chunking_results(file_path, chunks, cfg)
         return chunks
 
@@ -127,6 +130,33 @@ class DocumentLoader:
             window_size=cfg["window_size"],
             tokenizer_name=cfg["tokenizer_name"]
         )
+
+    def _embed_file_metadata(self, chunks: List[dict], file_path: str) -> None:
+        """Add filename, chunk index, and hash metadata to each chunk."""
+        if not chunks:
+            return
+
+        file_hash = self._compute_file_hash(file_path)
+        filename = os.path.basename(file_path)
+
+        for idx, chunk in enumerate(chunks):
+            chunk.setdefault("chunk_index", idx)
+            chunk["filename"] = filename
+            chunk["file_path"] = file_path
+            chunk["file_hash"] = file_hash
+            chunk["token_count"] = chunk.get("sentence_token_count") or len(chunk.get("text", "").split())
+
+    def _compute_file_hash(self, file_path: str) -> str:
+        """Compute a stable MD5 hash for the file contents."""
+        hash_md5 = hashlib.md5()
+        try:
+            with open(file_path, 'rb') as f:
+                for chunk in iter(lambda: f.read(8192), b''):
+                    hash_md5.update(chunk)
+        except Exception as e:
+            logger.warning(f"Unable to hash {file_path}: {e}")
+            return ""
+        return hash_md5.hexdigest()
 
     def _log_chunking_results(self, file_path: str, chunks: List[dict], cfg: dict):
         """Log the results of the chunking process."""

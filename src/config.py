@@ -42,7 +42,10 @@ class Config:
             "auto_merging_chunk_sizes": [2048, 512, 128],
             "auto_merging_collection_name": "cubo_auto_merging",
             "auto_merging_candidate_multiplier": 3,
-            "auto_merging_parent_similarity_threshold": 0.1
+            "auto_merging_parent_similarity_threshold": 0.1,
+            "deep_output_dir": "./data/deep",
+            "deep_csv_rows_per_chunk": 25,
+            "deep_chunk_id_use_file_hash": true
         }
 
     def get(self, key: str, default: Any = None) -> Any:
