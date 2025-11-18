@@ -1,9 +1,6 @@
-import logging
-import os
-from src.config import config
+from src.cubo.utils.logger import *
 
-
-class Logger:
+__all__ = [name for name in dir() if not name.startswith('_')]
     """Logger class for CUBO."""
 
     def __init__(self):

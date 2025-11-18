@@ -10,8 +10,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from sentence_transformers import SentenceTransformer
-from src.custom_auto_merging import AutoMergingRetriever
-from src.logger import logger
+from src.cubo.deduplication.custom_auto_merging import AutoMergingRetriever
+from src.cubo.utils.logger import logger
 
 def test_custom_auto_merging():
     """Test the custom auto-merging retrieval system."""

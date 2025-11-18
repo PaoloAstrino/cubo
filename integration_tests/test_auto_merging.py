@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.auto_merging_retriever import CUBOAutoMergingRetriever
+from src.cubo.deduplication.custom_auto_merging import AutoMergingRetriever
 from llama_index.core import Document
 
 def test_auto_merging():
@@ -27,7 +27,7 @@ def test_auto_merging():
 
     # Initialize retriever
     print("🔧 Initializing auto-merging retriever...")
-    retriever = CUBOAutoMergingRetriever(
+    retriever = AutoMergingRetriever(
         embed_model_path="./models/embeddinggemma-300m",
         persist_dir="./test_auto_merging_index"
     )

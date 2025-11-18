@@ -3,8 +3,8 @@ import pandas as pd
 from unittest.mock import MagicMock
 
 from sentence_transformers import SentenceTransformer
-from src.ingest.deep_ingestor import DeepIngestor
-from src.retriever import DocumentRetriever
+from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from src.cubo.retrieval.retriever import DocumentRetriever
 
 
 def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):

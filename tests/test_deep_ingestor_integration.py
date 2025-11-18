@@ -2,8 +2,8 @@ from pathlib import Path
 import pandas as pd
 import json
 
-from src.ingest.fast_pass_ingestor import FastPassIngestor
-from src.ingest.deep_ingestor import DeepIngestor
+from src.cubo.ingestion.fast_pass_ingestor import FastPassIngestor
+from src.cubo.ingestion.deep_ingestor import DeepIngestor
 
 
 def test_fast_then_deep_compatibility(tmp_path: Path):

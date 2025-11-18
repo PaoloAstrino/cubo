@@ -4,8 +4,8 @@ import sys
 from unittest.mock import patch, MagicMock
 
 import pandas as pd
-from src.ingest.deep_ingestor import DeepIngestor
-from src.config import config
+from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from src.cubo.config import config
 
 
 def test_reindex_parquet_with_wipe(tmp_path: Path):
@@ -29,7 +29,7 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
     import runpy
     import sys
     # Run reindex script in-process with model patched
-    with patch('src.model_loader.model_manager.get_model') as mock_get_model:
+    with patch('src.cubo.embeddings.model_loader.model_manager.get_model') as mock_get_model:
         mock_model = MagicMock()
         def mock_encode(texts, batch_size=1):
             return [[0.1] * 64 for _ in texts]
@@ -45,7 +45,7 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
             sys.argv = old_argv
 
     # Verify collection count
-    from src.retriever import DocumentRetriever
+    from src.cubo.retrieval.retriever import DocumentRetriever
     retr = DocumentRetriever(model=None)
     coll = retr.client.get_or_create_collection('test_reindex')
     assert coll.count() == len(df)

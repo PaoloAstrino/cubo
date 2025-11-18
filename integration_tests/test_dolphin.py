@@ -11,9 +11,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.config import config
-from src.enhanced_document_processor import EnhancedDocumentProcessor
-from src.logger import logger
+from src.cubo.config import config
+from src.cubo.ingestion.enhanced_document_processor import EnhancedDocumentProcessor
+from src.cubo.utils.logger import logger
 
 def test_dolphin_integration():
     """Test the Dolphin integration with sample documents."""

@@ -1,7 +1,7 @@
 import pytest
 import os
 import tempfile
-from src.utils import Utils
+from src.cubo.utils.utils import Utils
 
 def test_sanitize_path_valid():
     """Test path sanitization with valid paths."""

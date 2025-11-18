@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.ingest.deep_ingestor import DeepIngestor
+from src.cubo.ingestion.deep_ingestor import DeepIngestor
 
 
 def _write_csv(path: Path, rows: int) -> None:

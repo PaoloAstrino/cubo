@@ -8,7 +8,7 @@ import threading
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from unittest.mock import patch, MagicMock
 
-from src.thread_manager import ThreadManager
+from src.cubo.workers.thread_manager import ThreadManager
 
 
 class TestThreadManager:

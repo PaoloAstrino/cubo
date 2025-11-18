@@ -1,15 +1,8 @@
-import hashlib
-import os
-from typing import List, Optional
-from docx import Document
-from PyPDF2 import PdfReader
-from src.config import config
-from src.utils import Utils
-from src.logger import logger
 
 
-class DocumentLoader:
-    """Handles loading and processing of various document types for CUBO."""
+from src.cubo.ingestion.document_loader import *
+
+__all__ = [name for name in dir() if not name.startswith('_')]
 
     def __init__(self, skip_model: bool = False):
         self.supported_extensions = config.get("supported_extensions", [".txt", ".docx", ".pdf", ".md"])

@@ -1,9 +1,6 @@
-import torch
-from src.config import config
-from src.logger import logger
+from src.cubo.embeddings.model_loader import *
 
-
-class ModelManager:
+__all__ = [name for name in dir() if not name.startswith('_')]
     """Manages the loading and configuration of CUBO's embedding model."""
 
     def __init__(self):

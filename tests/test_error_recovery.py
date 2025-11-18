@@ -6,7 +6,7 @@ import pytest
 import time
 from unittest.mock import patch, MagicMock
 
-from src.error_recovery import ErrorRecoveryManager, RecoveryStrategy
+from src.cubo.utils.error_recovery import ErrorRecoveryManager, RecoveryStrategy
 
 
 class TestErrorRecoveryManager:

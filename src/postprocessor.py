@@ -1,14 +1,6 @@
-"""
-Postprocessors for enhancing retrieval results in sentence window retrieval.
-"""
+from src.cubo.processing.postprocessor import *
 
-from typing import List, Dict
-import logging
-
-logger = logging.getLogger(__name__)
-
-
-class WindowReplacementPostProcessor:
+__all__ = [name for name in dir() if not name.startswith('_')]
     """Replaces single sentence text with full window context."""
 
     def __init__(self, target_metadata_key: str = "window"):

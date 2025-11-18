@@ -7,10 +7,10 @@ import runpy
 import subprocess
 import sys
 import tempfile
-from src.config import config
-from src.ingest.fast_pass_ingestor import FastPassIngestor
-from src.ingest.deep_ingestor import DeepIngestor
-from src.retriever import DocumentRetriever
+from src.cubo.config import config
+from src.cubo.ingestion.fast_pass_ingestor import FastPassIngestor
+from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from src.cubo.retrieval.retriever import DocumentRetriever
 
 
 def test_migrate_chunk_ids_dry_run(tmp_path: Path):
@@ -37,7 +37,7 @@ def test_migrate_chunk_ids_apply(tmp_path: Path):
     tmpdb = tmp_path / 'chroma'
     tmpdb.mkdir()
     # patch config to point to tmpdb
-    from src.config import config as cfg
+    from src.cubo.config import config as cfg
     cfg.set('chroma_db_path', str(tmpdb))
 
     # Create retriever and collection and add a couple of items with legacy filename-based ids

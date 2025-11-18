@@ -3,8 +3,8 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock
 from sentence_transformers import SentenceTransformer
-from src.retriever import DocumentRetriever
-from src.config import config
+from src.cubo.retrieval.retriever import DocumentRetriever
+from src.cubo.config import config
 import chromadb
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def temp_db_path():
 
 def test_add_documents_empty(mock_model, temp_db_path):
     """Test adding empty documents list."""
-    with patch('src.config.config', {"vector_db_path": temp_db_path, "embedding_batch_size": 32}):
+    with patch('src.cubo.config.config', {"vector_db_path": temp_db_path, "embedding_batch_size": 32}):
         # Use a unique collection name to avoid conflicts
         retriever = DocumentRetriever(mock_model)
         retriever.collection = retriever.client.get_or_create_collection("test_empty")
@@ -38,7 +38,7 @@ def test_add_documents_empty(mock_model, temp_db_path):
 
 def test_add_documents_success(mock_model, temp_db_path):
     """Test adding documents successfully."""
-    with patch('src.config.config', {"vector_db_path": temp_db_path, "embedding_batch_size": 32}):
+    with patch('src.cubo.config.config', {"vector_db_path": temp_db_path, "embedding_batch_size": 32}):
         retriever = DocumentRetriever(mock_model)
         retriever.collection = retriever.client.get_or_create_collection("test_success")
         docs = ["Test document 1", "Test document 2"]
@@ -47,7 +47,7 @@ def test_add_documents_success(mock_model, temp_db_path):
 
 def test_retrieve_empty_query(mock_model, temp_db_path):
     """Test retrieval with empty query."""
-    with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
+    with patch('src.cubo.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
         retriever = DocumentRetriever(mock_model)
         retriever.collection = retriever.client.get_or_create_collection("test_empty_query")
         result = retriever.retrieve_top_documents("")
@@ -55,7 +55,7 @@ def test_retrieve_empty_query(mock_model, temp_db_path):
 
 def test_retrieve_no_documents(mock_model, temp_db_path):
     """Test retrieval when no documents are loaded."""
-    with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
+    with patch('src.cubo.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
         retriever = DocumentRetriever(mock_model)
         retriever.collection = retriever.client.get_or_create_collection("test_no_docs")
         result = retriever.retrieve_top_documents("test query")
@@ -63,7 +63,7 @@ def test_retrieve_no_documents(mock_model, temp_db_path):
 
 def test_retrieve_success(mock_model, temp_db_path):
     """Test successful retrieval."""
-    with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3, "similarity_threshold": 0.5}):
+    with patch('src.cubo.config.config', {"vector_db_path": temp_db_path, "top_k": 3, "similarity_threshold": 0.5}):
         # Mock the collection query method before creating the retriever
         mock_result = {'documents': [['Relevant document']], 'distances': [[0.3]], 'metadatas': [[{'filename': 'test_doc_0.txt'}]]}
         with patch('chromadb.api.models.Collection.Collection.query', return_value=mock_result) as mock_query:
@@ -80,7 +80,7 @@ def test_retrieve_success(mock_model, temp_db_path):
 
 def test_cache_persistence(mock_model, temp_db_path):
     """Test that cache is persisted to disk."""
-    with patch('src.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
+    with patch('src.cubo.config.config', {"vector_db_path": temp_db_path, "top_k": 3}):
         retriever = DocumentRetriever(mock_model)
         retriever.collection = retriever.client.get_or_create_collection("test_cache")
         # Simulate adding to cache

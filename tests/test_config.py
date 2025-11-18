@@ -2,7 +2,7 @@ import pytest
 import os
 import tempfile
 import json
-from src.config import Config
+from src.cubo.config import Config
 
 def test_config_load_defaults():
     """Test loading default config when no file exists."""

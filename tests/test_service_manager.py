@@ -7,8 +7,8 @@ import time
 import threading
 from unittest.mock import patch, MagicMock
 
-from src.service_manager import ServiceManager, get_service_manager, shutdown_service_manager
-from src.health_monitor import HealthStatus
+from src.cubo.services.service_manager import ServiceManager, get_service_manager, shutdown_service_manager
+from src.cubo.monitoring.health_monitor import HealthStatus
 
 
 class TestServiceManager:

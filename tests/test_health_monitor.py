@@ -6,7 +6,7 @@ import pytest
 import time
 from unittest.mock import patch, MagicMock
 
-from src.health_monitor import HealthMonitor, HealthStatus, HealthCheck
+from src.cubo.monitoring.health_monitor import HealthMonitor, HealthStatus, HealthCheck
 
 
 class TestHealthMonitor:

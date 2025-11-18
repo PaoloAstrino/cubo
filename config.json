@@ -10,6 +10,7 @@
   "log_level": "INFO",
   "log_file": "./logs/cubo_log.txt",
   "vector_db_path": "./chroma_db",
+  "faiss_index_dir": "./faiss_index",
   "embedding_batch_size": 32,
   "llm_model": "llama3.2:latest",
   "chunking": {

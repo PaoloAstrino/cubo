@@ -1,18 +1,6 @@
-"""
-Async Document Processor for CUBO
-Provides background document processing with progress tracking.
-"""
+from src.cubo.workers.async_document_processor import *
 
-from PySide6.QtCore import Signal, QObject
-from typing import List, Dict, Any, Optional
-import time
-import logging
-import concurrent.futures
-
-logger = logging.getLogger(__name__)
-
-
-class DocumentProcessorWorker(QObject):
+__all__ = [name for name in dir() if not name.startswith('_')]
     """Worker for async document processing with progress signals."""
 
     # Signals for GUI communication

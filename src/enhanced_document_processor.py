@@ -1,26 +1,6 @@
-#!/usr/bin/env python3
-"""
-Enhanced Document Processor for CUBO
-Combines Dolphin vision parsing with EmbeddingGemma-300M semantic embeddings
-"""
+from src.cubo.ingestion.enhanced_document_processor import *
 
-import logging
-from pathlib import Path
-from typing import List, Dict, Any
-from PIL import Image
-
-from .dolphin_processor import DolphinProcessor
-from .model_loader import ModelManager
-from .utils import Utils
-
-logger = logging.getLogger(__name__)
-
-
-class EnhancedDocumentProcessor:
-    """
-    Enhanced document processor combining Dolphin vision parsing
-    with EmbeddingGemma-300M semantic embeddings.
-    """
+__all__ = [name for name in dir() if not name.startswith('_')]
 
     def __init__(self, config: Dict[str, Any], skip_model: bool = False):
         """

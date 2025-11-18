@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.ingest.deep_ingestor import DeepIngestor
+from src.cubo.ingestion.deep_ingestor import DeepIngestor
 
 
 def test_docx_chunking(tmp_path: Path):

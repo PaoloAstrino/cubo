@@ -21,3 +21,4 @@ pyarrow>=13.0.0,<15.0.0
 openpyxl>=3.1.0
 pdfplumber>=0.10.3
 tqdm>=4.64.0
+faiss-cpu==1.7.4
