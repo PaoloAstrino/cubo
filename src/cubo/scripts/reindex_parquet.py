@@ -4,7 +4,7 @@ import argparse
 import logging
 import pandas as pd
 
-from src.cubo.embeddings.model_loader import model_manager
+from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
 from tqdm import tqdm
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.config import config
@@ -33,12 +33,16 @@ def main():
     chunk_ids = df['chunk_id'].tolist()
     metadatas = df.drop(columns=['text']).to_dict(orient='records')
 
-    # Load embedding model
-    # Load embedding model via model manager
+    # Load embedding model via EmbeddingGenerator
     if args.model_path:
         config.set('model_path', args.model_path)
-    model = model_manager.get_model()
-    retriever = DocumentRetriever(model)
+    
+    generator = EmbeddingGenerator(batch_size=args.batch_size)
+    # We need the model for the retriever constructor, but retriever uses it for query encoding.
+    # Here we use generator for document encoding.
+    # Retriever constructor expects a model instance.
+    retriever = DocumentRetriever(generator.model)
+
     # Optionally wipe DB directory (completely delete and recreate the folder)
     if args.wipe_db:
         db_path = config.get('chroma_db_path')
@@ -59,18 +63,11 @@ def main():
 
     retriever.collection = retriever.client.get_or_create_collection(args.collection)
 
-    # Generate embeddings with progress
-    batch_size = args.batch_size
-    embeddings = []
-    logger.info(f"Generating embeddings for {len(texts)} items with batch size {batch_size}")
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i+batch_size]
-        emb_batch = retriever.inference_threading.generate_embeddings_threaded(batch, model, batch_size=batch_size)
-        embeddings.extend(emb_batch)
-        logger.info(f"Generated embeddings for batch {i//batch_size + 1}/{(len(texts)+batch_size-1)//batch_size}")
+    # Generate embeddings
+    logger.info(f"Generating embeddings for {len(texts)} items with batch size {args.batch_size}")
+    embeddings = generator.encode(texts, batch_size=args.batch_size)
 
     # Insert into collection
-    # Insert into collection with progress
     logger.info(f"Adding {len(chunk_ids)} chunks to collection {args.collection}")
     retriever._add_chunks_to_collection(embeddings, texts, metadatas, chunk_ids, 'reindex')
     logger.info(f"Inserted {len(chunk_ids)} items into collection {args.collection}")

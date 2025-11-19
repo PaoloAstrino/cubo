@@ -111,7 +111,11 @@ class ModelInferenceThreading:
                     torch.cuda.empty_cache()  # Free memory if needed
 
                 # Generate embeddings
-                embeddings = embedding_model.encode(text_batch, batch_size=len(text_batch))
+                try:
+                    embeddings = embedding_model.encode(text_batch, batch_size=len(text_batch))
+                except TypeError:
+                    # Some mock models or older APIs may not accept batch_size kwarg
+                    embeddings = embedding_model.encode(text_batch)
 
                 # Convert to list if needed
                 if hasattr(embeddings, 'tolist'):

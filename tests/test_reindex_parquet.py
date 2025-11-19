@@ -7,7 +7,16 @@ import pandas as pd
 from src.cubo.ingestion.deep_ingestor import DeepIngestor
 from src.cubo.config import config
 
+try:
+    import chromadb.config
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
 
+import pytest
+
+
+@pytest.mark.skipif(not CHROMADB_AVAILABLE, reason="ChromaDB not available")
 def test_reindex_parquet_with_wipe(tmp_path: Path):
     # Create input files to produce a parquet
     folder = tmp_path / 'docs'
@@ -24,6 +33,7 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
     tmpdb = tmp_path / 'chroma'
     tmpdb.mkdir()
     config.set('chroma_db_path', str(tmpdb))
+    config.set('vector_store_backend', 'chroma')
 
     # Ensure model loading is mocked to avoid heavy dependencies
     import runpy

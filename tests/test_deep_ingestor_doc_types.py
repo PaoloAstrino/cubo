@@ -33,6 +33,11 @@ def test_excel_chunking(tmp_path: Path):
     xlsx_path = folder / "sheets.xlsx"
 
     import pandas as pd
+    # If openpyxl isn't available in the test environment, skip this test
+    try:
+        import openpyxl  # noqa: F401
+    except Exception:
+        pytest.skip('openpyxl not installed - skipping excel test')
     df = pd.DataFrame({'col1': range(3), 'col2': ['a','b','c']})
     df.to_excel(xlsx_path, index=False)
 

@@ -841,4 +841,1700 @@ class BM25Searcher:
 
 # Usage
 bm25 = BM25Searcher('output/bm25_index')
-sparse_
+sparse_results = bm25.search("machine learning algorithms", limit=500)
+```
+
+---
+
+## 7. LAYER 4: DEDUPLICATION SYSTEM
+
+### 7.1 Text Deduplication (Non-Destructive Graph)
+
+```python
+import networkx as nx
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
+class SemanticDeduplicator:
+    def __init__(self, similarity_threshold=0.92):
+        self.threshold = similarity_threshold
+        self.similarity_graph = nx.Graph()
+    
+    def build_similarity_graph(self, embeddings, chunk_ids):
+        """Build graph of similar chunks"""
+        print("Computing pairwise similarities...")
+        
+        # Use batched cosine similarity to avoid memory issues
+        n_chunks = len(embeddings)
+        batch_size = 1000
+        
+        for i in range(0, n_chunks, batch_size):
+            batch_embeddings = embeddings[i:i+batch_size]
+            
+            # Compare with all other embeddings
+            similarities = cosine_similarity(batch_embeddings, embeddings)
+            
+            # Find pairs above threshold
+            for local_idx, global_idx in enumerate(range(i, min(i+batch_size, n_chunks))):
+                similar_indices = np.where(similarities[local_idx] > self.threshold)[0]
+                
+                for sim_idx in similar_indices:
+                    if sim_idx != global_idx:  # Skip self-similarity
+                        self.similarity_graph.add_edge(
+                            chunk_ids[global_idx],
+                            chunk_ids[sim_idx],
+                            weight=float(similarities[local_idx, sim_idx])
+                        )
+        
+        return self.similarity_graph
+    
+    def find_clusters(self):
+        """Find connected components (clusters of similar chunks)"""
+        clusters = list(nx.connected_components(self.similarity_graph))
+        
+        cluster_mapping = {}
+        for cluster_id, cluster in enumerate(clusters):
+            for chunk_id in cluster:
+                cluster_mapping[chunk_id] = cluster_id
+        
+        return clusters, cluster_mapping
+    
+    def select_representatives(self, clusters, chunks_df):
+        """Select one representative per cluster (longest/most complete)"""
+        representatives = {}
+        
+        for cluster_id, cluster in enumerate(clusters):
+            cluster_chunks = chunks_df[chunks_df['chunk_id'].isin(cluster)]
+            
+            # Select longest chunk as representative
+            rep_idx = cluster_chunks['text'].str.len().idxmax()
+            representative = cluster_chunks.loc[rep_idx]
+            
+            representatives[cluster_id] = {
+                'chunk_id': representative['chunk_id'],
+                'cluster_size': len(cluster),
+                'similar_chunks': list(cluster)
+            }
+        
+        return representatives
+
+# Usage
+deduplicator = SemanticDeduplicator(similarity_threshold=0.92)
+
+# Build similarity graph
+chunk_ids = chunks_df['chunk_id'].tolist()
+similarity_graph = deduplicator.build_similarity_graph(chunk_embeddings, chunk_ids)
+
+# Find clusters
+clusters, cluster_mapping = deduplicator.find_clusters()
+print(f"Found {len(clusters)} clusters from {len(chunk_ids)} chunks")
+
+# Select representatives
+representatives = deduplicator.select_representatives(clusters, chunks_df)
+
+# Save results
+import json
+with open('output/dedup_clusters.json', 'w') as f:
+    json.dump(representatives, f)
+
+# Add cluster info to chunks dataframe
+chunks_df['cluster_id'] = chunks_df['chunk_id'].map(cluster_mapping)
+chunks_df['is_representative'] = chunks_df['chunk_id'].isin(
+    [rep['chunk_id'] for rep in representatives.values()]
+)
+chunks_df.to_parquet('output/chunks_with_clusters.parquet')
+```
+
+**Expected Results:**
+- 1M chunks → 300-500k clusters (30-50% deduplication)
+- Processing time: 2-4 hours for 1M chunks
+- Memory: peak 20GB for similarity computation
+
+### 7.2 Table Deduplication (Embedding-Based)
+
+```python
+import pandas as pd
+from hdbscan import HDBSCAN
+
+class TableDeduplicator:
+    def __init__(self, embedder):
+        self.embedder = embedder
+    
+    def create_table_signature(self, table_metadata, sample_data):
+        """Create semantic signature for table"""
+        signature_text = f"""
+        Columns: {', '.join(table_metadata['columns'])}
+        Data types: {', '.join([str(dt) for dt in table_metadata['dtypes'].values()])}
+        Rows: {table_metadata['n_rows']}
+        Sample data:
+        {sample_data}
+        """
+        return signature_text
+    
+    def embed_tables(self, tables_df):
+        """Embed all tables"""
+        signatures = []
+        
+        for _, row in tables_df.iterrows():
+            signature = self.create_table_signature(
+                row['table_metadata'],
+                row['text'][:1000]
+            )
+            signatures.append(signature)
+        
+        embeddings = self.embedder.embed_batch(signatures)
+        return embeddings
+    
+    def cluster_tables(self, table_embeddings, min_cluster_size=2):
+        """Cluster similar tables using HDBSCAN"""
+        clusterer = HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            metric='euclidean',
+            min_samples=1
+        )
+        
+        cluster_labels = clusterer.fit_predict(table_embeddings)
+        return cluster_labels
+    
+    def create_virtual_tables(self, tables_df, cluster_labels):
+        """Create virtual consolidated tables"""
+        virtual_tables = {}
+        
+        for cluster_id in set(cluster_labels):
+            if cluster_id == -1:  # Noise points
+                continue
+            
+            cluster_tables = tables_df[cluster_labels == cluster_id]
+            
+            virtual_tables[cluster_id] = {
+                'cluster_id': cluster_id,
+                'n_tables': len(cluster_tables),
+                'source_files': cluster_tables['doc_uuid'].tolist(),
+                'common_columns': self._find_common_columns(cluster_tables),
+                'representative': cluster_tables.iloc[0]['chunk_id']
+            }
+        
+        return virtual_tables
+    
+    def _find_common_columns(self, cluster_tables):
+        """Find columns common across tables in cluster"""
+        all_columns = []
+        for _, row in cluster_tables.iterrows():
+            all_columns.extend(row['table_metadata']['columns'])
+        
+        from collections import Counter
+        column_counts = Counter(all_columns)
+        common = [col for col, count in column_counts.items() 
+                  if count >= len(cluster_tables) * 0.7]
+        return common
+
+# Usage
+table_dedup = TableDeduplicator(embedder)
+
+# Filter table chunks
+tables_df = chunks_df[chunks_df['type'] == 'table'].copy()
+
+# Embed tables
+table_embeddings = table_dedup.embed_tables(tables_df)
+
+# Cluster similar tables
+table_clusters = table_dedup.cluster_tables(table_embeddings)
+print(f"Found {len(set(table_clusters))} table clusters")
+
+# Create virtual tables
+virtual_tables = table_dedup.create_virtual_tables(tables_df, table_clusters)
+
+# Save
+with open('output/virtual_tables.json', 'w') as f:
+    json.dump(virtual_tables, f, default=str)
+```
+
+---
+
+## 8. LAYER 5: SEMANTIC COMPRESSION
+
+### 8.1 Semantic Scaffold Creation
+
+```python
+class SemanticScaffold:
+    def __init__(self, llm, embedder):
+        self.llm = llm
+        self.embedder = embedder
+    
+    def create_scaffold_entry(self, chunk):
+        """Create compressed semantic entry for chunk"""
+        # Get LLM-generated metadata
+        summary = self.llm.summarize(chunk['text'])
+        keywords = self.llm.extract_keywords(chunk['text'])
+        category = self.llm.categorize(chunk['text'])
+        
+        # Generate embedding of summary (much smaller than full text)
+        summary_embedding = self.embedder.model.encode([summary])[0]
+        
+        scaffold_entry = {
+            'chunk_id': chunk['chunk_id'],
+            'doc_uuid': chunk['doc_uuid'],
+            'summary': summary,
+            'keywords': keywords,
+            'category': category,
+            'summary_embedding': summary_embedding,
+            'original_size': len(chunk['text']),
+            'compressed_size': len(summary),
+            'compression_ratio': len(chunk['text']) / len(summary)
+        }
+        
+        return scaffold_entry
+    
+    def build_full_scaffold(self, chunks_df, batch_size=100):
+        """Build scaffold for entire corpus"""
+        scaffold_entries = []
+        
+        for i in tqdm(range(0, len(chunks_df), batch_size), desc="Building Scaffold"):
+            batch = chunks_df.iloc[i:i+batch_size]
+            
+            for _, chunk in batch.iterrows():
+                entry = self.create_scaffold_entry(chunk)
+                scaffold_entries.append(entry)
+        
+        return pd.DataFrame(scaffold_entries)
+    
+    def save_scaffold(self, scaffold_df, output_path):
+        """Save scaffold with separate embedding storage"""
+        # Extract embeddings
+        embeddings = np.array(scaffold_df['summary_embedding'].tolist())
+        
+        # Save embeddings separately
+        np.save(f"{output_path}/scaffold_embeddings.npy", embeddings)
+        
+        # Save metadata without embeddings
+        metadata = scaffold_df.drop('summary_embedding', axis=1)
+        metadata.to_parquet(f"{output_path}/scaffold_metadata.parquet")
+        
+        return embeddings
+
+# Usage
+scaffold = SemanticScaffold(llm, embedder)
+scaffold_df = scaffold.build_full_scaffold(chunks_df)
+
+# Save
+scaffold_embeddings = scaffold.save_scaffold(scaffold_df, 'output/scaffold')
+
+print(f"Scaffold size: {len(scaffold_df)} entries")
+print(f"Compression achieved: {scaffold_df['compression_ratio'].mean():.1f}x average")
+```
+
+**Expected Results:**
+- 100GB raw → 5-10GB semantic scaffold
+- 10:1 compression ratio on average
+- Maintains queryability and semantic richness
+
+---
+
+## 9. LAYER 6: VECTOR INDEXING
+
+### 9.1 Hot/Cold Storage Implementation
+
+```python
+import faiss
+import pickle
+
+class HotColdVectorStore:
+    def __init__(self, dimension=384, hot_ratio=0.2):
+        self.dimension = dimension
+        self.hot_ratio = hot_ratio
+        
+        # Hot index (HNSW in RAM)
+        self.hot_index = faiss.IndexHNSWFlat(dimension, 32)
+        self.hot_index.hnsw.efConstruction = 200
+        self.hot_index.hnsw.efSearch = 64
+        
+        # Cold index (IVF+PQ on disk)
+        quantizer = faiss.IndexFlatL2(dimension)
+        self.cold_index = faiss.IndexIVFPQ(
+            quantizer,
+            dimension,
+            nlist=4096,      # Number of clusters
+            m=64,            # Number of subquantizers
+            nbits=8          # Bits per subquantizer
+        )
+        
+        self.hot_ids = []
+        self.cold_ids = []
+        self.access_counts = {}
+    
+    def train_cold_index(self, training_vectors):
+        """Train IVF+PQ index"""
+        print("Training cold index...")
+        self.cold_index.train(training_vectors)
+        print("Cold index trained")
+    
+    def add_to_hot(self, vectors, ids):
+        """Add vectors to hot index"""
+        self.hot_index.add(vectors)
+        self.hot_ids.extend(ids)
+    
+    def add_to_cold(self, vectors, ids):
+        """Add vectors to cold index"""
+        self.cold_index.add(vectors)
+        self.cold_ids.extend(ids)
+    
+    def split_hot_cold(self, embeddings, chunk_ids, access_history=None):
+        """Split embeddings into hot and cold based on access patterns"""
+        n_hot = int(len(embeddings) * self.hot_ratio)
+        
+        if access_history:
+            # Sort by access frequency
+            sorted_indices = np.argsort([-access_history.get(cid, 0) for cid in chunk_ids])
+        else:
+            # Random split for initial deployment
+            sorted_indices = np.random.permutation(len(embeddings))
+        
+        hot_indices = sorted_indices[:n_hot]
+        cold_indices = sorted_indices[n_hot:]
+        
+        return hot_indices, cold_indices
+    
+    def build_indices(self, embeddings, chunk_ids, access_history=None):
+        """Build both hot and cold indices"""
+        hot_idx, cold_idx = self.split_hot_cold(embeddings, chunk_ids, access_history)
+        
+        # Add to hot
+        hot_vectors = embeddings[hot_idx].astype('float32')
+        hot_ids = [chunk_ids[i] for i in hot_idx]
+        self.add_to_hot(hot_vectors, hot_ids)
+        print(f"Added {len(hot_ids)} vectors to hot index")
+        
+        # Train and add to cold
+        cold_vectors = embeddings[cold_idx].astype('float32')
+        cold_ids = [chunk_ids[i] for i in cold_idx]
+        
+        # Sample for training (use 100k vectors max)
+        train_size = min(100000, len(cold_vectors))
+        train_vectors = cold_vectors[np.random.choice(len(cold_vectors), train_size, replace=False)]
+        self.train_cold_index(train_vectors)
+        
+        self.add_to_cold(cold_vectors, cold_ids)
+        print(f"Added {len(cold_ids)} vectors to cold index")
+    
+    def search(self, query_vector, k=50):
+        """Search both indices and merge results"""
+        query_vector = query_vector.reshape(1, -1).astype('float32')
+        
+        # Search hot index
+        k_hot = int(k * 0.7)  # Get 70% from hot
+        D_hot, I_hot = self.hot_index.search(query_vector, k_hot)
+        
+        # Search cold index
+        k_cold = k - k_hot
+        self.cold_index.nprobe = 32  # Search 32 clusters
+        D_cold, I_cold = self.cold_index.search(query_vector, k_cold)
+        
+        # Merge results
+        hot_results = [
+            {'chunk_id': self.hot_ids[idx], 'score': float(dist), 'source': 'hot'}
+            for idx, dist in zip(I_hot[0], D_hot[0])
+            if idx < len(self.hot_ids)
+        ]
+        
+        cold_results = [
+            {'chunk_id': self.cold_ids[idx], 'score': float(dist), 'source': 'cold'}
+            for idx, dist in zip(I_cold[0], D_cold[0])
+            if idx < len(self.cold_ids)
+        ]
+        
+        # Combine and sort by score
+        all_results = hot_results + cold_results
+        all_results.sort(key=lambda x: x['score'])
+        
+        return all_results[:k]
+    
+    def promote_to_hot(self, chunk_id):
+        """Move frequently accessed item from cold to hot"""
+        # Implementation of LRU promotion logic
+        self.access_counts[chunk_id] = self.access_counts.get(chunk_id, 0) + 1
+        
+        # Promote if access count exceeds threshold
+        if self.access_counts[chunk_id] > 10 and chunk_id in self.cold_ids:
+            # Find vector in cold index
+            idx = self.cold_ids.index(chunk_id)
+            # Move to hot (simplified - full implementation would reindex)
+            print(f"Promoting {chunk_id} to hot storage")
+    
+    def save(self, output_path):
+        """Save indices to disk"""
+        # Save hot index
+        faiss.write_index(self.hot_index, f"{output_path}/hot_index.faiss")
+        
+        # Save cold index
+        faiss.write_index(self.cold_index, f"{output_path}/cold_index.faiss")
+        
+        # Save metadata
+        metadata = {
+            'hot_ids': self.hot_ids,
+            'cold_ids': self.cold_ids,
+            'access_counts': self.access_counts,
+            'dimension': self.dimension,
+            'hot_ratio': self.hot_ratio
+        }
+        with open(f"{output_path}/index_metadata.pkl", 'wb') as f:
+            pickle.dump(metadata, f)
+    
+    def load(self, output_path):
+        """Load indices from disk"""
+        self.hot_index = faiss.read_index(f"{output_path}/hot_index.faiss")
+        self.cold_index = faiss.read_index(f"{output_path}/cold_index.faiss")
+        
+        with open(f"{output_path}/index_metadata.pkl", 'rb') as f:
+            metadata = pickle.load(f)
+            self.hot_ids = metadata['hot_ids']
+            self.cold_ids = metadata['cold_ids']
+            self.access_counts = metadata['access_counts']
+
+# Usage
+vector_store = HotColdVectorStore(dimension=384, hot_ratio=0.2)
+
+# Build indices
+vector_store.build_indices(
+    embeddings=chunk_embeddings,
+    chunk_ids=chunk_ids,
+    access_history=None  # Can provide access logs if available
+)
+
+# Save to disk
+vector_store.save('output/vector_store')
+
+# Test search
+query_embedding = embedder.model.encode(["machine learning"])
+results = vector_store.search(query_embedding[0], k=50)
+print(f"Found {len(results)} results")
+```
+
+**Memory Footprint:**
+- Hot (20%): ~3GB for 2M vectors @ 384d
+- Cold (80%): disk-based with mmap, ~2GB RAM during search
+- Total: ~5GB RAM for vector storage
+
+---
+
+## 10. LAYER 7: QUERY ROUTING
+
+### 10.1 Semantic Router Implementation
+
+```python
+from enum import Enum
+import re
+
+class QueryType(Enum):
+    FACTUAL = "factual"
+    CONCEPTUAL = "conceptual"
+    COMPARATIVE = "comparative"
+    TEMPORAL = "temporal"
+    EXPLORATORY = "exploratory"
+
+class SemanticRouter:
+    def __init__(self, embedder):
+        self.embedder = embedder
+        
+        # Define query type patterns
+        self.patterns = {
+            QueryType.FACTUAL: [
+                r'\bwhat is\b', r'\bwho is\b', r'\bwhen did\b',
+                r'\bhow many\b', r'\bdefine\b', r'\blist\b'
+            ],
+            QueryType.TEMPORAL: [
+                r'\brecent\b', r'\blatest\b', r'\blast\b',
+                r'\b20\d{2}\b', r'\bthis year\b', r'\byesterday\b'
+            ],
+            QueryType.COMPARATIVE: [
+                r'\bcompare\b', r'\bversus\b', r'\bvs\b',
+                r'\bdifference between\b', r'\bbetter than\b'
+            ],
+            QueryType.CONCEPTUAL: [
+                r'\bexplain\b', r'\bwhy\b', r'\bhow does\b',
+                r'\brelationship\b', r'\bimpact\b'
+            ]
+        }
+    
+    def classify_query(self, query_text):
+        """Classify query type"""
+        query_lower = query_text.lower()
+        
+        # Check patterns
+        for query_type, patterns in self.patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, query_lower):
+                    return query_type
+        
+        # Default to exploratory
+        return QueryType.EXPLORATORY
+    
+    def extract_temporal_filter(self, query_text):
+        """Extract date range from query"""
+        import dateparser
+        
+        # Look for date mentions
+        date_patterns = [
+            r'\b20\d{2}\b',  # Year
+            r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}\b',
+            r'\blast\s+(week|month|year)\b',
+            r'\bthis\s+(week|month|year)\b'
+        ]
+        
+        for pattern in date_patterns:
+            match = re.search(pattern, query_text.lower())
+            if match:
+                date_str = match.group(0)
+                parsed_date = dateparser.parse(date_str)
+                if parsed_date:
+                    return parsed_date
+        
+        return None
+    
+    def route_query(self, query_text):
+        """Route query and return search strategy"""
+        query_type = self.classify_query(query_text)
+        temporal_filter = self.extract_temporal_filter(query_text)
+        
+        strategy = {
+            'query_type': query_type,
+            'temporal_filter': temporal_filter,
+            'use_bm25': True,  # Always use BM25 initially
+            'bm25_weight': 0.3,
+            'dense_weight': 0.7,
+            'use_reranker': False,
+            'k_candidates': 500
+        }
+        
+        # Adjust strategy based on query type
+        if query_type == QueryType.FACTUAL:
+            strategy['bm25_weight'] = 0.6
+            strategy['dense_weight'] = 0.4
+            strategy['k_candidates'] = 300
+        
+        elif query_type == QueryType.CONCEPTUAL:
+            strategy['bm25_weight'] = 0.2
+            strategy['dense_weight'] = 0.8
+            strategy['use_reranker'] = True
+        
+        elif query_type == QueryType.COMPARATIVE:
+            strategy['use_reranker'] = True
+            strategy['k_candidates'] = 100
+        
+        elif query_type == QueryType.TEMPORAL:
+            strategy['bm25_weight'] = 0.4
+            strategy['dense_weight'] = 0.6
+            # Temporal filter will be applied
+        
+        return strategy
+
+# Usage
+router = SemanticRouter(embedder)
+
+query = "What are the latest developments in machine learning since 2023?"
+strategy = router.route_query(query)
+
+print(f"Query type: {strategy['query_type']}")
+print(f"BM25 weight: {strategy['bm25_weight']}")
+print(f"Dense weight: {strategy['dense_weight']}")
+print(f"Use reranker: {strategy['use_reranker']}")
+print(f"Temporal filter: {strategy['temporal_filter']}")
+```
+
+---
+
+## 11. LAYER 8: HYBRID RETRIEVAL
+
+### 11.1 Complete Hybrid Search Pipeline
+
+```python
+class HybridRetriever:
+    def __init__(self, bm25_searcher, vector_store, embedder, reranker=None):
+        self.bm25 = bm25_searcher
+        self.vector_store = vector_store
+        self.embedder = embedder
+        self.reranker = reranker
+    
+    def retrieve(self, query_text, strategy):
+        """Execute hybrid retrieval"""
+        # Stage 1: BM25 Sparse Search
+        bm25_results = self.bm25.search(
+            query_text,
+            limit=strategy['k_candidates']
+        )
+        
+        # Stage 2: Dense Vector Search
+        query_embedding = self.embedder.model.encode([query_text])[0]
+        dense_results = self.vector_store.search(
+            query_embedding,
+            k=strategy['k_candidates'] // 2
+        )
+        
+        # Stage 3: Merge Results with Weighted Scoring
+        merged = self._merge_results(
+            bm25_results,
+            dense_results,
+            bm25_weight=strategy['bm25_weight'],
+            dense_weight=strategy['dense_weight']
+        )
+        
+        # Stage 4: Apply Temporal Filter (if applicable)
+        if strategy['temporal_filter']:
+            merged = self._apply_temporal_filter(merged, strategy['temporal_filter'])
+        
+        # Stage 5: Reranking (if enabled)
+        if strategy['use_reranker'] and self.reranker:
+            top_k = merged[:20]  # Rerank top 20
+            reranked = self._rerank(query_text, top_k)
+            merged = reranked + merged[20:]
+        
+        return merged[:50]  # Return top 50
+    
+    def _merge_results(self, bm25_results, dense_results, bm25_weight, dense_weight):
+        """Merge BM25 and dense results with weights"""
+        # Normalize scores
+        if bm25_results:
+            max_bm25 = max(r['score'] for r in bm25_results)
+            for r in bm25_results:
+                r['score'] = r['score'] / max_bm25 if max_bm25 > 0 else 0
+        
+        if dense_results:
+            max_dense = max(r['score'] for r in dense_results)
+            for r in dense_results:
+                r['score'] = r['score'] / max_dense if max_dense > 0 else 0
+        
+        # Combine scores
+        combined = {}
+        
+        for result in bm25_results:
+            chunk_id = result['uuid']  # BM25 uses 'uuid'
+            combined[chunk_id] = {
+                'chunk_id': chunk_id,
+                'score': result['score'] * bm25_weight,
+                'sources': ['bm25']
+            }
+        
+        for result in dense_results:
+            chunk_id = result['chunk_id']
+            if chunk_id in combined:
+                combined[chunk_id]['score'] += result['score'] * dense_weight
+                combined[chunk_id]['sources'].append('dense')
+            else:
+                combined[chunk_id] = {
+                    'chunk_id': chunk_id,
+                    'score': result['score'] * dense_weight,
+                    'sources': ['dense']
+                }
+        
+        # Sort by combined score
+        merged = sorted(combined.values(), key=lambda x: x['score'], reverse=True)
+        return merged
+    
+    def _apply_temporal_filter(self, results, date_filter):
+        """Filter results by date"""
+        # Implementation would check document dates
+        # Simplified here
+        return results
+    
+    def _rerank(self, query_text, candidates):
+        """Rerank using ColBERT or cross-encoder"""
+        if not self.reranker:
+            return candidates
+        
+        # Get full text for candidates
+        chunk_texts = []
+        for c in candidates:
+            # Load chunk text from database
+            chunk_text = self._load_chunk_text(c['chunk_id'])
+            chunk_texts.append(chunk_text)
+        
+        # Compute reranking scores
+        pairs = [[query_text, text] for text in chunk_texts]
+        scores = self.reranker.predict(pairs)
+        
+        # Update scores
+        for i, candidate in enumerate(candidates):
+            candidate['rerank_score'] = float(scores[i])
+        
+        # Re-sort by rerank score
+        reranked = sorted(candidates, key=lambda x: x['rerank_score'], reverse=True)
+        return reranked
+    
+    def _load_chunk_text(self, chunk_id):
+        """Load chunk text from storage"""
+        # Implementation would load from parquet/database
+        return "Placeholder text"
+
+# Usage
+hybrid_retriever = HybridRetriever(
+    bm25_searcher=bm25,
+    vector_store=vector_store,
+    embedder=embedder,
+    reranker=None  # Add ColBERT if needed
+)
+
+query = "machine learning algorithms for classification"
+strategy = router.route_query(query)
+results = hybrid_retriever.retrieve(query, strategy)
+
+print(f"Retrieved {len(results)} results")
+for i, result in enumerate(results[:5]):
+    print(f"{i+1}. Chunk: {result['chunk_id']}, Score: {result['score']:.3f}, Sources: {result['sources']}")
+```
+
+---
+
+## 12. LAYER 9: CACHING SYSTEM
+
+### 12.1 Semantic Query Cache
+
+```python
+import numpy as np
+from datetime import datetime, timedelta
+
+class SemanticCache:
+    def __init__(self, embedder, similarity_threshold=0.95, ttl_hours=1):
+        self.embedder = embedder
+        self.threshold = similarity_threshold
+        self.ttl = timedelta(hours=ttl_hours)
+        
+        self.cache = {}  # query_embedding -> results
+        self.query_embeddings = []
+        self.query_keys = []
+        self.timestamps = []
+    
+    def _compute_key(self, query_embedding):
+        """Generate cache key from embedding"""
+        return hashlib.md5(query_embedding.tobytes()).hexdigest()
+    
+    def get(self, query_text):
+        """Check if similar query exists in cache"""
+        query_embedding = self.embedder.model.encode([query_text])[0]
+        
+        if not self.query_embeddings:
+            return None
+        
+        # Compute similarity with cached queries
+        similarities = cosine_similarity(
+            query_embedding.reshape(1, -1),
+            np.array(self.query_embeddings)
+        )[0]
+        
+        # Find most similar cached query
+        max_idx = np.argmax(similarities)
+        max_sim = similarities[max_idx]
+        
+        if max_sim >= self.threshold:
+            # Check TTL
+            if datetime.now() - self.timestamps[max_idx] < self.ttl:
+                cache_key = self.query_keys[max_idx]
+                print(f"Cache HIT (similarity: {max_sim:.3f})")
+                return self.cache[cache_key]
+        
+        return None
+    
+    def set(self, query_text, results):
+        """Store query results in cache"""
+        query_embedding = self.embedder.model.encode([query_text])[0]
+        cache_key = self._compute_key(query_embedding)
+        
+        self.cache[cache_key] = results
+        self.query_embeddings.append(query_embedding)
+        self.query_keys.append(cache_key)
+        self.timestamps.append(datetime.now())
+        
+        # Evict old entries (simple LRU)
+        self._evict_old()
+    
+    def _evict_old(self, max_size=1000):
+        """Remove old cache entries"""
+        if len(self.query_keys) > max_size:
+            # Remove oldest
+            n_remove = len(self.query_keys) - max_size
+            
+            for i in range(n_remove):
+                old_key = self.query_keys[0]
+                del self.cache[old_key]
+                self.query_embeddings.pop(0)
+                self.query_keys.pop(0)
+                self.timestamps.pop(0)
+    
+    def invalidate_all(self):
+        """Clear entire cache (call after new ingestion)"""
+        self.cache.clear()
+        self.query_embeddings.clear()
+        self.query_keys.clear()
+        self.timestamps.clear()
+
+# Usage
+cache = SemanticCache(embedder, similarity_threshold=0.95, ttl_hours=1)
+
+# Check cache
+cached_results = cache.get("machine learning algorithms")
+if cached_results:
+    print("Using cached results")
+    results = cached_results
+else:
+    print("Cache miss, executing search")
+    results = hybrid_retriever.retrieve(query, strategy)
+    cache.set(query, results)
+```
+
+---
+
+## 13. LAYER 10: RESPONSE GENERATION
+
+### 13.1 Context Assembly
+
+```python
+class ContextAssembler:
+    def __init__(self, chunks_df, dedup_graph):
+        self.chunks_df = chunks_df
+        self.dedup_graph = dedup_graph
+    
+    def assemble_context(self, results, max_chunks=5, max_tokens=3000):
+        """Assemble context from search results"""
+        context_chunks = []
+        total_tokens = 0
+        
+        for result in results:
+            if len(context_chunks) >= max_chunks:
+                break
+            
+            chunk_id = result['chunk_id']
+            
+            # Load chunk
+            chunk = self.chunks_df[self.chunks_df['chunk_id'] == chunk_id].iloc[0]
+            
+            # Check dedup graph for related chunks
+            related = self._get_related_chunks(chunk_id)
+            
+            # Estimate tokens (rough: 1 token ~= 4 chars)
+            chunk_tokens = len(chunk['text']) // 4
+            
+            if total_tokens + chunk_tokens > max_tokens:
+                # Truncate chunk
+                available_tokens = max_tokens - total_tokens
+                chunk_text = chunk['text'][:available_tokens * 4]
+            else:
+                chunk_text = chunk['text']
+            
+            context_chunks.append({
+                'chunk_id': chunk_id,
+                'text': chunk_text,
+                'source_file': chunk['doc_uuid'],
+                'score': result['score'],
+                'related_chunks': related
+            })
+            
+            total_tokens += chunk_tokens
+            
+            if total_tokens >= max_tokens:
+                break
+        
+        return context_chunks
+    
+    def _get_related_chunks(self, chunk_id):
+        """Get similar chunks from dedup graph"""
+        if chunk_id not in self.dedup_graph:
+            return []
+        
+        neighbors = list(self.dedup_graph[chunk_id].keys())
+        return neighbors[:3]  # Return top 3 similar chunks
+    
+    def format_context(self, context_chunks):
+        """Format context for LLM"""
+        formatted = []
+        
+        for i, chunk in enumerate(context_chunks, 1):
+            formatted.append(f"[Source {i}] (ID: {chunk['chunk_id']}, Score: {chunk['score']:.3f})")
+            formatted.append(chunk['text'])
+            
+            if chunk['related_chunks']:
+                formatted.append(f"  Related chunks: {', '.join(chunk['related_chunks'][:2])}")
+            
+            formatted.append("")  # Blank line
+        
+        return "\n".join(formatted)
+
+# Usage
+assembler = ContextAssembler(chunks_df, similarity_graph)
+context_chunks = assembler.assemble_context(results, max_chunks=5)
+formatted_context = assembler.format_context(context_chunks)
+```
+
+### 13.2 Response Generation with Attribution
+
+```python
+class ResponseGenerator:
+    def __init__(self, llm, assembler):
+        self.llm = llm
+        self.assembler = assembler
+    
+    def generate_response(self, query, results):
+        """Generate final response with source attribution"""
+        # Assemble context
+        context_chunks = self.assembler.assemble_context(results)
+        formatted_context = self.assembler.format_context(context_chunks)
+        
+        # Create prompt
+        prompt = self._create_prompt(query, formatted_context)
+        
+        # Generate response
+        response = self.llm.generate(prompt, max_tokens=1000)
+        
+        # Add source attribution
+        attributed_response = self._add_attribution(response, context_chunks)
+        
+        return attributed_response
+    
+    def _create_prompt(self, query, context):
+        """Create prompt for LLM"""
+        prompt = f"""<|system|>You are a helpful assistant that answers questions based on provided context. Always cite your sources using [Source N] notation. If the answer is not in the context, say so.<|end|>
+<|user|>Context:
+{context}
+
+Question: {query}
+
+Answer based on the context above. Cite sources using [Source N] notation.<|end|>
+<|assistant|>"""
+        return prompt
+    
+    def _add_attribution(self, response, context_chunks):
+        """Add detailed source attribution"""
+        attribution = {
+            'response': response,
+            'sources': []
+        }
+        
+        for i, chunk in enumerate(context_chunks, 1):
+            # Check if source was cited in response
+            if f"[Source {i}]" in response or f"Source {i}" in response:
+                attribution['sources'].append({
+                    'source_id': i,
+                    'chunk_id': chunk['chunk_id'],
+                    'file': chunk['source_file'],
+                    'relevance_score': chunk['score'],
+                    'excerpt': chunk['text'][:200] + "..."
+                })
+        
+        return attribution
+
+# Usage
+generator = ResponseGenerator(llm, assembler)
+final_response = generator.generate_response(query, results)
+
+print("Response:", final_response['response'])
+print("\nSources cited:")
+for source in final_response['sources']:
+    print(f"  [{source['source_id']}] {source['file']} (score: {source['relevance_score']:.3f})")
+```
+
+---
+
+## 14. DATABASE SCHEMA & STORAGE
+
+### 14.1 Storage Architecture
+
+```
+output/
+├── metadata/
+│   ├── files_metadata.parquet          # File-level metadata
+│   ├── chunks_metadata.parquet         # Chunk-level metadata
+│   └── scaffold_metadata.parquet       # Semantic scaffold
+│
+├── embeddings/
+│   ├── chunk_embeddings.npy            # Full chunk embeddings
+│   ├── scaffold_embeddings.npy         # Summary embeddings
+│   └── table_embeddings.npy            # Table embeddings
+│
+├── indices/
+│   ├── bm25_index/                     # Whoosh BM25 index
+│   ├── hot_index.faiss                 # Hot FAISS HNSW
+│   ├── cold_index.faiss                # Cold FAISS IVF+PQ
+│   └── index_metadata.pkl              # Index mappings
+│
+├── deduplication/
+│   ├── dedup_clusters.json             # Text dedup results
+│   ├── similarity_graph.pkl            # NetworkX graph
+│   └── virtual_tables.json             # Table dedup results
+│
+├── models/
+│   ├── Phi-3-mini-4k-instruct-q4.gguf # LLM
+│   ├── minilm-l6-v2/                   # Embedding model
+│   └── colbert-v2/                     # Reranker (optional)
+│
+└── cache/
+    └── query_cache.pkl                 # Semantic cache
+```
+
+### 14.2 Parquet Schema Definitions
+
+**files_metadata.parquet:**
+```python
+{
+    'uuid': str,              # Unique file ID
+    'path': str,              # Absolute path
+    'filename': str,          # File name
+    'extension': str,         # File extension
+    'size_bytes': int,        # File size
+    'created_at': datetime,   # Creation timestamp
+    'modified_at': datetime,  # Modification timestamp
+    'indexed_at': datetime,   # Indexing timestamp
+    'processing_status': str, # 'fast_pass_complete', 'deep_complete'
+    'n_chunks': int          # Number of chunks
+}
+```
+
+**chunks_metadata.parquet:**
+```python
+{
+    'chunk_id': str,          # Unique chunk ID
+    'doc_uuid': str,          # Parent document UUID
+    'text': str,              # Full chunk text
+    'type': str,              # 'text' or 'table'
+    'page': int,              # Page number (if applicable)
+    'chunk_index': int,       # Index within document
+    'token_count': int,       # Approximate tokens
+    'cluster_id': int,        # Dedup cluster ID
+    'is_representative': bool # Is cluster representative?
+}
+```
+
+**scaffold_metadata.parquet:**
+```python
+{
+    'chunk_id': str,          # Unique chunk ID
+    'doc_uuid': str,          # Parent document UUID
+    'summary': str,           # LLM-generated summary
+    'keywords': List[str],    # Extracted keywords
+    'category': str,          # Document category
+    'original_size': int,     # Original text length
+    'compressed_size': int,   # Summary length
+    'compression_ratio': float # Compression achieved
+}
+```
+
+---
+
+## 15. CONFIGURATION FILES
+
+### 15.1 Main Configuration (config.yaml)
+
+```yaml
+# System Configuration
+system:
+  data_dir: "/path/to/100GB/data"
+  output_dir: "/path/to/output"
+  n_workers: 8
+  
+# Hardware Constraints
+hardware:
+  vram_gb: 6
+  ram_gb: 32
+  device: "cuda"  # or "cpu"
+  
+# LLM Configuration
+llm:
+  model_path: "models/Phi-3-mini-4k-instruct-q4.gguf"
+  n_ctx: 4096
+  n_gpu_layers: 35
+  temperature: 0.3
+  max_tokens: 512
+  
+# Embedding Configuration
+embedding:
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  dimension: 384
+  batch_size: 32
+  normalize: true
+  
+# Deduplication
+deduplication:
+  text_similarity_threshold: 0.92
+  table_min_cluster_size: 2
+  build_graph: true
+  
+# Semantic Compression
+compression:
+  enable_self_consistency: true
+  n_consistency_runs: 3
+  summary_max_length: 200
+  n_keywords: 10
+  
+# Vector Index
+vector_index:
+  hot_ratio: 0.2
+  hnsw_m: 32
+  hnsw_ef_construction: 200
+  hnsw_ef_search: 64
+  ivf_nlist: 4096
+  pq_m: 64
+  
+# BM25 Index
+bm25:
+  backend: "whoosh"  # or "elasticsearch"
+  analyzer: "stemming"
+  
+# Retrieval
+retrieval:
+  default_k: 50
+  bm25_candidates: 500
+  dense_candidates: 250
+  use_reranker: false
+  reranker_top_k: 20
+  
+# Query Routing
+routing:
+  enable: true
+  factual_bm25_weight: 0.6
+  conceptual_dense_weight: 0.8
+  
+# Caching
+cache:
+  enable: true
+  similarity_threshold: 0.95
+  ttl_hours: 1
+  max_size: 1000
+  
+# Response Generation
+generation:
+  max_context_chunks: 5
+  max_context_tokens: 3000
+  stream_response: true
+```
+
+### 15.2 Loading Configuration
+
+```python
+import yaml
+
+class Config:
+    def __init__(self, config_path='config.yaml'):
+        with open(config_path, 'r') as f:
+            self.config = yaml.safe_load(f)
+    
+    def get(self, path, default=None):
+        """Get nested config value"""
+        keys = path.split('.')
+        value = self.config
+        
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return default
+        
+        return value
+
+# Usage
+config = Config('config.yaml')
+llm_path = config.get('llm.model_path')
+embedding_dim = config.get('embedding.dimension')
+```
+
+---
+
+## 16. PERFORMANCE TUNING
+
+### 16.1 Memory Optimization
+
+```python
+import gc
+import torch
+
+def optimize_memory():
+    """Clear memory caches"""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+def batch_process_with_memory_management(data, process_fn, batch_size=100):
+    """Process data in batches with memory cleanup"""
+    results = []
+    
+    for i in range(0, len(data), batch_size):
+        batch = data[i:i+batch_size]
+        batch_results = process_fn(batch)
+        results.extend(batch_results)
+        
+        # Clean up every 10 batches
+        if i % (batch_size * 10) == 0:
+            optimize_memory()
+    
+    return results
+```
+
+### 16.2 Parallel Processing
+
+```python
+from multiprocessing import Pool, cpu_count
+from functools import partial
+
+def parallel_process(data, process_fn, n_workers=None):
+    """Process data in parallel"""
+    if n_workers is None:
+        n_workers = cpu_count() - 1
+    
+    with Pool(n_workers) as pool:
+        results = pool.map(process_fn, data)
+    
+    return results
+
+# Usage for chunking
+def chunk_document(file_path):
+    # Processing logic
+    return chunks
+
+file_paths = metadata_df['path'].tolist()
+all_chunks = parallel_process(file_paths, chunk_document, n_workers=8)
+```
+
+### 16.3 FAISS Optimization
+
+```python
+# Enable AVX2 instructions
+import faiss
+faiss.cvar.distance_compute_blas_threshold = 20
+
+# For GPU (if available)
+if torch.cuda.is_available():
+    res = faiss.StandardGpuResources()
+    gpu_index = faiss.index_cpu_to_gpu(res, 0, cpu_index)
+```
+
+---
+
+## 17. MONITORING & METRICS
+
+### 17.1 Performance Metrics
+
+```python
+import time
+from datetime import datetime
+import psutil
+import json
+
+class PerformanceMonitor:
+    def __init__(self):
+        self.metrics = {
+            'ingestion': [],
+            'retrieval': [],
+            'generation': []
+        }
+    
+    def track_ingestion(self, n_files, n_chunks, duration):
+        """Track ingestion performance"""
+        self.metrics['ingestion'].append({
+            'timestamp': datetime.now().isoformat(),
+            'n_files': n_files,
+            'n_chunks': n_chunks,
+            'duration_seconds': duration,
+            'throughput_files_per_sec': n_files / duration,
+            'throughput_chunks_per_sec': n_chunks / duration
+        })
+    
+    def track_retrieval(self, query, n_results, duration, cache_hit=False):
+        """Track retrieval performance"""
+        self.metrics['retrieval'].append({
+            'timestamp': datetime.now().isoformat(),
+            'query': query,
+            'n_results': n_results,
+            'duration_ms': duration * 1000,
+            'cache_hit': cache_hit
+        })
+    
+    def track_generation(self, query, response_length, duration):
+        """Track generation performance"""
+        self.metrics['generation'].append({
+            'timestamp': datetime.now().isoformat(),
+            'query': query,
+            'response_length': response_length,
+            'duration_seconds': duration,
+            'tokens_per_sec': response_length / duration if duration > 0 else 0
+        })
+    
+    def get_summary(self):
+        """Get performance summary"""
+        summary = {}
+        
+        if self.metrics['retrieval']:
+            durations = [m['duration_ms'] for m in self.metrics['retrieval']]
+            cache_hits = sum(1 for m in self.metrics['retrieval'] if m['cache_hit'])
+            
+            summary['retrieval'] = {
+                'n_queries': len(durations),
+                'p50_ms': np.percentile(durations, 50),
+                'p95_ms': np.percentile(durations, 95),
+                'p99_ms': np.percentile(durations, 99),
+                'cache_hit_rate': cache_hits / len(durations) if durations else 0
+            }
+        
+        return summary
+    
+    def save(self, output_path):
+        """Save metrics to file"""
+        with open(output_path, 'w') as f:
+            json.dump(self.metrics, f, indent=2)
+
+# Usage
+monitor = PerformanceMonitor()
+
+# Track retrieval
+start = time.time()
+results = hybrid_retriever.retrieve(query, strategy)
+duration = time.time() - start
+monitor.track_retrieval(query, len(results), duration)
+
+# Get summary
+summary = monitor.get_summary()
+print(f"Retrieval p50: {summary['retrieval']['p50_ms']:.1f}ms")
+print(f"Retrieval p95: {summary['retrieval']['p95_ms']:.1f}ms")
+```
+
+### 17.2 System Monitoring
+
+```python
+def get_system_stats():
+    """Get current system resource usage"""
+    return {
+        'cpu_percent': psutil.cpu_percent(interval=1),
+        'ram_used_gb': psutil.virtual_memory().used / (1024**3),
+        'ram_percent': psutil.virtual_memory().percent,
+        'disk_used_gb': psutil.disk_usage('/').used / (1024**3)
+    }
+
+# Log during processing
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('rag_system.log'),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+# Usage
+stats = get_system_stats()
+logger.info(f"System stats: RAM {stats['ram_used_gb']:.1f}GB ({stats['ram_percent']:.1f}%)")
+```
+
+---
+
+## 18. DEPLOYMENT CHECKLIST
+
+### 18.1 Pre-Deployment Validation
+
+```bash
+# 1. Check Python version
+python --version  # Should be 3.10 or 3.11
+
+# 2. Verify CUDA installation (if using GPU)
+nvidia-smi
+python -c "import torch; print(torch.cuda.is_available())"
+
+# 3. Test model loading
+python -c "from llama_cpp import Llama; llm = Llama('models/Phi-3-mini-4k-instruct-q4.gguf', n_ctx=512)"
+
+# 4. Verify disk space
+df -h  # Need 150GB+ free
+
+# 5. Check RAM
+free -h  # Need 32GB available
+
+# 6. Test FAISS
+python -c "import faiss; print(faiss.__version__)"
+```
+
+### 18.2 Initial System Setup
+
+```python
+# setup.py - Run once to initialize system
+
+import os
+from pathlib import Path
+
+def setup_directories(base_path):
+    """Create directory structure"""
+    dirs = [
+        'metadata', 'embeddings', 'indices', 'indices/bm25_index',
+        'deduplication', 'models', 'cache', 'logs'
+    ]
+    
+    for dir_name in dirs:
+        dir_path = Path(base_path) / dir_name
+        dir_path.mkdir(parents=True, exist_ok=True)
+    
+    print(f"✓ Created directory structure at {base_path}")
+
+def download_models():
+    """Download required models"""
+    from sentence_transformers import SentenceTransformer
+    
+    # Download embedding model
+    print("Downloading embedding model...")
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    model.save('models/minilm-l6-v2')
+    print("✓ Embedding model downloaded")
+    
+    # LLM must be downloaded manually
+    print("⚠ Please download LLM manually:")
+    print("  wget https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf")
+    print("  mv Phi-3-mini-4k-instruct-q4.gguf models/")
+
+def verify_setup():
+    """Verify all components are ready"""
+    checks = {
+        'Output directory': Path('output').exists(),
+        'Models directory': Path('models').exists(),
+        'LLM model': Path('models/Phi-3-mini-4k-instruct-q4.gguf').exists(),
+        'Embedding model': Path('models/minilm-l6-v2').exists(),
+        'Config file': Path('config.yaml').exists()
+    }
+    
+    print("\n=== Setup Verification ===")
+    all_pass = True
+    for check, status in checks.items():
+        symbol = "✓" if status else "✗"
+        print(f"{symbol} {check}")
+        if not status:
+            all_pass = False
+    
+    if all_pass:
+        print("\n✓ System ready for deployment!")
+    else:
+        print("\n✗ Some components missing. Please complete setup.")
+    
+    return all_pass
+
+# Run setup
+if __name__ == '__main__':
+    setup_directories('output')
+    download_models()
+    verify_setup()
+```
+
+### 18.3 Complete Pipeline Execution
+
+```python
+# main.py - Main execution pipeline
+
+import logging
+from pathlib import Path
+import time
+
+def main():
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('output/logs/pipeline.log'),
+            logging.StreamHandler()
+        ]
+    )
+    logger = logging.getLogger(__name__)
+    
+    # Load configuration
+    config = Config('config.yaml')
+    logger.info("Configuration loaded")
+    
+    # Phase 1: Fast Pass Ingestion
+    logger.info("=== Phase 1: Fast Pass Ingestion ===")
+    start_time = time.time()
+    
+    ingestor = FastPassIngestor(
+        config.get('system.data_dir'),
+        config.get('system.output_dir')
+    )
+    metadata = ingestor.scan_directory()
+    bm25_index = ingestor.build_bm25_index()
+    
+    logger.info(f"Fast pass complete: {len(metadata)} files in {time.time()-start_time:.1f}s")
+    
+    # Phase 2: Deep Processing
+    logger.info("=== Phase 2: Deep Processing ===")
+    start_time = time.time()
+    
+    deep = DeepIngestor(pd.DataFrame(metadata), config.get('system.output_dir'))
+    chunks = deep.process_all(n_workers=config.get('system.n_workers'))
+    chunks_df = pd.DataFrame(chunks)
+    
+    logger.info(f"Deep processing complete: {len(chunks)} chunks in {time.time()-start_time:.1f}s")
+    
+    # Phase 3: LLM Processing
+    logger.info("=== Phase 3: LLM Processing ===")
+    start_time = time.time()
+    
+    llm = LocalLLM(config.get('llm.model_path'))
+    processed_df = process_chunks_with_llm(chunks_df, llm)
+    
+    logger.info(f"LLM processing complete in {time.time()-start_time:.1f}s")
+    
+    # Phase 4: Embedding Generation
+    logger.info("=== Phase 4: Embedding Generation ===")
+    start_time = time.time()
+    
+    embedder = EmbeddingGenerator(config.get('embedding.model_name'))
+    chunk_embeddings = embedder.embed_chunks(chunks_df)
+    
+    logger.info(f"Embedding complete: {chunk_embeddings.shape} in {time.time()-start_time:.1f}s")
+    
+    # Phase 5: Deduplication
+    logger.info("=== Phase 5: Deduplication ===")
+    start_time = time.time()
+    
+    deduplicator = SemanticDeduplicator(
+        similarity_threshold=config.get('deduplication.text_similarity_threshold')
+    )
+    chunk_ids = chunks_df['chunk_id'].tolist()
+    similarity_graph = deduplicator.build_similarity_graph(chunk_embeddings, chunk_ids)
+    clusters, cluster_mapping = deduplicator.find_clusters()
+    
+    logger.info(f"Deduplication complete: {len(clusters)} clusters in {time.time()-start_time:.1f}s")
+    
+    # Phase 6: Vector Indexing
+    logger.info("=== Phase 6: Vector Indexing ===")
+    start_time = time.time()
+    
+    vector_store = HotColdVectorStore(
+        dimension=config.get('embedding.dimension'),
+        hot_ratio=config.get('vector_index.hot_ratio')
+    )
+    vector_store.build_indices(chunk_embeddings, chunk_ids)
+    vector_store.save(Path(config.get('system.output_dir')) / 'indices')
+    
+    logger.info(f"Indexing complete in {time.time()-start_time:.1f}s")
+    
+    # Phase 7: System Ready
+    logger.info("=== System Ready for Queries ===")
+    logger.info(f"Total documents: {len(metadata)}")
+    logger.info(f"Total chunks: {len(chunks)}")
+    logger.info(f"Dedup clusters: {len(clusters)}")
+    logger.info(f"Index size: Hot={len(vector_store.hot_ids)}, Cold={len(vector_store.cold_ids)}")
+
+if __name__ == '__main__':
+    main()
+```
+
+### 18.4 Query Interface
+
+```python
+# query.py - Interactive query interface
+
+def interactive_query_loop():
+    """Interactive CLI for querying the system"""
+    # Load components
+    config = Config('config.yaml')
+    
+    # Initialize system
+    embedder = EmbeddingGenerator(config.get('embedding.model_name'))
+    vector_store = HotColdVectorStore(dimension=config.get('embedding.dimension'))
+    vector_store.load(Path(config.get('system.output_dir')) / 'indices')
+    
+    bm25 = BM25Searcher(Path(config.get('system.output_dir')) / 'indices/bm25_index')
+    
+    llm = LocalLLM(config.get('llm.model_path'))
+    
+    router = SemanticRouter(embedder)
+    retriever = HybridRetriever(bm25, vector_store, embedder)
+    cache = SemanticCache(embedder)
+    
+    # Load metadata
+    chunks_df = pd.read_parquet(Path(config.get('system.output_dir')) / 'metadata/chunks_metadata.parquet')
+    
+    assembler = ContextAssembler(chunks_df, {})  # Load dedup graph if needed
+    generator = ResponseGenerator(llm, assembler)
+    
+    print("=" * 60)
+    print("RAG 100GB System - Interactive Query Interface")
+    print("=" * 60)
+    print("Type 'exit' to quit, 'stats' for statistics")
+    print()
+    
+    while True:
+        query = input("Query> ").strip()
+        
+        if query.lower() == 'exit':
+            break
+        
+        if query.lower() == 'stats':
+            stats = get_system_stats()
+            print(f"RAM: {stats['ram_used_gb']:.1f}GB ({stats['ram_percent']:.1f}%)")
+            continue
+        
+        if not query:
+            continue
+        
+        # Process query
+        start_time = time.time()
+        
+        # Check cache
+        cached = cache.get(query)
+        if cached:
+            results = cached
+            print("[Using cached results]")
+        else:
+            # Route and retrieve
+            strategy = router.route_query(query)
+            results = retriever.retrieve(query, strategy)
+            cache.set(query, results)
+        
+        # Generate response
+        response = generator.generate_response(query, results)
+        
+        duration = time.time() - start_time
+        
+        # Display results
+        print()
+        print("Answer:")
+        print("-" * 60)
+        print(response['response'])
+        print()
+        print(f"Sources ({len(response['sources'])}):")
+        for source in response['sources']:
+            print(f"  [{source['source_id']}] {source['file']} (score: {source['relevance_score']:.3f})")
+        print()
+        print(f"[Query completed in {duration:.2f}s]")
+        print()
+
+if __name__ == '__main__':
+    interactive_query_loop()
+```
+
+---
+
+## 19. TROUBLESHOOTING
+
+### 19.1 Common Issues
+
+**Issue: Out of Memory during ingestion**
+```python
+# Solution: Reduce batch size
+deep = DeepIngestor(metadata_df, output_dir)
+chunks = deep.process_all(n_workers=4)  # Reduce from 8 to 4
+
+# Or process in smaller batches
+for i in range(0, len(metadata_df), 1000):
+    batch_df = metadata_df.iloc[i:i+1000]
+    batch_deep = DeepIngestor(batch_df, output_dir)
+    batch_chunks = batch_deep.process_all(n_workers=4)
+```
+
+**Issue: FAISS index too large for RAM**
+```python
+# Solution: Use more aggressive PQ compression
+vector_store = HotColdVectorStore(dimension=384, hot_ratio=0.1)  # Reduce hot ratio
+# Or use smaller m parameter for PQ
+# In IndexIVFPQ: m=32 instead of m=64
+```
+
+**Issue: LLM inference too slow**
+```python
+# Solution: Reduce context window or increase quantization
+llm = LocalLLM(
+    model_path=model_path,
+    n_ctx=2048,

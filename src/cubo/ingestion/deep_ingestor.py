@@ -12,6 +12,7 @@ import pandas as pd
 from src.cubo.config import config
 from src.cubo.ingestion.document_loader import DocumentLoader
 from src.cubo.utils.logger import logger
+from src.cubo.storage.metadata_manager import get_metadata_manager
 
 
 class DeepIngestor:
@@ -60,6 +61,13 @@ class DeepIngestor:
         df = pd.DataFrame.from_records(all_chunks)
         parquet_path = self._save_chunks_parquet(df)
         manifest_path = self._write_manifest(len(all_chunks), processed_files)
+        # Record ingestion run
+        try:
+            manager = get_metadata_manager()
+            run_id = f"deep_{os.path.basename(str(self.input_folder))}_{int(pd.Timestamp.utcnow().timestamp())}"
+            manager.record_ingestion_run(run_id, str(self.input_folder), len(all_chunks), str(parquet_path))
+        except Exception:
+            logger.warning("Failed to record deep ingestion run to metadata DB")
 
         return {
             "chunks_parquet": str(parquet_path),
@@ -303,78 +311,17 @@ class DeepIngestor:
             json.dump(manifest, fh, indent=2, ensure_ascii=False)
         os.replace(str(tmp_manifest), str(manifest_path))
         return manifest_path
-"""
-DeepIngestor: deep ingestion of files into stable chunk parquet
-"""
-from pathlib import Path
-import pandas as pd
-import os
-from typing import List, Dict
-from src.cubo.ingestion.file_loader import FileLoader
-from src.cubo.utils.logger import logger
-from src.cubo.config import config
-
-
-class DeepIngestor:
-    """Deep ingestion pipeline: chunking (sentence windows), metadata, parquet output"""
-
-    def __init__(self, output_dir: str = None, skip_model: bool = False, csv_text_column: str = None):
-        self.output_dir = Path(output_dir or config.get("chunks_output_dir", "data/chunks"))
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.loader = FileLoader(skip_model=skip_model, text_column=csv_text_column)
-        self.skip_model = skip_model
-
-    def ingest_folder(self, folder_path: str, output_filename: str = None) -> Dict[str, str]:
-        """Process folder, chunk files, and write parquet with stable chunk_id.
-
-        Returns a dict with keys: parquet_path, chunks_count
-        """
-        folder = Path(folder_path)
-        if not folder.exists():
-            raise FileNotFoundError(f"Folder {folder_path} not found")
-
-        docs = self.loader.load_documents_from_folder(str(folder))
-        if not docs:
-            logger.warning("No docs found for deep ingest")
-            return {}
-
-        records = []
-
-        for chunk in docs:
-            # Ensure chunk metadata
-            filename = chunk.get("filename", "unknown")
-            file_hash = chunk.get("file_hash", "")
-            chunk_index = int(chunk.get("chunk_index", 0))
-            text = chunk.get("text", chunk.get("document", ""))
-            token_count = chunk.get("token_count", len(text.split()))
-            # stable chunk id: if file_hash present, use file_hash + index, else filename + index
-            chunk_id = f"{file_hash}_{chunk_index}" if file_hash else f"{filename}_{chunk_index}"
-
-            records.append({
-                "chunk_id": chunk_id,
-                "filename": filename,
-                "file_hash": file_hash,
-                "chunk_index": chunk_index,
-                "text": text,
-                "token_count": token_count,
-                "char_length": len(text)
-            })
-
-        df = pd.DataFrame.from_records(records)
-
-        if output_filename:
-            final_path = Path(output_filename)
-        else:
-            final_path = self.output_dir / "deep_chunks.parquet"
-
-        tmp_path = final_path.with_suffix(final_path.suffix + ".tmp")
-        df.to_parquet(tmp_path, index=False)
-        os.replace(str(tmp_path), str(final_path))
-
-        logger.info(f"Deep ingest saved {len(records)} chunks to {final_path}")
-        return {"parquet": str(final_path), "chunks_count": len(records)}
-
-
 def build_deep_index(folder_path: str, output_dir: str = None, skip_model: bool = False, csv_text_column: str = None) -> Dict[str, str]:
-    ingestor = DeepIngestor(output_dir=output_dir, skip_model=skip_model, csv_text_column=csv_text_column)
-    return ingestor.ingest_folder(folder_path)
+    """Compatibility wrapper for legacy callers/tests.
+
+    The newer DeepIngestor implementation lives above (first class in this file)
+    and returns a richer dict from `ingest()`. This compatibility wrapper keeps
+    the historical `build_deep_index` contract used by integration tests, i.e.
+    returning a dict that contains `parquet` and `chunks_count` keys.
+    """
+    ingestor = DeepIngestor(input_folder=folder_path, output_dir=output_dir, chunking_config=None, csv_rows_per_chunk=None)
+    result = ingestor.ingest()
+    # Map the modern keys to the older expected return value
+    if not result:
+        return {}
+    return {"parquet": result.get("chunks_parquet"), "chunks_count": result.get("chunks_count")}

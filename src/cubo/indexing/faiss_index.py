@@ -4,44 +4,67 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import threading
 
 import faiss
 import numpy as np
+import datetime
 
 from src.cubo.utils.logger import logger
+from src.cubo.storage.metadata_manager import get_metadata_manager
 
 
 class FAISSIndexManager:
-    """Manages hot (HNSW) and cold (IVF) FAISS indexes for dense retrieval."""
+    """Manages hot (HNSW) and cold (IVF+PQ) FAISS indexes for dense retrieval."""
 
     def __init__(
         self,
         dimension: int,
         index_dir: Optional[Path] = None,
         nlist: int = 32,
+        m: int = 8,  # Number of sub-quantizers for PQ
         hnsw_m: int = 16,
         hnsw_ef: int = 32,
-        hot_fraction: float = 0.2
+        hot_fraction: float = 0.2,
+        use_opq: bool = False,
+        opq_m: int = 32
     ):
         self.dimension = dimension
         self.index_dir = Path(index_dir or Path.cwd() / "faiss_index")
         self.nlist = nlist
+        self.m = m
         self.hnsw_m = hnsw_m
         self.hnsw_ef = hnsw_ef
         self.hot_fraction = hot_fraction
+        self.use_opq = use_opq
+        self.opq_m = opq_m
 
         self.hot_index: Optional[faiss.Index] = None
         self.cold_index: Optional[faiss.Index] = None
         self.hot_ids: List[str] = []
         self.cold_ids: List[str] = []
+        
+        self._lock = threading.Lock()
 
-    def build_indexes(self, vectors: List[List[float]], ids: List[str]) -> None:
+    def build_indexes(self, vectors: List[List[float]], ids: List[str], append: bool = False) -> None:
         if not vectors:
             raise ValueError("Cannot build FAISS indexes without embeddings")
         array = np.asarray(vectors, dtype='float32')
         if len(array) != len(ids):
             raise ValueError("Embeddings and ids must have the same length")
 
+        if append and self.hot_index is not None and self.cold_index is not None:
+            # Append to existing indexes
+            # For simplicity, we'll just rebuild the indexes with the new data.
+            # A more sophisticated approach would be to add to the existing indexes if they support it.
+            logger.info("Appending data to existing indexes by rebuilding...")
+            all_vectors = np.vstack([self.hot_index.reconstruct_n(0, self.hot_index.ntotal), self.cold_index.reconstruct_n(0, self.cold_index.ntotal), array])
+            all_ids = self.hot_ids + self.cold_ids + ids
+            self._build(all_vectors, all_ids)
+        else:
+            self._build(array, ids)
+
+    def _build(self, array: np.ndarray, ids: List[str]):
         hot_count = max(1, int(len(ids) * self.hot_fraction))
         hot_count = min(hot_count, len(ids))
         hot_vectors = array[:hot_count]
@@ -56,88 +79,143 @@ class FAISSIndexManager:
         self.hot_index.add(hot_vectors)
 
         if cold_vectors.size:
-            logger.info(f"Building cold index with {cold_vectors.shape[0]} vectors (nlist={self.nlist})")
+            logger.info(f"Building cold index with {cold_vectors.shape[0]} vectors (nlist={self.nlist}, m={self.m})")
             self.cold_index = self._build_cold_index(cold_vectors)
         else:
             logger.info("Skipping cold index because no cold vectors were supplied")
 
     def _build_cold_index(self, vectors: np.ndarray) -> faiss.Index:
-        if vectors.shape[0] <= self.nlist:
+        # Ensure nlist is not larger than the number of training vectors
+        effective_nlist = min(self.nlist, max(1, vectors.shape[0] // 2))
+        if vectors.shape[0] <= effective_nlist:
             logger.warning("Cold vector count smaller than nlist; falling back to flat index for cold set")
             cold_index = faiss.IndexFlatL2(self.dimension)
             cold_index.add(vectors)
             return cold_index
 
         quantizer = faiss.IndexFlatL2(self.dimension)
-        cold_index = faiss.IndexIVFFlat(quantizer, self.dimension, self.nlist, faiss.METRIC_L2)
+        
+        # Ensure the number of subquantizers (m) divides our dimension
+        m_to_use = self.m
+        if self.dimension % m_to_use != 0:
+            # Find a smaller divisor of the dimension (fall back to 1 if none)
+            for candidate in range(min(m_to_use, self.dimension), 0, -1):
+                if self.dimension % candidate == 0:
+                    m_to_use = candidate
+                    break
+            logger.info(f"Adjusted PQ M value to {m_to_use} to be compatible with dimension {self.dimension}")
+
+        # Determine an appropriate number of bits for PQ (2**nbits clusters per subquantizer)
+        import math
+        nbits = max(1, min(8, int(math.floor(math.log2(max(2, vectors.shape[0]))))))
+
+        if self.use_opq:
+            # Apply OPQ (Optimized Product Quantization) transform
+            logger.info(f"Building cold index with OPQ (opq_m={self.opq_m})")
+            opq_matrix = faiss.OPQMatrix(self.dimension, self.opq_m)
+            opq_matrix.train(vectors)
+            # Create IVFPQ index with OPQ preprocessing
+            cold_index = faiss.IndexPreTransform(opq_matrix, faiss.IndexIVFPQ(quantizer, self.dimension, effective_nlist, m_to_use, nbits))
+        else:
+            cold_index = faiss.IndexIVFPQ(quantizer, self.dimension, effective_nlist, m_to_use, nbits)
+        
         cold_index.train(vectors)
-        cold_index.nprobe = min(self.nlist, 8)
+        if hasattr(cold_index, 'index'):
+            # For IndexPreTransform, set nprobe on the wrapped index
+            cold_index.index.nprobe = min(effective_nlist, 8)
+        else:
+            cold_index.nprobe = min(effective_nlist, 8)
         cold_index.add(vectors)
         return cold_index
 
     def search(self, query: List[float], k: int = 5) -> List[Dict[str, Any]]:
-        if not self.hot_index and not self.cold_index:
-            raise ValueError("No FAISS indexes built yet")
-        query_vec = np.asarray(query, dtype='float32').reshape(1, -1)
-        results: List[Dict[str, Any]] = []
-        if self.hot_index and self.hot_ids:
-            dists, labels = self.hot_index.search(query_vec, k)
-            for idx, dist in zip(labels[0], dists[0]):
-                if idx == -1:
-                    continue
-                result = {
-                    'id': self.hot_ids[int(idx)],
-                    'distance': float(dist),
-                    'source': 'hot'
-                }
-                results.append(result)
+        with self._lock:
+            if not self.hot_index and not self.cold_index:
+                raise ValueError("No FAISS indexes built yet")
+            query_vec = np.asarray(query, dtype='float32').reshape(1, -1)
+            results: List[Dict[str, Any]] = []
+            if self.hot_index and self.hot_ids:
+                dists, labels = self.hot_index.search(query_vec, k)
+                for idx, dist in zip(labels[0], dists[0]):
+                    if idx == -1:
+                        continue
+                    result = {
+                        'id': self.hot_ids[int(idx)],
+                        'distance': float(dist),
+                        'source': 'hot'
+                    }
+                    results.append(result)
 
-        if self.cold_index and self.cold_ids:
-            dists, labels = self.cold_index.search(query_vec, k)
-            for idx, dist in zip(labels[0], dists[0]):
-                if idx == -1:
-                    continue
-                result = {
-                    'id': self.cold_ids[int(idx)],
-                    'distance': float(dist),
-                    'source': 'cold'
-                }
-                results.append(result)
+            if self.cold_index and self.cold_ids:
+                dists, labels = self.cold_index.search(query_vec, k)
+                for idx, dist in zip(labels[0], dists[0]):
+                    if idx == -1:
+                        continue
+                    result = {
+                        'id': self.cold_ids[int(idx)],
+                        'distance': float(dist),
+                        'source': 'cold'
+                    }
+                    results.append(result)
 
-        results.sort(key=lambda r: r['distance'])
-        return results[:k]
+            results.sort(key=lambda r: r['distance'])
+            return results[:k]
 
-    def save(self) -> None:
-        self.index_dir.mkdir(parents=True, exist_ok=True)
+    def save(self, path: Optional[Path] = None) -> None:
+        save_dir = path or self.index_dir
+        save_dir.mkdir(parents=True, exist_ok=True)
         if self.hot_index:
-            faiss.write_index(self.hot_index, str(self.index_dir / 'hot.index'))
+            faiss.write_index(self.hot_index, str(save_dir / 'hot.index'))
         if self.cold_index:
-            faiss.write_index(self.cold_index, str(self.index_dir / 'cold.index'))
+            faiss.write_index(self.cold_index, str(save_dir / 'cold.index'))
         metadata = {
             'dimension': self.dimension,
             'hot_ids': self.hot_ids,
             'cold_ids': self.cold_ids,
             'nlist': self.nlist,
+            'm': self.m,
             'hnsw_m': self.hnsw_m,
-            'hot_fraction': self.hot_fraction
+            'hot_fraction': self.hot_fraction,
+            'use_opq': self.use_opq,
+            'opq_m': self.opq_m
         }
-        metadata_path = self.index_dir / 'metadata.json'
+        metadata_path = save_dir / 'metadata.json'
         with open(metadata_path, 'w', encoding='utf-8') as fh:
             json.dump(metadata, fh, indent=2)
-        logger.info(f"Saved FAISS indexes and metadata to {self.index_dir}")
+        logger.info(f"Saved FAISS indexes and metadata to {save_dir}")
+        # Record index version in metadata DB
+        try:
+            manager = get_metadata_manager()
+            version_id = f"faiss_{int(datetime.datetime.utcnow().timestamp())}"
+            manager.record_index_version(version_id, str(save_dir))
+        except Exception:
+            logger.warning("Failed to record FAISS index version in metadata DB")
 
-    def load(self) -> None:
-        metadata_path = self.index_dir / 'metadata.json'
+    def load(self, path: Optional[Path] = None) -> None:
+        load_dir = path or self.index_dir
+        metadata_path = load_dir / 'metadata.json'
         if not metadata_path.exists():
             raise FileNotFoundError("FAISS metadata not found; run build before load")
         with open(metadata_path, 'r', encoding='utf-8') as fh:
             metadata = json.load(fh)
-        self.hot_ids = metadata.get('hot_ids', [])
-        self.cold_ids = metadata.get('cold_ids', [])
-        self.dimension = metadata.get('dimension', self.dimension)
-        hot_path = self.index_dir / 'hot.index'
-        cold_path = self.index_dir / 'cold.index'
-        if hot_path.exists():
-            self.hot_index = faiss.read_index(str(hot_path))
-        if cold_path.exists():
-            self.cold_index = faiss.read_index(str(cold_path))
+        
+        with self._lock:
+            self.hot_ids = metadata.get('hot_ids', [])
+            self.cold_ids = metadata.get('cold_ids', [])
+            self.dimension = metadata.get('dimension', self.dimension)
+            self.m = metadata.get('m', self.m)
+            self.use_opq = metadata.get('use_opq', False)
+            self.opq_m = metadata.get('opq_m', 32)
+            hot_path = load_dir / 'hot.index'
+            cold_path = load_dir / 'cold.index'
+            if hot_path.exists():
+                self.hot_index = faiss.read_index(str(hot_path))
+            if cold_path.exists():
+                self.cold_index = faiss.read_index(str(cold_path))
+    
+    def swap_indexes(self, new_index_dir: Path):
+        """Atomically swaps the live indexes with new ones."""
+        logger.info(f"Swapping indexes with new ones from {new_index_dir}")
+        self.load(path=new_index_dir)
+        self.index_dir = new_index_dir
+        logger.info("Indexes swapped successfully.")

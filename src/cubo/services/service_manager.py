@@ -10,9 +10,9 @@ import sqlite3
 from typing import Any, Dict, Optional, Callable, List
 from contextlib import contextmanager
 
-from .thread_manager import ThreadManager
-from .error_recovery import ErrorRecoveryManager
-from .health_monitor import HealthMonitor, HealthStatus
+from src.cubo.workers.thread_manager import ThreadManager
+from src.cubo.utils.error_recovery import ErrorRecoveryManager
+from src.cubo.monitoring.health_monitor import HealthMonitor, HealthStatus
 
 logger = logging.getLogger(__name__)
 

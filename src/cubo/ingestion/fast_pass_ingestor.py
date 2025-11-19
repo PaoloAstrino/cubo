@@ -8,7 +8,8 @@ from typing import List
 import pandas as pd
 
 from src.cubo.ingestion.document_loader import DocumentLoader
-from src.cubo.retrieval.retriever import DocumentRetriever
+from src.cubo.retrieval.bm25_searcher import BM25Searcher
+from src.cubo.storage.metadata_manager import get_metadata_manager
 from src.cubo.utils.logger import logger
 from src.cubo.config import config
 
@@ -73,16 +74,24 @@ class FastPassIngestor:
         os.replace(str(chunks_jsonl), str(final_chunks_jsonl))
         logger.info(f"Saved {len(records)} chunks to {final_chunks_jsonl}")
 
-        # Build BM25 stats by using a retriever instance (no model needed)
+        # Build BM25 stats by using BM25Searcher
         try:
-            retriever = DocumentRetriever(model=None)
-            retriever._update_bm25_statistics(texts, doc_ids)
+            bm25 = BM25Searcher()
+            docs = [{'doc_id': did, 'text': txt} for did, txt in zip(doc_ids, texts)]
+            bm25.index_documents(docs)
             bm25_tmp = self.output_dir / 'bm25_stats.json.tmp'
             bm25_path = self.output_dir / 'bm25_stats.json'
-            retriever.save_bm25_stats(str(bm25_tmp))
+            bm25.save_stats(str(bm25_tmp))
             os.replace(str(bm25_tmp), str(bm25_path))
+            # record ingestion run in metadata db
+            try:
+                manager = get_metadata_manager()
+                run_id = f"fastpass_{os.path.basename(str(Path(folder_path)))}_{int(pd.Timestamp.utcnow().timestamp())}"
+                manager.record_ingestion_run(run_id, str(folder_path), len(records), str(final_chunks_jsonl))
+            except Exception:
+                logger.warning("Failed to record ingestion run to metadata DB")
         except Exception as e:
-            logger.error(f"Failed to build BM25 via retriever: {e}")
+            logger.error(f"Failed to build BM25 stats: {e}")
             bm25_path = None
 
         # Write ingestion manifest for reproducibility

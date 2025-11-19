@@ -12,7 +12,8 @@ class DocumentRetriever:
         self._set_basic_attributes(model, use_sentence_window, use_auto_merging,
                                    auto_merge_for_complex, window_size, top_k)
         self._initialize_auto_merging_retriever()
-        self._setup_chromadb()
+        # use new vector store setup (FAISS/Chroma) factory
+        self._setup_vector_store()
         self._setup_caching()
         self._initialize_postprocessors()
         self._log_initialization_status()
@@ -42,14 +43,10 @@ class DocumentRetriever:
                 logger.warning(f"Auto-merging retrieval not available: {e}")
                 self.use_auto_merging = False
 
-    def _setup_chromadb(self) -> None:
-        """Setup ChromaDB client and collection."""
-        self.client = chromadb.PersistentClient(
-            path=config.get("chroma_db_path", "./chroma_db")
-        )
-        self.collection = self.client.get_or_create_collection(
-            name=config.get("collection_name", "cubo_documents")
-        )
+    def _setup_vector_store(self) -> None:
+        """Setup the configured vector store (FAISS or Chroma)."""
+        from src.cubo.retrieval.vector_store import create_vector_store
+        self.collection = create_vector_store(backend=config.get('vector_store_backend', 'faiss'), dimension=config.get('index_dimension', 1536), index_dir=config.get('vector_store_path'))
 
     def _setup_caching(self) -> None:
         """Setup query caching for testing."""
