@@ -1,21 +1,44 @@
-"""
-Inspect what text is actually stored in ChromaDB
-"""
-import sys
+"""Inspect the configured vector store contents without touching Chroma directly."""
+import argparse
+from collections import defaultdict
 from pathlib import Path
+import sys
+
 sys.path.insert(0, str(Path(__file__).parent))
 
-import chromadb
-from collections import defaultdict
+from src.cubo.config import config
+from src.cubo.retrieval.vector_store import create_vector_store
 
-client = chromadb.PersistentClient(path="./chroma_db")
-collection = client.get_collection(name="cubo_documents")
 
-# Get all data
-all_data = collection.get()
+def parse_args():
+    parser = argparse.ArgumentParser(description="Inspect stored vector data")
+    parser.add_argument('--backend', default=None, help='Vector store backend override (faiss|chroma)')
+    parser.add_argument('--collection', default=config.get('collection_name', 'cubo_documents'))
+    parser.add_argument('--db-path', default=None, help='Override Chroma DB path')
+    parser.add_argument('--index-dir', default=None, help='Override FAISS index directory')
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    if args.collection:
+        config.set('collection_name', args.collection)
+    if args.db_path:
+        config.set('chroma_db_path', args.db_path)
+    if args.index_dir:
+        config.set('vector_store_path', args.index_dir)
+
+    store = create_vector_store(
+        backend=args.backend,
+        collection_name=args.collection,
+        index_dir=args.index_dir,
+        db_path=args.db_path
+    )
+
+    all_data = store.get()
 
 print("=" * 80)
-print("CHROMADB CONTENT INSPECTION")
+print("VECTOR STORE CONTENT INSPECTION")
 print("=" * 80)
 
 if not all_data or not all_data.get('documents'):
@@ -46,3 +69,7 @@ else:
 
         if len(chunks) > 3:
             print(f"\n... and {len(chunks) - 3} more chunks")
+
+
+if __name__ == '__main__':
+    main()

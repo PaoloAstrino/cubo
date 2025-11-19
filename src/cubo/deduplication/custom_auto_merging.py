@@ -12,6 +12,7 @@ from sentence_transformers import SentenceTransformer
 
 from src.cubo.utils.logger import logger
 from src.cubo.config import config
+from src.cubo.retrieval.vector_store import create_vector_store
 
 
 class HierarchicalChunker:
@@ -350,10 +351,19 @@ class AutoMergingRetriever:
         self.collection_name = "cubo_auto_merging"
         self.loaded_documents = set()
 
-        # Initialize ChromaDB
-        import chromadb
-        self.client = chromadb.PersistentClient(path=config.get("chroma_db_path", "./chroma_db"))
-        self.collection = self.client.get_or_create_collection(name=self.collection_name)
+        backend = config.get("auto_merge_vector_store_backend", config.get("vector_store_backend", "faiss"))
+        store_kwargs: Dict[str, Any] = {
+            "dimension": int(config.get("auto_merge_index_dimension", config.get("index_dimension", 1536))),
+            "index_dir": config.get("auto_merge_vector_store_path", config.get("vector_store_path"))
+        }
+        if backend == "chroma":
+            store_kwargs["db_path"] = config.get("auto_merge_chroma_db_path", config.get("chroma_db_path", "./chroma_db"))
+
+        self.collection = create_vector_store(
+            backend=backend,
+            collection_name=self.collection_name,
+            **store_kwargs
+        )
 
         logger.info("AutoMergingRetriever initialized")
 
@@ -446,7 +456,7 @@ class AutoMergingRetriever:
         """
         try:
             query_embedding = self._generate_query_embedding(query)
-            results = self._query_chromadb(query_embedding, top_k)
+            results = self._query_store(query_embedding, top_k)
 
             if not results['documents']:
                 return []
@@ -464,8 +474,8 @@ class AutoMergingRetriever:
         embedding = self.model.encode([query])[0]
         return embedding.tolist()
 
-    def _query_chromadb(self, query_embedding: List[float], top_k: int) -> Dict:
-        """Query ChromaDB for results."""
+    def _query_store(self, query_embedding: List[float], top_k: int) -> Dict:
+        """Query the configured vector store for results."""
         return self.collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k * 3  # Get more results for merging
@@ -531,11 +541,7 @@ class AutoMergingRetriever:
     def clear_documents(self):
         """Clear all loaded documents."""
         try:
-            # Delete collection and recreate
-            self.client.delete_collection(self.collection_name)
-            self.collection = self.client.get_or_create_collection(
-                name=self.collection_name
-            )
+            self.collection.reset()
             self.loaded_documents.clear()
             logger.info("Cleared all auto-merging documents")
         except Exception as e:

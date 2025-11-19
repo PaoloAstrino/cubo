@@ -2537,4 +2537,918 @@ vector_store = HotColdVectorStore(dimension=384, hot_ratio=0.1)  # Reduce hot ra
 # Solution: Reduce context window or increase quantization
 llm = LocalLLM(
     model_path=model_path,
-    n_ctx=2048,
+    n_ctx=2048,  # Reduce from 4096
+    n_gpu_layers=35,
+    n_batch=256  # Reduce batch size
+)
+
+# Or use smaller model
+# Switch from Phi-3 3.8B to Gemma-2B
+```
+
+**Issue: BM25 search returns no results**
+```python
+# Solution: Check index and rebuild if corrupted
+from whoosh.index import exists_in, open_dir
+
+if not exists_in('output/indices/bm25_index'):
+    print("BM25 index missing, rebuilding...")
+    ingestor = FastPassIngestor(data_dir, output_dir)
+    bm25_index = ingestor.build_bm25_index()
+```
+
+**Issue: Embeddings dimension mismatch**
+```python
+# Solution: Verify embedding model dimension
+embedder = EmbeddingGenerator()
+print(f"Embedding dimension: {embedder.dimension}")
+
+# If mismatch, rebuild embeddings with correct dimension
+# Or adjust FAISS index dimension to match
+```
+
+**Issue: Deduplication graph too large**
+```python
+# Solution: Increase similarity threshold
+deduplicator = SemanticDeduplicator(similarity_threshold=0.95)  # Instead of 0.92
+
+# Or skip graph building for very large corpora
+# Just use cluster representatives without graph
+```
+
+---
+
+## 20. OPTIMIZATION TIPS
+
+### 20.1 Speed Optimizations
+
+**1. Parallelize Embedding Generation**
+```python
+# Use GPU batch processing if available
+embedder = EmbeddingGenerator()
+embedder.model = embedder.model.to('cuda')  # Move to GPU
+
+# Increase batch size
+embeddings = embedder.embed_batch(texts, batch_size=128)  # Instead of 32
+```
+
+**2. Use Approximate Search**
+```python
+# For HNSW, reduce ef_search for faster queries
+vector_store.hot_index.hnsw.efSearch = 32  # Instead of 64
+# Trade-off: slightly lower recall, much faster
+```
+
+**3. Skip Reranking for Simple Queries**
+```python
+# In router, disable reranking for factual queries
+if query_type == QueryType.FACTUAL:
+    strategy['use_reranker'] = False
+```
+
+**4. Cache Embeddings During Ingestion**
+```python
+# Save embeddings incrementally
+for i, batch in enumerate(chunk_batches):
+    batch_embeddings = embedder.embed_batch(batch)
+    np.save(f'output/embeddings/batch_{i}.npy', batch_embeddings)
+
+# Combine later
+all_embeddings = np.vstack([
+    np.load(f'output/embeddings/batch_{i}.npy')
+    for i in range(n_batches)
+])
+```
+
+### 20.2 Quality Optimizations
+
+**1. Use Better Embedding Model**
+```python
+# Upgrade to mpnet for +20-30% quality
+embedder = EmbeddingGenerator('sentence-transformers/all-mpnet-base-v2')
+# Cost: 2x memory, 1.5x slower
+```
+
+**2. Enable Reranking for All Queries**
+```python
+# Add ColBERT reranker
+from sentence_transformers import CrossEncoder
+reranker = CrossEncoder('colbert-ir/colbertv2.0')
+
+hybrid_retriever = HybridRetriever(
+    bm25, vector_store, embedder, reranker=reranker
+)
+```
+
+**3. Increase Context Window**
+```python
+# Use more context chunks
+context_chunks = assembler.assemble_context(
+    results, 
+    max_chunks=10,  # Instead of 5
+    max_tokens=6000  # Instead of 3000
+)
+```
+
+**4. Multi-Query Generation**
+```python
+def generate_query_variations(query, llm):
+    """Generate multiple query variations for better recall"""
+    prompt = f"""Generate 3 variations of this query:
+    Original: {query}
+    
+    Variations:
+    1."""
+    
+    variations = llm.generate(prompt, max_tokens=200)
+    return [query] + variations.split('\n')[:3]
+
+# Search with all variations
+all_results = []
+for variant in generate_query_variations(query, llm):
+    results = retriever.retrieve(variant, strategy)
+    all_results.extend(results)
+
+# Deduplicate and rerank
+unique_results = deduplicate_results(all_results)
+```
+
+### 20.3 Storage Optimizations
+
+**1. Compress Parquet Files**
+```python
+# Use compression when saving
+chunks_df.to_parquet(
+    'output/chunks_metadata.parquet',
+    compression='zstd',  # Or 'gzip', 'snappy'
+    compression_level=3
+)
+```
+
+**2. Use Memory-Mapped Files**
+```python
+# For large embedding arrays
+embeddings_mmap = np.load(
+    'output/embeddings/chunk_embeddings.npy',
+    mmap_mode='r'  # Read-only memory mapping
+)
+```
+
+**3. Archive Old Data**
+```python
+import shutil
+from datetime import datetime, timedelta
+
+def archive_old_cache(cache_dir, days=7):
+    """Archive cache older than N days"""
+    cutoff = datetime.now() - timedelta(days=days)
+    
+    for file in Path(cache_dir).glob('*.pkl'):
+        if datetime.fromtimestamp(file.stat().st_mtime) < cutoff:
+            archive_path = Path(cache_dir) / 'archive'
+            archive_path.mkdir(exist_ok=True)
+            shutil.move(str(file), str(archive_path / file.name))
+```
+
+---
+
+## 21. TESTING & VALIDATION
+
+### 21.1 Unit Tests
+
+```python
+import unittest
+
+class TestEmbedding(unittest.TestCase):
+    def setUp(self):
+        self.embedder = EmbeddingGenerator()
+    
+    def test_embedding_dimension(self):
+        """Test embedding dimension is correct"""
+        texts = ["test sentence"]
+        embeddings = self.embedder.embed_batch(texts)
+        self.assertEqual(embeddings.shape[1], 384)
+    
+    def test_embedding_normalization(self):
+        """Test embeddings are normalized"""
+        texts = ["test sentence"]
+        embeddings = self.embedder.embed_batch(texts)
+        norm = np.linalg.norm(embeddings[0])
+        self.assertAlmostEqual(norm, 1.0, places=5)
+
+class TestDeduplication(unittest.TestCase):
+    def setUp(self):
+        self.deduplicator = SemanticDeduplicator(similarity_threshold=0.92)
+    
+    def test_identical_chunks_clustered(self):
+        """Test identical chunks are in same cluster"""
+        embeddings = np.array([[1, 0, 0], [1, 0, 0], [0, 1, 0]])
+        chunk_ids = ['chunk1', 'chunk2', 'chunk3']
+        
+        graph = self.deduplicator.build_similarity_graph(embeddings, chunk_ids)
+        clusters, mapping = self.deduplicator.find_clusters()
+        
+        # chunk1 and chunk2 should be in same cluster
+        self.assertEqual(mapping['chunk1'], mapping['chunk2'])
+        self.assertNotEqual(mapping['chunk1'], mapping['chunk3'])
+
+class TestVectorStore(unittest.TestCase):
+    def setUp(self):
+        self.store = HotColdVectorStore(dimension=384)
+    
+    def test_search_returns_results(self):
+        """Test vector search returns results"""
+        # Create dummy data
+        embeddings = np.random.randn(1000, 384).astype('float32')
+        chunk_ids = [f'chunk_{i}' for i in range(1000)]
+        
+        self.store.build_indices(embeddings, chunk_ids)
+        
+        # Search
+        query = np.random.randn(384).astype('float32')
+        results = self.store.search(query, k=10)
+        
+        self.assertEqual(len(results), 10)
+
+# Run tests
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### 21.2 Integration Tests
+
+```python
+def test_end_to_end_pipeline():
+    """Test complete pipeline with small dataset"""
+    print("Running end-to-end integration test...")
+    
+    # 1. Create test data
+    test_dir = Path('test_data')
+    test_dir.mkdir(exist_ok=True)
+    
+    (test_dir / 'doc1.txt').write_text("Machine learning is a subset of AI.")
+    (test_dir / 'doc2.txt').write_text("Deep learning uses neural networks.")
+    
+    # 2. Run fast pass
+    ingestor = FastPassIngestor(str(test_dir), 'test_output')
+    metadata = ingestor.scan_directory()
+    assert len(metadata) == 2, "Should find 2 files"
+    
+    bm25_index = ingestor.build_bm25_index()
+    
+    # 3. Run deep processing
+    deep = DeepIngestor(pd.DataFrame(metadata), 'test_output')
+    chunks = deep.process_all(n_workers=1)
+    assert len(chunks) > 0, "Should extract chunks"
+    
+    # 4. Generate embeddings
+    embedder = EmbeddingGenerator()
+    chunks_df = pd.DataFrame(chunks)
+    embeddings = embedder.embed_chunks(chunks_df)
+    assert embeddings.shape[1] == 384, "Embeddings should be 384-dim"
+    
+    # 5. Build index
+    vector_store = HotColdVectorStore(dimension=384)
+    chunk_ids = chunks_df['chunk_id'].tolist()
+    vector_store.build_indices(embeddings, chunk_ids)
+    
+    # 6. Query
+    bm25 = BM25Searcher('test_output/bm25_index')
+    retriever = HybridRetriever(bm25, vector_store, embedder)
+    router = SemanticRouter(embedder)
+    
+    query = "What is machine learning?"
+    strategy = router.route_query(query)
+    results = retriever.retrieve(query, strategy)
+    
+    assert len(results) > 0, "Should return results"
+    
+    print("✓ End-to-end test passed!")
+    
+    # Cleanup
+    shutil.rmtree('test_data')
+    shutil.rmtree('test_output')
+
+# Run integration test
+test_end_to_end_pipeline()
+```
+
+### 21.3 Benchmark Suite
+
+```python
+def benchmark_retrieval(retriever, queries, n_runs=10):
+    """Benchmark retrieval performance"""
+    import time
+    
+    latencies = []
+    
+    for query in queries:
+        durations = []
+        for _ in range(n_runs):
+            start = time.time()
+            results = retriever.retrieve(query, router.route_query(query))
+            duration = time.time() - start
+            durations.append(duration * 1000)  # Convert to ms
+        
+        latencies.extend(durations)
+    
+    return {
+        'mean_ms': np.mean(latencies),
+        'p50_ms': np.percentile(latencies, 50),
+        'p95_ms': np.percentile(latencies, 95),
+        'p99_ms': np.percentile(latencies, 99)
+    }
+
+# Test queries
+test_queries = [
+    "What is machine learning?",
+    "Explain neural networks",
+    "Compare supervised and unsupervised learning",
+    "Recent advances in NLP",
+    "How does backpropagation work?"
+]
+
+# Run benchmark
+results = benchmark_retrieval(hybrid_retriever, test_queries)
+print(f"Mean latency: {results['mean_ms']:.1f}ms")
+print(f"p95 latency: {results['p95_ms']:.1f}ms")
+print(f"p99 latency: {results['p99_ms']:.1f}ms")
+```
+
+---
+
+## 22. PRODUCTION DEPLOYMENT
+
+### 22.1 REST API Wrapper
+
+```python
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+# Initialize system (load once at startup)
+config = Config('config.yaml')
+embedder = EmbeddingGenerator(config.get('embedding.model_name'))
+vector_store = HotColdVectorStore(dimension=config.get('embedding.dimension'))
+vector_store.load(Path(config.get('system.output_dir')) / 'indices')
+
+bm25 = BM25Searcher(Path(config.get('system.output_dir')) / 'indices/bm25_index')
+llm = LocalLLM(config.get('llm.model_path'))
+
+router = SemanticRouter(embedder)
+retriever = HybridRetriever(bm25, vector_store, embedder)
+cache = SemanticCache(embedder)
+
+chunks_df = pd.read_parquet(
+    Path(config.get('system.output_dir')) / 'metadata/chunks_metadata.parquet'
+)
+assembler = ContextAssembler(chunks_df, {})
+generator = ResponseGenerator(llm, assembler)
+
+monitor = PerformanceMonitor()
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'version': '1.0',
+        'timestamp': datetime.now().isoformat()
+    })
+
+@app.route('/query', methods=['POST'])
+def query():
+    """Query endpoint"""
+    try:
+        data = request.get_json()
+        query_text = data.get('query')
+        
+        if not query_text:
+            return jsonify({'error': 'Query text required'}), 400
+        
+        # Process query
+        start_time = time.time()
+        
+        # Check cache
+        cached = cache.get(query_text)
+        cache_hit = cached is not None
+        
+        if cached:
+            results = cached
+        else:
+            strategy = router.route_query(query_text)
+            results = retriever.retrieve(query_text, strategy)
+            cache.set(query_text, results)
+        
+        # Generate response
+        response = generator.generate_response(query_text, results)
+        
+        duration = time.time() - start_time
+        
+        # Track metrics
+        monitor.track_retrieval(query_text, len(results), duration, cache_hit)
+        
+        return jsonify({
+            'query': query_text,
+            'answer': response['response'],
+            'sources': response['sources'],
+            'metadata': {
+                'duration_ms': duration * 1000,
+                'cache_hit': cache_hit,
+                'n_sources': len(response['sources'])
+            }
+        })
+    
+    except Exception as e:
+        logging.error(f"Query error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/stats', methods=['GET'])
+def get_stats():
+    """Get system statistics"""
+    summary = monitor.get_summary()
+    sys_stats = get_system_stats()
+    
+    return jsonify({
+        'performance': summary,
+        'system': sys_stats,
+        'index_size': {
+            'hot': len(vector_store.hot_ids),
+            'cold': len(vector_store.cold_ids)
+        }
+    })
+
+@app.route('/search', methods=['POST'])
+def search_only():
+    """Search without generation (faster)"""
+    try:
+        data = request.get_json()
+        query_text = data.get('query')
+        k = data.get('k', 10)
+        
+        strategy = router.route_query(query_text)
+        results = retriever.retrieve(query_text, strategy)
+        
+        return jsonify({
+            'query': query_text,
+            'results': results[:k]
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False)
+```
+
+**Usage:**
+```bash
+# Start API server
+python api.py
+
+# Query via curl
+curl -X POST http://localhost:5000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?"}'
+```
+
+### 22.2 Docker Deployment
+
+**Dockerfile:**
+```dockerfile
+FROM nvidia/cuda:11.8.0-base-ubuntu22.04
+
+# Install Python
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Download models (do this during build to cache)
+RUN python3 setup.py
+
+# Expose API port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
+
+# Run API
+CMD ["python3", "api.py"]
+```
+
+**docker-compose.yml:**
+```yaml
+version: '3.8'
+
+services:
+  rag-api:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./output:/app/output
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+```
+
+**Build and run:**
+```bash
+# Build image
+docker build -t rag-local:1.0 .
+
+# Run with docker-compose
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+---
+
+## 23. MAINTENANCE & UPDATES
+
+### 23.1 Incremental Updates
+
+```python
+def incremental_ingestion(new_files_dir, existing_system_path):
+    """Add new files to existing system"""
+    
+    # 1. Load existing indices
+    vector_store = HotColdVectorStore(dimension=384)
+    vector_store.load(f"{existing_system_path}/indices")
+    
+    bm25 = BM25Searcher(f"{existing_system_path}/indices/bm25_index")
+    
+    # 2. Process new files
+    ingestor = FastPassIngestor(new_files_dir, existing_system_path)
+    new_metadata = ingestor.scan_directory()
+    
+    # 3. Check for duplicates
+    existing_metadata = pd.read_parquet(f"{existing_system_path}/metadata/files_metadata.parquet")
+    new_files = [m for m in new_metadata if m['path'] not in existing_metadata['path'].values]
+    
+    if not new_files:
+        print("No new files to add")
+        return
+    
+    # 4. Process new chunks
+    deep = DeepIngestor(pd.DataFrame(new_files), existing_system_path)
+    new_chunks = deep.process_all()
+    
+    # 5. Generate embeddings
+    embedder = EmbeddingGenerator()
+    new_embeddings = embedder.embed_chunks(pd.DataFrame(new_chunks))
+    
+    # 6. Add to indices
+    new_chunk_ids = [c['chunk_id'] for c in new_chunks]
+    vector_store.add_to_cold(new_embeddings, new_chunk_ids)
+    
+    # 7. Update BM25 (requires rebuild or append)
+    # Simplified: rebuild entire BM25 index
+    # Production: use incremental update if supported
+    
+    # 8. Save updated system
+    vector_store.save(f"{existing_system_path}/indices")
+    
+    # Append metadata
+    updated_metadata = pd.concat([existing_metadata, pd.DataFrame(new_files)])
+    updated_metadata.to_parquet(f"{existing_system_path}/metadata/files_metadata.parquet")
+    
+    print(f"Added {len(new_files)} new files, {len(new_chunks)} new chunks")
+    
+    # 9. Invalidate cache
+    cache.invalidate_all()
+```
+
+### 23.2 Index Optimization
+
+```python
+def optimize_indices(system_path, access_logs_path):
+    """Optimize hot/cold split based on access patterns"""
+    
+    # 1. Load access logs
+    with open(access_logs_path) as f:
+        access_logs = json.load(f)
+    
+    # Count accesses per chunk
+    access_counts = {}
+    for log in access_logs:
+        for source in log.get('sources', []):
+            chunk_id = source['chunk_id']
+            access_counts[chunk_id] = access_counts.get(chunk_id, 0) + 1
+    
+    # 2. Rebuild indices with new hot/cold split
+    vector_store = HotColdVectorStore(dimension=384, hot_ratio=0.2)
+    
+    embeddings = np.load(f"{system_path}/embeddings/chunk_embeddings.npy")
+    chunks_df = pd.read_parquet(f"{system_path}/metadata/chunks_metadata.parquet")
+    chunk_ids = chunks_df['chunk_id'].tolist()
+    
+    vector_store.build_indices(embeddings, chunk_ids, access_history=access_counts)
+    vector_store.save(f"{system_path}/indices")
+    
+    print("Indices optimized based on access patterns")
+```
+
+### 23.3 Backup Strategy
+
+```python
+import shutil
+from datetime import datetime
+
+def backup_system(system_path, backup_dir):
+    """Create full system backup"""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_path = Path(backup_dir) / f"backup_{timestamp}"
+    
+    # Copy critical components
+    components = ['metadata', 'indices', 'deduplication', 'embeddings']
+    
+    for component in components:
+        src = Path(system_path) / component
+        dst = backup_path / component
+        if src.exists():
+            shutil.copytree(src, dst)
+    
+    # Create backup manifest
+    manifest = {
+        'timestamp': timestamp,
+        'system_path': str(system_path),
+        'components': components,
+        'size_gb': sum(
+            sum(f.stat().st_size for f in p.rglob('*') if f.is_file())
+            for p in [backup_path / c for c in components]
+        ) / (1024**3)
+    }
+    
+    with open(backup_path / 'manifest.json', 'w') as f:
+        json.dump(manifest, f, indent=2)
+    
+    print(f"Backup created: {backup_path}")
+    print(f"Size: {manifest['size_gb']:.2f} GB")
+    
+    return backup_path
+
+def restore_system(backup_path, system_path):
+    """Restore system from backup"""
+    manifest_path = Path(backup_path) / 'manifest.json'
+    
+    if not manifest_path.exists():
+        raise ValueError("Invalid backup: manifest.json not found")
+    
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    
+    # Restore components
+    for component in manifest['components']:
+        src = Path(backup_path) / component
+        dst = Path(system_path) / component
+        
+        if dst.exists():
+            shutil.rmtree(dst)
+        
+        shutil.copytree(src, dst)
+    
+    print(f"System restored from backup: {backup_path}")
+
+# Usage
+backup_path = backup_system('output', 'backups')
+# restore_system(backup_path, 'output')
+```
+
+---
+
+## 24. FINAL CHECKLIST
+
+### 24.1 Pre-Production Checklist
+
+- [ ] All models downloaded and verified
+- [ ] Directory structure created
+- [ ] Configuration file customized
+- [ ] Test data ingestion successful
+- [ ] Embedding generation working
+- [ ] Vector indices built and tested
+- [ ] Query pipeline functional
+- [ ] Performance meets targets (p95 < 800ms)
+- [ ] Memory usage within limits (<28GB)
+- [ ] Unit tests passing
+- [ ] Integration tests passing
+- [ ] Backup strategy implemented
+- [ ] Monitoring setup
+- [ ] API deployed (if applicable)
+- [ ] Documentation updated
+
+### 24.2 Performance Targets Verification
+
+```python
+def verify_system_performance(system_path):
+    """Verify system meets performance targets"""
+    checks = {
+        'Fast Pass < 3min': False,
+        'Query p50 < 200ms': False,
+        'Query p95 < 800ms': False,
+        'Recall@10 > 90%': False,
+        'Memory < 28GB': False,
+        'Compression > 8x': False
+    }
+    
+    # Load performance logs
+    monitor = PerformanceMonitor()
+    monitor.metrics = json.load(open(f"{system_path}/logs/metrics.json"))
+    
+    summary = monitor.get_summary()
+    
+    # Check targets
+    if summary.get('retrieval'):
+        checks['Query p50 < 200ms'] = summary['retrieval']['p50_ms'] < 200
+        checks['Query p95 < 800ms'] = summary['retrieval']['p95_ms'] < 800
+    
+    sys_stats = get_system_stats()
+    checks['Memory < 28GB'] = sys_stats['ram_used_gb'] < 28
+    
+    # Check compression
+    scaffold_df = pd.read_parquet(f"{system_path}/metadata/scaffold_metadata.parquet")
+    avg_compression = scaffold_df['compression_ratio'].mean()
+    checks['Compression > 8x'] = avg_compression > 8
+    
+    # Print results
+    print("\n=== Performance Verification ===")
+    for check, passed in checks.items():
+        symbol = "✓" if passed else "✗"
+        print(f"{symbol} {check}")
+    
+    all_passed = all(checks.values())
+    if all_passed:
+        print("\n✓ All performance targets met!")
+    else:
+        print("\n✗ Some targets not met. Review configuration.")
+    
+    return all_passed
+
+# Run verification
+verify_system_performance('output')
+```
+
+---
+
+## 25. ADDITIONAL RESOURCES
+
+### 25.1 Recommended Reading
+
+- **FAISS Documentation**: https://github.com/facebookresearch/faiss/wiki
+- **Sentence-Transformers**: https://www.sbert.net/
+- **llama.cpp**: https://github.com/ggerganov/llama.cpp
+- **Whoosh**: https://whoosh.readthedocs.io/
+- **RAG Papers**: 
+  - "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks" (Lewis et al., 2020)
+  - "Dense Passage Retrieval for Open-Domain Question Answering" (Karpukhin et al., 2020)
+
+### 25.2 Community & Support
+
+- **Issues**: Open GitHub issues for bugs or feature requests
+- **Discussions**: Join community forums for questions
+- **Updates**: Check for model updates monthly
+
+### 25.3 Future Enhancements
+
+**Planned features:**
+1. Multi-modal support (images, audio)
+2. Real-time collaborative filtering
+3. Federated learning for privacy
+4. Graph-based reasoning
+5. Automated hyperparameter tuning
+
+---
+
+## APPENDIX A: Complete Requirements.txt
+
+```txt
+# Core Dependencies
+python>=3.10,<3.12
+
+# LLM Inference
+llama-cpp-python==0.2.56
+
+# Embeddings & Transformers
+sentence-transformers==2.2.2
+transformers==4.36.0
+torch==2.1.0
+
+# Vector Search
+faiss-cpu==1.7.4
+hnswlib==0.7.0
+
+# Sparse Search
+whoosh==2.7.4
+
+# Document Processing
+PyPDF2==3.0.1
+pdfplumber==0.10.3
+python-docx==1.1.0
+openpyxl==3.1.2
+pandas==2.1.4
+tabula-py==2.8.2
+camelot-py[cv]==0.11.0
+
+# OCR (Optional)
+pytesseract==0.3.10
+easyocr==1.7.0
+
+# Clustering & ML
+scikit-learn==1.3.2
+hdbscan==0.8.33
+networkx==3.2.1
+datasketch==1.6.4
+
+# Storage
+pyarrow==14.0.1
+
+# Utilities
+tqdm==4.66.1
+python-dotenv==1.0.0
+pyyaml==6.0.1
+rapidfuzz==3.5.2
+dateparser==1.2.0
+psutil==5.9.6
+
+# API (Optional)
+flask==3.0.0
+flask-cors==4.0.0
+
+# Testing
+pytest==7.4.3
+```
+
+---
+
+## APPENDIX B: Quick Start Commands
+
+```bash
+# 1. Setup environment
+conda create -n rag_local python=3.10
+conda activate rag_local
+pip install -r requirements.txt
+
+# 2. Download models
+wget https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf -P models/
+
+# 3. Initialize system
+python setup.py
+
+# 4. Configure
+cp config.yaml.example config.yaml
+# Edit config.yaml with your paths
+
+# 5. Run ingestion
+python main.py
+
+# 6. Start querying
+python query.py
+
+# 7. (Optional) Start API
+python api.py
+```
+
+---
+
+**END OF DOCUMENT**
+
+**Total System Complexity**: Production-Ready  
+**Estimated Build Time**: 2-3 days for 100GB corpus  
+**Maintenance Effort**: Low (monthly index optimization recommended)  
+**Scalability**: Up to 500GB with minor adjustments
+
+---
+
+**Document Version**: 1.0  
+**Last Updated**: 2024  
+**Author**: RAG System Design Team  
+**License**: MIT

@@ -30,11 +30,16 @@ class VectorStore:
     def load(self, path: Optional[Path] = None) -> None:
         pass
 
+    def reset(self) -> None:
+        raise NotImplementedError()
+
 
 class FaissStore(VectorStore):
     def __init__(self, dimension: int, index_dir: Optional[Path] = None):
+        self.dimension = dimension
+        self.index_dir = Path(index_dir) if index_dir else Path(config.get('vector_store_path', './faiss_store'))
         from src.cubo.indexing.faiss_index import FAISSIndexManager
-        self._index = FAISSIndexManager(dimension, index_dir=index_dir)
+        self._index = FAISSIndexManager(dimension, index_dir=self.index_dir)
         # local maps: id -> text/metadata
         self._docs: Dict[str, str] = {}
         self._metas: Dict[str, Dict] = {}
@@ -42,8 +47,8 @@ class FaissStore(VectorStore):
         self._access_counts: Dict[str, int] = {}
         # Configure hot fraction from config
         from src.cubo.config import config as _config
-        hot_fraction = float(_config.get('vector_index.hot_ratio', 0.2))
-        self._index.hot_fraction = hot_fraction
+        self.hot_fraction = float(_config.get('vector_index.hot_ratio', 0.2))
+        self._index.hot_fraction = self.hot_fraction
 
     def add(self, embeddings=None, documents=None, metadatas=None, ids=None):
         # Persist to FAISS and store metadata locally
@@ -133,17 +138,24 @@ class FaissStore(VectorStore):
     def load(self, path: Optional[Path] = None) -> None:
         self._index.load(path)
 
+    def reset(self) -> None:
+        from src.cubo.indexing.faiss_index import FAISSIndexManager
+        self._index = FAISSIndexManager(self.dimension, index_dir=self.index_dir)
+        self._index.hot_fraction = self.hot_fraction
+        self._docs.clear()
+        self._metas.clear()
+        self._embeddings.clear()
+        self._access_counts.clear()
+
 
 class ChromaStore(VectorStore):
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str = None, collection_name: Optional[str] = None):
         import chromadb
-        from chromadb.config import Settings
         p = db_path or config.get('chroma_db_path', './chroma_db')
         self.client = chromadb.PersistentClient(path=p)
-        # create/get collection
-        name = config.get('collection_name', 'cubo_documents')
+        self.collection_name = collection_name or config.get('collection_name', 'cubo_documents')
         try:
-            self.collection = self.client.get_or_create_collection(name=name)
+            self.collection = self.client.get_or_create_collection(name=self.collection_name)
         except Exception:
             # fallback to in-memory collection
             self.collection = None
@@ -167,15 +179,25 @@ class ChromaStore(VectorStore):
             return self.collection.query(query_embeddings=query_embeddings, n_results=n_results, include=include, where=where)
         return {"documents": [[]], "metadatas": [[]], "distances": [[]], "ids": [[]]}
 
+    def reset(self) -> None:
+        if not self.client:
+            return
+        try:
+            self.client.delete_collection(self.collection_name)
+        except Exception:
+            pass
+        self.collection = self.client.get_or_create_collection(name=self.collection_name)
 
-def create_vector_store(backend: str = None, **kwargs) -> VectorStore:
+
+def create_vector_store(backend: str = None, collection_name: Optional[str] = None, **kwargs) -> VectorStore:
     backend = backend or config.get('vector_store_backend', 'faiss')
     if backend == 'faiss':
         dimension = kwargs.get('dimension', 1536)
-        index_dir = Path(kwargs.get('index_dir', config.get('vector_store_path')))
+        index_dir_arg = kwargs.get('index_dir', config.get('vector_store_path'))
+        index_dir = Path(index_dir_arg) if index_dir_arg else None
         return FaissStore(dimension, index_dir=index_dir)
     elif backend == 'chroma':
         db_path = kwargs.get('db_path', config.get('chroma_db_path', './chroma_db'))
-        return ChromaStore(db_path)
+        return ChromaStore(db_path, collection_name=collection_name)
     else:
         raise ValueError(f"Unknown vector store backend: {backend}")

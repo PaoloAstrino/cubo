@@ -28,6 +28,9 @@ def main():
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
+    if args.collection:
+        config.set('collection_name', args.collection)
+
     df = pd.read_parquet(Path(args.parquet))
     texts = df['text'].tolist()
     chunk_ids = df['chunk_id'].tolist()
@@ -54,14 +57,12 @@ def main():
             logger.warning(f"Wipe failed or path not found {db_path}: {e}")
 
     if args.replace_collection:
-        try:
-            retriever.client.delete_collection(args.collection)
-            logger.info(f"Deleted collection {args.collection} to replace it")
-        except Exception:
-            # ignore if delete fails (collection not present)
-            pass
-
-    retriever.collection = retriever.client.get_or_create_collection(args.collection)
+        reset_fn = getattr(retriever.collection, 'reset', None)
+        if callable(reset_fn):
+            reset_fn()
+            logger.info(f"Reset vector store collection {args.collection}")
+        else:
+            logger.warning("Vector store does not support reset(); manual cleanup may be required")
 
     # Generate embeddings
     logger.info(f"Generating embeddings for {len(texts)} items with batch size {args.batch_size}")

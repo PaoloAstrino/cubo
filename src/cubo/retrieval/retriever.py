@@ -32,6 +32,7 @@ from src.cubo.rerank.reranker import LocalReranker
 from src.cubo.retrieval.bm25_searcher import BM25Searcher
 from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from src.cubo.retrieval.cache import SemanticCache
 from src.cubo.retrieval.fusion import rrf_fuse
 
 
@@ -93,7 +94,12 @@ class DocumentRetriever:
         backend = config.get('vector_store_backend', 'faiss')
         try:
             try:
-                self.collection = create_vector_store(backend=backend, dimension=int(config.get('index_dimension', 1536)), index_dir=config.get('vector_store_path'))
+                self.collection = create_vector_store(
+                    backend=backend,
+                    dimension=int(config.get('index_dimension', 1536)),
+                    index_dir=config.get('vector_store_path'),
+                    collection_name=config.get('collection_name', 'cubo_documents')
+                )
                 return
             except Exception as e:
                 logger.warning(f"Vector store initialization failed for backend {backend}: {e}. Falling back to in-memory collection.")
@@ -151,6 +157,9 @@ class DocumentRetriever:
                 dists = [1.0 - sim for _, sim in top]
                 return {"documents": [docs], "metadatas": [metas], "distances": [dists], "ids": [[self._docs[idx][0] for idx, _ in top]]}
 
+            def reset(self):
+                self._docs.clear()
+
         self.collection = _InMemoryCollection()
 
     def _setup_caching(self) -> None:
@@ -159,6 +168,19 @@ class DocumentRetriever:
         self.query_cache = {}
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
         self._load_cache()
+        self.semantic_cache = None
+        cache_enabled = config.get('retrieval.semantic_cache.enabled', False)
+        if cache_enabled:
+            cache_path = config.get('retrieval.semantic_cache.path', os.path.join(config.get("cache_dir", "./cache"), "semantic_cache.json"))
+            ttl = int(config.get('retrieval.semantic_cache.ttl', 600))
+            threshold = float(config.get('retrieval.semantic_cache.threshold', 0.93))
+            max_entries = int(config.get('retrieval.semantic_cache.max_entries', 512))
+            self.semantic_cache = SemanticCache(
+                ttl_seconds=ttl,
+                similarity_threshold=threshold,
+                max_entries=max_entries,
+                cache_path=cache_path
+            )
         
         # BM25 searcher initialization
         bm25_stats_path = config.get("bm25_stats_path", "data/bm25_stats.json")
@@ -849,8 +871,17 @@ class DocumentRetriever:
             DatabaseError: If database query fails
         """
         try:
+            if self.semantic_cache:
+                cached = self.semantic_cache.lookup(query_embedding)
+                if cached:
+                    logger.info("Semantic cache hit; skipping vector query")
+                    return cached
+
             results = self._execute_collection_query(query_embedding, initial_top_k)
-            return self._process_query_results(results, query)
+            processed = self._process_query_results(results, query)
+            if self.semantic_cache and processed:
+                self.semantic_cache.add(query, query_embedding, processed)
+            return processed
         except Exception as e:
             error_msg = f"Failed to query document collection: {str(e)}"
             logger.error(error_msg)
