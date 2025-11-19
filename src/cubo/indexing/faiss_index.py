@@ -12,6 +12,9 @@ import datetime
 
 from src.cubo.utils.logger import logger
 from src.cubo.storage.metadata_manager import get_metadata_manager
+from src.cubo.indexing.index_publisher import get_current_index_dir
+import os
+import tempfile
 
 
 class FAISSIndexManager:
@@ -21,6 +24,7 @@ class FAISSIndexManager:
         self,
         dimension: int,
         index_dir: Optional[Path] = None,
+        index_root: Optional[Path] = None,
         nlist: int = 32,
         m: int = 8,  # Number of sub-quantizers for PQ
         hnsw_m: int = 16,
@@ -31,6 +35,7 @@ class FAISSIndexManager:
     ):
         self.dimension = dimension
         self.index_dir = Path(index_dir or Path.cwd() / "faiss_index")
+        self.index_root = Path(index_root) if index_root is not None else None
         self.nlist = nlist
         self.m = m
         self.hnsw_m = hnsw_m
@@ -164,10 +169,18 @@ class FAISSIndexManager:
     def save(self, path: Optional[Path] = None) -> None:
         save_dir = path or self.index_dir
         save_dir.mkdir(parents=True, exist_ok=True)
+        # Write index files to temporary paths and atomically replace to avoid readers seeing partial files
         if self.hot_index:
-            faiss.write_index(self.hot_index, str(save_dir / 'hot.index'))
+            tmp_hot = save_dir / 'hot.index.tmp'
+            final_hot = save_dir / 'hot.index'
+            faiss.write_index(self.hot_index, str(tmp_hot))
+            # Ensure data is flushed to disk and then atomically replace
+            os.replace(str(tmp_hot), str(final_hot))
         if self.cold_index:
-            faiss.write_index(self.cold_index, str(save_dir / 'cold.index'))
+            tmp_cold = save_dir / 'cold.index.tmp'
+            final_cold = save_dir / 'cold.index'
+            faiss.write_index(self.cold_index, str(tmp_cold))
+            os.replace(str(tmp_cold), str(final_cold))
         metadata = {
             'dimension': self.dimension,
             'hot_ids': self.hot_ids,
@@ -180,19 +193,29 @@ class FAISSIndexManager:
             'opq_m': self.opq_m
         }
         metadata_path = save_dir / 'metadata.json'
-        with open(metadata_path, 'w', encoding='utf-8') as fh:
+        tmp_meta = save_dir / 'metadata.json.tmp'
+        with open(tmp_meta, 'w', encoding='utf-8') as fh:
             json.dump(metadata, fh, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(str(tmp_meta), str(metadata_path))
         logger.info(f"Saved FAISS indexes and metadata to {save_dir}")
-        # Record index version in metadata DB
-        try:
-            manager = get_metadata_manager()
-            version_id = f"faiss_{int(datetime.datetime.utcnow().timestamp())}"
-            manager.record_index_version(version_id, str(save_dir))
-        except Exception:
-            logger.warning("Failed to record FAISS index version in metadata DB")
+        # NOTE: Writing to the metadata DB should be done by an index publisher which
+        # verifies the written artifacts and atomically flips a pointer file. We do not
+        # record the index version here to avoid races with pointer flips.
 
     def load(self, path: Optional[Path] = None) -> None:
-        load_dir = path or self.index_dir
+        # If a root is configured check for a pointer file; allow explicit path to override
+        if path is not None:
+            load_dir = path
+        elif self.index_root is not None:
+            published = get_current_index_dir(self.index_root)
+            if published:
+                load_dir = published
+            else:
+                load_dir = self.index_dir
+        else:
+            load_dir = self.index_dir
         metadata_path = load_dir / 'metadata.json'
         if not metadata_path.exists():
             raise FileNotFoundError("FAISS metadata not found; run build before load")

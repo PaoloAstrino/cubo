@@ -5,6 +5,7 @@ from colorama import Fore, Style
 from src.cubo.config import config
 from src.cubo.utils.logger import logger
 from src.cubo.services.service_manager import get_service_manager
+from typing import Callable
 
 
 class ResponseGenerator:
@@ -71,3 +72,21 @@ class ResponseGenerator:
         duration = time.time() - start_time
         print(Fore.GREEN + f"Response generated in {duration:.2f} seconds." + Style.RESET_ALL)
         logger.info("Response generated successfully")
+
+
+def create_response_generator() -> ResponseGenerator:
+    """Factory that selects an LLM provider based on configuration.
+
+    Returns:
+        An instance implementing the same interface as ResponseGenerator
+    """
+    provider = config.get('llm.provider', 'ollama')
+    if provider == 'local':
+        try:
+            from src.cubo.processing.llm_local import LocalResponseGenerator
+            return LocalResponseGenerator(config.get('local_llama_model_path', None))
+        except Exception:
+            logger.warning("Failed to initialize LocalResponseGenerator; falling back to default ResponseGenerator")
+            return ResponseGenerator()
+    else:
+        return ResponseGenerator()

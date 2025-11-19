@@ -9,9 +9,11 @@ import pandas as pd
 from src.cubo.config import config
 from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
 from src.cubo.indexing.faiss_index import FAISSIndexManager
+from src.cubo.indexing.index_publisher import publish_version
+import time
 from src.cubo.utils.logger import logger
 from src.cubo.processing.enrichment import ChunkEnricher
-from src.cubo.processing.generator import ResponseGenerator
+from src.cubo.processing.generator import create_response_generator
 from src.cubo.processing.scaffold import ScaffoldGenerator
 
 
@@ -22,6 +24,10 @@ def parse_args():
     parser.add_argument('--summary-column', default=None, help='Optional column to embed summaries instead of chunks')
     parser.add_argument('--id-column', default='chunk_id', help='Column containing chunk ids')
     parser.add_argument('--index-dir', default=config.get('faiss_index_dir', 'faiss_index'))
+    parser.add_argument('--publish', action='store_true', help='Publish the index version by flipping pointer and updating metadata DB')
+    parser.add_argument('--cleanup', action='store_true', help='Cleanup old index versions according to retention policy')
+    parser.add_argument('--retention', type=int, default=3, help='Number of index versions to keep when --cleanup is enabled')
+    parser.add_argument('--index-root', default=config.get('faiss_index_root', None), help='Root dir where versioned faiss_v* dirs are stored')
     parser.add_argument('--batch-size', type=int, default=config.get('embedding_batch_size', 32))
     parser.add_argument('--hot-fraction', type=float, default=0.25)
     parser.add_argument('--nlist', type=int, default=64)
@@ -68,7 +74,7 @@ def main():
         enricher = None
         if args.enrich_chunks or not args.summary_column:
             logger.info("Creating enricher for scaffold summaries...")
-            enricher = ChunkEnricher(llm_provider=ResponseGenerator())
+            enricher = ChunkEnricher(llm_provider=create_response_generator())
         
         scaffold_gen = ScaffoldGenerator(
             enricher=enricher,
@@ -118,7 +124,18 @@ def main():
         logger.info(f"Scaffold sample search returned {len(hits)} hits")
         
         if not args.dry_run:
-            manager.save()
+                if args.index_root:
+                    ts = int(time.time())
+                    version_dir = Path(args.index_root) / f"faiss_v{ts}"
+                    manager.save(path=version_dir)
+                    if args.publish:
+                        publish_version(version_dir, Path(args.index_root))
+                        logger.info(f"Published version {version_dir}")
+                    if args.cleanup:
+                        from src.cubo.indexing.index_publisher import cleanup
+                        cleanup(Path(args.index_root), keep_last_n=args.retention)
+                else:
+                    manager.save()
             logger.info(f"Scaffold FAISS index saved to {Path(args.scaffold_dir) / 'faiss'}")
         else:
             logger.info("Dry-run enabled; scaffold FAISS index was not saved")
@@ -127,7 +144,7 @@ def main():
 
     if args.enrich_chunks:
         logger.info("Enriching chunks...")
-        enricher = ChunkEnricher(llm_provider=ResponseGenerator())
+        enricher = ChunkEnricher(llm_provider=create_response_generator())
         enriched_data = enricher.enrich_chunks(df[args.text_column].tolist())
         enriched_df = pd.DataFrame(enriched_data)
         

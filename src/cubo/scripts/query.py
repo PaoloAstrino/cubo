@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.cubo.retrieval.retriever import HybridRetriever
-from src.cubo.processing.generator import ResponseGenerator
+from src.cubo.processing.generator import create_response_generator
 from src.cubo.retrieval.bm25_searcher import BM25Searcher
 from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
@@ -27,11 +27,12 @@ def main():
     chunks_jsonl = config.get('chunks_jsonl_path', 'data/chunks.jsonl')
     bm25_stats = config.get('bm25_stats_path', 'data/bm25_stats.json')
     faiss_index_dir = config.get('faiss_index_dir', 'faiss_index')
+    faiss_index_root = config.get('faiss_index_root', None)
     
     bm25_searcher = BM25Searcher(chunks_jsonl=chunks_jsonl, bm25_stats=bm25_stats)
     
     embedding_generator = EmbeddingGenerator()
-    faiss_manager = FAISSIndexManager(dimension=0, index_dir=Path(faiss_index_dir))
+    faiss_manager = FAISSIndexManager(dimension=0, index_dir=Path(faiss_index_dir), index_root=Path(faiss_index_root) if faiss_index_root else None)
     faiss_manager.load()
 
     hybrid_retriever = HybridRetriever(
@@ -41,7 +42,7 @@ def main():
         documents=bm25_searcher.docs,
     )
 
-    response_generator = ResponseGenerator()
+    response_generator = create_response_generator()
 
     # 2. Retrieve documents
     logger.info(f"Retrieving documents for query: '{args.query}'")

@@ -32,14 +32,18 @@ class VectorStore:
 
     def reset(self) -> None:
         raise NotImplementedError()
+    def delete(self, ids=None) -> None:
+        """Delete ids from the store if supported. Default: NotImplemented."""
+        raise NotImplementedError()
 
 
 class FaissStore(VectorStore):
-    def __init__(self, dimension: int, index_dir: Optional[Path] = None):
+    def __init__(self, dimension: int, index_dir: Optional[Path] = None, index_root: Optional[Path] = None):
         self.dimension = dimension
         self.index_dir = Path(index_dir) if index_dir else Path(config.get('vector_store_path', './faiss_store'))
         from src.cubo.indexing.faiss_index import FAISSIndexManager
-        self._index = FAISSIndexManager(dimension, index_dir=self.index_dir)
+        self._index = FAISSIndexManager(dimension, index_dir=self.index_dir, index_root=index_root)
+        self.index_root = index_root
         # local maps: id -> text/metadata
         self._docs: Dict[str, str] = {}
         self._metas: Dict[str, Dict] = {}
@@ -140,12 +144,33 @@ class FaissStore(VectorStore):
 
     def reset(self) -> None:
         from src.cubo.indexing.faiss_index import FAISSIndexManager
-        self._index = FAISSIndexManager(self.dimension, index_dir=self.index_dir)
+        self._index = FAISSIndexManager(self.dimension, index_dir=self.index_dir, index_root=getattr(self, 'index_root', None))
         self._index.hot_fraction = self.hot_fraction
         self._docs.clear()
         self._metas.clear()
         self._embeddings.clear()
         self._access_counts.clear()
+
+    def delete(self, ids=None) -> None:
+        """Delete entries from the FAISS store by removing them from internal maps and rebuilding the index."""
+        if not ids:
+            return
+        id_set = set(ids)
+        # remove from local metadata
+        for did in list(self._docs.keys()):
+            if did in id_set:
+                self._docs.pop(did, None)
+                self._metas.pop(did, None)
+                self._embeddings.pop(did, None)
+                self._access_counts.pop(did, None)
+        # Rebuild indexes with remaining data
+        remaining_ids = list(self._embeddings.keys())
+        vectors = [self._embeddings[did] for did in remaining_ids]
+        try:
+            self._index.build_indexes(vectors, remaining_ids, append=False)
+        except Exception:
+            # If rebuild fails, reset the index and fallback to empty
+            self.reset()
 
 
 class ChromaStore(VectorStore):
@@ -188,6 +213,12 @@ class ChromaStore(VectorStore):
             pass
         self.collection = self.client.get_or_create_collection(name=self.collection_name)
 
+    def delete(self, ids=None) -> None:
+        if not ids:
+            return
+        if self.collection:
+            self.collection.delete(ids=ids)
+
 
 def create_vector_store(backend: str = None, collection_name: Optional[str] = None, **kwargs) -> VectorStore:
     backend = backend or config.get('vector_store_backend', 'faiss')
@@ -195,7 +226,9 @@ def create_vector_store(backend: str = None, collection_name: Optional[str] = No
         dimension = kwargs.get('dimension', 1536)
         index_dir_arg = kwargs.get('index_dir', config.get('vector_store_path'))
         index_dir = Path(index_dir_arg) if index_dir_arg else None
-        return FaissStore(dimension, index_dir=index_dir)
+        index_root_arg = kwargs.get('index_root', config.get('faiss_index_root', None))
+        index_root = Path(index_root_arg) if index_root_arg else None
+        return FaissStore(dimension, index_dir=index_dir, index_root=index_root)
     elif backend == 'chroma':
         db_path = kwargs.get('db_path', config.get('chroma_db_path', './chroma_db'))
         return ChromaStore(db_path, collection_name=collection_name)

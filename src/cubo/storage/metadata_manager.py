@@ -93,10 +93,12 @@ class MetadataManager:
         return [{'old_id': r[0], 'new_id': r[1], 'metadata': json.loads(r[2]) if r[2] else {}} for r in rows]
 
     def record_index_version(self, version_id: str, index_dir: str) -> None:
-        cur = self.conn.cursor()
-        cur.execute('''INSERT OR REPLACE INTO index_versions (id, index_dir, created_at) VALUES (?, ?, ?)''',
-                    (version_id, index_dir, datetime.datetime.utcnow().isoformat()))
-        self.conn.commit()
+        # Use a short-lived connection for this write to avoid cross-thread 'check_same_thread' issues
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cur = conn.cursor()
+            cur.execute('''INSERT OR REPLACE INTO index_versions (id, index_dir, created_at) VALUES (?, ?, ?)''',
+                        (version_id, index_dir, datetime.datetime.utcnow().isoformat()))
+            conn.commit()
 
     def get_latest_index_version(self) -> Optional[Dict[str, Any]]:
         cur = self.conn.cursor()

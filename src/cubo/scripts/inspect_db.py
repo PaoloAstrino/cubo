@@ -37,16 +37,16 @@ def main():
 
     all_data = store.get()
 
-print("=" * 80)
-print("VECTOR STORE CONTENT INSPECTION")
-print("=" * 80)
+    print("=" * 80)
+    print("VECTOR STORE CONTENT INSPECTION")
+    print("=" * 80)
 
-if not all_data or not all_data.get('documents'):
-    print("\nNo data in collection")
-else:
-    # Group by filename
-    file_chunks = defaultdict(list)
-    for doc, metadata, doc_id in zip(all_data['documents'], all_data['metadatas'], all_data['ids']):
+    if not all_data or not all_data.get('documents'):
+        print("\nNo data in collection")
+    else:
+        # Group by filename
+        file_chunks = defaultdict(list)
+        for doc, metadata, doc_id in zip(all_data['documents'], all_data['metadatas'], all_data['ids']):
         filename = metadata.get('filename', 'Unknown')
         file_chunks[filename].append({
             'id': doc_id,
@@ -55,7 +55,8 @@ else:
         })
 
     # Show first 3 chunks from each file
-    for filename in sorted(file_chunks.keys()):
+        # Show first 3 chunks from each file
+        for filename in sorted(file_chunks.keys()):
         chunks = file_chunks[filename]
         print(f"\n{'='*80}")
         print(f"File: {filename} ({len(chunks)} chunks)")
@@ -67,7 +68,7 @@ else:
             print(f"First 200 chars: {chunk['text'][:200]}")
             print(f"Last 100 chars: ...{chunk['text'][-100:]}")
 
-        if len(chunks) > 3:
+            if len(chunks) > 3:
             print(f"\n... and {len(chunks) - 3} more chunks")
 
 

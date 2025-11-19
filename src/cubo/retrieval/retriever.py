@@ -872,7 +872,7 @@ class DocumentRetriever:
         """
         try:
             if self.semantic_cache:
-                cached = self.semantic_cache.lookup(query_embedding)
+                cached = self.semantic_cache.lookup(query_embedding, n_results=initial_top_k)
                 if cached:
                     logger.info("Semantic cache hit; skipping vector query")
                     return cached

@@ -13,7 +13,7 @@ from src.cubo.utils.logger import logger
 from src.cubo.embeddings.model_loader import model_manager
 from src.cubo.ingestion.document_loader import DocumentLoader
 from src.cubo.retrieval.retriever import DocumentRetriever
-from src.cubo.processing.generator import ResponseGenerator
+from src.cubo.processing.generator import create_response_generator
 from src.cubo.utils.utils import Utils, metrics
 from src.cubo.security.security import security_manager
 
@@ -238,7 +238,7 @@ class CUBOApp:
         # Initialize components
         self.doc_loader = DocumentLoader()
         self.retriever = DocumentRetriever(self.model)
-        self.generator = ResponseGenerator()
+        self.generator = create_response_generator()
 
         return True
 

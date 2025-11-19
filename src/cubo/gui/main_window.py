@@ -1254,8 +1254,8 @@ class CUBOGUI(QMainWindow):
                 sources.append(filename)
 
         # Use service manager for async query processing
-        from src.cubo.processing.generator import ResponseGenerator
-        generator = ResponseGenerator()
+        from src.cubo.processing.generator import create_response_generator
+        generator = create_response_generator()
 
         future = self.service_manager.generate_response_async(
             query=query,
