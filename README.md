@@ -77,6 +77,75 @@ To run fast-pass ingestion then deep ingestion in one command:
 python scripts/fast_pass_ingest.py data/docs --output data/fastpass --deep
 ```
 
+### Two-Phase Ingestion (Fast + Deep)
+
+You can use the `IngestionManager` to orchestrate a fast-pass ingestion immediately followed by a background deep ingestion.
+
+Run fast pass and trigger deep ingestion in the background:
+
+```pwsh
+python scripts/fast_pass_ingest.py data/docs --output data/fastpass --background
+```
+
+Or start the ingestion service which polls for completed fast passes and triggers deep ingestion automatically:
+
+```pwsh
+python scripts/ingestion_service.py --interval 10
+```
+
+The ingestion service uses the SQLite `metadata_db` to track run status.
+
+### Semantic Query Router
+
+We added a `SemanticRouter` module to classify query types and route retrieval strategies automatically. The router uses heuristic patterns and configuration options to determine which retrieval weights and candidate counts to use.
+
+Configure routing in `config.json` (defaults are shown below):
+
+```json
+   "routing": {
+      "enable": true,
+      "factual_bm25_weight": 0.6,
+      "conceptual_dense_weight": 0.8
+   }
+```
+
+The router produces a strategy with keys such as `bm25_weight`, `dense_weight`, `k_candidates`, and `use_reranker`, which are fed into the retriever automatically.
+
+### Hot/Cold FAISS Index & Promotions
+
+We now implement a hot/cold FAISS index via `FAISSIndexManager` and the `FaissStore` wrapper. This uses an HNSW index in-memory for the "hot" portion and an IVF+PQ index on-disk for the "cold" portion. The `vector_index.hot_ratio` configuration controls the proportion of vectors kept in memory for hot index.
+
+If a document is frequently accessed (access count exceeds `vector_index.promote_threshold`), it is promoted into the hot set automatically by rebuilding the FAISS indexes with that id included in the hot slice. Note: this is a simple promotion mechanism that rebuilds indexes and works well for low-volume promotion scenarios.
+
+Configuration example:
+
+```json
+   "vector_index": {
+      "hot_ratio": 0.2,
+      "promote_threshold": 10,
+      "nlist": 4096,
+      "pq_m": 64
+   }
+```
+
+### Reranker (Cross-Encoder fallback)
+
+The retriever now supports a CrossEncoder reranker if you specify a `retrieval.reranker_model` in `config.json`. If CrossEncoder isn’t available, a `LocalReranker` will be used as a fallback which scores with cosine similarity between query and document embeddings.
+
+To enable:
+
+```json
+   "retrieval": {
+      "use_reranker": true,
+      "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+   }
+```
+
+When enabled, reranking runs on the top candidate set from the router strategy and reorders them by the cross-encoder score.
+
+
+
+
 CI & Testing Notes
 - `pyarrow` and `openpyxl` are required to write/read parquet and xlsx files. See `requirements.txt`.
 - Add `reportlab` to `requirements-dev.txt` for PDF creation during tests.

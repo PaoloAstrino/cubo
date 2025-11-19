@@ -49,17 +49,60 @@ class Config:
             "auto_merging_parent_similarity_threshold": 0.1,
             "deep_output_dir": "./data/deep",
             "deep_csv_rows_per_chunk": 25,
-            "deep_chunk_id_use_file_hash": True
+            "deep_chunk_id_use_file_hash": True,
+            "metadata_db_path": "./data/metadata.db",
+            "ingestion": {
+                "fast_pass": {
+                    "output_dir": "data/fastpass",
+                    "skip_heavy_models": True,
+                    "auto_trigger_deep": False
+                },
+                "deep": {
+                    "output_dir": "./data/deep",
+                    "csv_rows_per_chunk": 25,
+                    "use_file_hash_for_chunk_id": True,
+                    "n_workers": 2
+                },
+                "chunking": {
+                    "method": "sentence_window",
+                    "use_sentence_window": True,
+                    "window_size": 3,
+                    "chunk_size": 1000,
+                    "chunk_overlap": 200
+                }
+            }
+            ,
+            "routing": {
+                "enable": True,
+                "factual_bm25_weight": 0.6,
+                "conceptual_dense_weight": 0.8
+            }
+            ,
+            "vector_index": {
+                "hot_ratio": 0.2,
+                "promote_threshold": 10,
+                "nlist": 4096,
+                "pq_m": 64
+            }
         }
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value, checking environment variables first."""
-        # Check environment variable first (e.g., CUBO_MODEL_PATH)
-        env_key = f"CUBO_{key.upper()}"
+        # Support nested keys with dot notation (e.g., ingestion.fast_pass.output_dir)
+        env_key = f"CUBO_{key.upper().replace('.', '_')}"
         env_value = os.getenv(env_key)
         if env_value is not None:
             return env_value
-        return self._config.get(key, default)
+
+        # Traverse nested keys
+        parts = key.split('.') if isinstance(key, str) and '.' in key else [key]
+        cur = self._config
+        for part in parts:
+            if isinstance(cur, dict) and part in cur:
+                cur = cur[part]
+            else:
+                return default
+        return cur
 
     def set(self, key: str, value: Any) -> None:
         """Set configuration value."""
@@ -67,7 +110,14 @@ class Config:
 
     def update(self, settings: Dict[str, Any]) -> None:
         """Update multiple configuration values."""
-        self._config.update(settings)
+        # Support nested dicts merging
+        def deep_update(d: Dict[str, Any], u: Dict[str, Any]):
+            for k, v in u.items():
+                if isinstance(v, dict) and isinstance(d.get(k), dict):
+                    deep_update(d[k], v)
+                else:
+                    d[k] = v
+        deep_update(self._config, settings)
 
     def save(self) -> None:
         """Save configuration to file."""

@@ -71,3 +71,25 @@ def test_csv_chunking_groups_rows(tmp_path: Path):
     metadata = pd.read_parquet(result["chunks_parquet"])
     assert len(metadata) == math.ceil(25 / 10)
     assert metadata["chunk_id"].str.contains("_csv_").all()
+
+
+def test_deep_ingestor_resume(tmp_path: Path):
+    folder = tmp_path / "docs_resume"
+    folder.mkdir()
+    (folder / "a.txt").write_text("This is a test file A.")
+
+    output = tmp_path / "deep_out"
+    ingestor = DeepIngestor(input_folder=str(folder), output_dir=str(output))
+    res1 = ingestor.ingest()
+    parquet1 = res1["chunks_parquet"]
+    assert parquet1
+    df1 = pd.read_parquet(parquet1)
+
+    # Add a new file and resume
+    (folder / "b.txt").write_text("This is a test file B with different content.")
+    res2 = DeepIngestor(input_folder=str(folder), output_dir=str(output)).ingest(resume=True)
+    parquet2 = res2.get("chunks_parquet")
+    # New parquet should exist and only contain new files
+    assert parquet2
+    df2 = pd.read_parquet(parquet2)
+    assert all(fp not in list(df1['file_path']) for fp in df2['file_path'])

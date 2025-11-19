@@ -3,7 +3,7 @@ CUBO Document Retriever
 Handles document embedding, storage, and retrieval with ChromaDB.
 """
 
-from typing import List, Dict
+from typing import List, Dict, Optional, Any
 import math
 import os
 import json
@@ -61,6 +61,13 @@ class DocumentRetriever:
         self.auto_merge_for_complex = auto_merge_for_complex
         self.window_size = window_size
         self.top_k = top_k
+        # Initialize router for query strategy selection
+        try:
+            from src.cubo.retrieval.router import SemanticRouter
+            self.router = SemanticRouter()
+        except Exception:
+            # Router initialization failure should not break retriever
+            self.router = None
 
     def _initialize_auto_merging_retriever(self) -> None:
         """Initialize auto-merging retriever if enabled."""
@@ -164,11 +171,21 @@ class DocumentRetriever:
         if self.use_sentence_window:
             from src.cubo.processing.postprocessor import WindowReplacementPostProcessor
             self.window_postprocessor = WindowReplacementPostProcessor()
-            if self.model:
-                self.reranker = LocalReranker(self.model)
+            # Reranker decision: cross-encoder if configured, otherwise local reranker
+            reranker_model = config.get('retrieval.reranker_model', None)
+            if reranker_model and isinstance(reranker_model, str):
+                try:
+                    from src.cubo.rerank.reranker import CrossEncoderReranker
+                    self.reranker = CrossEncoderReranker(model_name=reranker_model, top_n=self.top_k)
+                except Exception:
+                    logger.warning("Failed to initialize CrossEncoderReranker, falling back to LocalReranker")
+                    self.reranker = LocalReranker(self.model) if self.model else None
             else:
-                self.reranker = None
-                logger.warning("Embedding model not available, reranker will not be initialized.")
+                if self.model:
+                    self.reranker = LocalReranker(self.model)
+                else:
+                    self.reranker = None
+                    logger.warning("Embedding model not available, reranker will not be initialized.")
         else:
             self.window_postprocessor = None
             self.reranker = None
@@ -326,11 +343,16 @@ class DocumentRetriever:
             RetrievalError: If retrieval operation fails
         """
         try:
+            # Determine retrieval strategy via router (if available)
+            if self.router:
+                strategy = self.router.route_query(query)
+            else:
+                strategy = None
             # If both retrieval methods are available, use hybrid approach
             if self.use_auto_merging and self._is_auto_merging_available():
                 # Perform both retrieval methods
                 sentence_results = self._retrieve_sentence_window(
-                    query, top_k // 2 + top_k % 2
+                    query, top_k // 2 + top_k % 2, strategy=strategy
                 )  # Slightly more for sentence window
                 auto_results = self._retrieve_auto_merging_safe(query, top_k // 2)
 
@@ -359,7 +381,7 @@ class DocumentRetriever:
                 return unique_results[:top_k]
             else:
                 # Use only sentence window retrieval
-                return self._retrieve_sentence_window(query, top_k)
+                return self._retrieve_sentence_window(query, top_k, strategy=strategy)
 
         except CUBOError:
             # Re-raise custom exceptions as-is
@@ -388,7 +410,7 @@ class DocumentRetriever:
 
         return has_complex_keywords or is_long_query
 
-    def _retrieve_sentence_window(self, query: str, top_k: int) -> List[Dict]:
+    def _retrieve_sentence_window(self, query: str, top_k: int, strategy: Optional[Dict] = None) -> List[Dict]:
         """
         Retrieve using sentence window method with hybrid semantic + BM25 scoring.
         
@@ -405,8 +427,11 @@ class DocumentRetriever:
 
             query_embedding = self._generate_query_embedding(query)
             
-            # Retrieve more candidates for each method
-            retrieval_k = top_k * 3
+            # Determine how many candidates to retrieve based on strategy
+            if strategy and strategy.get('k_candidates'):
+                retrieval_k = int(strategy.get('k_candidates'))
+            else:
+                retrieval_k = top_k * 3
             
             # Method 1: Pure semantic retrieval
             semantic_candidates = self._query_collection_for_candidates(
@@ -417,13 +442,16 @@ class DocumentRetriever:
             bm25_candidates = self._retrieve_by_bm25(query, retrieval_k)
             
             # Combine with 50/50 weighting
+            # Combine semantic and BM25 with weights specified in strategy
+            bm25_weight = strategy.get('bm25_weight', 0.3) if strategy else 0.3
+            dense_weight = strategy.get('dense_weight', 0.7) if strategy else 0.7
             combined_candidates = self._combine_semantic_and_bm25(
-                semantic_candidates, bm25_candidates, top_k
+                semantic_candidates, bm25_candidates, top_k, semantic_weight=dense_weight, bm25_weight=bm25_weight
             )
             
             # Apply sentence window postprocessing
             combined_candidates = self._apply_sentence_window_postprocessing(
-                combined_candidates, top_k, query
+                combined_candidates, top_k, query, strategy=strategy
             )
 
             self._log_retrieval_results(combined_candidates, "sentence window (hybrid)")
@@ -982,14 +1010,15 @@ class DocumentRetriever:
             logger.error(f"Error in BM25 retrieval: {e}")
             return []
 
-    def _combine_semantic_and_bm25(self, semantic_candidates: List[dict], bm25_candidates: List[dict], top_k: int) -> List[dict]:
+    def _combine_semantic_and_bm25(self, semantic_candidates: List[dict], bm25_candidates: List[dict], top_k: int, semantic_weight: float = 0.7, bm25_weight: float = 0.3) -> List[dict]:
         # Use the shared combine util to centralize scoring across retrievers
         from src.cubo.retrieval.fusion import combine_semantic_and_bm25
-        return combine_semantic_and_bm25(semantic_candidates, bm25_candidates, top_k=top_k)
+        return combine_semantic_and_bm25(semantic_candidates, bm25_candidates, semantic_weight=semantic_weight, bm25_weight=bm25_weight, top_k=top_k)
 
-    def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:
+    def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str, strategy: Optional[Dict] = None) -> List[dict]:
         candidates = self._apply_window_postprocessing(candidates)
-        candidates = self._apply_reranking_if_available(candidates, top_k, query)
+        use_reranker = strategy.get('use_reranker') if strategy is not None else True
+        candidates = self._apply_reranking_if_available(candidates, top_k, query, use_reranker)
         return candidates[:top_k]
 
     def _apply_window_postprocessing(self, candidates: List[dict]) -> List[dict]:
@@ -997,7 +1026,9 @@ class DocumentRetriever:
             return self.window_postprocessor.postprocess_results(candidates)
         return candidates
 
-    def _apply_reranking_if_available(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:
+    def _apply_reranking_if_available(self, candidates: List[dict], top_k: int, query: str, use_reranker: bool = True) -> List[dict]:
+        if not use_reranker:
+            return candidates
         if self.use_sentence_window and self.reranker and len(candidates) > top_k:
             reranked = self.reranker.rerank(query, candidates, max_results=len(candidates))
             if reranked:
@@ -1060,19 +1091,19 @@ class DocumentRetriever:
         else:
             return 'sentence_window'
 
-    def _execute_retrieval(self, method: str, query: str, top_k: int) -> List[Dict]:
+    def _execute_retrieval(self, method: str, query: str, top_k: int, strategy: Optional[Dict] = None) -> List[Dict]:
         if method == 'auto_merging':
             logger.info("Using auto-merging retrieval for complex query")
             try:
-                return self._retrieve_auto_merging_safe(query, top_k)
+                return self._retrieve_auto_merging_safe(query, top_k, strategy=strategy)
             except Exception as e:
                 logger.error(f"Auto-merging retrieval failed: {e}, falling back to sentence window")
                 return self._retrieve_sentence_window(query, top_k)
         else:
             logger.info("Using sentence window retrieval")
-            return self._retrieve_sentence_window(query, top_k)
+            return self._retrieve_sentence_window(query, top_k, strategy=strategy)
 
-    def _retrieve_auto_merging_safe(self, query: str, top_k: int) -> List[Dict]:
+    def _retrieve_auto_merging_safe(self, query: str, top_k: int, strategy: Optional[Dict] = None) -> List[Dict]:
         if not self.auto_merging_retriever:
             raise Exception("Auto-merging retriever not available")
         results = self.auto_merging_retriever.retrieve(query, top_k=top_k)

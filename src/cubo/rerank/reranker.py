@@ -163,8 +163,28 @@ class CrossEncoderReranker(LocalReranker):
         Currently falls back to LocalReranker until cross-encoder
         is implemented.
         """
-        logger.warning(
-            "CrossEncoderReranker not fully implemented, using LocalReranker"
-        )
-        # TODO: Implement proper cross-encoder reranking
-        return super().rerank(query, candidates, max_results)
+        try:
+            from sentence_transformers import CrossEncoder
+        except Exception:
+            logger.warning("CrossEncoder model not available; falling back to LocalReranker")
+            return super().rerank(query, candidates, max_results)
+
+        try:
+            # Initialize CrossEncoder lazily if provided with a model name
+            if isinstance(self.model_name, str) and self.model is None:
+                self.model = CrossEncoder(self.model_name)
+
+            # Build pair list
+            pairs = [[query, c.get('document') or c.get('content', '')] for c in candidates]
+            # Get scores from CrossEncoder
+            scores = self.model.predict(pairs)
+            scored = []
+            for c, s in zip(candidates, scores):
+                c2 = c.copy()
+                c2['rerank_score'] = float(s)
+                scored.append(c2)
+            scored.sort(key=lambda x: x['rerank_score'], reverse=True)
+            return scored[:max_results or self.top_n]
+        except Exception as e:
+            logger.error(f"CrossEncoderReranker failed: {e}; falling back to LocalReranker")
+            return super().rerank(query, candidates, max_results)

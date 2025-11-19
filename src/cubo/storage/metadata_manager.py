@@ -26,7 +26,10 @@ class MetadataManager:
                 created_at TEXT,
                 source_folder TEXT,
                 chunks_count INTEGER,
-                output_parquet TEXT
+                output_parquet TEXT,
+                status TEXT,
+                started_at TEXT,
+                finished_at TEXT
             )
         ''')
         cur.execute('''
@@ -46,11 +49,35 @@ class MetadataManager:
             )
         ''')
         self.conn.commit()
+        # Ensure migration compatibility: add missing columns if needed
+        try:
+            cur.execute("PRAGMA table_info(ingestion_runs)")
+            cols = set(r[1] for r in cur.fetchall())
+            if 'status' not in cols:
+                cur.execute("ALTER TABLE ingestion_runs ADD COLUMN status TEXT")
+            if 'started_at' not in cols:
+                cur.execute("ALTER TABLE ingestion_runs ADD COLUMN started_at TEXT")
+            if 'finished_at' not in cols:
+                cur.execute("ALTER TABLE ingestion_runs ADD COLUMN finished_at TEXT")
+            self.conn.commit()
+        except Exception:
+            # If this fails for any reason, we ignore to keep compatibility
+            pass
 
     def record_ingestion_run(self, run_id: str, source_folder: str, chunks_count: int, output_parquet: Optional[str] = None) -> None:
         cur = self.conn.cursor()
-        cur.execute('''INSERT OR REPLACE INTO ingestion_runs (id, created_at, source_folder, chunks_count, output_parquet) VALUES (?, ?, ?, ?, ?)''',
-                    (run_id, datetime.datetime.utcnow().isoformat(), source_folder, chunks_count, output_parquet))
+        # Default status: pending (fast pass not yet completed)
+        cur.execute('''INSERT OR REPLACE INTO ingestion_runs (id, created_at, source_folder, chunks_count, output_parquet, status) VALUES (?, ?, ?, ?, ?, ?)''',
+                    (run_id, datetime.datetime.utcnow().isoformat(), source_folder, chunks_count, output_parquet, 'pending'))
+        self.conn.commit()
+
+    def update_ingestion_status(self, run_id: str, status: str, started_at: Optional[str] = None, finished_at: Optional[str] = None) -> None:
+        cur = self.conn.cursor()
+        if started_at is None and finished_at is None:
+            cur.execute('''UPDATE ingestion_runs SET status = ? WHERE id = ?''', (status, run_id))
+        else:
+            cur.execute('''UPDATE ingestion_runs SET status = ?, started_at = ?, finished_at = ? WHERE id = ?''',
+                        (status, started_at, finished_at, run_id))
         self.conn.commit()
 
     def add_chunk_mapping(self, run_id: str, old_id: str, new_id: str, metadata: Dict[str, Any]) -> None:
@@ -78,6 +105,29 @@ class MetadataManager:
         if not row:
             return None
         return {'id': row[0], 'index_dir': row[1], 'created_at': row[2]}
+
+    def get_ingestion_run(self, run_id: str) -> Optional[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute('''SELECT id, created_at, source_folder, chunks_count, output_parquet, status, started_at, finished_at FROM ingestion_runs WHERE id = ?''', (run_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            'id': row[0],
+            'created_at': row[1],
+            'source_folder': row[2],
+            'chunks_count': row[3],
+            'output_parquet': row[4],
+            'status': row[5],
+            'started_at': row[6],
+            'finished_at': row[7]
+        }
+
+    def list_runs_by_status(self, status: str) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute('''SELECT id FROM ingestion_runs WHERE status = ?''', (status,))
+        rows = cur.fetchall()
+        return [self.get_ingestion_run(r[0]) for r in rows]
 
 
 # Expose a module-level manager instance for simple use

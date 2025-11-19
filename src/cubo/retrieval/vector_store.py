@@ -38,12 +38,22 @@ class FaissStore(VectorStore):
         # local maps: id -> text/metadata
         self._docs: Dict[str, str] = {}
         self._metas: Dict[str, Dict] = {}
+        self._embeddings: Dict[str, List[float]] = {}
+        self._access_counts: Dict[str, int] = {}
+        # Configure hot fraction from config
+        from src.cubo.config import config as _config
+        hot_fraction = float(_config.get('vector_index.hot_ratio', 0.2))
+        self._index.hot_fraction = hot_fraction
 
     def add(self, embeddings=None, documents=None, metadatas=None, ids=None):
         # Persist to FAISS and store metadata locally
         if not embeddings or not ids:
             return
         self._index.build_indexes(embeddings, ids, append=True)
+        # Store embeddings for potential rebuilds (e.g., promotion to hot)
+        for i, did in enumerate(ids):
+            self._embeddings[did] = embeddings[i]
+            self._access_counts.setdefault(did, 0)
         for i, did in enumerate(ids):
             self._docs[did] = documents[i] if documents and i < len(documents) else ''
             self._metas[did] = metadatas[i] if metadatas and i < len(metadatas) else {}
@@ -85,7 +95,37 @@ class FaissStore(VectorStore):
             metas.append(self._metas.get(did, {}))
             dists.append(res['distance'])
             ids_list.append(did)
+            # track access counts to potentially promote to hot
+            self._access_counts[did] = self._access_counts.get(did, 0) + 1
+            from src.cubo.config import config as _config
+            threshold = int(_config.get('vector_index.promote_threshold', 10))
+            if self._access_counts[did] >= threshold:
+                try:
+                    self.promote_to_hot(did)
+                except Exception:
+                    # Don't fail queries due to promotion operations
+                    pass
         return {"documents": [docs], "metadatas": [metas], "distances": [dists], "ids": [ids_list]}
+
+    def promote_to_hot(self, doc_id: str) -> None:
+        """Promote a cold doc into the hot set by rebuilding indexes with the doc first.
+
+        Note: This is a simplistic implementation that rebuilds FAISS indexes.
+        """
+        if doc_id not in self._embeddings:
+            return
+        # Rebuild with doc_id among the first hot elements
+        # Keep order: put current hot_ids first (if known), then this doc id
+        all_ids = list(self._embeddings.keys())
+        # Put promoted doc at the front to ensure it's in the hot set after build
+        if doc_id in all_ids:
+            all_ids.remove(doc_id)
+        new_ids = [doc_id] + all_ids
+        # Build corresponding embeddings array
+        vectors = [self._embeddings[did] for did in new_ids]
+        self._index.build_indexes(vectors, new_ids, append=False)
+        # Reset access count so promotions don't immediately re-trigger
+        self._access_counts[doc_id] = 0
 
     def save(self, path: Optional[Path] = None) -> None:
         self._index.save(path)

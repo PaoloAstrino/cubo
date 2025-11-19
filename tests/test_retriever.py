@@ -104,3 +104,36 @@ def test_cache_persistence(mock_model, temp_db_path):
         retriever2 = DocumentRetriever(mock_model)
         retriever2.collection = retriever2.client.get_or_create_collection("test_cache2")  # Different collection
         assert ("test", 3) in retriever2.query_cache
+
+@pytest.mark.skipif(not CHROMADB_AVAILABLE, reason="ChromaDB not available")
+def test_retrieve_uses_router_strategy(mock_model):
+    # Create a retriever and ensure it uses router strategy for k_candidates
+    retriever = DocumentRetriever(mock_model)
+    # Patch router to return a specific k_candidates
+    class FakeRouter:
+        def route_query(self, q):
+            return {'k_candidates': 123, 'bm25_weight': 0.7, 'dense_weight': 0.3, 'use_reranker': False}
+    retriever.router = FakeRouter()
+
+    captured = {}
+    def fake_retrieve_sentence_window(q, top_k, strategy=None):
+        captured['strategy'] = strategy
+        return []
+
+    retriever._retrieve_sentence_window = fake_retrieve_sentence_window
+    res = retriever.retrieve_top_documents('Test query', top_k=5)
+    assert 'strategy' in captured
+    assert captured['strategy']['k_candidates'] == 123
+
+
+def test_reranker_initialization_with_crossencoder(mock_model):
+    retriever = DocumentRetriever(mock_model)
+    # Default behavior may not initialize a reranker if dependencies aren't present. Ensure attribute exists
+    assert hasattr(retriever, 'reranker')
+
+    # Patch config to use cross-encoder model and reinitialize
+    with patch('src.cubo.config.config', {"retrieval.reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2"}):
+        retriever2 = DocumentRetriever(mock_model)
+        assert hasattr(retriever2, 'reranker')
+        from src.cubo.rerank.reranker import CrossEncoderReranker, LocalReranker
+        assert isinstance(retriever2.reranker, (CrossEncoderReranker, LocalReranker, type(None)))

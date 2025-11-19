@@ -27,28 +27,41 @@ class DeepIngestor:
         use_file_hash_for_chunk_id: Optional[bool] = None,
     ):
         self.input_folder = Path(input_folder or config.get("data_folder", "./data"))
-        self.output_dir = Path(output_dir or config.get("deep_output_dir", "./data/deep"))
+        self.output_dir = Path(output_dir or config.get("ingestion.deep.output_dir", config.get("deep_output_dir", "./data/deep")))
         self.chunking_config = chunking_config or {}
-        self.csv_rows_per_chunk = csv_rows_per_chunk or config.get("deep_csv_rows_per_chunk", 25)
+        self.csv_rows_per_chunk = csv_rows_per_chunk or config.get("ingestion.deep.csv_rows_per_chunk", config.get("deep_csv_rows_per_chunk", 25))
         self.use_file_hash_for_chunk_id = (
             use_file_hash_for_chunk_id
             if use_file_hash_for_chunk_id is not None
-            else config.get("deep_chunk_id_use_file_hash", True)
+            else config.get("ingestion.deep.use_file_hash_for_chunk_id", config.get("deep_chunk_id_use_file_hash", True))
         )
         self.loader = DocumentLoader(skip_model=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._supported_extensions = set(self.loader.supported_extensions) | {".csv", ".xlsx"}
 
-    def ingest(self) -> Dict[str, Any]:
+    def ingest(self, resume: bool = False) -> Dict[str, Any]:
         """Process every supported document and persist chunks to parquet."""
         if not self.input_folder.exists():
             raise FileNotFoundError(f"Input folder {self.input_folder} does not exist")
 
         files = list(self._discover_files())
+        # If resuming and previous parquet exists, skip files already processed
+        processed_set = set()
+        if resume:
+            existing_parquet = self.output_dir / "chunks_deep.parquet"
+            if existing_parquet.exists():
+                try:
+                    existing_df = pd.read_parquet(existing_parquet)
+                    processed_set = set(existing_df['file_path'].tolist())
+                    logger.info(f"Resuming deep ingest; skipping {len(processed_set)} already processed files")
+                except Exception:
+                    logger.warning("Failed reading existing chunks parquet for resume; full reprocess will occur")
         processed_files: List[str] = []
         all_chunks: List[Dict[str, Any]] = []
 
         for path in files:
+            if resume and str(path) in processed_set:
+                continue
             chunks = self._process_file(path)
             if chunks:
                 all_chunks.extend(chunks)

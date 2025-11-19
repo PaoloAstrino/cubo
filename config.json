@@ -19,6 +19,26 @@
     "window_size": 3,
     "tokenizer_name": "./models/embeddinggemma-300m"
   },
+  "ingestion": {
+    "fast_pass": {
+      "output_dir": "data/fastpass",
+      "skip_heavy_models": true,
+      "auto_trigger_deep": false
+    },
+    "deep": {
+      "output_dir": "./data/deep",
+      "csv_rows_per_chunk": 25,
+      "use_file_hash_for_chunk_id": true,
+      "n_workers": 2
+    },
+    "chunking": {
+      "method": "sentence_window",
+      "use_sentence_window": true,
+      "window_size": 3,
+      "chunk_size": 1000,
+      "chunk_overlap": 200
+    }
+  },
   "retrieval": {
     "top_k": 3,
     "auto_merging_chunk_sizes": [2048, 512, 128],
@@ -26,8 +46,19 @@
     "auto_merging_candidate_multiplier": 3,
     "auto_merging_parent_similarity_threshold": 0.1
   },
+  "vector_index": {
+    "hot_ratio": 0.2,
+    "promote_threshold": 10,
+    "nlist": 4096,
+    "pq_m": 64
+  },
   "performance": {
     "use_gpu": true
+  },
+  "routing": {
+    "enable": true,
+    "factual_bm25_weight": 0.6,
+    "conceptual_dense_weight": 0.8
   },
   "evaluation": {
     "llm_provider": "ollama",

@@ -18,7 +18,7 @@ class FastPassIngestor:
     """Quick ingestion path to make documents queryable ASAP with BM25."""
 
     def __init__(self, output_dir: str = None, skip_model: bool = False):
-        self.output_dir = Path(output_dir or config.get("fast_pass_output_dir", "data/fastpass"))
+        self.output_dir = Path(output_dir or config.get("ingestion.fast_pass.output_dir", config.get("fast_pass_output_dir", "data/fastpass")))
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.loader = DocumentLoader(skip_model=skip_model)
         self.skip_model = skip_model
