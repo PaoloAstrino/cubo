@@ -24,3 +24,4 @@ tqdm>=4.64.0
 faiss-cpu==1.7.4
 datasketch
 networkx
+whoosh

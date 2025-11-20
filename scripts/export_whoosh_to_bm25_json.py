@@ -20,10 +20,14 @@ def main():
     ix = whoosh_index.open_dir(args.whoosh_dir)
     with ix.searcher() as searcher:
         with open(args.out_chunks, 'w', encoding='utf-8') as f:
-            for docnum in searcher.all_doc_ids():
-                doc = searcher.stored_fields(docnum)
-                rec = {'doc_id': doc.get('doc_id'), 'text': doc.get('text')}
-                f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+            for docnum in range(searcher.reader().doc_count_all()):
+                try:
+                    doc = searcher.stored_fields(docnum)
+                    rec = {'doc_id': doc.get('doc_id'), 'text': doc.get('text')}
+                    f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                except Exception:
+                    # Skip deleted/invalid docs
+                    continue
     print('Exported chunks to', args.out_chunks)
 
 if __name__ == '__main__':

@@ -94,7 +94,7 @@
   "bm25_stats_path": "data/fastpass/bm25_stats.json"
   ,
   "bm25": {
-    "backend": "python",
+    "backend": "whoosh",
     "whoosh_index_dir": "./whoosh_index",
     "preserve_bm25_stats_json": true
   }

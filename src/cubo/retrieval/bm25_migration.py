@@ -37,8 +37,13 @@ def export_whoosh_to_json(whoosh_dir: str, output_chunks_jsonl: str):
     ix = whoosh_index.open_dir(whoosh_dir)
     with ix.searcher() as searcher:
         with open(output_chunks_jsonl, 'w', encoding='utf-8') as f:
-            for docnum in searcher.all_doc_ids():
-                doc = searcher.stored_fields(docnum)
-                rec = {'doc_id': doc.get('doc_id'), 'text': doc.get('text')}
-                f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+            # Iterate through all documents in the Whoosh index using reader
+            for docnum in range(searcher.reader().doc_count_all()):
+                try:
+                    doc = searcher.stored_fields(docnum)
+                    rec = {'doc_id': doc.get('doc_id'), 'text': doc.get('text')}
+                    f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                except Exception:
+                    # Skip deleted or invalid documents
+                    continue
     return {'chunks_exported': True, 'output': output_chunks_jsonl}

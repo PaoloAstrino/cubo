@@ -2,9 +2,9 @@ from src.cubo.retrieval.bm25_searcher import BM25Searcher
 from src.cubo.retrieval.bm25_python_store import BM25PythonStore
 
 
-def test_searcher_delegates_to_python_store():
-    # instantiate as wrapper but default backend is python
-    bs = BM25Searcher()
+def test_searcher_explicit_python_backend():
+    # Explicitly use Python backend for testing
+    bs = BM25Searcher(backend='python')
     assert isinstance(bs._store, BM25PythonStore)
     docs = [{'doc_id': 'a', 'text': 'apples and fruit'}, {'doc_id': 'b', 'text': 'cars and trucks'}]
     bs.index_documents(docs)

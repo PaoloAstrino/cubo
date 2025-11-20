@@ -14,6 +14,7 @@ def test_bm25store_interface_methods():
 
 
 def test_python_store_basic_flow():
+    # Test Python store explicitly
     st = BM25PythonStore()
     docs = [{'doc_id': 'a', 'text': 'apples and bananas'}, {'doc_id': 'b', 'text': 'cars and vehicles'}]
     st.index_documents(docs)
