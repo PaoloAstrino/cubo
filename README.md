@@ -95,6 +95,37 @@ python scripts/ingestion_service.py --interval 10
 
 The ingestion service uses the SQLite `metadata_db` to track run status.
 
+### BM25 Backend & Migration (Whoosh)
+
+We provide a plugin interface for BM25 that supports multiple backends. By default the Python backend is used, but you can switch to Whoosh for a more performant indexing and querying experience.
+
+Configuration example (in `config.json`):
+
+```json
+   "bm25": {
+      "backend": "whoosh",
+      "whoosh_index_dir": "./whoosh_index",
+      "preserve_bm25_stats_json": true
+   }
+```
+
+Migration CLI tools are provided to convert existing NDJSON/JSONL chunks into Whoosh indexes and to export back to JSON:
+
+Convert chunks to Whoosh:
+```pwsh
+python scripts/convert_bm25_stats_to_whoosh.py --chunks data/fastpass/chunks.jsonl --whoosh-dir data/whoosh_index
+```
+
+Export a Whoosh index to JSON lines for compatibility:
+```pwsh
+python scripts/export_whoosh_to_bm25_json.py --whoosh-dir data/whoosh_index --out-chunks data/fastpass/chunks_from_whoosh.jsonl
+```
+
+Note: The `FastPassIngestor` now takes `bm25.backend` from `config.json` and will attempt to build the configured backend during fast-pass ingestion; if you prefer to keep JSON stats (compatibility), set `bm25.preserve_bm25_stats_json` to true.
+
+When the Whoosh backend is enabled and `preserve_bm25_stats_json` is true, the ingestion path will also generate a JSON bm25_stats file to preserve compatibility with downstream tools.
+
+
 ### Semantic Query Router
 
 We added a `SemanticRouter` module to classify query types and route retrieval strategies automatically. The router uses heuristic patterns and configuration options to determine which retrieval weights and candidate counts to use.
