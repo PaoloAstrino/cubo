@@ -104,7 +104,7 @@ class SemanticRouter:
             try:
                 strat = default_router.compute_strategy(query_text)
                 return {
-                    'query_type': strat.__class__.__name__ if hasattr(strat, '__class__') else (str(strat)),
+                    'query_type': strat.classification['label'],
                     'temporal_filter': strat.temporal_range,
                     'use_bm25': True,
                     'bm25_weight': strat.bm25_weight,

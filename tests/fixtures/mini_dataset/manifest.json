@@ -1,0 +1,8 @@
+{
+  "metadata": {
+    "name": "mini dataset",
+    "version": "1.0",
+    "description": "A tiny deterministic dataset for integration tests"
+  },
+  "files": ["doc1.txt", "doc2.txt", "doc3.txt"]
+}

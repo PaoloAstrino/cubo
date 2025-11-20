@@ -12,8 +12,9 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 def test_ui_update():
     """Test if UI updates work properly."""
+    import pytest
     from PySide6.QtWidgets import QApplication
-    from gui.components import QueryWidget
+    from src.cubo.gui.components import QueryWidget
 
     app = QApplication.instance()
     if app is None:
@@ -30,12 +31,9 @@ def test_ui_update():
     widget.display_results(test_response, test_sources)
     print("display_results completed")
 
-    # Check if the chat display has content
-    html_content = widget.chat_display.toHtml()
-    print(f"HTML content length: {len(html_content)}")
-    print(f"Contains test response: {'test response' in html_content}")
-
-    return True
+    # Check if the message model contains the response
+    messages = widget.message_model.get_messages()
+    assert any('this is a test response' in (m.get('content', '') or '').lower() for m in messages)
 
 if __name__ == "__main__":
     test_ui_update()

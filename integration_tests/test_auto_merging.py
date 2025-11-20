@@ -9,6 +9,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.cubo.deduplication.custom_auto_merging import AutoMergingRetriever
 from llama_index.core import Document
+from src.cubo.config import config
+import numpy as np
+
+
+class DummyModel:
+    def encode(self, texts):
+        # Return 2-dimensional vectors for all texts
+        return np.array([[0.1, 0.1] for _ in texts], dtype='float32')
 
 def test_auto_merging():
     """Test auto-merging retrieval with local model."""
@@ -27,14 +35,21 @@ def test_auto_merging():
 
     # Initialize retriever
     print("🔧 Initializing auto-merging retriever...")
-    retriever = AutoMergingRetriever(
-        embed_model_path="./models/embeddinggemma-300m",
-        persist_dir="./test_auto_merging_index"
-    )
+    # Use a dummy model for quick integration test runs to avoid heavy model downloads
+    config.set('auto_merge_index_dimension', 2)
+    retriever = AutoMergingRetriever(DummyModel())
 
-    # Build index
-    print("🏗️ Building index...")
-    retriever.build_index(test_docs, force_rebuild=True)
+    # Build index by creating temporary files for each document and adding them
+    print("🏗️ Building index via file ingestion...")
+    import tempfile
+    from pathlib import Path
+    tmpdir = Path(tempfile.mkdtemp())
+    for i, doc in enumerate(test_docs, 1):
+        fp = tmpdir / f"doc_{i}.txt"
+        with open(fp, 'w', encoding='utf-8') as fh:
+            fh.write(doc.text)
+        added = retriever.add_document(str(fp))
+        assert added is True
 
     # Test queries
     test_queries = [

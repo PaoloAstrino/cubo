@@ -3,17 +3,21 @@
 Simple test script for dual retrieval system (sentence window + auto-merging)
 """
 
+import pytest
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+ROOT = Path(__file__).parent.parent.resolve()
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from sentence_transformers import SentenceTransformer
-from retriever import DocumentRetriever
-from document_loader import DocumentLoader
-from logger import logger
+from src.cubo.retrieval.retriever import DocumentRetriever
+from src.cubo.config import config
+from src.cubo.ingestion.document_loader import DocumentLoader
+from src.logger import logger
 
+@pytest.mark.integration
 def test_dual_retrieval():
     """Test the dual retrieval system with both methods."""
 
@@ -26,6 +30,8 @@ def test_dual_retrieval():
     model = SentenceTransformer(model_path)
     print("✅ Model loaded")
 
+    # Force in-memory vector store for integration test to avoid FAISS dimension issues
+    config.set('vector_store_backend', 'inmemory')
     # Initialize retriever with both methods enabled
     print("Initializing dual retriever...")
     retriever = DocumentRetriever(

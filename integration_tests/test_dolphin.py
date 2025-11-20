@@ -6,6 +6,7 @@ Demonstrates enhanced document processing capabilities
 
 import os
 import sys
+import pytest
 from pathlib import Path
 
 # Add src to path
@@ -81,16 +82,16 @@ def test_dolphin_integration():
 
     return True
 
-def test_download_dolphin():
+def test_download_dolphin(monkeypatch):
     """Test downloading the Dolphin model."""
 
     print("📥 Testing Dolphin model download...")
     print("This will download ~400MB. Continue? (y/N): ", end="")
 
-    response = input().strip().lower()
-    if response != 'y':
-        print("Download cancelled")
-        return False
+    # Avoid prompting stdin during pytest runs; if environment variable is not set, skip the download
+    if os.environ.get('RUN_DOLPHIN_DOWNLOAD_TEST', 'false').lower() != 'true':
+        pytest.skip("Dolphin download test skipped (set RUN_DOLPHIN_DOWNLOAD_TEST=true to enable)")
+    response = 'y'
 
     # Run download script
     os.system("python download_dolphin.py --download --test")
