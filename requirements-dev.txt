@@ -12,3 +12,7 @@ scikit-learn  # For F1-score calculation
 pandas
 openpyxl
 pyarrow
+filelock
+# Optional: Faiss (CPU/GPU builds) is not included by default because it is platform-specific.
+# Install via pip on Linux/macOS: `pip install faiss-cpu` (or `faiss-gpu` for GPU builds).
+# On Windows use conda: `conda install -c conda-forge faiss-cpu`.

@@ -10,6 +10,7 @@ import faiss
 
 # Import FAISSIndexManager inside functions to avoid circular import with faiss_index
 from src.cubo.storage.metadata_manager import get_metadata_manager
+from src.cubo.indexing.publish_lock import acquire_publish_lock
 from src.cubo.utils.logger import logger
 
 
@@ -36,6 +37,15 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
     cold_path = dir_path / 'cold.index'
     # If they exist, try to read via faiss
     try:
+        # If metadata references hot_ids/cold_ids, ensure index files exist and are readable
+        hot_ids = metadata.get('hot_ids', []) or []
+        cold_ids = metadata.get('cold_ids', []) or []
+
+        if hot_ids and not hot_path.exists():
+            raise RuntimeError("metadata claims hot_ids but hot.index is missing")
+        if cold_ids and not cold_path.exists():
+            raise RuntimeError("metadata claims cold_ids but cold.index is missing")
+
         if hot_path.exists():
             faiss.read_index(str(hot_path))
         if cold_path.exists():
@@ -48,11 +58,27 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
         from src.cubo.indexing.faiss_index import FAISSIndexManager
         manager = FAISSIndexManager(dimension=dimension, index_dir=dir_path)
         manager.load()
-        # sample search only if we have any ids
+        # Run a minimal sanity check if any index has entries
         sample_vec = None
-        if manager.hot_index or manager.cold_index:
-            # If we have ids and any index, skip actual distance validation here; successful load is enough
-            pass
+        ntotal_hot = 0
+        ntotal_cold = 0
+        try:
+            ntotal_hot = manager.hot_index.ntotal if manager.hot_index is not None else 0
+        except Exception:
+            ntotal_hot = 0
+        try:
+            ntotal_cold = manager.cold_index.ntotal if manager.cold_index is not None else 0
+        except Exception:
+            ntotal_cold = 0
+        if (ntotal_hot + ntotal_cold) > 0:
+            # Construct a simple zero vector to attempt a search and ensure query path works
+            import numpy as _np
+            sample_vec = _np.zeros((manager.dimension,), dtype='float32')
+            # search top 1
+            results = manager.search(sample_vec.tolist(), k=1)
+            # If metadata claims presence (ids) but search returns empty, fail
+            if (ntotal_hot + ntotal_cold) > 0 and len(results) == 0:
+                raise RuntimeError('Index loaded but sanity search returned zero results')
     except Exception as exc:
         raise RuntimeError(f"Failed to load indexes into FAISSIndexManager: {exc}")
 
@@ -68,21 +94,23 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         raise FileNotFoundError(f"Version dir does not exist: {version_dir}")
     logger.info(f"Publishing FAISS version from {version_dir} into root {index_root}")
 
-    # Verify artifacts
-    if verify:
-        metadata = _verify_index_dir(version_dir)
-    else:
-        with open(version_dir / 'metadata.json', 'r', encoding='utf-8') as fh:
-            metadata = json.load(fh)
-
-    # Form the published path: keep version_dir as-is; pointer file references it
-    published_dir = version_dir
-
-    # Write pointer tmp + os.replace
+    # Use a file-level lock so concurrent publishers don't race on pointer writes
     index_root = Path(index_root)
     index_root.mkdir(parents=True, exist_ok=True)
-    pointer_tmp = index_root / (POINTER_FILENAME + '.tmp')
-    pointer_final = index_root / POINTER_FILENAME
+    with acquire_publish_lock(index_root):
+        # Verify artifacts
+        if verify:
+            metadata = _verify_index_dir(version_dir)
+        else:
+            with open(version_dir / 'metadata.json', 'r', encoding='utf-8') as fh:
+                metadata = json.load(fh)
+
+        # Form the published path: keep version_dir as-is; pointer file references it
+        published_dir = version_dir
+
+        # Write pointer tmp + os.replace
+        pointer_tmp = index_root / (POINTER_FILENAME + '.tmp')
+        pointer_final = index_root / POINTER_FILENAME
 
     pointer_payload = {
         'index_dir': str(published_dir),
@@ -122,7 +150,6 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         manager.record_index_version(pointer_payload['version_id'], str(published_dir))
     except Exception as exc:
         logger.warning(f"Failed to record published index version in metadata DB: {exc}")
-
     return published_dir
 
 

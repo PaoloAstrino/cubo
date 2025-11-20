@@ -31,11 +31,44 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - 🔧 **Architecture**: Added postprocessor module for enhanced retrieval with WindowReplacementPostProcessor and LocalReranker
 - 🐛 **Bug Fixes**: Resolved circular import issues and improved error handling
 
-### v1.0.0 (Initial Release)
 
 - 🚀 **Core RAG System**: Modular Retrieval-Augmented Generation with embedding models and LLMs
 - 📄 **Multi-format Support**: Support for .txt, .docx, .pdf, and .md document formats
+ Run tests with the `PYTHONPATH` set to the repo root:
 - 🔍 **Vector Search**: ChromaDB integration for efficient document retrieval
+ PowerShell (Windows):
+
+ ```pwsh
+ $env:PYTHONPATH = "${PWD}"; pytest -q
+ ```
+
+ macOS / Linux (bash/zsh):
+
+ ```bash
+ export PYTHONPATH="${PWD}"; pytest -q
+ ```
+
+ If you have FAISS-dependent tests (dense retrieval tests), ensure FAISS is installed. FAISS has platform-specific packages; pick one of these depending on your environment:
+
+ Linux / macOS (pip):
+
+ ```bash
+ pip install faiss-cpu
+ # or for GPU builds (if available):
+ pip install faiss-gpu
+ ```
+
+ Windows (recommended: conda or miniforge):
+
+ ```pwsh
+ conda create -n cubo-env python=3.11
+ conda activate cubo-env
+ conda install -c conda-forge faiss-cpu
+ ```
+
+ If FAISS installation is not desired on your platform, tests that rely on FAISS will be skipped if FAISS is not present. See `tests/conftest.py` for the skip logic.
+
+CI note: The repository's CI runs a Linux job that installs `faiss-cpu` and runs the FAISS-dependent indexing tests. This ensures indexing behavior is validated on a supported Linux FAISS build.
 - 🤖 **Ollama Integration**: Local LLM generation with configurable models
 - 🛡️ **Security Features**: Path sanitization, file size limits, and rate limiting
 - 📊 **Comprehensive Logging**: Detailed logging with configurable levels

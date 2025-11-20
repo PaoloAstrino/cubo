@@ -190,7 +190,24 @@ def main():
     logger.info(f"Sample search returned {len(hits)} hits (first id: {hits[0]['id'] if hits else 'none'})")
 
     if not args.dry_run:
-        manager.save()
+        # If we have an index_root, perform save into a staging directory and rename atomically
+        if args.index_root:
+            ts = int(time.time())
+            version_tmp = Path(args.index_root) / f"faiss_v{ts}.tmp"
+            final_version = Path(args.index_root) / f"faiss_v{ts}"
+            manager.save(path=version_tmp)
+            # Atomic rename of dir: use os.replace; retry on transient errors
+            try:
+                os.replace(str(version_tmp), str(final_version))
+            except Exception:
+                # On some platforms, os.replace may fail for dir; fallback to rename
+                os.rename(str(version_tmp), str(final_version))
+            if args.publish:
+                from src.cubo.indexing.index_publisher import publish_version
+                publish_version(final_version, Path(args.index_root))
+                logger.info(f"Published version {final_version}")
+        else:
+            manager.save()
     else:
         logger.info("Dry-run enabled; FAISS indexes were not saved")
 
