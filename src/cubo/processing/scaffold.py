@@ -55,11 +55,14 @@ class ScaffoldGenerator:
         logger.info(f"Generated {len(scaffolds_df)} scaffolds from {len(chunks_df)} chunks")
         return {'scaffolds_df': scaffolds_df, 'mapping': mapping, 'scaffold_embeddings': scaffold_embeddings}
 
-    def save_scaffolds(self, scaffolds_result: Dict[str, Any], output_dir: Path) -> Dict[str, str]:
+    def save_scaffolds(self, scaffolds_result: Dict[str, Any], output_dir: Path, model_version: Optional[str] = None) -> Dict[str, str]:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         paths = {}
         scaffolds_path = output_dir / 'scaffold_metadata.parquet'
+        # Annotate model_version column if provided
+        if model_version is not None and not scaffolds_result['scaffolds_df'].empty:
+            scaffolds_result['scaffolds_df']['model_version'] = model_version
         scaffolds_result['scaffolds_df'].to_parquet(scaffolds_path, index=False)
         paths['scaffolds_parquet'] = str(scaffolds_path)
         logger.info(f"Saved scaffolds to {scaffolds_path}")
@@ -206,10 +209,11 @@ def save_scaffold_run(
     input_chunks_df: Optional[pd.DataFrame] = None,
     id_column: str = 'chunk_id',
 ):
-    run_dir = Path(output_root) / run_id
+    # Use a nested scaffolds subdirectory under run_id for the final storage layout
+    run_dir = Path(output_root) / run_id / 'scaffolds'
     run_dir.mkdir(parents=True, exist_ok=True)
     generator = ScaffoldGenerator()
-    paths = generator.save_scaffolds(scaffolds_result, run_dir)
+    paths = generator.save_scaffolds(scaffolds_result, run_dir, model_version=model_version)
     manifest_dir = Path(manifests_dir or (Path(run_dir).parent.parent / 'manifests'))
     manifest_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = manifest_dir / f"{run_id}_scaffold_manifest.json"

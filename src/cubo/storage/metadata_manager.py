@@ -82,6 +82,52 @@ class MetadataManager:
         except Exception:
             # If this fails for any reason, we ignore to keep compatibility
             pass
+        # Ensure scaffold_runs has expected columns (for older DBs/migrations)
+        try:
+            cur.execute("PRAGMA table_info(scaffold_runs)")
+            cols = set(r[1] for r in cur.fetchall())
+            if 'model_version' not in cols:
+                cur.execute("ALTER TABLE scaffold_runs ADD COLUMN model_version TEXT")
+            if 'scaffold_count' not in cols:
+                cur.execute("ALTER TABLE scaffold_runs ADD COLUMN scaffold_count INTEGER")
+            if 'manifest_path' not in cols:
+                cur.execute("ALTER TABLE scaffold_runs ADD COLUMN manifest_path TEXT")
+            self.conn.commit()
+        except Exception:
+            # Ignore failures; older DBs may not have scaffold_runs table and we'll rely on CREATE TABLE IF NOT EXISTS
+            pass
+        # Ensure scaffold_mappings has expected columns (for older DBs/migrations)
+        try:
+            cur.execute("PRAGMA table_info(scaffold_mappings)")
+            cols = set(r[1] for r in cur.fetchall())
+            # If metadata is missing ensure to add it to allow storing JSON metadata
+            if 'metadata' not in cols:
+                cur.execute("ALTER TABLE scaffold_mappings ADD COLUMN metadata TEXT")
+            # If run_id is missing, try to migrate by recreating the table with run_id
+            if 'run_id' not in cols:
+                logger.info("scaffold_mappings missing run_id - attempting migration to add run_id column")
+                try:
+                    # Create a new table with run_id column
+                    cur.execute('''CREATE TABLE IF NOT EXISTS scaffold_mappings_new (
+                        run_id TEXT,
+                        scaffold_id TEXT,
+                        chunk_id TEXT,
+                        metadata TEXT,
+                        PRIMARY KEY (run_id, scaffold_id, chunk_id)
+                    )''')
+                    # Copy existing rows into new table with empty run_id
+                    cur.execute('''INSERT OR REPLACE INTO scaffold_mappings_new (run_id, scaffold_id, chunk_id, metadata) SELECT '', scaffold_id, chunk_id, metadata FROM scaffold_mappings''')
+                    # Rename old table and new table swap
+                    cur.execute('ALTER TABLE scaffold_mappings RENAME TO scaffold_mappings_old')
+                    cur.execute('ALTER TABLE scaffold_mappings_new RENAME TO scaffold_mappings')
+                    cur.execute('DROP TABLE IF EXISTS scaffold_mappings_old')
+                    logger.info('scaffold_mappings migration completed: run_id added with empty default for existing rows')
+                except Exception as e:
+                    # If migration fails, log a warning and continue
+                    logger.warning(f"scaffold_mappings migration to add run_id failed: {e}")
+            self.conn.commit()
+        except Exception:
+            pass
 
     def record_ingestion_run(self, run_id: str, source_folder: str, chunks_count: int, output_parquet: Optional[str] = None) -> None:
         cur = self.conn.cursor()
