@@ -48,6 +48,25 @@ class MetadataManager:
                 created_at TEXT
             )
         ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS scaffold_runs (
+                id TEXT PRIMARY KEY,
+                created_at TEXT,
+                scaffold_dir TEXT,
+                model_version TEXT,
+                scaffold_count INTEGER,
+                manifest_path TEXT
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS scaffold_mappings (
+                run_id TEXT,
+                scaffold_id TEXT,
+                chunk_id TEXT,
+                metadata TEXT,
+                PRIMARY KEY (run_id, scaffold_id, chunk_id)
+            )
+        ''')
         self.conn.commit()
         # Ensure migration compatibility: add missing columns if needed
         try:
@@ -85,6 +104,35 @@ class MetadataManager:
         cur.execute('''INSERT OR REPLACE INTO chunk_mappings (run_id, old_id, new_id, metadata) VALUES (?, ?, ?, ?)''',
                     (run_id, old_id, new_id, json.dumps(metadata)))
         self.conn.commit()
+
+    def record_scaffold_run(self, run_id: str, scaffold_dir: str, model_version: str, scaffold_count: int, manifest_path: str) -> None:
+        # Use short-lived sqlite connection to avoid Windows cross-thread issues
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cur = conn.cursor()
+            cur.execute('''INSERT OR REPLACE INTO scaffold_runs (id, created_at, scaffold_dir, model_version, scaffold_count, manifest_path) VALUES (?, ?, ?, ?, ?, ?)''',
+                        (run_id, datetime.datetime.utcnow().isoformat(), scaffold_dir, model_version, scaffold_count, manifest_path))
+            conn.commit()
+
+    def add_scaffold_mapping(self, run_id: str, scaffold_id: str, chunk_id: str, metadata: Dict[str, Any]) -> None:
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cur = conn.cursor()
+            cur.execute('''INSERT OR REPLACE INTO scaffold_mappings (run_id, scaffold_id, chunk_id, metadata) VALUES (?, ?, ?, ?)''',
+                        (run_id, scaffold_id, chunk_id, json.dumps(metadata)))
+            conn.commit()
+
+    def get_latest_scaffold_run(self) -> Optional[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute('''SELECT id, scaffold_dir, model_version, scaffold_count, manifest_path, created_at FROM scaffold_runs ORDER BY created_at DESC LIMIT 1''')
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {'id': row[0], 'scaffold_dir': row[1], 'model_version': row[2], 'scaffold_count': row[3], 'manifest_path': row[4], 'created_at': row[5]}
+
+    def list_scaffold_mappings_for_run(self, run_id: str) -> List[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute('''SELECT scaffold_id, chunk_id, metadata FROM scaffold_mappings WHERE run_id = ?''', (run_id,))
+        rows = cur.fetchall()
+        return [{'scaffold_id': r[0], 'chunk_id': r[1], 'metadata': json.loads(r[2]) if r[2] else {}} for r in rows]
 
     def list_mappings_for_run(self, run_id: str) -> List[Dict[str, Any]]:
         cur = self.conn.cursor()

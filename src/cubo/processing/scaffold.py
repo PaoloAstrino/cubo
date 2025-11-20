@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -20,31 +21,15 @@ from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 
 class ScaffoldGenerator:
-    """
-    Generates compressed semantic scaffolds from document chunks.
-    
-    A scaffold is a compressed representation of multiple chunks:
-    - Merges mini-summaries from related chunks
-    - Creates scaffold embeddings for fast retrieval
-    - Maintains mapping: scaffold_id -> list of original chunk_ids
-    """
+    """Generates compressed semantic scaffolds from document chunks."""
 
     def __init__(
         self,
         enricher: Optional[ChunkEnricher] = None,
         embedding_generator: Optional[EmbeddingGenerator] = None,
         scaffold_size: int = 5,
-        similarity_threshold: float = 0.75
+        similarity_threshold: float = 0.75,
     ):
-        """
-        Initialize scaffold generator.
-        
-        Args:
-            enricher: ChunkEnricher for generating summaries/keywords
-            embedding_generator: EmbeddingGenerator for scaffold embeddings
-            scaffold_size: Target number of chunks per scaffold
-            similarity_threshold: Minimum similarity to group chunks
-        """
         self.enricher = enricher
         self.embedding_generator = embedding_generator
         self.scaffold_size = scaffold_size
@@ -54,212 +39,100 @@ class ScaffoldGenerator:
         self,
         chunks_df: pd.DataFrame,
         text_column: str = 'text',
-        id_column: str = 'chunk_id'
+        id_column: str = 'chunk_id',
     ) -> Dict[str, Any]:
-        """
-        Generate scaffolds from a DataFrame of chunks.
-        
-        Args:
-            chunks_df: DataFrame containing chunks with text and ids
-            text_column: Name of column containing chunk text
-            id_column: Name of column containing chunk ids
-            
-        Returns:
-            Dict with keys:
-                - scaffolds_df: DataFrame of scaffolds
-                - mapping: Dict[scaffold_id, List[chunk_id]]
-                - scaffold_embeddings: List of embeddings
-        """
         if chunks_df.empty:
             logger.warning("Empty chunks DataFrame provided to scaffold generator")
             return {'scaffolds_df': pd.DataFrame(), 'mapping': {}, 'scaffold_embeddings': []}
-
         logger.info(f"Generating scaffolds from {len(chunks_df)} chunks")
-
-        # Step 1: Enrich chunks with summaries if enricher provided
         enriched_chunks = self._enrich_chunks_if_needed(chunks_df, text_column)
-
-        # Step 2: Group chunks into scaffolds
-        scaffold_groups = self._group_chunks_into_scaffolds(
-            enriched_chunks, chunks_df[id_column].tolist()
-        )
-
-        # Step 3: Create scaffold summaries and metadata
-        scaffolds_data = self._create_scaffold_data(scaffold_groups, enriched_chunks)
-
-        # Step 4: Generate scaffold embeddings
+        chunk_ids = chunks_df[id_column].tolist()
+        scaffold_groups = self._group_chunks_into_scaffolds(enriched_chunks, chunk_ids)
+        scaffolds_data = self._create_scaffold_data(scaffold_groups, enriched_chunks, chunks_df, text_column)
         scaffold_embeddings = self._generate_scaffold_embeddings(scaffolds_data)
-
-        # Step 5: Build scaffold DataFrame
         scaffolds_df = pd.DataFrame.from_records(scaffolds_data)
-
-        # Step 6: Create mapping dict
-        mapping = {
-            row['scaffold_id']: row['chunk_ids']
-            for _, row in scaffolds_df.iterrows()
-        }
-
+        mapping = {row['scaffold_id']: row['chunk_ids'] for _, row in scaffolds_df.iterrows()}
         logger.info(f"Generated {len(scaffolds_df)} scaffolds from {len(chunks_df)} chunks")
+        return {'scaffolds_df': scaffolds_df, 'mapping': mapping, 'scaffold_embeddings': scaffold_embeddings}
 
-        return {
-            'scaffolds_df': scaffolds_df,
-            'mapping': mapping,
-            'scaffold_embeddings': scaffold_embeddings
-        }
-
-    def save_scaffolds(
-        self,
-        scaffolds_result: Dict[str, Any],
-        output_dir: Path
-    ) -> Dict[str, str]:
-        """
-        Save scaffolds, mappings, and embeddings to disk.
-        
-        Args:
-            scaffolds_result: Result from generate_scaffolds()
-            output_dir: Directory to save outputs
-            
-        Returns:
-            Dict with paths to saved files
-        """
+    def save_scaffolds(self, scaffolds_result: Dict[str, Any], output_dir: Path) -> Dict[str, str]:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-
         paths = {}
-
-        # Save scaffolds DataFrame
-        scaffolds_path = output_dir / 'scaffolds.parquet'
+        scaffolds_path = output_dir / 'scaffold_metadata.parquet'
         scaffolds_result['scaffolds_df'].to_parquet(scaffolds_path, index=False)
         paths['scaffolds_parquet'] = str(scaffolds_path)
         logger.info(f"Saved scaffolds to {scaffolds_path}")
-
-        # Save mapping as JSON
         mapping_path = output_dir / 'scaffold_mapping.json'
         with open(mapping_path, 'w', encoding='utf-8') as f:
             json.dump(scaffolds_result['mapping'], f, indent=2, ensure_ascii=False)
         paths['mapping_json'] = str(mapping_path)
         logger.info(f"Saved scaffold mapping to {mapping_path}")
-
-        # Save embeddings as numpy array
         if scaffolds_result['scaffold_embeddings']:
             embeddings_path = output_dir / 'scaffold_embeddings.npy'
             np.save(embeddings_path, np.array(scaffolds_result['scaffold_embeddings']))
             paths['embeddings_npy'] = str(embeddings_path)
             logger.info(f"Saved scaffold embeddings to {embeddings_path}")
-
         return paths
 
     def load_scaffolds(self, input_dir: Path) -> Dict[str, Any]:
-        """
-        Load scaffolds, mappings, and embeddings from disk.
-        
-        Args:
-            input_dir: Directory containing saved scaffold files
-            
-        Returns:
-            Dict with scaffolds_df, mapping, and scaffold_embeddings
-        """
         input_dir = Path(input_dir)
-
-        scaffolds_df = pd.read_parquet(input_dir / 'scaffolds.parquet')
-
+        scaffolds_df = pd.read_parquet(input_dir / 'scaffold_metadata.parquet')
         with open(input_dir / 'scaffold_mapping.json', 'r', encoding='utf-8') as f:
             mapping = json.load(f)
-
         embeddings_path = input_dir / 'scaffold_embeddings.npy'
         scaffold_embeddings = []
         if embeddings_path.exists():
             scaffold_embeddings = np.load(embeddings_path).tolist()
-
         logger.info(f"Loaded {len(scaffolds_df)} scaffolds from {input_dir}")
+        return {'scaffolds_df': scaffolds_df, 'mapping': mapping, 'scaffold_embeddings': scaffold_embeddings}
 
-        return {
-            'scaffolds_df': scaffolds_df,
-            'mapping': mapping,
-            'scaffold_embeddings': scaffold_embeddings
-        }
-
-    def _enrich_chunks_if_needed(
-        self,
-        chunks_df: pd.DataFrame,
-        text_column: str
-    ) -> List[Dict[str, Any]]:
-        """Enrich chunks with summaries if enricher is provided."""
+    def _enrich_chunks_if_needed(self, chunks_df: pd.DataFrame, text_column: str) -> List[Dict[str, Any]]:
         if self.enricher:
             logger.info("Enriching chunks with summaries")
             texts = chunks_df[text_column].fillna('').tolist()
             enriched = self.enricher.enrich_chunks(texts)
             return enriched
         else:
-            # Use original text as summary if no enricher
             logger.info("No enricher provided, using chunk text as summary")
             return [
-                {
-                    'text': row[text_column],
-                    'summary': row[text_column][:200],  # First 200 chars as summary
-                    'keywords': [],
-                    'category': 'general'
-                }
+                {'text': row[text_column], 'summary': row[text_column][:200], 'keywords': [], 'category': 'general'}
                 for _, row in chunks_df.iterrows()
             ]
 
-    def _group_chunks_into_scaffolds(
-        self,
-        enriched_chunks: List[Dict[str, Any]],
-        chunk_ids: List[str]
-    ) -> List[List[int]]:
-        """
-        Group chunks into scaffolds based on similarity and size.
-        
-        Returns list of groups, where each group is a list of chunk indices.
-        """
+    def _group_chunks_into_scaffolds(self, enriched_chunks: List[Dict[str, Any]], chunk_ids: List[str]) -> List[List[int]]:
         groups = []
         current_group = []
-
         for idx in range(len(enriched_chunks)):
             current_group.append(idx)
-
-            # Create a new group when we reach scaffold_size
             if len(current_group) >= self.scaffold_size:
                 groups.append(current_group)
                 current_group = []
-
-        # Add remaining chunks as final group
         if current_group:
             groups.append(current_group)
-
         logger.info(f"Grouped {len(enriched_chunks)} chunks into {len(groups)} scaffolds")
         return groups
 
     def _create_scaffold_data(
         self,
         scaffold_groups: List[List[int]],
-        enriched_chunks: List[Dict[str, Any]]
+        enriched_chunks: List[Dict[str, Any]],
+        original_chunks_df: pd.DataFrame,
+        text_column: str = 'text',
     ) -> List[Dict[str, Any]]:
-        """Create scaffold data records from grouped chunks."""
         scaffolds_data = []
-
         for group_idx, group in enumerate(scaffold_groups):
-            # Gather chunk data for this scaffold
             group_chunks = [enriched_chunks[i] for i in group]
-            chunk_ids = [f"chunk_{i}" for i in group]  # Placeholder, will be replaced
-
-            # Merge summaries
+            # Use original chunk ids from original_chunks_df by index
+            chunk_ids = [original_chunks_df.iloc[i].get('chunk_id') for i in group]
             merged_summary = self._merge_summaries(group_chunks)
-
-            # Collect all keywords
             all_keywords = []
             for chunk in group_chunks:
                 all_keywords.extend(chunk.get('keywords', []))
-            unique_keywords = list(set(all_keywords))[:10]  # Top 10 unique keywords
-
-            # Determine category (most common)
+            unique_keywords = list(set(all_keywords))[:10]
             categories = [chunk.get('category', 'general') for chunk in group_chunks]
             most_common_category = max(set(categories), key=categories.count)
-
-            # Generate scaffold ID
             scaffold_id = self._generate_scaffold_id(group_idx, merged_summary)
-
             scaffold_data = {
                 'scaffold_id': scaffold_id,
                 'summary': merged_summary,
@@ -267,47 +140,110 @@ class ScaffoldGenerator:
                 'category': most_common_category,
                 'chunk_ids': chunk_ids,
                 'chunk_count': len(group),
-                'group_index': group_idx
+                'group_index': group_idx,
+                # compute sizes and token counts
+                'original_size': sum(len(str(original_chunks_df.iloc[i].get(text_column, ''))) for i in group),
+                'compressed_size': len(merged_summary),
+                'original_token_count': sum(int(original_chunks_df.iloc[i].get('token_count', 0) or len(str(original_chunks_df.iloc[i].get(text_column, '')).split())) for i in group),
+                'compressed_token_count': len(str(merged_summary).split()),
+                'compression_ratio': (
+                    sum(len(str(original_chunks_df.iloc[i].get(text_column, ''))) for i in group) / len(merged_summary)
+                    if len(merged_summary) > 0 else 0
+                ),
             }
-
             scaffolds_data.append(scaffold_data)
-
         return scaffolds_data
 
     def _merge_summaries(self, chunks: List[Dict[str, Any]]) -> str:
-        """Merge multiple chunk summaries into a single scaffold summary."""
         summaries = [chunk.get('summary', '') for chunk in chunks if chunk.get('summary')]
-
         if not summaries:
             return "No summary available"
-
-        # Simple concatenation with separator
-        # For production, could use LLM to generate a meta-summary
-        merged = " | ".join(summaries[:3])  # Use first 3 summaries to keep it concise
-
-        return merged[:500]  # Limit to 500 chars
+        merged = " | ".join(summaries[:3])
+        return merged[:500]
 
     def _generate_scaffold_id(self, group_idx: int, summary: str) -> str:
-        """Generate unique scaffold ID."""
         content = f"scaffold_{group_idx}_{summary[:50]}"
         hash_val = hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:12]
         return f"scaffold_{hash_val}"
 
-    def _generate_scaffold_embeddings(
-        self,
-        scaffolds_data: List[Dict[str, Any]]
-    ) -> List[List[float]]:
-        """Generate embeddings for scaffold summaries."""
+    def _generate_scaffold_embeddings(self, scaffolds_data: List[Dict[str, Any]]) -> List[List[float]]:
         if not self.embedding_generator:
             logger.warning("No embedding generator provided, returning empty embeddings")
             return []
-
         summaries = [scaffold['summary'] for scaffold in scaffolds_data]
-
         logger.info(f"Generating embeddings for {len(summaries)} scaffolds")
         embeddings = self.embedding_generator.encode(summaries)
-
         return embeddings
+
+
+def _build_chunks_summary_from_df(scaffolds_df: pd.DataFrame, input_chunks_df: Optional[pd.DataFrame] = None, id_column: str = 'chunk_id') -> List[Dict[str, Any]]:
+    """Build a chunk-level summary for the manifest, optionally enriching with source metadata.
+
+    Each summary entry contains: scaffold_id, chunk_id, scaffold_group and optionally filename, file_hash, token_count
+    """
+    chunks_summary = []
+    if not scaffolds_df.empty:
+        for _, row in scaffolds_df.iterrows():
+            for cid in row['chunk_ids']:
+                entry = {'scaffold_id': row['scaffold_id'], 'chunk_id': cid, 'scaffold_group': row['group_index']}
+                if input_chunks_df is not None and id_column in input_chunks_df.columns:
+                    matched = input_chunks_df[input_chunks_df[id_column] == cid]
+                    if not matched.empty:
+                        m = matched.iloc[0]
+                        entry['filename'] = m.get('filename', '')
+                        entry['file_hash'] = m.get('file_hash', '')
+                        entry['token_count'] = int(m.get('token_count', 0) or len(str(m.get('text', '')).split()))
+                chunks_summary.append(entry)
+    return chunks_summary
+
+
+def save_scaffold_run(
+    run_id: str,
+    scaffolds_result: Dict[str, Any],
+    output_root: Path,
+    model_version: Optional[str] = None,
+    manifests_dir: Optional[Path] = None,
+    input_chunks_df: Optional[pd.DataFrame] = None,
+    id_column: str = 'chunk_id',
+):
+    run_dir = Path(output_root) / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    generator = ScaffoldGenerator()
+    paths = generator.save_scaffolds(scaffolds_result, run_dir)
+    manifest_dir = Path(manifests_dir or (Path(run_dir).parent.parent / 'manifests'))
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = manifest_dir / f"{run_id}_scaffold_manifest.json"
+    scaffolds_df = scaffolds_result.get('scaffolds_df', pd.DataFrame())
+    scaffold_count = len(scaffolds_df) if hasattr(scaffolds_df, '__len__') else 0
+    chunks_summary = _build_chunks_summary_from_df(scaffolds_df, input_chunks_df, id_column)
+    manifest = {
+        'run_id': run_id,
+        'scaffold_dir': str(run_dir),
+        'created_at': datetime.datetime.utcnow().isoformat(),
+        'model_version': model_version or '',
+        'scaffold_count': scaffold_count,
+        'chunks_summary': chunks_summary,
+    }
+    with open(manifest_path, 'w', encoding='utf-8') as fh:
+        json.dump(manifest, fh, indent=2, ensure_ascii=False)
+    # Add model_version to parquet metadata if present and parquet exists
+    try:
+        sc_path = Path(paths.get('scaffolds_parquet', ''))
+        if sc_path.exists() and model_version is not None:
+            df = pd.read_parquet(sc_path)
+            df['model_version'] = model_version
+            df.to_parquet(sc_path, index=False)
+    except Exception:
+        logger.warning("Failed to annotate scaffold parquet with model_version; proceeding")
+    try:
+        from src.cubo.storage.metadata_manager import get_metadata_manager
+        manager = get_metadata_manager()
+        manager.record_scaffold_run(run_id, str(run_dir), model_version or '', int(manifest['scaffold_count']), str(manifest_path))
+        for s in chunks_summary:
+            manager.add_scaffold_mapping(run_id, s['scaffold_id'], s['chunk_id'], {'group_index': s.get('scaffold_group')})
+    except Exception:
+        logger.warning("Failed to write scaffold run or mappings to metadata DB; proceeding")
+    return {'run_dir': str(run_dir), 'manifest': str(manifest_path)}
 
 
 def create_scaffolds_from_parquet(
@@ -317,37 +253,15 @@ def create_scaffolds_from_parquet(
     embedding_generator: Optional[EmbeddingGenerator] = None,
     scaffold_size: int = 5,
     text_column: str = 'text',
-    id_column: str = 'chunk_id'
+    id_column: str = 'chunk_id',
+    run_id: Optional[str] = None,
+    manifests_dir: Optional[Path] = None,
 ) -> Dict[str, str]:
-    """
-    Convenience function to create scaffolds from a parquet file.
-    
-    Args:
-        parquet_path: Path to input parquet with chunks
-        output_dir: Directory to save scaffold outputs
-        enricher: Optional ChunkEnricher
-        embedding_generator: Optional EmbeddingGenerator
-        scaffold_size: Target chunks per scaffold
-        text_column: Name of text column
-        id_column: Name of id column
-        
-    Returns:
-        Dict with paths to saved files
-    """
     chunks_df = pd.read_parquet(parquet_path)
-
-    generator = ScaffoldGenerator(
-        enricher=enricher,
-        embedding_generator=embedding_generator,
-        scaffold_size=scaffold_size
-    )
-
-    scaffolds_result = generator.generate_scaffolds(
-        chunks_df,
-        text_column=text_column,
-        id_column=id_column
-    )
-
+    generator = ScaffoldGenerator(enricher=enricher, embedding_generator=embedding_generator, scaffold_size=scaffold_size)
+    scaffolds_result = generator.generate_scaffolds(chunks_df, text_column=text_column, id_column=id_column)
     paths = generator.save_scaffolds(scaffolds_result, Path(output_dir))
-
+    if run_id:
+        # Persist run with enriched input metadata if available
+        save_scaffold_run(run_id, scaffolds_result, Path(output_dir).parent, model_version=None, manifests_dir=manifests_dir, input_chunks_df=chunks_df, id_column=id_column)
     return paths

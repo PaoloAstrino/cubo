@@ -38,7 +38,8 @@ def parse_args():
     parser.add_argument('--output-parquet', help='Path to save the enriched data as a Parquet file.')
     parser.add_argument('--dedup-map', help='Path to the deduplication map file.')
     parser.add_argument('--scaffold', action='store_true', help='Build scaffold index for fast retrieval')
-    parser.add_argument('--scaffold-dir', default='scaffold_index', help='Directory to save scaffold outputs')
+    parser.add_argument('--scaffold-dir', default='scaffold_index', help='(Deprecated) Directory to save scaffold outputs')
+    parser.add_argument('--scaffold-output-dir', default='data/scaffolds', help='Directory to save scaffold outputs (default: data/scaffolds)')
     parser.add_argument('--scaffold-size', type=int, default=5, help='Target number of chunks per scaffold')
     parser.add_argument('--use-opq', action='store_true', help='Use OPQ (Optimized Product Quantization) for cold index')
     parser.add_argument('--opq-m', type=int, default=32, help='OPQ subspace dimension')
@@ -89,12 +90,14 @@ def main():
             id_column=args.id_column
         )
         
-        # Save scaffolds
-        scaffold_paths = scaffold_gen.save_scaffolds(
-            scaffolds_result,
-            Path(args.scaffold_dir)
-        )
-        logger.info(f"Scaffold outputs saved to {args.scaffold_dir}")
+        # Save scaffolds into a run-specific directory and write a manifest
+        from uuid import uuid4
+        run_id = f"scaffold_{int(time.time())}_{uuid4().hex[:8]}"
+        from src.cubo.processing.scaffold import save_scaffold_run
+        scaffold_output = Path(args.scaffold_output_dir) if getattr(args, 'scaffold_output_dir', None) else Path(args.scaffold_dir)
+        res = save_scaffold_run(run_id, scaffolds_result, output_root=scaffold_output, model_version=config.get('llm_model'), input_chunks_df=df, id_column=args.id_column)
+        scaffold_paths = res
+        logger.info(f"Scaffold outputs saved to {res['run_dir']} (manifest: {res['manifest']})")
         
         # Build FAISS index on scaffolds instead of chunks
         scaffold_df = scaffolds_result['scaffolds_df']
@@ -109,7 +112,7 @@ def main():
         
         manager = FAISSIndexManager(
             dimension=dimension,
-            index_dir=Path(args.scaffold_dir) / 'faiss',
+            index_dir=Path(res['run_dir']) / 'faiss',
             nlist=args.nlist,
             hnsw_m=args.hnsw_m,
             hot_fraction=args.hot_fraction,
