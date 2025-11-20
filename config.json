@@ -40,6 +40,21 @@
       "chunk_overlap": 200
     }
   },
+  "query_router": {
+    "use_llm_fallback": false,
+    "confidence_threshold": 0.6,
+    "llm_model": "",
+    "llm_timeout_ms": 1000,
+    "llm_cache_ttl_seconds": 300
+    ,
+    "presets": {
+      "factual": {"bm25_weight": 0.7, "dense_weight": 0.3, "use_reranker": false, "k_candidates": 50},
+      "conceptual": {"bm25_weight": 0.3, "dense_weight": 0.7, "use_reranker": true, "k_candidates": 200},
+      "comparative": {"bm25_weight": 0.2, "dense_weight": 0.8, "use_reranker": true, "k_candidates": 250},
+      "temporal": {"bm25_weight": 0.6, "dense_weight": 0.4, "use_reranker": false, "k_candidates": 100},
+      "exploratory": {"bm25_weight": 0.4, "dense_weight": 0.6, "use_reranker": true, "k_candidates": 300}
+    }
+  },
   "retrieval": {
     "top_k": 3,
     "auto_merging_chunk_sizes": [2048, 512, 128],
@@ -63,8 +78,8 @@
   },
   "evaluation": {
     "llm_provider": "ollama",
-    "gemini_api_key": "your_gemini_api_key_here",
-    "gemini_model": "gemini-1.5-flash",
+    "gemini_api_key": "",
+    "gemini_model": "",
     "ollama_model": "llama3.2:latest"
   },
   "dolphin": {

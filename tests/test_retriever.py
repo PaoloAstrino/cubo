@@ -137,3 +137,23 @@ def test_reranker_initialization_with_crossencoder(mock_model):
         assert hasattr(retriever2, 'reranker')
         from src.cubo.rerank.reranker import CrossEncoderReranker, LocalReranker
         assert isinstance(retriever2.reranker, (CrossEncoderReranker, LocalReranker, type(None)))
+
+
+    def test_apply_reranking_called_when_enabled(mock_model):
+        # Ensure the internal function respects use_reranker flag
+        retriever = DocumentRetriever(mock_model)
+        class FakeReranker:
+            def __init__(self):
+                self.called = False
+            def rerank(self, query, candidates, max_results=None):
+                self.called = True
+                # return the same candidates to keep semantics
+                return candidates
+
+        fake = FakeReranker()
+        retriever.reranker = fake
+        candidates = [{'document': 'a'}, {'document': 'b'}, {'document': 'c'}]
+        out = retriever._apply_reranking_if_available(candidates, top_k=2, query='test', use_reranker=False)
+        assert fake.called is False
+        out = retriever._apply_reranking_if_available(candidates, top_k=2, query='test', use_reranker=True)
+        assert fake.called is True

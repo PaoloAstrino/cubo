@@ -38,6 +38,15 @@ from src.cubo.retrieval.fusion import rrf_fuse
 
 class DocumentRetriever:
     """Handles document retrieval using ChromaDB and sentence transformers."""
+    """
+    Note: `DocumentRetriever` will attempt to initialize a reranker based on the
+    `retrieval.reranker_model` configuration. If a cross-encoder model is available
+    and configured, the class initializes a `CrossEncoderReranker` as `self.reranker`.
+    If CrossEncoder is not available, or the model cannot be loaded, it falls back
+    to `LocalReranker` which uses the embedding generator for scoring. If no model
+    is configured or loaded, `self.reranker` will be `None` and re-ranking will be
+    skipped.
+    """
 
     def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True,
                  use_auto_merging: bool = False, auto_merge_for_complex: bool = True,
@@ -1161,6 +1170,15 @@ class DocumentRetriever:
 class FaissHybridRetriever:
     """
     Hybrid Retriever that combines sparse (BM25) and dense (FAISS) retrieval.
+
+    The class provides an optional `reranker` parameter (e.g. CrossEncoder/LocalReranker) to
+    perform re-ranking of the fused candidate list when a strategy requests it. The reranker
+    must implement a `rerank(query, candidates, max_results=None)` method and may return a
+    list of candidates that contain either `doc_id` (preferred) or `content`/`document` keys.
+
+    When `strategy['use_reranker']` is True, the reranker will be invoked and its result
+    used to produce the final ordered list of documents. If the reranker fails or is not
+    available, the retriever falls back to the fused BM25/FAISS ordering.
     """
     def __init__(
         self,
@@ -1168,25 +1186,43 @@ class FaissHybridRetriever:
         faiss_manager: FAISSIndexManager,
         embedding_generator: EmbeddingGenerator,
         documents: List[Dict],
+        reranker=None,
     ):
         self.bm25_searcher = bm25_searcher
         self.faiss_manager = faiss_manager
         self.embedding_generator = embedding_generator
         self.documents = {doc['doc_id']: doc for doc in documents}
+        self.reranker = reranker
 
-    def search(self, query: str, top_k: int = 10) -> List[Dict]:
+    def search(self, query: str, top_k: int = 10, strategy: Optional[dict] = None) -> List[Dict]:
         """
         Performs hybrid search and returns a list of documents.
         """
         # 1. Get BM25 results
-        bm25_results = self.bm25_searcher.search(query, top_k=top_k)
+        bm25_k = top_k
+        faiss_k = top_k
+        bm25_weight = 0.5
+        dense_weight = 0.5
+        use_reranker = False
+        if strategy:
+            bm25_k = strategy.get('k_candidates', top_k)
+            faiss_k = strategy.get('k_candidates', top_k)
+            bm25_weight = float(strategy.get('bm25_weight', 0.5))
+            dense_weight = float(strategy.get('dense_weight', 0.5))
+            use_reranker = bool(strategy.get('use_reranker', False))
+
+        bm25_results = self.bm25_searcher.search(query, top_k=bm25_k)
 
         # 2. Get FAISS results
         query_embedding = self.embedding_generator.encode([query])[0]
         faiss_results = self.faiss_manager.search(query_embedding, k=top_k)
 
-        # 3. Fuse results (naive fusion)
-        fused_results = self._fuse_results(bm25_results, faiss_results)
+        # 3. Fuse results (weighted combination or RRF fallback)
+        try:
+            from src.cubo.retrieval.fusion import combine_semantic_and_bm25
+            fused_results = combine_semantic_and_bm25(faiss_results, bm25_results, semantic_weight=dense_weight, bm25_weight=bm25_weight, top_k=top_k)
+        except Exception:
+            fused_results = self._fuse_results(bm25_results, faiss_results)
 
         # 4. Sort and return top-k
         fused_results.sort(key=lambda x: x['score'], reverse=True)
@@ -1199,6 +1235,40 @@ class FaissHybridRetriever:
                 doc = self.documents[doc_id]
                 doc['score'] = res['score']
                 final_results.append(doc)
+
+        # If reranker available and strategy requests re-ranking, apply it
+        if use_reranker and self.reranker and final_results:
+            try:
+                # Reranker expects a list of candidates (with 'content' or 'document' keys)
+                # Normalize content key
+                candidates = []
+                for d in final_results:
+                    c = d.copy()
+                    if 'content' not in c and 'text' in c:
+                        c['content'] = c['text']
+                    elif 'content' not in c and 'document' in c:
+                        c['content'] = c.get('document')
+                    candidates.append(c)
+                reranked = self.reranker.rerank(query, candidates, max_results=len(candidates))
+                if reranked:
+                    # Map back reranked results to final doc format (keep score from reranker if available)
+                    output = []
+                    for c in reranked[:top_k]:
+                        # find doc by doc_id or by content
+                        if 'doc_id' in c and c['doc_id'] in self.documents:
+                            doc = self.documents[c['doc_id']]
+                        else:
+                            # search by content small heuristic
+                            doc = next((dd for dd in final_results if (dd.get('text') or dd.get('content') or dd.get('document')) == (c.get('content') or c.get('document') or '')), None)
+                        if doc:
+                            out = doc.copy()
+                            if 'rerank_score' in c:
+                                out['rerank_score'] = c['rerank_score']
+                            output.append(out)
+                    return output[:top_k]
+            except Exception:
+                # fallback: return final_results as-is
+                pass
 
         return final_results
 

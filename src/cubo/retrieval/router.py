@@ -7,6 +7,12 @@ from enum import Enum
 from typing import Optional, Dict, Any
 
 from src.cubo.config import config
+try:
+    from src.cubo.routing.query_router import query_router as default_router
+    from src.cubo.routing.query_router import QueryType as RouterQueryType
+except Exception:
+    default_router = None
+    RouterQueryType = None
 
 
 class QueryType(Enum):
@@ -93,8 +99,26 @@ class SemanticRouter:
           - use_reranker
           - k_candidates
         """
-        q_type = self.classify_query(query_text)
-        temporal = self.extract_temporal_filter(query_text)
+        # If an external router exists, prefer its computed strategy
+        if default_router:
+            try:
+                strat = default_router.compute_strategy(query_text)
+                return {
+                    'query_type': strat.__class__.__name__ if hasattr(strat, '__class__') else (str(strat)),
+                    'temporal_filter': strat.temporal_range,
+                    'use_bm25': True,
+                    'bm25_weight': strat.bm25_weight,
+                    'dense_weight': strat.dense_weight,
+                    'use_reranker': strat.use_reranker,
+                    'k_candidates': strat.k_candidates
+                }
+            except Exception:
+                # Fallback to our simple logic below
+                q_type = self.classify_query(query_text)
+                temporal = self.extract_temporal_filter(query_text)
+        else:
+            q_type = self.classify_query(query_text)
+            temporal = self.extract_temporal_filter(query_text)
 
         # Base defaults. Allow overriding via config
         defaults = {

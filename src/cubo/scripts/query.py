@@ -35,11 +35,27 @@ def main():
     faiss_manager = FAISSIndexManager(dimension=0, index_dir=Path(faiss_index_dir), index_root=Path(faiss_index_root) if faiss_index_root else None)
     faiss_manager.load()
 
+    # Optionally initialize reranker for improved ranking
+    reranker = None
+    try:
+        reranker_model = config.get('retrieval.reranker_model', None)
+        if reranker_model:
+            from src.cubo.rerank.reranker import CrossEncoderReranker
+            reranker = CrossEncoderReranker(model_name=reranker_model, top_n=args.top_k)
+    except Exception:
+        # CrossEncoder unavailable or failed; try LocalReranker
+        try:
+            from src.cubo.rerank.reranker import LocalReranker
+            reranker = LocalReranker(embedding_generator.model)
+        except Exception:
+            reranker = None
+
     hybrid_retriever = HybridRetriever(
         bm25_searcher=bm25_searcher,
         faiss_manager=faiss_manager,
         embedding_generator=embedding_generator,
         documents=bm25_searcher.docs,
+        reranker=reranker,
     )
 
     response_generator = create_response_generator()

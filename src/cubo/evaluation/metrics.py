@@ -12,28 +12,24 @@ import re
 from collections import Counter
 import time
 
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
+# google.generativeai/Gemini integration removed to avoid external API calls
+GEMINI_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 class AdvancedEvaluator:
     """Advanced evaluation metrics for RAG systems."""
 
-    def __init__(self, ollama_client=None, gemini_client=None, llm_provider="ollama"):
+    def __init__(self, ollama_client=None, llm_provider="ollama"):
         """
         Initialize advanced evaluator.
 
         Args:
             ollama_client: Optional Ollama client for LLM-based evaluations
-            gemini_client: Optional Gemini client for LLM-based evaluations
-            llm_provider: Which LLM provider to use ('ollama' or 'gemini')
+            gemini_client: removed - Gemini integrations are disabled.
+            llm_provider: Which LLM provider to use ('ollama')
         """
         self.ollama_client = ollama_client
-        self.gemini_client = gemini_client
         self.llm_provider = llm_provider
 
     async def evaluate_comprehensive(self, question: str, answer: str,
@@ -59,7 +55,7 @@ class AdvancedEvaluator:
         results['groundedness_score'] = groundedness_score
 
         # LLM-based advanced metrics (if available)
-        if self.ollama_client or self.gemini_client:
+        if self.ollama_client:
             llm_metrics = await self.evaluate_llm_based_metrics(question, answer, contexts)
             results.update(llm_metrics)
 
@@ -152,7 +148,7 @@ class AdvancedEvaluator:
         if not question or not answer:
             return None
 
-        if not self.ollama_client and not self.gemini_client:
+        if not self.ollama_client:
             # No LLM available for evaluation
             return None
 
@@ -200,7 +196,7 @@ class AdvancedEvaluator:
         if not question or not contexts:
             return None
 
-        if not self.ollama_client and not self.gemini_client:
+        if not self.ollama_client:
             # No LLM available for evaluation
             return None
 
@@ -435,7 +431,7 @@ class AdvancedEvaluator:
     async def evaluate_llm_based_metrics(self, question: str, answer: str,
                                         contexts: List[str]) -> Dict[str, Any]:
         """Advanced LLM-based evaluation metrics."""
-        if not self.ollama_client and not self.gemini_client:
+        if not self.ollama_client:
             return {}
 
         results = {}
@@ -497,12 +493,7 @@ class AdvancedEvaluator:
     async def _get_llm_score(self, prompt: str) -> float:
         """Get numerical score from LLM."""
         try:
-            if self.llm_provider == "gemini" and self.gemini_client and GEMINI_AVAILABLE:
-                score = await self._get_gemini_score(prompt)
-                if score is None:
-                    return None
-                return score
-            elif self.llm_provider == "ollama" and self.ollama_client:
+            if self.llm_provider == "ollama" and self.ollama_client:
                 score = await self._get_ollama_score(prompt)
                 if score is None:
                     return None
@@ -514,48 +505,7 @@ class AdvancedEvaluator:
             logger.error(f"LLM scoring failed: {e}")
             return None  # Neutral score
 
-    async def _get_gemini_score(self, prompt: str) -> float:
-        """Get score from Gemini."""
-        import asyncio
-
-        try:
-            # Try different model names in order of preference (free tier first)
-            model_names = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
-
-            for model_name in model_names:
-                try:
-                    model = genai.GenerativeModel(model_name)
-
-                    # Add timeout to prevent hanging
-                    response = await asyncio.wait_for(
-                        model.generate_content_async(prompt),
-                        timeout=30.0  # 30 second timeout
-                    )
-
-                    # Extract numerical score from response
-                    text = response.text.strip()
-                    logger.debug(f"Gemini response for prompt: {prompt[:100]}... -> {text}")
-                    # Look for a number between 1-5
-                    import re
-                    match = re.search(r'(\d+(?:\.\d+)?)', text)
-                    if match:
-                        score = float(match.group(1))
-                        logger.debug(f"Extracted score: {score}")
-                        return max(1.0, min(5.0, score))  # Clamp to 1-5 range
-                except asyncio.TimeoutError:
-                    logger.warning(f"Gemini API call timed out for model {model_name}")
-                    continue
-                except Exception as e:
-                    logger.debug(f"Failed with model {model_name}: {e}")
-                    continue
-
-            # If all models failed, return None to indicate complete failure
-            logger.error(f"All Gemini models failed for scoring")
-            return None
-
-        except Exception as e:
-            logger.error(f"Gemini scoring failed: {e}")
-            return None
+    # Gemini scoring removed (external API). Only local scoring via _get_ollama_score supported.
 
     async def _get_ollama_score(self, prompt: str) -> float:
         """Get score from Ollama."""
@@ -624,7 +574,7 @@ class AdvancedEvaluator:
         if not contexts or not answer:
             return 0.0
 
-        if not self.ollama_client and not self.gemini_client:
+        if not self.ollama_client:
             # No LLM available for evaluation
             return None
 

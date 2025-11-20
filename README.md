@@ -143,6 +143,27 @@ To enable:
 
 When enabled, reranking runs on the top candidate set from the router strategy and reorders them by the cross-encoder score.
 
+How it integrates with retrievers
+--------------------------------
+
+- The `FaissHybridRetriever` has an optional `reranker` constructor parameter. Pass an instantiated reranker (e.g., a CrossEncoder implementation) to have the retriever apply re-ranking to the top candidates when requested by the query `strategy`.
+- The retriever will consult the `strategy['use_reranker']` flag provided by the `SemanticRouter` (or by caller) to decide whether to invoke the `reranker` for a given query. If `use_reranker` is `True` and a `reranker` is available, it will be applied to re-score and reorder the candidate documents.
+- Reranker contract: the object should implement `rerank(query, candidates, max_results=None)` and return a list of candidates, optionally carrying a `rerank_score` or `doc_id` to allow mapping back to original documents.
+- If the reranker raises an exception or returns an empty result, the retriever falls back to the fused BM25+FAISS ordering.
+
+Example (programmatic):
+
+```python
+from src.cubo.retrieval.retriever import FaissHybridRetriever
+from src.cubo.rerank.reranker import CrossEncoderReranker
+
+reranker = CrossEncoderReranker(model_name='cross-encoder/ms-marco-MiniLM-L-6-v2')
+hybrid = FaissHybridRetriever(bm25, faiss_manager, embedding_generator, documents=docs, reranker=reranker)
+strategy = {'use_reranker': True}
+results = hybrid.search('What is apple', top_k=5, strategy=strategy)
+```
+
+
 
 
 
