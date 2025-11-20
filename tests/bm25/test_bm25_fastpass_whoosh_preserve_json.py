@@ -12,6 +12,7 @@ except Exception:
     WHOOSH_AVAILABLE = False
 
 
+@pytest.mark.requires_whoosh
 @pytest.mark.skipif(not WHOOSH_AVAILABLE, reason='Whoosh not installed')
 def test_fastpass_whoosh_preserve_json(tmp_path: Path, monkeypatch):
     # Prepare input folder with a small text file

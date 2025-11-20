@@ -398,6 +398,33 @@ jobs:
 
           print('Testing ChromaDB integration...')
 
+
+  faiss_e2e:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (including faiss-cpu)
+        run: |
+          python -m pip install --upgrade pip
+          # Install FAISS CPU wheels on Ubuntu
+          pip install faiss-cpu --no-cache-dir || true
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run FAISS E2E tests
+        run: |
+          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
+          # Run only end-to-end tests that require FAISS
+          python -m pytest tests/indexing/test_publish_stress_concurrency.py -q -m "requires_faiss and e2e"
   faiss_index_tests:
     runs-on: ubuntu-latest
     needs: test
@@ -429,7 +456,7 @@ jobs:
       - name: Run FAISS indexing tests only
         run: |
           export PYTHONPATH="${{ github.workspace }}"
-          python -m pytest tests/indexing -q -q
+          python -m pytest -q tests/indexing -m "requires_faiss"
 
           try:
               import chromadb

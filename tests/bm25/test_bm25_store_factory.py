@@ -20,6 +20,7 @@ def test_factory_explicit_python():
     assert isinstance(st, BM25PythonStore)
 
 
+@pytest.mark.requires_whoosh
 @pytest.mark.skipif(not WHOOSH_AVAILABLE, reason='Whoosh not installed')
 def test_factory_whoosh(tmp_path):
     st = get_bm25_store('whoosh', index_dir=str(tmp_path))

@@ -85,7 +85,7 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
     return metadata
 
 
-def publish_version(version_dir: Path, index_root: Path, verify: bool = True, version_id: Optional[str] = None) -> Path:
+def publish_version(version_dir: Path, index_root: Path, verify: bool = True, version_id: Optional[str] = None, telemetry_hook: Optional[callable] = None, rollback_on_db_failure: bool = True) -> Path:
     """Publish a FAISS version directory by verifying artifacts, flipping a pointer file and recording DB entry.
     Returns the published directory path.
     """
@@ -108,9 +108,18 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         # Form the published path: keep version_dir as-is; pointer file references it
         published_dir = version_dir
 
+        # Save previous pointer content for potential rollback
+        pointer_final = index_root / POINTER_FILENAME
+        previous_pointer_payload = None
+        if pointer_final.exists():
+            try:
+                with open(pointer_final, 'r', encoding='utf-8') as pfh:
+                    previous_pointer_payload = json.load(pfh)
+            except Exception:
+                previous_pointer_payload = None
+
         # Write pointer tmp + os.replace
         pointer_tmp = index_root / (POINTER_FILENAME + '.tmp')
-        pointer_final = index_root / POINTER_FILENAME
 
     pointer_payload = {
         'index_dir': str(published_dir),
@@ -148,8 +157,46 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
     try:
         manager = get_metadata_manager()
         manager.record_index_version(pointer_payload['version_id'], str(published_dir))
+        if telemetry_hook:
+            try:
+                telemetry_hook('db_recorded', {'version_id': pointer_payload['version_id'], 'index_dir': str(published_dir)})
+            except Exception:
+                pass
     except Exception as exc:
         logger.warning(f"Failed to record published index version in metadata DB: {exc}")
+        # Try to rollback the pointer to previous payload if requested
+        if rollback_on_db_failure:
+            try:
+                if previous_pointer_payload is not None:
+                    tmp_prev = index_root / (POINTER_FILENAME + '.rollback.tmp')
+                    with open(tmp_prev, 'w', encoding='utf-8') as rfh:
+                        json.dump(previous_pointer_payload, rfh)
+                        rfh.flush()
+                        os.fsync(rfh.fileno())
+                    os.replace(str(tmp_prev), str(pointer_final))
+                    logger.warning(f"Rolled back pointer file to previous version: {pointer_final}")
+                    if telemetry_hook:
+                        try:
+                            telemetry_hook('rolled_back', {'index_dir': previous_pointer_payload.get('index_dir')})
+                        except Exception:
+                            pass
+                else:
+                    # No previous payload: remove pointer to avoid stray pointer
+                    try:
+                        if pointer_final.exists():
+                            pointer_final.unlink()
+                            logger.warning(f"Removed pointer file after DB failure: {pointer_final}")
+                            if telemetry_hook:
+                                try:
+                                    telemetry_hook('pointer_removed', {'index_root': str(index_root)})
+                                except Exception:
+                                    pass
+                    except Exception as exc2:
+                        logger.warning(f"Failed to remove pointer file after DB failure: {exc2}")
+            except Exception as exc2:
+                logger.warning(f"Failed to rollback pointer after DB failure: {exc2}")
+        # Re-raise the DB error to notify caller
+        raise
     return published_dir
 
 
@@ -160,6 +207,69 @@ def get_current_index_dir(index_root: Path) -> Optional[Path]:
     with open(pointer, 'r', encoding='utf-8') as fh:
         payload = json.load(fh)
     return Path(payload.get('index_dir')) if payload.get('index_dir') else None
+
+
+def rollback_to_previous(index_root: Path, telemetry_hook: Optional[callable] = None) -> bool:
+    """Rollback the pointer file to the previous index version recorded in the metadata DB.
+    Returns True if rollback happened, False if no previous version exists.
+    """
+    index_root = Path(index_root)
+    pointer_final = index_root / POINTER_FILENAME
+    if not pointer_final.exists():
+        return False
+    # Obtain previous version from metadata manager
+    try:
+        manager = get_metadata_manager()
+        # Fetch the latest two versions for rollback decision-making
+        versions = manager.list_index_versions(limit=2)
+    except Exception as exc:
+        logger.warning(f"Failed to fetch versions from metadata manager during rollback: {exc}")
+        return False
+    if not versions or len(versions) < 2:
+        # No previous version recorded
+        logger.info("No previous index version available for rollback")
+        return False
+    # Determine rollback target: if pointer currently points to the latest recorded version, pick the previous.
+    current_pointer_dir = None
+    try:
+        with open(pointer_final, 'r', encoding='utf-8') as pfh:
+            current_pointer_dir = json.load(pfh).get('index_dir')
+    except Exception:
+        current_pointer_dir = None
+
+    if len(versions) == 1:
+        # Only one recorded version - nothing to rollback to except possibly removing pointer, which
+        # we treat as no-op in this helper.
+        logger.info("Only one recorded version - nothing to rollback to")
+        return False
+
+    # If current pointer equals versions[0], choose versions[1], otherwise choose versions[0]
+    if current_pointer_dir and os.path.samefile(current_pointer_dir, versions[0]['index_dir']) if os.path.exists(current_pointer_dir) else current_pointer_dir == versions[0]['index_dir']:
+        prev = versions[1]
+    else:
+        prev = versions[0]
+    prev_payload = {
+        'index_dir': str(prev['index_dir']),
+        'timestamp': int(time.time()),
+        'version_id': prev['id']
+    }
+    tmp_prev = index_root / (POINTER_FILENAME + '.rollback.tmp')
+    try:
+        with open(tmp_prev, 'w', encoding='utf-8') as fh:
+            json.dump(prev_payload, fh)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(str(tmp_prev), str(pointer_final))
+        logger.info(f"Rolled back pointer file to previous version: {prev['index_dir']}")
+        if telemetry_hook:
+            try:
+                telemetry_hook('rolled_back', {'index_dir': prev['index_dir'], 'version_id': prev['id']})
+            except Exception:
+                pass
+        return True
+    except Exception as exc:
+        logger.warning(f"Failed to rollback pointer: {exc}")
+        return False
 
 
 def cleanup(index_root: Path, keep_last_n: int = 3):

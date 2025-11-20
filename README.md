@@ -240,6 +240,17 @@ CI & Testing Notes
 $env:PYTHONPATH = "${PWD}"; pytest -q
 ```
 
+Testing markers & CI notes
+-------------------------
+
+- Use `pytest` markers to control environment-specific tests:
+   - `requires_faiss`: Mark tests that require FAISS (dense retrieval) – CI will run these on a Linux runner with `faiss-cpu` installed.
+   - `requires_whoosh`: Mark Whoosh-dependent tests (BM25 Whoosh backend). These tests are automatically skipped when Whoosh is not present locally via `tests/conftest.py`.
+   - `integration` / `e2e`: Longer-running tests that exercise higher-level system behavior and are suitable for dedicated CI runners.
+
+- The CI pipeline has a `faiss_e2e` job that runs FAISS-dependent end-to-end tests (including a concurrent publisher/reader stress test) on `ubuntu-latest` with `faiss-cpu` installed.
+
+
 
 ## Project Structure
 

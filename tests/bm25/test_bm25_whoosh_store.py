@@ -6,7 +6,7 @@ try:
 except Exception:
     WHOOSH_AVAILABLE = False
 
-
+@pytest.mark.requires_whoosh
 @pytest.mark.skipif(not WHOOSH_AVAILABLE, reason='Whoosh not installed')
 def test_whoosh_store_basic(tmp_path):
     from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
