@@ -17,6 +17,7 @@ def test_query_scrubbed_in_logs(tmp_path):
     config.set('logging.log_file', str(log_file))
     config.set('logging.format', 'json')
     config.set('logging.scrub_queries', True)
+    config.set('logging.enable_queue', False)
     logger_instance.shutdown()
     logger_instance._setup_logging()
     # Ensure module-level loggers referencing the previous logger are updated

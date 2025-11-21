@@ -12,6 +12,7 @@ def test_json_log_format(tmp_path):
     log_file = tmp_path / 'test_log.jsonl'
     config.set('logging.log_file', str(log_file))
     config.set('logging.format', 'json')
+    config.set('logging.enable_queue', False)
     # Re-init logger
     logger_instance.shutdown()
     logger_instance._setup_logging()

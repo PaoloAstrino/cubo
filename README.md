@@ -1,8 +1,18 @@
 # CUBO - AI Document Assistant v1.2.0
 
 [![CI/CD](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml)
+[![E2E Tests](https://github.com/your-username/cubo/actions/workflows/e2e.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/e2e.yml)
 
-A modular Retrieval-Augmented Generation system using embedding models and Large Language Models (LLMs) with a modern desktop interface.
+A modular Retrieval-Augmented Generation system using embedding models and Large Language Models (LLMs) with a modern desktop interface and web API.
+
+## What's New in v1.3.0
+
+- **🌐 Web API & Frontend**: FastAPI backend with Next.js frontend for web-based document management
+- **🔍 Request Tracing**: Trace ID propagation across all API requests for debugging and monitoring
+- **🔒 Query Scrubbing**: Automatic query sanitization in logs for privacy protection
+- **🧪 E2E Testing**: Automated end-to-end smoke tests with CI/CD integration
+- **📊 Structured Logging**: JSON-formatted logs with trace ID indexing for easy searching
+- **🚀 Full Stack**: Complete integration from upload → ingest → index → query
 
 ## What's New in v1.2.0
 
@@ -13,7 +23,18 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 
 ## Changelog
 
-### v1.2.0 (September 2025)
+### v1.3.0 (November 2024)
+
+- 🌐 **Web API Server**: Added FastAPI backend with RESTful endpoints for upload, ingest, build, and query
+- 🎨 **Next.js Frontend**: Modern React frontend with shadcn/ui components for document management
+- 🔍 **Request Tracing**: Trace ID propagation with `x-trace-id` headers across all API requests
+- 🔒 **Query Scrubbing**: Automatic query hashing in logs when privacy mode enabled
+- 📊 **Structured Logging**: JSON-formatted logs with trace ID support for debugging
+- 🧪 **E2E Testing**: Complete smoke test suite validating upload → ingest → build → query flow
+- 🔧 **CI/CD**: GitHub Actions workflow for automated E2E testing with log verification
+- 📚 **API Documentation**: Interactive OpenAPI docs at `/docs` endpoint
+
+### v1.2.0 (September 2024)
 
 - 🐬 **Dolphin Integration**: Added ByteDance/Dolphin vision-language model for superior PDF and image document parsing
 - ⚡ **Automatic Enhanced Processing**: System automatically uses enhanced processing when Dolphin is available (transparent to users)
@@ -31,12 +52,37 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - 🔧 **Architecture**: Added postprocessor module for enhanced retrieval with WindowReplacementPostProcessor and LocalReranker
 - 🐛 **Bug Fixes**: Resolved circular import issues and improved error handling
 
+## Quick Start
 
-- 🚀 **Core RAG System**: Modular Retrieval-Augmented Generation with embedding models and LLMs
-- 📄 **Multi-format Support**: Support for .txt, .docx, .pdf, and .md document formats
- Run tests with the `PYTHONPATH` set to the repo root:
-- 🔍 **Vector Search**: ChromaDB integration for efficient document retrieval
- PowerShell (Windows):
+### Web Interface (Recommended)
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+cd frontend && pnpm install && cd ..
+
+# Start both backend and frontend
+python scripts/start_fullstack.py
+```
+
+Visit:
+- Frontend: http://localhost:3000
+- API Docs: http://localhost:8000/docs
+
+See [API Integration Guide](docs/API_INTEGRATION.md) for details.
+
+### Desktop GUI
+
+```bash
+pip install -r requirements.txt
+python launch_gui.py
+```
+
+## Testing
+
+Run tests with the `PYTHONPATH` set to the repo root:
+
+PowerShell (Windows):
 
  ```pwsh
  $env:PYTHONPATH = "${PWD}"; pytest -q

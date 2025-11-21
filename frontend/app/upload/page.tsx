@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Upload, Plus, FileText, Folder, Trash, Edit, HardDrive } from "lucide-react"
+import { Upload, Plus, FileText, Folder, Trash, Edit, HardDrive, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +13,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
+import { uploadFile, ingestDocuments, buildIndex } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 interface Document {
     id: string
@@ -50,13 +52,10 @@ export default function UploadPage() {
     const [isDialogOpen, setIsDialogOpen] = React.useState(false)
     const [selectedCategory, setSelectedCategory] = React.useState<Category | null>(null)
     const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
-    const [isLoadingUpload, setIsLoadingUpload] = React.useState(true)
-
-    // Simulate loading delay for categories
-    React.useEffect(() => {
-        const timer = setTimeout(() => setIsLoadingUpload(false), 1000)
-        return () => clearTimeout(timer)
-    }, [])
+    const [isLoadingUpload, setIsLoadingUpload] = React.useState(false)
+    const [isIngesting, setIsIngesting] = React.useState(false)
+    const [isBuildingIndex, setIsBuildingIndex] = React.useState(false)
+    const { toast } = useToast()
 
     const handleCreateCategory = () => {
         if (!newCategoryName.trim()) return
@@ -70,33 +69,93 @@ export default function UploadPage() {
         setIsDialogOpen(false)
     }
 
-    const handleFileUpload = (categoryId: string, file: File) => {
+    const handleFileUpload = async (categoryId: string, file: File) => {
         setUploadProgress(0)
-        const interval = setInterval(() => {
-            setUploadProgress((prev) => {
-                if (prev === null || prev >= 100) {
-                    clearInterval(interval)
-                    return 100
-                }
-                return prev + 10
-            })
-        }, 200)
-
-        setTimeout(() => {
+        
+        try {
+            // Upload file to backend
+            const response = await uploadFile(file)
+            
+            setUploadProgress(100)
+            
             const newDoc: Document = {
                 id: Date.now().toString(),
-                name: file.name,
-                size: (file.size / 1024 / 1024).toFixed(2) + " MB",
+                name: response.filename,
+                size: (response.size / 1024 / 1024).toFixed(2) + " MB",
                 uploadDate: new Date().toISOString().split('T')[0],
-                status: "synced",
+                status: "processing",
             }
+            
             setCategories((cats) =>
                 cats.map((cat) =>
                     cat.id === categoryId ? { ...cat, documents: [...cat.documents, newDoc] } : cat
                 )
             )
+            
+            toast({
+                title: "Upload Successful",
+                description: `${file.name} uploaded. Don't forget to ingest documents!`,
+            })
+            
             setUploadProgress(null)
-        }, 2500)
+        } catch (error) {
+            toast({
+                title: "Upload Failed",
+                description: error instanceof Error ? error.message : "Failed to upload file",
+                variant: "destructive",
+            })
+            setUploadProgress(null)
+        }
+    }
+    
+    const handleIngestDocuments = async () => {
+        setIsIngesting(true)
+        
+        try {
+            const response = await ingestDocuments({ fast_pass: true })
+            
+            toast({
+                title: "Ingestion Complete",
+                description: `Processed ${response.documents_processed} documents`,
+            })
+            
+            // Update all documents status to synced
+            setCategories((cats) =>
+                cats.map((cat) => ({
+                    ...cat,
+                    documents: cat.documents.map((doc) => ({ ...doc, status: "synced" })),
+                }))
+            )
+        } catch (error) {
+            toast({
+                title: "Ingestion Failed",
+                description: error instanceof Error ? error.message : "Failed to ingest documents",
+                variant: "destructive",
+            })
+        } finally {
+            setIsIngesting(false)
+        }
+    }
+    
+    const handleBuildIndex = async () => {
+        setIsBuildingIndex(true)
+        
+        try {
+            await buildIndex({ force_rebuild: false })
+            
+            toast({
+                title: "Index Built",
+                description: "Search index is ready for queries",
+            })
+        } catch (error) {
+            toast({
+                title: "Index Build Failed",
+                description: error instanceof Error ? error.message : "Failed to build index",
+                variant: "destructive",
+            })
+        } finally {
+            setIsBuildingIndex(false)
+        }
     }
 
     const handleDeleteDocument = (categoryId: string, docId: string) => {
@@ -123,31 +182,63 @@ export default function UploadPage() {
         <div className="flex flex-col gap-6 h-full">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold">Document Collections</h1>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> New Collection
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Create New Collection</DialogTitle>
-                            <DialogDescription>
-                                Create a new category to organize your documents.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <Input
-                                placeholder="Collection Name"
-                                value={newCategoryName}
-                                onChange={(e) => setNewCategoryName(e.target.value)}
-                            />
-                        </div>
-                        <DialogFooter>
-                            <Button onClick={handleCreateCategory}>Create</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={handleIngestDocuments}
+                        disabled={isIngesting}
+                    >
+                        {isIngesting ? (
+                            <>
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Ingesting...
+                            </>
+                        ) : (
+                            <>
+                                <Upload className="mr-2 h-4 w-4" /> Ingest Documents
+                            </>
+                        )}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={handleBuildIndex}
+                        disabled={isBuildingIndex}
+                    >
+                        {isBuildingIndex ? (
+                            <>
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Building...
+                            </>
+                        ) : (
+                            <>
+                                <HardDrive className="mr-2 h-4 w-4" /> Build Index
+                            </>
+                        )}
+                    </Button>
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> New Collection
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Create New Collection</DialogTitle>
+                                <DialogDescription>
+                                    Create a new category to organize your documents.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <Input
+                                    placeholder="Collection Name"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                />
+                            </div>
+                            <DialogFooter>
+                                <Button onClick={handleCreateCategory}>Create</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
             {isLoadingUpload ? (

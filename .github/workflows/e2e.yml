@@ -1,0 +1,116 @@
+name: E2E Smoke Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest httpx
+    
+    - name: Create test data directory
+      run: |
+        mkdir -p data
+        echo "This is a test document about frogs." > data/test_doc.txt
+    
+    - name: Start API server in background
+      run: |
+        python src/cubo/server/run.py --host 0.0.0.0 --port 8000 &
+        echo $! > server.pid
+        
+        # Wait for server to be ready
+        echo "Waiting for API server to start..."
+        for i in {1..30}; do
+          if curl -f http://localhost:8000/api/health > /dev/null 2>&1; then
+            echo "API server is ready"
+            break
+          fi
+          if [ $i -eq 30 ]; then
+            echo "API server failed to start"
+            exit 1
+          fi
+          sleep 2
+        done
+    
+    - name: Run E2E smoke test
+      run: |
+        python scripts/e2e_smoke.py --url http://localhost:8000
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+    
+    - name: Verify logs for trace_id
+      run: |
+        if [ -f logs/cubo_log.txt ]; then
+          echo "Checking logs for trace_id presence..."
+          if grep -q "trace_id" logs/cubo_log.txt; then
+            echo "✓ trace_id found in logs"
+          else
+            echo "✗ trace_id NOT found in logs"
+            exit 1
+          fi
+          
+          echo "Checking logs for errors..."
+          error_count=$(grep -c '"level":"error"' logs/cubo_log.txt || true)
+          echo "Found $error_count errors in logs"
+          
+          if [ $error_count -gt 5 ]; then
+            echo "✗ Too many errors in logs"
+            tail -20 logs/cubo_log.txt
+            exit 1
+          fi
+        else
+          echo "Log file not found"
+          exit 1
+        fi
+    
+    - name: Run API unit tests
+      run: |
+        pytest tests/api/ -v
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+    
+    - name: Stop API server
+      if: always()
+      run: |
+        if [ -f server.pid ]; then
+          kill $(cat server.pid) || true
+          rm server.pid
+        fi
+    
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-logs
+        path: logs/
+        retention-days: 7
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: |
+          logs/
+          data/
+        retention-days: 7
