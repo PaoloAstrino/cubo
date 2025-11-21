@@ -64,8 +64,7 @@ def test_dual_retrieval():
             print(f"⚠️  {story_file} not found")
 
     if loaded_count == 0:
-        print("❌ No documents loaded - cannot test retrieval")
-        return False
+        pytest.skip("No documents loaded - cannot test retrieval")
 
     # Test queries - mix of simple and complex
     test_queries = [
@@ -163,7 +162,7 @@ def test_dual_retrieval():
         print(f"{status} {method}: {query[:50]}...")
 
     print("\n🎉 Dual retrieval system test completed!")
-    return successful > 0
+    assert successful > 0
 
 if __name__ == "__main__":
     success = test_dual_retrieval()

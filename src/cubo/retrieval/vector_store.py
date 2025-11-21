@@ -82,10 +82,25 @@ class FaissStore(VectorStore):
                     docs.append(self._docs.get(did, ''))
                     metas.append(self._metas.get(did, {}))
         else:
-            for did, doc in self._docs.items():
-                ids_out.append(did)
-                docs.append(doc)
-                metas.append(self._metas.get(did, {}))
+            # If a 'where' filter is provided, apply it against stored metadata
+            if where and isinstance(where, dict):
+                for did, doc in self._docs.items():
+                    meta = self._metas.get(did, {})
+                    match = True
+                    for key, val in where.items():
+                        # Support simple equality checks
+                        if meta.get(key) != val:
+                            match = False
+                            break
+                    if match:
+                        ids_out.append(did)
+                        docs.append(doc)
+                        metas.append(meta)
+            else:
+                for did, doc in self._docs.items():
+                    ids_out.append(did)
+                    docs.append(doc)
+                    metas.append(self._metas.get(did, {}))
         return {"ids": ids_out, "documents": [docs], "metadatas": [metas]}
 
     def query(self, query_embeddings=None, n_results=10, include=None, where=None):

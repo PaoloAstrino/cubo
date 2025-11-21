@@ -32,6 +32,9 @@ def main():
         config.set('collection_name', args.collection)
 
     df = pd.read_parquet(Path(args.parquet))
+    if df is None or df.shape[0] == 0:
+        logger.warning(f"Parquet {args.parquet} has no rows; nothing to reindex")
+        return
     texts = df['text'].tolist()
     chunk_ids = df['chunk_id'].tolist()
     metadatas = df.drop(columns=['text']).to_dict(orient='records')

@@ -1,0 +1,6 @@
+{"asctime": "2025-11-21 13:52:04,785", "level": "INFO", "name": "src.cubo.workers.thread_manager", "message": "ThreadManager initialized with 2 max workers and prefix 'cubo'"}
+{"asctime": "2025-11-21 13:52:04,785", "level": "INFO", "name": "cubo", "message": "Added health check: system_memory"}
+{"asctime": "2025-11-21 13:52:04,785", "level": "INFO", "name": "cubo", "message": "Added health check: system_cpu"}
+{"asctime": "2025-11-21 13:52:04,785", "level": "INFO", "name": "cubo", "message": "Added health check: disk_space"}
+{"asctime": "2025-11-21 13:52:04,785", "level": "INFO", "name": "cubo", "message": "HealthMonitor initialized"}
+{"asctime": "2025-11-21 13:52:04,785", "level": "INFO", "name": "cubo", "message": "Added health check: thread_pool"}

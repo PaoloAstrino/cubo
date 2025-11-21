@@ -12,6 +12,7 @@ from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
 from src.cubo.config import config
 from src.cubo.utils.logger import logger
+from src.cubo.security.security import security_manager
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Query the RAG pipeline.")
@@ -61,7 +62,7 @@ def main():
     response_generator = create_response_generator()
 
     # 2. Retrieve documents
-    logger.info(f"Retrieving documents for query: '{args.query}'")
+    logger.info(f"Retrieving documents for query: '{security_manager.scrub(args.query)}'")
     retrieved_docs = hybrid_retriever.search(args.query, top_k=args.top_k)
 
     # 3. Format context with fallback to original chunks

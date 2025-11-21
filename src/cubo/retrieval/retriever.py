@@ -34,6 +34,8 @@ from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
 from src.cubo.retrieval.cache import SemanticCache
 from src.cubo.retrieval.fusion import rrf_fuse
+from src.cubo.storage.memory_store import InMemoryCollection
+from src.cubo.retrieval.strategy import RetrievalStrategy
 
 
 class DocumentRetriever:
@@ -57,6 +59,7 @@ class DocumentRetriever:
         self._setup_vector_store()
         self._setup_caching()
         self._initialize_postprocessors()
+        self._initialize_retrieval_strategy()
         self._log_initialization_status()
 
     def _set_basic_attributes(self, model: SentenceTransformer, use_sentence_window: bool,
@@ -115,61 +118,8 @@ class DocumentRetriever:
         except Exception as e:
             logger.warning(f"Vector store initialization error: {e}. Using in-memory fallback collection.")
 
-            # Lightweight in-memory collection fallback for tests and environments where binary dependencies cannot be imported.
-        class _InMemoryCollection:
-            def __init__(self):
-                self._docs = []  # list of (id, document, metadata, embedding)
-
-            def add(self, embeddings=None, documents=None, metadatas=None, ids=None):
-                for idx, doc in enumerate(documents):
-                    emb = None
-                    if embeddings:
-                        emb = embeddings[idx]
-                    meta = metadatas[idx] if metadatas else {}
-                    self._docs.append((ids[idx], doc, meta, np.asarray(emb, dtype='float32') if emb is not None else None))
-
-            def count(self):
-                return len(self._docs)
-
-            def get(self, include=None, where=None, ids=None):
-                # Filter by ids or simple where clauses
-                results = self._docs
-                if ids:
-                    id_set = set(ids)
-                    results = [d for d in results if d[0] in id_set]
-                if where and isinstance(where, dict):
-                    for key, val in where.items():
-                        results = [d for d in results if d[2].get(key) == val]
-                docs = [d[1] for d in results]
-                metas = [d[2] for d in results]
-                ids_out = [d[0] for d in results]
-                return {"ids": ids_out, "documents": [docs], "metadatas": [metas]}
-
-            def query(self, query_embeddings=None, n_results=10, include=None, where=None):
-                # Simple cosine similarity ranking fallback
-                if not query_embeddings or not self._docs:
-                    return {"documents": [[]], "metadatas": [[]], "distances": [[]], "ids": [[]]}
-                q = np.asarray(query_embeddings[0], dtype='float32')
-                similarities = []
-                for i, (_, doc, meta, emb) in enumerate(self._docs):
-                    if emb is None:
-                        sim = 0.0
-                    else:
-                        denom = (np.linalg.norm(emb) * np.linalg.norm(q))
-                        sim = float(np.dot(emb, q) / denom) if denom > 0 else 0.0
-                    similarities.append((i, sim))
-                # Sort by similarity descending
-                similarities.sort(key=lambda x: x[1], reverse=True)
-                top = similarities[:n_results]
-                docs = [self._docs[idx][1] for idx, _ in top]
-                metas = [self._docs[idx][2] for idx, _ in top]
-                dists = [1.0 - sim for _, sim in top]
-                return {"documents": [docs], "metadatas": [metas], "distances": [dists], "ids": [[self._docs[idx][0] for idx, _ in top]]}
-
-            def reset(self):
-                self._docs.clear()
-
-        self.collection = _InMemoryCollection()
+        # Use InMemoryCollection fallback
+        self.collection = InMemoryCollection()
 
     def _setup_caching(self) -> None:
         """Setup query caching for testing."""
@@ -220,6 +170,10 @@ class DocumentRetriever:
         else:
             self.window_postprocessor = None
             self.reranker = None
+    
+    def _initialize_retrieval_strategy(self) -> None:
+        """Initialize retrieval strategy for combining results."""
+        self.retrieval_strategy = RetrievalStrategy()
 
     def _log_initialization_status(self) -> None:
         """Log the initialization status."""
@@ -427,17 +381,20 @@ class DocumentRetriever:
 
     def _analyze_query_complexity(self, query: str) -> bool:
         """Determine if query needs complex retrieval."""
-        complex_indicators = [
-            'why', 'how', 'explain', 'compare', 'analyze',
-            'relationship', 'difference', 'benefits', 'impact',
-            'advantages', 'disadvantages', 'vs', 'versus'
-        ]
+        # Load complexity heuristics from config with sensible defaults
+        complex_indicators = config.get(
+            'retrieval.complexity_keywords',
+            ['why', 'how', 'explain', 'compare', 'analyze',
+             'relationship', 'difference', 'benefits', 'impact',
+             'advantages', 'disadvantages', 'vs', 'versus']
+        )
+        length_threshold = config.get('retrieval.complexity_length_threshold', 12)
 
         query_lower = query.lower()
         # Check for complex keywords
         has_complex_keywords = any(indicator in query_lower for indicator in complex_indicators)
         # Check for long queries
-        is_long_query = len(query.split()) > 12
+        is_long_query = len(query.split()) > length_threshold
 
         return has_complex_keywords or is_long_query
 
@@ -1051,15 +1008,20 @@ class DocumentRetriever:
             return []
 
     def _combine_semantic_and_bm25(self, semantic_candidates: List[dict], bm25_candidates: List[dict], top_k: int, semantic_weight: float = 0.7, bm25_weight: float = 0.3) -> List[dict]:
-        # Use the shared combine util to centralize scoring across retrievers
-        from src.cubo.retrieval.fusion import combine_semantic_and_bm25
-        return combine_semantic_and_bm25(semantic_candidates, bm25_candidates, semantic_weight=semantic_weight, bm25_weight=bm25_weight, top_k=top_k)
+        # Use the retrieval strategy to combine results
+        return self.retrieval_strategy.combine_results(
+            semantic_candidates, bm25_candidates, top_k, semantic_weight, bm25_weight
+        )
 
     def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str, strategy: Optional[Dict] = None) -> List[dict]:
-        candidates = self._apply_window_postprocessing(candidates)
         use_reranker = strategy.get('use_reranker') if strategy is not None else True
-        candidates = self._apply_reranking_if_available(candidates, top_k, query, use_reranker)
-        return candidates[:top_k]
+        # Use retrieval strategy for postprocessing
+        return self.retrieval_strategy.apply_postprocessing(
+            candidates, top_k, query, 
+            window_postprocessor=self.window_postprocessor if self.use_sentence_window else None,
+            reranker=self.reranker if self.use_sentence_window else None,
+            use_reranker=use_reranker
+        )
 
     def _apply_window_postprocessing(self, candidates: List[dict]) -> List[dict]:
         if self.use_sentence_window and self.window_postprocessor:

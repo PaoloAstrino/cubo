@@ -1358,7 +1358,13 @@ class CUBOGUI(QMainWindow):
             eval_db = EvaluationDatabase()
             eval_db.store_evaluation(evaluation)
 
-            logger.info(f"Saved evaluation for query: {query[:50]}... with {len(chunk_scores)} chunk scores")
+            # Log scrubbed query or original based on security config
+            try:
+                from src.cubo.security.security import security_manager
+                scrubbed = security_manager.scrub(query)
+            except Exception:
+                scrubbed = query[:50] + '...'
+            logger.info(f"Saved evaluation for query: {scrubbed} with {len(chunk_scores)} chunk scores")
 
         except Exception as e:
             logger.error(f"Failed to save query evaluation: {e}")

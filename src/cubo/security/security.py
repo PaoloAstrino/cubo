@@ -3,6 +3,7 @@ import hashlib
 import secrets
 from cryptography.fernet import Fernet
 from src.cubo.utils.logger import logger
+from src.cubo.config import config
 
 
 class SecurityManager:
@@ -65,6 +66,15 @@ class SecurityManager:
     def hash_sensitive_data(data: str) -> str:
         """Hash sensitive data for storage/logging."""
         return hashlib.sha256(data.encode()).hexdigest()
+
+    def scrub(self, data: str) -> str:
+        """Return either the raw data or a hashed representation based on config 'scrub_queries'."""
+        if not isinstance(data, str):
+            return data
+        scrub_flag = config.get('logging.scrub_queries', config.get('scrub_queries', False))
+        if scrub_flag:
+            return self.hash_sensitive_data(data)
+        return data
 
     @staticmethod
     def generate_secure_token(length: int = 32) -> str:

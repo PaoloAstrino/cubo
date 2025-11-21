@@ -139,3 +139,9 @@ chroma_db/
 how_to_compare.txt
 
 rag_system_complete_specs.md
+
+shadow_components
+
+.next
+
+node_modules

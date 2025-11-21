@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.cubo.embeddings.model_loader import ModelManager
 from src.cubo.retrieval.retriever import DocumentRetriever
+from src.cubo.security.security import security_manager
 
 # Load model
 model_manager = ModelManager()
@@ -17,7 +18,7 @@ retriever = DocumentRetriever(model=model, use_sentence_window=True, use_auto_me
 
 # Test query
 query = "tell me about the frog"
-print(f"Query: {query}\n")
+print(f"Query: {security_manager.scrub(query)}\n")
 
 # Get query embedding
 query_embedding = retriever._generate_query_embedding(query)

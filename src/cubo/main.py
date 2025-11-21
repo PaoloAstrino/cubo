@@ -377,7 +377,9 @@ class CUBOApp:
             logger.info(f"{i}. {doc[:200]}...")
         logger.info("Response:")
         logger.info(response)
-        logger.info(f"Processed query: {query}")
+        # Respect config 'scrub_queries' to avoid logging raw user queries
+        query_to_log = security_manager.scrub(query)
+        logger.info(f"Processed query: {query_to_log}")
 
     def command_line_mode(self, args):
         """Run the RAG system in command-line mode."""
@@ -431,7 +433,8 @@ class CUBOApp:
 
     def _display_command_line_results(self, query: str, top_docs: list, response: str):
         """Display query results in command line format."""
-        logger.info(f"Query: {query}")
+        from src.cubo.security.security import security_manager
+        logger.info(f"Query: {security_manager.scrub(query)}")
         logger.info("Retrieved Documents:")
         for i, doc in enumerate(top_docs, 1):
             logger.info(f"{i}. {doc[:200]}...")

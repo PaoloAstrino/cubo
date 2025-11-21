@@ -12,6 +12,7 @@ from src.cubo.config import config
 from src.cubo.embeddings.model_loader import ModelManager
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
+from src.cubo.security.security import security_manager
 
 def test_retrieval():
     """Test retrieval with multiple queries."""
@@ -97,7 +98,7 @@ def test_retrieval():
 
     for query in test_queries:
         print(f"\n{'='*80}")
-        print(f"Query: '{query}'")
+        print(f"Query: '{security_manager.scrub(query)}'")
         print(f"{'='*80}")
 
         # Test sentence window retrieval

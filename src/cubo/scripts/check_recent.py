@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sqlite3
 import os
+from src.cubo.security.security import security_manager
 
 db_path = 'evaluation/evaluation.db'
 if os.path.exists(db_path):
@@ -14,7 +15,7 @@ if os.path.exists(db_path):
     ''').fetchone()
     if recent:
         print(f'Most recent query (ID {recent[0]}):')
-        print(f'Question: {recent[1]}')
+        print(f'Question: {security_manager.scrub(recent[1])}')
         print(f'Answer: {recent[2][:100]}...' if recent[2] else 'No answer')
         print(f'Answer Relevance: {recent[3]}')
         print(f'Context Relevance: {recent[4]}')

@@ -14,6 +14,13 @@ from src.cubo.ingestion.document_loader import DocumentLoader
 from src.cubo.utils.logger import logger
 from src.cubo.storage.metadata_manager import get_metadata_manager
 
+# Optional dependencies
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None
+
+
 
 class DeepIngestor:
     """Full text ingestion flow that produces stable chunk IDs and parquet output."""
@@ -127,22 +134,40 @@ class DeepIngestor:
         if df.empty:
             return []
 
+        return self._process_tabular_data(df, "csv")
+
+    def _process_tabular_data(self, df: pd.DataFrame, chunk_type: str, metadata: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Generic processing for tabular data (CSV, Excel)."""
         chunks: List[Dict[str, Any]] = []
         chunk_index = 0
+        metadata = metadata or {}
+        
+        # Convert all columns to string to ensure consistent text representation
+        df_str = df.astype(str)
+
         for start in range(0, len(df), self.csv_rows_per_chunk):
-            block = df.iloc[start : start + self.csv_rows_per_chunk]
+            block = df_str.iloc[start : start + self.csv_rows_per_chunk]
             text = block.to_csv(index=False)
-            chunks.append(
-                {
-                    "text": text,
-                    "type": "csv",
-                    "chunk_index": chunk_index,
-                    "row_start": start,
-                    "row_end": start + len(block) - 1,
-                    "token_count": len(text.split()),
-                    "chunk_type": "csv",
-                }
-            )
+            
+            # Prepend sheet name if available
+            if chunk_type == "table" and metadata.get("sheet_name"):
+                text = f"Sheet: {metadata['sheet_name']}\n" + text
+
+            chunk_data = {
+                "text": text,
+                "type": chunk_type,
+                "chunk_index": chunk_index,
+                "row_start": start,
+                "row_end": start + len(block) - 1,
+                "token_count": len(text.split()),
+                "chunk_type": chunk_type,
+            }
+            
+            # Add extra metadata
+            if metadata:
+                chunk_data.update(metadata)
+                
+            chunks.append(chunk_data)
             chunk_index += 1
 
         return chunks
@@ -155,8 +180,7 @@ class DeepIngestor:
             return []
 
         chunks: List[Dict[str, Any]] = []
-        chunk_index = 0
-
+        
         for sheet_name in excel.sheet_names:
             try:
                 df = excel.parse(sheet_name)
@@ -166,31 +190,23 @@ class DeepIngestor:
             if df.empty:
                 continue
 
-            text = f"Sheet: {sheet_name}\n" + df.to_csv(index=False)
-            chunks.append(
-                {
-                    "text": text,
-                    "type": "table",
-                    "chunk_index": chunk_index,
-                    "sheet_name": sheet_name,
-                    "table_metadata": {
-                        "columns": df.columns.tolist(),
-                        "n_rows": len(df),
-                        "n_cols": len(df.columns),
-                    },
-                    "token_count": len(text.split()),
-                    "chunk_type": "table",
-                }
-            )
-            chunk_index += 1
+            metadata = {
+                "sheet_name": sheet_name,
+                "table_metadata": {
+                    "columns": df.columns.tolist(),
+                    "n_rows": len(df),
+                    "n_cols": len(df.columns),
+                },
+            }
+            
+            sheet_chunks = self._process_tabular_data(df, "table", metadata)
+            chunks.extend(sheet_chunks)
 
         return chunks
 
     def _process_pdf(self, path: Path) -> List[Dict[str, Any]]:
         """Use pdfplumber for page-wise text + table extraction, fallback to PyPDF2 text extract."""
-        try:
-            import pdfplumber
-        except Exception:
+        if pdfplumber is None:
             # Fallback: use loader's default PDF parsing which returns a single text blob
             logger.warning("pdfplumber not available, using fallback PDF extraction")
             raw = self.loader.load_single_document(str(path), self.chunking_config)
@@ -281,8 +297,15 @@ class DeepIngestor:
         base = (
             chunk["file_hash"]
             if self.use_file_hash_for_chunk_id and chunk.get("file_hash")
-            else chunk.get("filename", "unknown")
+            else chunk.get("filename")
         )
+        
+        if not base:
+            # Fallback if both file_hash and filename are missing
+            # This shouldn't happen in normal flow but good for robustness
+            import uuid
+            base = f"unknown_{uuid.uuid4().hex[:8]}"
+            logger.warning(f"Chunk missing filename/hash, using random base: {base}")
 
         if chunk.get("chunk_type") == "csv":
             start = chunk.get("row_start", chunk.get("chunk_index", 0))

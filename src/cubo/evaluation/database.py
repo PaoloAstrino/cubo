@@ -13,6 +13,7 @@ from dataclasses import dataclass, asdict
 import logging
 import os
 from pathlib import Path
+from src.cubo.security.security import security_manager
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,7 @@ class EvaluationDatabase:
                 VALUES ({placeholders})
             ''', values)
 
-        logger.info(f"Stored evaluation for query: {evaluation.question[:50]}...")
+        logger.info(f"Stored evaluation for query: {security_manager.scrub(evaluation.question)}")
 
     def get_recent_evaluations(self, limit: int = 100, sort_by: str = "timestamp", sort_order: str = "DESC") -> List[QueryEvaluation]:
         """Get recent evaluations with optional sorting.

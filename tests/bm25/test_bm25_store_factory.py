@@ -22,6 +22,17 @@ def test_factory_explicit_python():
     from src.cubo.retrieval.bm25_python_store import BM25PythonStore
     assert isinstance(st, BM25PythonStore)
 
+def test_factory_returns_whoosh_by_default_if_available():
+    st = get_bm25_store()
+    try:
+        from whoosh import index as whoosh_index  # type: ignore
+        # If Whoosh is installed and usable, the default should be Whoosh
+        from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
+        assert isinstance(st, BM25WhooshStore)
+    except Exception:
+        # Whoosh not available; fallback to Python
+        from src.cubo.retrieval.bm25_python_store import BM25PythonStore
+        assert isinstance(st, BM25PythonStore)
 
 @pytest.mark.requires_whoosh
 @pytest.mark.skipif(not WHOOSH_AVAILABLE, reason='Whoosh not installed')

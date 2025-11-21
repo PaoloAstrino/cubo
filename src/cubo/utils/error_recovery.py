@@ -155,8 +155,22 @@ class ErrorRecoveryManager:
             except Exception as e:
                 exception[0] = e
                 completed[0] = True
-
-        thread = threading.Thread(target=run_operation, daemon=True)
+        # Propagate contextvars into the new thread so trace_id and other context
+        # elements are available to the operation. Use contextvars.copy_context() to
+        # run the operation within the same context in the new thread.
+        try:
+            import contextvars
+            ctx = contextvars.copy_context()
+            thread = threading.Thread(target=lambda: ctx.run(run_operation), daemon=True)
+        except Exception:
+            # Propagate contextvars from the current context into the thread where the
+            # operation runs so that trace_id and other ContextVars remain available.
+            try:
+                import contextvars
+                ctx = contextvars.copy_context()
+                thread = threading.Thread(target=lambda: ctx.run(run_operation), daemon=True)
+            except Exception:
+                thread = threading.Thread(target=run_operation, daemon=True)
         thread.start()
         thread.join(timeout)
 

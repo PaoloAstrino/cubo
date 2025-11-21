@@ -105,8 +105,20 @@ class Config:
         return cur
 
     def set(self, key: str, value: Any) -> None:
-        """Set configuration value."""
-        self._config[key] = value
+        """Set configuration value. Supports nested keys using dot notation.
+
+        Example: set('logging.log_file', './logs/app.jsonl') will create/update nested dicts.
+        """
+        if isinstance(key, str) and '.' in key:
+            parts = key.split('.')
+            cur = self._config
+            for p in parts[:-1]:
+                if p not in cur or not isinstance(cur[p], dict):
+                    cur[p] = {}
+                cur = cur[p]
+            cur[parts[-1]] = value
+        else:
+            self._config[key] = value
 
     def update(self, settings: Dict[str, Any]) -> None:
         """Update multiple configuration values."""

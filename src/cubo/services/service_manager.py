@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from src.cubo.workers.thread_manager import ThreadManager
 from src.cubo.utils.error_recovery import ErrorRecoveryManager
 from src.cubo.monitoring.health_monitor import HealthMonitor, HealthStatus
+from src.cubo.utils.logging_context import trace_context, generate_trace_id
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +60,12 @@ class ServiceManager:
         """
 
         def wrapped_operation():
-            return self.error_recovery.execute_with_recovery(
-                operation_type, operation, *args, **kwargs
-            )
+            # Bind a trace id for tracing logs associated with this operation
+            tid = kwargs.pop('trace_id', None) or generate_trace_id()
+            with trace_context(tid):
+                return self.error_recovery.execute_with_recovery(
+                    operation_type, operation, *args, **kwargs
+                )
 
         if with_retry:
             return self.thread_manager.submit_task_with_retry(
@@ -317,10 +321,12 @@ class ServiceManager:
                         response_time=response_time
                     )
 
+                    from src.cubo.security.security import security_manager
+                    qlog = security_manager.scrub(question)
                     if success:
-                        logger.info(f"Query data saved successfully: {question[:50]}...")
+                        logger.info(f"Query data saved successfully: {qlog}")
                     else:
-                        logger.error(f"Failed to save query data: {question[:50]}...")
+                        logger.error(f"Failed to save query data: {qlog}")
 
                     return success
 

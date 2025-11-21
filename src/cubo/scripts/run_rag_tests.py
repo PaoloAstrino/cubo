@@ -16,6 +16,7 @@ import asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.cubo.main import CUBOApp
+from src.cubo.security.security import security_manager
 from evaluation.metrics import AdvancedEvaluator
 import argparse
 
@@ -131,7 +132,7 @@ class RAGTester:
 
     def run_single_test(self, question: str, difficulty: str) -> Dict[str, Any]:
         """Run a single question test with real RAG evaluation."""
-        logger.info(f"Testing [{difficulty}]: {question[:50]}...")
+        logger.info(f"Testing [{difficulty}]: {security_manager.scrub(question)}")
 
         start_time = time.time()
 
@@ -165,7 +166,7 @@ class RAGTester:
 
         except Exception as e:
             processing_time = time.time() - start_time
-            logger.error(f"Test failed for question: {question[:50]}... Error: {e}")
+            logger.error(f"Test failed for question: {security_manager.scrub(question)} Error: {e}")
             result = {
                 "question": question,
                 "difficulty": difficulty,

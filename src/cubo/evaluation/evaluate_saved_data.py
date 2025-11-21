@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from evaluation.database import EvaluationDatabase
 from evaluation.integration import get_evaluation_integrator
+from src.cubo.security.security import security_manager
 
 # Set up logging
 logging.basicConfig(
@@ -51,7 +52,7 @@ async def evaluate_saved_queries(limit: Optional[int] = None, session_id: Option
 
         for query_data in queries_to_evaluate:
             try:
-                logger.info(f"Evaluating query: {query_data['question'][:50]}...")
+                logger.info(f"Evaluating query: {security_manager.scrub(query_data['question'])}")
 
                 # Run evaluation with timeout to prevent hanging
                 import asyncio
@@ -98,11 +99,11 @@ async def evaluate_saved_queries(limit: Optional[int] = None, session_id: Option
                     })()
 
                 except asyncio.TimeoutError:
-                    logger.warning(f"⚠ Evaluation timed out for query: {query_data['question'][:50]}... - will retry later")
+                    logger.warning(f"⚠ Evaluation timed out for query: {security_manager.scrub(query_data['question'])} - will retry later")
                     # Don't increment failed_count, leave record for retry
                     continue
                 except Exception as e:
-                    logger.warning(f"⚠ Evaluation failed for query: {query_data['question'][:50]}... - {e} - will retry later")
+                    logger.warning(f"⚠ Evaluation failed for query: {security_manager.scrub(query_data['question'])} - {e} - will retry later")
                     continue
 
                 if evaluation_result:
@@ -121,7 +122,7 @@ async def evaluate_saved_queries(limit: Optional[int] = None, session_id: Option
                                 f"G={evaluation_result.groundedness_score:.2f}")
                 else:
                     # LLM evaluation failed - leave record unchanged so it will be retried later
-                    logger.warning(f"⚠ LLM evaluation failed for query: {query_data['question'][:50]}... - will retry later")
+                    logger.warning(f"⚠ LLM evaluation failed for query: {security_manager.scrub(query_data['question'])} - will retry later")
                     # Don't increment failed_count, don't update database
 
                 # Small delay to avoid overwhelming the API

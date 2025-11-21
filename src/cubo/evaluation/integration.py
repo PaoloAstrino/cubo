@@ -14,6 +14,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from evaluation.database import EvaluationDatabase, QueryEvaluation
+from src.cubo.security.security import security_manager
 from evaluation.metrics import AdvancedEvaluator
 
 logger = logging.getLogger(__name__)
@@ -142,7 +143,7 @@ class EvaluationIntegrator:
                 )
 
                 # Extract RAG triad scores (pure LLM evaluation only)
-                logger.debug(f"Evaluating query: {question[:50]}...")
+                logger.debug(f"Evaluating query: {security_manager.scrub(question)}")
                 answer_relevance = await self.evaluator.evaluate_answer_relevance(question, answer)
                 context_relevance = await self.evaluator.evaluate_context_relevance(question, contexts)
                 groundedness = await self.evaluator.evaluate_groundedness(contexts, answer)
@@ -169,7 +170,7 @@ class EvaluationIntegrator:
                     # Mark as successfully evaluated
                     evaluation_completed = True
                 else:
-                    logger.warning(f"LLM evaluation unavailable for query: {question[:50]}... - Skipping evaluation entirely")
+                    logger.warning(f"LLM evaluation unavailable for query: {security_manager.scrub(question)} - Skipping evaluation entirely")
                     # Skip evaluation entirely when LLM is not available
                     return None
 
@@ -180,13 +181,13 @@ class EvaluationIntegrator:
         # Store in database only if evaluation completed successfully
         if evaluation_completed and not error_occurred:
             self.db.store_evaluation(evaluation)
-            logger.info(f"Query evaluation stored: {question[:50]}... | Scores: AR={evaluation.answer_relevance_score:.2f}, CR={evaluation.context_relevance_score:.2f}, G={evaluation.groundedness_score:.2f}")
+            logger.info(f"Query evaluation stored: {security_manager.scrub(question)} | Scores: AR={evaluation.answer_relevance_score:.2f}, CR={evaluation.context_relevance_score:.2f}, G={evaluation.groundedness_score:.2f}")
             return evaluation
         else:
             if not evaluation_completed:
-                logger.warning(f"Skipping storage of failed LLM evaluation for: {question[:50]}...")
+                logger.warning(f"Skipping storage of failed LLM evaluation for: {security_manager.scrub(question)}")
             else:
-                logger.warning(f"Skipping storage due to error for: {question[:50]}...")
+                logger.warning(f"Skipping storage due to error for: {security_manager.scrub(question)}")
             return None
 
     def get_recent_evaluations(self, limit: int = 10) -> List[QueryEvaluation]:

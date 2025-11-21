@@ -239,6 +239,24 @@ CI & Testing Notes
 ```pwsh
 $env:PYTHONPATH = "${PWD}"; pytest -q
 ```
+Logging & offline search
+------------------------
+
+- The project supports offline structured logging and an offline searchable index. To enable structured JSON logging, edit `config.json` and set `logging.format` to `json` and specify `logging.log_file`.
+- Use `scripts/log_indexer.py` to build a local SQLite FTS index of logs for quick search:
+
+```pwsh
+python scripts/log_indexer.py --log-file ./logs/cubo_log.jsonl --db ./logs/index/logs.db
+```
+
+- Search the index with `scripts/logcli.py`:
+
+```pwsh
+python scripts/logcli.py --db ./logs/index/logs.db --query "error" --limit 20
+```
+
+- By default logs are stored in `./logs/cubo_log.jsonl` and the index is at `./logs/index/logs.db`.
+
 
 Testing markers & CI notes
 -------------------------

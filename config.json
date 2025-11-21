@@ -98,4 +98,19 @@
     "whoosh_index_dir": "./whoosh_index",
     "preserve_bm25_stats_json": true
   }
+    ,
+    "logging": {
+      "format": "json",
+      "log_file": "./logs/cubo_log.jsonl",
+      "log_level": "INFO",
+      "enable_queue": true,
+      "rotate_method": "midnight",
+      "rotate_size": 104857600,
+      "retention_days": 30,
+      "compress_rotated": true,
+      "index_logs": true,
+      "index_backend": "sqlite",
+      "index_dir": "./logs/index",
+      "scrub_queries": true
+    }
 }

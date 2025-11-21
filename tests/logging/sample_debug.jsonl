@@ -1,0 +1,2 @@
+{"message": "Error processing file", "level": "ERROR", "component": "ingest", "timestamp": "2025-11-21T00:00:00Z", "trace_id": "t1"}
+{"message": "Search completed", "level": "INFO", "component": "retriever", "timestamp": "2025-11-21T00:01:00Z", "trace_id": "t2"}

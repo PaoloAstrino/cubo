@@ -27,16 +27,12 @@ def test_dolphin_integration():
     print(f"Dolphin enabled in config: {dolphin_enabled}")
 
     if not dolphin_enabled:
-        print("❌ Dolphin is disabled in config.json")
-        print("Enable it by setting 'dolphin.enabled': true")
-        return False
+        pytest.skip("Dolphin is disabled in config.json")
 
     # Check if Dolphin model exists
     dolphin_path = Path("./models/dolphin")
     if not dolphin_path.exists():
-        print(f"❌ Dolphin model not found at {dolphin_path}")
-        print("Run 'python download_dolphin.py --download' first")
-        return False
+        pytest.skip(f"Dolphin model not found at {dolphin_path}")
 
     print(f"✅ Dolphin model found at {dolphin_path}")
 
@@ -46,16 +42,14 @@ def test_dolphin_integration():
         processor = EnhancedDocumentProcessor(config)
         print("✅ Enhanced processor initialized")
     except Exception as e:
-        print(f"❌ Failed to initialize processor: {e}")
-        return False
+        pytest.fail(f"Failed to initialize processor: {e}")
 
     # Check capabilities
     dolphin_available = processor.is_dolphin_available()
     print(f"Dolphin processor available: {dolphin_available}")
 
     if not dolphin_available:
-        print("❌ Dolphin processor not available")
-        return False
+        pytest.skip("Dolphin processor not available")
 
     # Test with sample text file (fallback)
     text_file = Path("./data/horse_story.txt")
@@ -80,7 +74,7 @@ def test_dolphin_integration():
     print("2. The system will automatically use enhanced processing when available")
     print("3. Enhanced processing is transparent to users - no configuration needed")
 
-    return True
+    assert True
 
 def test_download_dolphin(monkeypatch):
     """Test downloading the Dolphin model."""

@@ -136,9 +136,10 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         fh.flush()
         os.fsync(fh.fileno())
 
-    # Atomically replace pointer; on Windows os.replace is atomic for files. Add a small retry loop to
-    # handle transient PermissionError due to AV or file locks.
-    max_attempts = 3
+    # Atomically replace pointer; on Windows os.replace is atomic for files, but file locks can
+    # cause PermissionError during concurrent readers. Use a more robust retry strategy to handle
+    # transient locks (e.g., antivirus or other readers holding file handles).
+    max_attempts = 10
     for attempt in range(1, max_attempts + 1):
         try:
             os.replace(str(pointer_tmp), str(pointer_final))
@@ -150,7 +151,16 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
                 failed_path = index_root / (POINTER_FILENAME + f'.failed.{int(time.time())}')
                 os.replace(str(pointer_tmp), str(failed_path))
                 raise
-            time.sleep(0.1 * attempt)
+            # Backoff so readers can release any file handles; use a capped exponential backoff
+            time.sleep(min(1.0, 0.05 * (2 ** attempt)))
+        except OSError as exc:
+            # Some systems may report OSError for similar conditions; treat like PermissionError
+            logger.warning(f"Failed to replace pointer file on attempt {attempt} with OSError: {exc}")
+            if attempt == max_attempts:
+                failed_path = index_root / (POINTER_FILENAME + f'.failed.{int(time.time())}')
+                os.replace(str(pointer_tmp), str(failed_path))
+                raise
+            time.sleep(min(1.0, 0.05 * (2 ** attempt)))
     logger.info(f"Published pointer file to {pointer_final}")
 
     # Record in DB

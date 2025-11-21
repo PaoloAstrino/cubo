@@ -84,7 +84,15 @@ class ThreadManager:
             except Exception as e:
                 exception[0] = e
 
-        thread = threading.Thread(target=run_with_timeout, daemon=True)
+        # Propagate contextvars into the new thread so trace_id and other context
+        # elements are available to the operation. Use contextvars.copy_context()
+        # and ctx.run to ensure the same context is available in the inner thread.
+        try:
+            import contextvars
+            ctx = contextvars.copy_context()
+            thread = threading.Thread(target=lambda: ctx.run(run_with_timeout), daemon=True)
+        except Exception:
+            thread = threading.Thread(target=run_with_timeout, daemon=True)
         thread.start()
         thread.join(timeout)
 

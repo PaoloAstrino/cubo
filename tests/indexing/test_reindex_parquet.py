@@ -10,7 +10,8 @@ from src.cubo.config import config
 try:
     import chromadb.config
     CHROMADB_AVAILABLE = True
-except ImportError:
+except Exception:
+    # chromadb may import but fail during initialization if optional dependencies (e.g., onnxruntime) are missing
     CHROMADB_AVAILABLE = False
 
 import pytest
