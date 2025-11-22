@@ -4,9 +4,10 @@ Download and setup Dolphin model for CUBO integration
 Downloads ByteDance/Dolphin to models/dolphin/ folder
 """
 
-from pathlib import Path
-from transformers import AutoTokenizer, AutoModelForVision2Seq, AutoProcessor
 import logging
+from pathlib import Path
+
+from transformers import AutoModelForVision2Seq, AutoProcessor, AutoTokenizer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

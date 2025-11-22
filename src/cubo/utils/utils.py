@@ -1,9 +1,10 @@
 import os
 import re
-from typing import List, Optional
 from collections import defaultdict
-from src.cubo.utils.logger import logger
 from functools import wraps
+from typing import List, Optional
+
+from src.cubo.utils.logger import logger
 
 # Lazy import for transformers - only import when needed
 AutoTokenizer = None

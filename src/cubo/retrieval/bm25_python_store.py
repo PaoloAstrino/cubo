@@ -1,10 +1,11 @@
 """
 Python BM25 store implementation extracted from the existing BM25Searcher logic.
 """
-from typing import List, Dict, Optional
-from collections import Counter, defaultdict
 import json
 import math
+from collections import Counter, defaultdict
+from typing import Dict, List, Optional
+
 from src.cubo.retrieval.bm25_store import BM25Store
 
 
@@ -100,7 +101,7 @@ class BM25PythonStore(BM25Store):
         return results[:top_k]
 
     def load_stats(self, path: str):
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             data = json.load(f)
             self.doc_lengths = {k: int(v) for k, v in data.get('doc_lengths', {}).items()}
             self.avg_doc_length = float(data.get('avg_doc_length', 0.0))

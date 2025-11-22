@@ -1,6 +1,6 @@
 import contextvars
 import threading
-from src.cubo.utils.logging_context import trace_context, get_current_trace_id
+from cubo.utils.logging_context import trace_context, get_current_trace_id
 
 
 def worker():

@@ -4,10 +4,12 @@ Monitors system health and component status with alerting capabilities.
 """
 
 import time
-import psutil
-from typing import Dict, Any, List, Callable, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
+
+import psutil
+
 from src.cubo.utils.logger import logger
 
 

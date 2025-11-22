@@ -4,21 +4,23 @@ CUBO RAG Testing Script
 Runs systematic tests using the comprehensive question set and evaluation metrics.
 """
 
-import json
-import time
-import logging
-from typing import Dict, List, Any
-import sys
-import os
 import asyncio
+import json
+import logging
+import os
+import sys
+import time
+from typing import Any, Dict, List
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import argparse
+
+from evaluation.metrics import AdvancedEvaluator
+
 from src.cubo.main import CUBOApp
 from src.cubo.security.security import security_manager
-from evaluation.metrics import AdvancedEvaluator
-import argparse
 
 # Set up logging
 logging.basicConfig(
@@ -105,7 +107,7 @@ class RAGTester:
                     document_texts.append(chunk)
                 else:
                     logger.warning(f"Skipping invalid chunk format: {type(chunk)}")
-            
+
             if document_texts:
                 self.cubo_app.retriever.add_documents(document_texts)
                 logger.info("Documents added to vector database successfully")
@@ -122,7 +124,7 @@ class RAGTester:
     def load_questions(self) -> Dict[str, List[str]]:
         """Load questions from JSON file."""
         try:
-            with open(self.questions_file, 'r', encoding='utf-8') as f:
+            with open(self.questions_file, encoding='utf-8') as f:
                 data = json.load(f)
             logger.info(f"Loaded {data['metadata']['total_questions']} questions")
             return data['questions']

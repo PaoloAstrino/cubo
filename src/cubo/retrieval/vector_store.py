@@ -3,11 +3,9 @@ Vector store abstraction to allow swapping FAISS and ChromaDB backends.
 """
 from __future__ import annotations
 
-from typing import List, Dict, Optional, Any
 from pathlib import Path
-import os
+from typing import Dict, List, Optional
 
-from src.cubo.utils.logger import logger
 from src.cubo.config import config
 
 

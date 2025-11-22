@@ -2,19 +2,16 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import threading
 
 import faiss
 import numpy as np
-import datetime
 
-from src.cubo.utils.logger import logger
-from src.cubo.storage.metadata_manager import get_metadata_manager
 from src.cubo.indexing.index_publisher import get_current_index_dir
-import os
-import tempfile
+from src.cubo.utils.logger import logger
 
 
 class FAISSIndexManager:
@@ -48,7 +45,7 @@ class FAISSIndexManager:
         self.cold_index: Optional[faiss.Index] = None
         self.hot_ids: List[str] = []
         self.cold_ids: List[str] = []
-        
+
         self._lock = threading.Lock()
 
     def build_indexes(self, vectors: List[List[float]], ids: List[str], append: bool = False) -> None:
@@ -99,7 +96,7 @@ class FAISSIndexManager:
             return cold_index
 
         quantizer = faiss.IndexFlatL2(self.dimension)
-        
+
         # Ensure the number of subquantizers (m) divides our dimension
         m_to_use = self.m
         if self.dimension % m_to_use != 0:
@@ -123,7 +120,7 @@ class FAISSIndexManager:
             cold_index = faiss.IndexPreTransform(opq_matrix, faiss.IndexIVFPQ(quantizer, self.dimension, effective_nlist, m_to_use, nbits))
         else:
             cold_index = faiss.IndexIVFPQ(quantizer, self.dimension, effective_nlist, m_to_use, nbits)
-        
+
         cold_index.train(vectors)
         if hasattr(cold_index, 'index'):
             # For IndexPreTransform, set nprobe on the wrapped index
@@ -219,9 +216,9 @@ class FAISSIndexManager:
         metadata_path = load_dir / 'metadata.json'
         if not metadata_path.exists():
             raise FileNotFoundError("FAISS metadata not found; run build before load")
-        with open(metadata_path, 'r', encoding='utf-8') as fh:
+        with open(metadata_path, encoding='utf-8') as fh:
             metadata = json.load(fh)
-        
+
         with self._lock:
             self.hot_ids = metadata.get('hot_ids', [])
             self.cold_ids = metadata.get('cold_ids', [])
@@ -235,7 +232,7 @@ class FAISSIndexManager:
                 self.hot_index = faiss.read_index(str(hot_path))
             if cold_path.exists():
                 self.cold_index = faiss.read_index(str(cold_path))
-    
+
     def swap_indexes(self, new_index_dir: Path):
         """Atomically swaps the live indexes with new ones."""
         logger.info(f"Swapping indexes with new ones from {new_index_dir}")

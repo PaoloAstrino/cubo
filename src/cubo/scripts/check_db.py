@@ -11,8 +11,8 @@ This script checks the status of the evaluation database, including:
 Usage: python check_db.py
 """
 
-import sqlite3
 import os
+import sqlite3
 
 # Database path
 db_path = 'evaluation/evaluation.db'

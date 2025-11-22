@@ -3,11 +3,12 @@ Async Document Processor for CUBO
 Provides background document processing with progress tracking.
 """
 
-from PySide6.QtCore import Signal, QObject
-from typing import List, Dict, Any, Optional
-import time
-import logging
 import concurrent.futures
+import logging
+import time
+from typing import Any, Dict, List, Optional
+
+from PySide6.QtCore import QObject, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,9 @@ class DocumentProcessorWorker(QObject):
             # Initialize enhanced processor if needed
             if self.processor_type in ["auto", "enhanced"]:
                 try:
-                    from src.cubo.ingestion.enhanced_document_processor import EnhancedDocumentProcessor
+                    from src.cubo.ingestion.enhanced_document_processor import (
+                        EnhancedDocumentProcessor,
+                    )
                     self.enhanced_processor = EnhancedDocumentProcessor(self.config)
                     logger.info("Enhanced document processor initialized")
                 except Exception as e:

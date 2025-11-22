@@ -1,21 +1,22 @@
 """
 Retrieval strategy for combining semantic and BM25 results.
 """
-from typing import List, Dict, Optional
+from typing import Dict, List
+
 from src.cubo.utils.logger import logger
 
 
 class RetrievalStrategy:
     """Encapsulates the logic for combining semantic and BM25 retrieval results."""
-    
+
     def __init__(self):
         """Initialize the retrieval strategy."""
         pass
-    
+
     def combine_results(
-        self, 
-        semantic_candidates: List[Dict], 
-        bm25_candidates: List[Dict], 
+        self,
+        semantic_candidates: List[Dict],
+        bm25_candidates: List[Dict],
         top_k: int,
         semantic_weight: float = 0.7,
         bm25_weight: float = 0.3
@@ -34,15 +35,15 @@ class RetrievalStrategy:
             Combined and sorted list of candidates
         """
         from src.cubo.retrieval.fusion import combine_semantic_and_bm25
-        
+
         return combine_semantic_and_bm25(
-            semantic_candidates, 
-            bm25_candidates, 
-            semantic_weight=semantic_weight, 
-            bm25_weight=bm25_weight, 
+            semantic_candidates,
+            bm25_candidates,
+            semantic_weight=semantic_weight,
+            bm25_weight=bm25_weight,
             top_k=top_k
         )
-    
+
     def apply_postprocessing(
         self,
         candidates: List[Dict],
@@ -69,7 +70,7 @@ class RetrievalStrategy:
         # Apply window postprocessing
         if window_postprocessor:
             candidates = window_postprocessor.postprocess_results(candidates)
-        
+
         # Apply reranking if available and requested
         if use_reranker and reranker and len(candidates) > top_k:
             try:
@@ -78,5 +79,5 @@ class RetrievalStrategy:
                     candidates = reranked
             except Exception as e:
                 logger.warning(f"Reranking failed: {e}, using original order")
-        
+
         return candidates[:top_k]

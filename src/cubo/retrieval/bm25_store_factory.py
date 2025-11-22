@@ -2,7 +2,9 @@
 Factory that returns a BM25Store implementation instance by backend name.
 """
 from typing import Optional
+
 from src.cubo.config import config
+
 
 def get_bm25_store(backend: Optional[str] = None, **kwargs):
     """Return a BM25 store instance for the configured backend.

@@ -1,7 +1,7 @@
 from pathlib import Path
-from src.cubo.config import config
-from src.cubo.utils.logger import logger_instance
-from src.cubo.services.service_manager import ServiceManager
+from cubo.config import config
+from cubo.utils.logger import logger_instance
+from cubo.services.service_manager import ServiceManager
 import time
 
 log_file = Path(r'C:/Users/paolo/AppData/Local/Temp/pytest-of-paolo/pytest-197/test_trace_id_propagation0/trace_log.jsonl')
@@ -13,7 +13,7 @@ logger_instance._setup_logging()
 svc = ServiceManager(max_workers=2)
 
 def op(filepath):
-    from src.cubo.utils.logger import logger
+    from cubo.utils.logger import logger
     logger.info('op started', extra={'file': filepath})
     return True
 

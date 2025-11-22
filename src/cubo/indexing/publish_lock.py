@@ -3,8 +3,9 @@ Publisher file lock helper to serialize index publications.
 """
 from contextlib import contextmanager
 from pathlib import Path
-from filelock import FileLock
 from typing import Iterator
+
+from filelock import FileLock
 
 
 @contextmanager

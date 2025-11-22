@@ -2,9 +2,11 @@
 This module contains the Deduplicator class, which is used to find and mark duplicate
 documents in a corpus.
 """
-from typing import List, Dict, Set
-from datasketch import MinHash, MinHashLSH
+from typing import Dict, List, Set
+
 import networkx as nx
+from datasketch import MinHash, MinHashLSH
+
 
 class Deduplicator:
     """
@@ -79,7 +81,7 @@ class Deduplicator:
             canonical_doc_id = max(cluster, key=lambda doc_id: len(doc_map[doc_id]['text']))
             for doc_id in cluster:
                 canonical_map[doc_id] = canonical_doc_id
-        
+
         # Add single documents to the map
         all_docs_in_clusters = set.union(*clusters) if clusters else set()
         for doc in documents:

@@ -5,7 +5,7 @@ Usage:
 """
 import argparse
 import logging
-from pathlib import Path
+
 from src.cubo.ingestion.deep_ingestor import DeepIngestor
 from src.cubo.utils.logger import logger
 

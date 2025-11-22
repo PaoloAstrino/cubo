@@ -7,8 +7,10 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import asyncio
+
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
+
 from src.cubo.utils.logger import logger
 
 
@@ -21,12 +23,12 @@ async def run_server_async(
     config.bind = [f"{host}:{port}"]
     config.accesslog = "-"  # Log to stdout
     config.errorlog = "-"
-    
+
     logger.info(f"Starting CUBO API server on {host}:{port} with hypercorn")
-    
+
     # Import the app
     from src.cubo.server.api import app
-    
+
     await serve(app, config)
 
 
@@ -43,11 +45,11 @@ def run_server(host: str = "0.0.0.0", port: int = 8000):
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Run CUBO API server with hypercorn")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
-    
+
     args = parser.parse_args()
-    
+
     run_server(host=args.host, port=args.port)

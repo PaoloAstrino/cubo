@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """BM25 Query CLI for fast pass chunks and BM25 stats."""
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.cubo.retrieval.bm25_searcher import BM25Searcher
-from src.cubo.utils.logger import logger
 
 
 def main():

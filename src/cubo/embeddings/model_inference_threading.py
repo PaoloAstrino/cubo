@@ -3,12 +3,12 @@ Model Inference Threading for CUBO
 Provides threaded model inference with proper GPU/CPU utilization.
 """
 
-import torch
 import threading
-from typing import List, Dict, Any, Callable
 import time
-import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Callable, Dict, List
+
+import torch
 
 from src.cubo.utils.logger import logger
 

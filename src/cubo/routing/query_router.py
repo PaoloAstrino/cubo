@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import time
 from enum import Enum
-from typing import Optional, Tuple, Dict, Any
+from typing import Any, Dict, Optional, Tuple
 
-from src.cubo.utils.logger import logger
 from src.cubo.config import config
 from src.cubo.routing.llm_classifier import LLMQueryClassifier
 

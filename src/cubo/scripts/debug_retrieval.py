@@ -1,18 +1,16 @@
 """
 Debug script to test retrieval behavior across multiple documents.
 """
-import os
 import sys
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.cubo.config import config
 from src.cubo.embeddings.model_loader import ModelManager
 from src.cubo.retrieval.retriever import DocumentRetriever
-from src.cubo.utils.logger import logger
 from src.cubo.security.security import security_manager
+
 
 def test_retrieval():
     """Test retrieval with multiple queries."""
@@ -33,7 +31,7 @@ def test_retrieval():
         use_sentence_window=True,
         use_auto_merging=True
     )
-    print(f"   Retriever initialized")
+    print("   Retriever initialized")
     print(f"   Current documents in session: {retriever.current_documents}")
 
     # Check what's in the database
@@ -60,7 +58,7 @@ def test_retrieval():
         # Count chunks per file
         from collections import Counter
         file_counts = Counter(m.get('filename', 'Unknown') for m in all_data['metadatas'])
-        print(f"\n   Chunks per file:")
+        print("\n   Chunks per file:")
         for filename, count in file_counts.most_common():
             print(f"     - {filename}: {count} chunks")
     else:

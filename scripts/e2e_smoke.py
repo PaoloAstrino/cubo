@@ -19,9 +19,7 @@ from typing import Dict, Any, Optional
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.cubo.utils.logger import get_logger
-
-logger = get_logger(__name__)
+from src.cubo.utils.logger import logger
 
 API_BASE_URL = "http://localhost:8000"
 TEST_DOCUMENT_PATH = project_root / "data" / "frog_story.txt"

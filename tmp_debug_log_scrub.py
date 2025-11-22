@@ -1,7 +1,7 @@
 from pathlib import Path
-from src.cubo.config import config
-from src.cubo.utils.logger import logger_instance
-from src.cubo.main import CUBOApp
+from cubo.config import config
+from cubo.utils.logger import logger_instance
+from cubo.main import CUBOApp
 
 log_file = Path('./tmp_debug_log_scrub.jsonl')
 config.set('logging.log_file', str(log_file))

@@ -2,9 +2,9 @@
 from typing import List, Optional
 
 from src.cubo.config import config
-from src.cubo.utils.logger import logger
-from src.cubo.embeddings.model_loader import model_manager
 from src.cubo.embeddings.model_inference_threading import get_model_inference_threading
+from src.cubo.embeddings.model_loader import model_manager
+from src.cubo.utils.logger import logger
 
 
 class EmbeddingGenerator:

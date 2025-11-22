@@ -3,10 +3,10 @@ CUBO Error Recovery System
 Provides error handling and recovery strategies for backend operations.
 """
 
-import time
 import logging
-from typing import Callable, Any, Optional, Dict
+import time
 from enum import Enum
+from typing import Any, Callable, Dict, Optional
 
 from .exceptions import DocumentAlreadyExistsError
 

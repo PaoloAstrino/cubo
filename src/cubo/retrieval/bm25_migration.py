@@ -2,8 +2,7 @@
 Migration utilities for BM25 stores, e.g., converting JSON stats to Whoosh index and vice-versa.
 """
 import json
-from typing import List
-from pathlib import Path
+
 
 def convert_json_stats_to_whoosh(json_stats_path: str, chunks_jsonl_path: str, output_whoosh_dir: str):
     """Convert JSON BM25 chunks and create a Whoosh index in output_whoosh_dir.
@@ -13,7 +12,7 @@ def convert_json_stats_to_whoosh(json_stats_path: str, chunks_jsonl_path: str, o
     from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
 
     docs = []
-    with open(chunks_jsonl_path, 'r', encoding='utf-8') as f:
+    with open(chunks_jsonl_path, encoding='utf-8') as f:
         for line in f:
             rec = json.loads(line)
             file_hash = rec.get('file_hash', '')
@@ -31,7 +30,6 @@ def convert_json_stats_to_whoosh(json_stats_path: str, chunks_jsonl_path: str, o
 def export_whoosh_to_json(whoosh_dir: str, output_chunks_jsonl: str):
     """Export a Whoosh index to a chunks JSONL file (best-effort).
     """
-    from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
     from whoosh import index as whoosh_index
 
     ix = whoosh_index.open_dir(whoosh_dir)

@@ -1,9 +1,15 @@
 import logging
 import os
 import time
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler, QueueHandler, QueueListener
+from logging.handlers import (
+    QueueHandler,
+    QueueListener,
+    RotatingFileHandler,
+    TimedRotatingFileHandler,
+)
 from queue import Queue
-from typing import Optional, Any
+from typing import Any, Optional
+
 from src.cubo.config import config
 from src.cubo.utils.logging_context import get_current_trace_id
 
@@ -149,7 +155,7 @@ class Logger:
             def filter(self, record):
                 trace = get_current_trace_id()
                 try:
-                    setattr(record, 'trace_id', trace or '')
+                    record.trace_id = trace or ''
                 except Exception:
                     pass
                 return True
@@ -216,7 +222,7 @@ class Logger:
         try:
             import sys
             module = sys.modules[__name__]
-            setattr(module, 'logger', self.logger)
+            module.logger = self.logger
         except Exception:
             pass
 

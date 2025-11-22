@@ -1,17 +1,17 @@
 """
 FastPass ingestion module
 """
-from pathlib import Path
-import os
 import json
-from typing import List
+import os
+from pathlib import Path
+
 import pandas as pd
 
+from src.cubo.config import config
 from src.cubo.ingestion.document_loader import DocumentLoader
 from src.cubo.retrieval.bm25_searcher import BM25Searcher
 from src.cubo.storage.metadata_manager import get_metadata_manager
 from src.cubo.utils.logger import logger
-from src.cubo.config import config
 
 
 class FastPassIngestor:

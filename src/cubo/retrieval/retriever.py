@@ -3,39 +3,44 @@ CUBO Document Retriever
 Handles document embedding, storage, and retrieval with ChromaDB.
 """
 
-from typing import List, Dict, Optional, Any
-import math
-import os
 import json
+import os
 import re
 from pathlib import Path
-from collections import Counter, defaultdict
+from typing import Dict, List, Optional
 
 import numpy as np
+
 if not hasattr(np, "float_"):
     np.float_ = np.float64
 
 # Chromadb import is lazy; import inside _setup_chromadb to avoid loading
 # large native dependencies during test collection (onnxruntime/shim errors)
-from sentence_transformers import SentenceTransformer
 import hashlib
-from src.cubo.utils.logger import logger
-from src.cubo.config import config
-from src.cubo.services.service_manager import get_service_manager
-from src.cubo.embeddings.model_inference_threading import get_model_inference_threading
-from src.cubo.utils.exceptions import (
-    CUBOError, DatabaseError, DocumentAlreadyExistsError, EmbeddingGenerationError,
-    ModelNotAvailableError, FileAccessError, RetrievalError
-)
 
+from sentence_transformers import SentenceTransformer
+
+from src.cubo.config import config
+from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from src.cubo.embeddings.model_inference_threading import get_model_inference_threading
+from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.rerank.reranker import LocalReranker
 from src.cubo.retrieval.bm25_searcher import BM25Searcher
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
 from src.cubo.retrieval.cache import SemanticCache
 from src.cubo.retrieval.fusion import rrf_fuse
-from src.cubo.storage.memory_store import InMemoryCollection
 from src.cubo.retrieval.strategy import RetrievalStrategy
+from src.cubo.services.service_manager import get_service_manager
+from src.cubo.storage.memory_store import InMemoryCollection
+from src.cubo.utils.exceptions import (
+    CUBOError,
+    DatabaseError,
+    DocumentAlreadyExistsError,
+    EmbeddingGenerationError,
+    FileAccessError,
+    ModelNotAvailableError,
+    RetrievalError,
+)
+from src.cubo.utils.logger import logger
 
 
 class DocumentRetriever:
@@ -140,7 +145,7 @@ class DocumentRetriever:
                 max_entries=max_entries,
                 cache_path=cache_path
             )
-        
+
         # BM25 searcher initialization
         bm25_stats_path = config.get("bm25_stats_path", "data/bm25_stats.json")
         self.bm25 = BM25Searcher(bm25_stats=bm25_stats_path)
@@ -170,7 +175,7 @@ class DocumentRetriever:
         else:
             self.window_postprocessor = None
             self.reranker = None
-    
+
     def _initialize_retrieval_strategy(self) -> None:
         """Initialize retrieval strategy for combining results."""
         self.retrieval_strategy = RetrievalStrategy()
@@ -414,21 +419,21 @@ class DocumentRetriever:
                 return []
 
             query_embedding = self._generate_query_embedding(query)
-            
+
             # Determine how many candidates to retrieve based on strategy
             if strategy and strategy.get('k_candidates'):
                 retrieval_k = int(strategy.get('k_candidates'))
             else:
                 retrieval_k = top_k * 3
-            
+
             # Method 1: Pure semantic retrieval
             semantic_candidates = self._query_collection_for_candidates(
                 query_embedding, retrieval_k, query=""
             )
-            
+
             # Method 2: Pure BM25 retrieval (scan all docs and score by BM25)
             bm25_candidates = self._retrieve_by_bm25(query, retrieval_k)
-            
+
             # Combine with 50/50 weighting
             # Combine semantic and BM25 with weights specified in strategy
             bm25_weight = strategy.get('bm25_weight', 0.3) if strategy else 0.3
@@ -436,7 +441,7 @@ class DocumentRetriever:
             combined_candidates = self._combine_semantic_and_bm25(
                 semantic_candidates, bm25_candidates, top_k, semantic_weight=dense_weight, bm25_weight=bm25_weight
             )
-            
+
             # Apply sentence window postprocessing
             combined_candidates = self._apply_sentence_window_postprocessing(
                 combined_candidates, top_k, query, strategy=strategy
@@ -563,7 +568,7 @@ class DocumentRetriever:
         """Load query cache from disk (for testing)."""
         if os.path.exists(self.cache_file):
             try:
-                with open(self.cache_file, 'r') as f:
+                with open(self.cache_file) as f:
                     loaded_cache = json.load(f)
                 # Convert string keys back to tuples
                 self.query_cache = {}
@@ -912,9 +917,9 @@ class DocumentRetriever:
         docs = []
         for doc_id, text in zip(doc_ids, texts):
             docs.append({'doc_id': doc_id, 'text': text})
-        
+
         self.bm25.add_documents(docs)
-        
+
         logger.debug(f"Updated BM25 stats: {len(doc_ids)} chunks added.")
 
     def _tokenize(self, text: str) -> List[str]:
@@ -980,16 +985,16 @@ class DocumentRetriever:
             all_docs = self.collection.get(include=['documents', 'metadatas'], where={"filename": {"$in": list(self.current_documents)}} if self.current_documents else None)
             if not all_docs['documents']:
                 return []
-            
+
             # Prepare docs for BM25Searcher
             docs_for_search = []
             for doc, metadata in zip(all_docs['documents'], all_docs['metadatas']):
                 doc_id = hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()[:8]
                 docs_for_search.append({'doc_id': doc_id, 'text': doc, 'metadata': metadata})
-            
+
             # Use BM25Searcher to search
             results = self.bm25.search(query, top_k=top_k, docs=docs_for_search)
-            
+
             # Format results back to what retriever expects
             scored_docs = []
             for r in results:
@@ -1000,7 +1005,7 @@ class DocumentRetriever:
                     "base_similarity": 0.0,
                     "bm25_score": r['similarity'] * 15.0  # Reverse normalization if needed, but similarity is already normalized
                 })
-            
+
             logger.info(f"BM25 retrieval: scored {len(scored_docs)} docs, returning top {min(top_k, len(scored_docs))}")
             return scored_docs
         except Exception as e:
@@ -1017,7 +1022,7 @@ class DocumentRetriever:
         use_reranker = strategy.get('use_reranker') if strategy is not None else True
         # Use retrieval strategy for postprocessing
         return self.retrieval_strategy.apply_postprocessing(
-            candidates, top_k, query, 
+            candidates, top_k, query,
             window_postprocessor=self.window_postprocessor if self.use_sentence_window else None,
             reranker=self.reranker if self.use_sentence_window else None,
             use_reranker=use_reranker
@@ -1188,7 +1193,7 @@ class FaissHybridRetriever:
 
         # 4. Sort and return top-k
         fused_results.sort(key=lambda x: x['score'], reverse=True)
-        
+
         # Get the full document from the fused results
         final_results = []
         for res in fused_results[:top_k]:

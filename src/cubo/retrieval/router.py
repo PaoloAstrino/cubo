@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any, Dict
 
 from src.cubo.config import config
+
 try:
-    from src.cubo.routing.query_router import query_router as default_router
     from src.cubo.routing.query_router import QueryType as RouterQueryType
+    from src.cubo.routing.query_router import query_router as default_router
 except Exception:
     default_router = None
     RouterQueryType = None

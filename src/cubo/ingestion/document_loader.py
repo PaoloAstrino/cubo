@@ -1,11 +1,13 @@
 import hashlib
 import os
 from typing import List, Optional
+
 from docx import Document
 from PyPDF2 import PdfReader
+
 from src.cubo.config import config
-from src.cubo.utils.utils import Utils
 from src.cubo.utils.logger import logger
+from src.cubo.utils.utils import Utils
 
 
 class DocumentLoader:
@@ -75,7 +77,7 @@ class DocumentLoader:
 		file_ext = os.path.splitext(file_path)[1].lower()
 
 		if file_ext in ['.txt', '.md']:
-			with open(file_path, 'r', encoding='utf-8') as f:
+			with open(file_path, encoding='utf-8') as f:
 				return f.read()
 		elif file_ext == '.docx':
 			doc = Document(file_path)

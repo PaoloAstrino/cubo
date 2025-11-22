@@ -1,10 +1,12 @@
 """
 File loader abstraction that supports text/pdf/docx/csv loading in a uniform way.
 """
-from pathlib import Path
-from typing import List, Dict
 import os
+from pathlib import Path
+from typing import Dict, List
+
 import pandas as pd
+
 from src.cubo.ingestion.document_loader import DocumentLoader
 from src.cubo.utils.logger import logger
 

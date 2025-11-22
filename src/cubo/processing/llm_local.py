@@ -5,11 +5,12 @@ implements a synchronous generation via the service_manager to keep parity with 
 """
 from __future__ import annotations
 
-from typing import List, Dict, Optional
 import time
+from typing import Dict, List, Optional
+
 from src.cubo.config import config
-from src.cubo.utils.logger import logger
 from src.cubo.services.service_manager import get_service_manager
+from src.cubo.utils.logger import logger
 
 
 class LocalResponseGenerator:

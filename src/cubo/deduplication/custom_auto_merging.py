@@ -4,15 +4,15 @@ Implements hierarchical chunking and intelligent merging without LlamaIndex.
 """
 
 import hashlib
-from typing import List, Dict, Any, Optional
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from sentence_transformers import SentenceTransformer
 
-from src.cubo.utils.logger import logger
 from src.cubo.config import config
 from src.cubo.retrieval.vector_store import create_vector_store
+from src.cubo.utils.logger import logger
 
 
 class HierarchicalChunker:
@@ -386,7 +386,7 @@ class AutoMergingRetriever:
 
         try:
             # Read the document
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 text = f.read()
 
             # Create hierarchical chunks

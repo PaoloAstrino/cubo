@@ -7,22 +7,37 @@ including document management widgets, chat interfaces, and settings panels.
 All components follow a consistent dark theme and provide professional user experience.
 """
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QListWidget, QListWidgetItem, QProgressBar,
-    QComboBox, QSpinBox, QGroupBox, QFormLayout, QTableWidget,
-    QTableWidgetItem, QHeaderView, QSplitter, QFileDialog,
-    QMessageBox, QScrollArea, QFrame, QLineEdit, QStackedWidget,
-    QCheckBox, QListView, QStyledItemDelegate, QStyleOptionViewItem
-)
-from PySide6.QtCore import Qt, Signal, QThread, QAbstractListModel, QModelIndex, QSize, QRect
-from PySide6.QtGui import QFont, QPixmap, QIcon, QPainter, QColor, QPen
-
-from pathlib import Path
-import os
 import logging
+import os
 from datetime import datetime
-from typing import List, Dict, Any
+from pathlib import Path
+from typing import Any, Dict, List
+
+from PySide6.QtCore import QAbstractListModel, QModelIndex, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListView,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSpinBox,
+    QStackedWidget,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 logger = logging.getLogger(__name__)
 

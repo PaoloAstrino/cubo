@@ -4,8 +4,9 @@ with summaries, keywords, and categories. The module avoids importing the full L
 implementation at runtime when only type checking is used, to keep tests and lightweight
 scripts from pulling in heavy dependencies like Ollama.
 """
-from typing import List, Dict, TYPE_CHECKING
 import re
+from typing import TYPE_CHECKING, Dict, List
+
 from src.cubo.utils.logger import logger
 
 if TYPE_CHECKING:

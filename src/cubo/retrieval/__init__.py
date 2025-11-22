@@ -1,2 +1,3 @@
 """Retrieval package for dense/sparse search implementations"""
-from . import retriever, bm25_searcher as bm25
+from . import bm25_searcher as bm25
+from . import retriever

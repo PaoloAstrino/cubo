@@ -1,11 +1,11 @@
 """Simple SQLite metadata manager for ingestion runs, chunk mappings, and index versions.
 This module provides a lightweight SQLite wrapper; no external dependencies beyond stdlib.
 """
+import datetime
+import json
 import sqlite3
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-import json
-import datetime
+from typing import Any, Dict, List, Optional
 
 from src.cubo.config import config
 from src.cubo.utils.logger import logger

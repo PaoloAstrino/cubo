@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class Config:
@@ -16,7 +16,7 @@ class Config:
         """Load configuration from JSON file or use defaults."""
         if os.path.exists(self.config_path):
             try:
-                with open(self.config_path, 'r') as f:
+                with open(self.config_path) as f:
                     return json.load(f)
             except json.JSONDecodeError as e:
                 print(f"Warning: config.json is malformed ({e}). Using default configuration.")
@@ -136,7 +136,7 @@ class Config:
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(self._config, f, indent=4)
-        except IOError as e:
+        except OSError as e:
             print(f"Error saving configuration to {self.config_path}: {e}")
 
     @property

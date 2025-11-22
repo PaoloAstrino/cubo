@@ -1,7 +1,7 @@
-from src.cubo.utils.logging_context import trace_context, get_current_trace_id
-from src.cubo.workers.thread_manager import ThreadManager
-from src.cubo.services.service_manager import ServiceManager
-from src.cubo.utils.error_recovery import ErrorRecoveryManager
+from cubo.utils.logging_context import trace_context, get_current_trace_id
+from cubo.workers.thread_manager import ThreadManager
+from cubo.services.service_manager import ServiceManager
+from cubo.utils.error_recovery import ErrorRecoveryManager
 import threading
 
 print('\n=== Direct ThreadManager test ===')
@@ -10,7 +10,7 @@ def tm_op():
     print('tm_op in thread - trace:', get_current_trace_id())
 
 # Submit a task via ThreadManager
-from src.cubo.services.service_manager import ServiceManager
+from cubo.services.service_manager import ServiceManager
 svc_tm = ThreadManager(max_workers=2)
 
 def wrapped_tm():

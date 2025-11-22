@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cubo-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUBO_DATA_FOLDER=/data
+      - CUBO_MODEL_PATH=/models
+      - CUBO_LOG_FILE=/logs/cubo.log
+    volumes:
+      - ./data:/data
+      - ./models:/models
+      - ./logs:/logs
+      - ./config.json:/app/config.json:ro
+    depends_on:
+      - chroma
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health', timeout=2)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - cubo-network
+
+  # ChromaDB Vector Store
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: cubo-chroma
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - cubo-network
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cubo-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - cubo-network
+
+volumes:
+  chroma-data:
+    driver: local
+
+networks:
+  cubo-network:
+    driver: bridge

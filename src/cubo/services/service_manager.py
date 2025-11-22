@@ -4,16 +4,16 @@ Orchestrates thread management, error recovery, and health monitoring
 for backend operations.
 """
 
-import time
 import logging
 import sqlite3
-from typing import Any, Dict, Optional, Callable, List
+import time
 from contextlib import contextmanager
+from typing import Any, Callable, Dict, List, Optional
 
-from src.cubo.workers.thread_manager import ThreadManager
-from src.cubo.utils.error_recovery import ErrorRecoveryManager
 from src.cubo.monitoring.health_monitor import HealthMonitor, HealthStatus
-from src.cubo.utils.logging_context import trace_context, generate_trace_id
+from src.cubo.utils.error_recovery import ErrorRecoveryManager
+from src.cubo.utils.logging_context import generate_trace_id, trace_context
+from src.cubo.workers.thread_manager import ThreadManager
 
 logger = logging.getLogger(__name__)
 
@@ -369,8 +369,8 @@ class ServiceManager:
         response_time: float, context_metadata: List[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Create evaluation data dictionary."""
-        import json
         import datetime
+        import json
         import uuid
 
         return {

@@ -2,8 +2,7 @@
 Postprocessors for enhancing retrieval results in sentence window retrieval.
 """
 
-from typing import List, Dict
-import logging
+from typing import Dict, List
 
 from src.cubo.utils.logger import logger
 

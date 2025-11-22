@@ -1,12 +1,13 @@
 """
 Whoosh-backed BM25 store implementation.
 """
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from src.cubo.retrieval.bm25_store import BM25Store
 
 try:
     from whoosh import index as whoosh_index
-    from whoosh.fields import Schema, ID, TEXT
+    from whoosh.fields import ID, TEXT, Schema
     from whoosh.qparser import MultifieldParser
     from whoosh.scoring import BM25F
     WHOOSH_AVAILABLE = True

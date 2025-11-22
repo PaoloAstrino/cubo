@@ -6,18 +6,18 @@ from scaffold_id -> [chunk_ids] for efficient retrieval and original chunk acces
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
-import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from src.cubo.utils.logger import logger
-from src.cubo.processing.enrichment import ChunkEnricher
 from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from src.cubo.processing.enrichment import ChunkEnricher
+from src.cubo.utils.logger import logger
 
 
 class ScaffoldGenerator:
@@ -81,7 +81,7 @@ class ScaffoldGenerator:
     def load_scaffolds(self, input_dir: Path) -> Dict[str, Any]:
         input_dir = Path(input_dir)
         scaffolds_df = pd.read_parquet(input_dir / 'scaffold_metadata.parquet')
-        with open(input_dir / 'scaffold_mapping.json', 'r', encoding='utf-8') as f:
+        with open(input_dir / 'scaffold_mapping.json', encoding='utf-8') as f:
             mapping = json.load(f)
         embeddings_path = input_dir / 'scaffold_embeddings.npy'
         scaffold_embeddings = []

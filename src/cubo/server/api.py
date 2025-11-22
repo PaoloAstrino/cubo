@@ -1,25 +1,22 @@
 """FastAPI server for CUBO RAG system."""
-import os
 import sys
-import uuid
-from pathlib import Path
-from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from src.cubo.main import CUBOApp
-from src.cubo.services.service_manager import ServiceManager
-from src.cubo.security.security import security_manager
-from src.cubo.utils.logger import logger
-from src.cubo.utils.logging_context import trace_context, generate_trace_id
+from cubo.main import CUBOApp
+from cubo.security.security import security_manager
+from cubo.services.service_manager import ServiceManager
+from cubo.utils.logger import logger
+from cubo.utils.logging_context import generate_trace_id, trace_context
 
 # Global app instance
 cubo_app: Optional[CUBOApp] = None
@@ -28,20 +25,33 @@ service_manager: Optional[ServiceManager] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle."""
-    global cubo_app, service_manager
+    """Manage application lifecycle.
     
+    Initialize CUBO application and service manager on startup,
+    and ensure proper shutdown on application exit.
+    
+    Args:
+        app: FastAPI application instance.
+        
+    Yields:
+        None: Control is yielded to the application during runtime.
+        
+    Raises:
+        Exception: If critical initialization or shutdown errors occur.
+    """
+    global cubo_app, service_manager
+
     print(">>> LIFESPAN: Starting (MINIMAL TEST)", flush=True)
     logger.info("Initializing CUBO application")
     try:
-        # TEMPORARY: Disable initialization to test server startup
-        # try:
-        #     cubo_app = CUBOApp()
-        #     service_manager = ServiceManager()
-        #     logger.info("CUBO application initialized successfully")
-        # except Exception as init_error:
-        #     logger.warning(f"CUBOApp initialization failed: {init_error}")
-        
+        # Initialize CUBO application
+        try:
+            cubo_app = CUBOApp()
+            service_manager = ServiceManager()
+            logger.info("CUBO application initialized successfully")
+        except Exception as init_error:
+            logger.warning(f"CUBOApp initialization failed: {init_error}")
+
         print(">>> LIFESPAN: About to yield (no init)", flush=True)
         yield
         print(">>> LIFESPAN: After yield (shutting down)", flush=True)
@@ -77,9 +87,21 @@ app.add_middleware(
 
 @app.middleware("http")
 async def trace_id_middleware(request: Request, call_next):
-    """Add trace_id to all requests and responses."""
-    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    """Add trace_id to all requests and responses.
     
+    This middleware ensures every request has a unique trace ID for logging
+    and debugging purposes. The trace ID can be provided in the request header
+    or will be auto-generated.
+    
+    Args:
+        request: Incoming HTTP request.
+        call_next: Next middleware in the chain.
+        
+    Returns:
+        Response with trace_id header added.
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
     # Set trace context for this request
     with trace_context(trace_id):
         # Log incoming request
@@ -92,10 +114,10 @@ async def trace_id_middleware(request: Request, call_next):
                 "trace_id": trace_id
             }
         )
-        
+
         response = await call_next(request)
         response.headers["x-trace-id"] = trace_id
-        
+
         # Log response
         logger.info(
             "Response sent",
@@ -104,7 +126,7 @@ async def trace_id_middleware(request: Request, call_next):
                 "trace_id": trace_id
             }
         )
-        
+
         return response
 
 
@@ -168,18 +190,29 @@ class HealthResponse(BaseModel):
 # API Endpoints
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
-    trace_id = generate_trace_id()
+    """Health check endpoint.
     
+    Returns the current health status of the API and its components,
+    including the CUBO app, service manager, and retriever.
+    
+    Returns:
+        HealthResponse: Health status of all system components.
+        
+    Example:
+        >>> response = await health_check()
+        >>> print(response.status)  # "healthy"
+    """
+    trace_id = generate_trace_id()
+
     with trace_context(trace_id):
         logger.info("Health check requested")
-        
+
         components = {
             "api": "healthy",
             "app": "not_initialized" if cubo_app is None else "healthy",
             "service_manager": "not_initialized" if service_manager is None else "healthy"
         }
-        
+
         # Check if retriever is ready (only if app is initialized)
         if cubo_app is not None:
             try:
@@ -188,10 +221,10 @@ async def health_check():
             except Exception as e:
                 components["retriever"] = f"error: {str(e)}"
                 logger.error(f"Retriever health check failed: {e}")
-        
+
         # API is healthy even if components aren't initialized yet (lazy loading)
         overall_status = "healthy"
-        
+
         return HealthResponse(
             status=overall_status,
             version="1.0.0",
@@ -204,43 +237,57 @@ async def upload_file(
     file: UploadFile = File(...),
     request: Request = None
 ):
-    """Upload a document file."""
-    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    """Upload a document file.
     
+    Accepts a file upload and saves it to the data directory for
+    subsequent ingestion and indexing.
+    
+    Args:
+        file: File uploaded via multipart/form-data.
+        request: FastAPI request object (auto-injected).
+        
+    Returns:
+        UploadResponse: Upload confirmation with file metadata.
+        
+    Raises:
+        HTTPException: 400 if no filename provided, 500 if upload fails.
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
     with trace_context(trace_id):
         logger.info(
             "File upload started",
             extra={"uploaded_filename": file.filename, "content_type": file.content_type}
         )
-        
+
         try:
             # Validate file
             if not file.filename:
                 raise HTTPException(status_code=400, detail="No filename provided")
-            
+
             # Ensure data directory exists
             data_dir = Path("data")
             data_dir.mkdir(exist_ok=True)
-            
+
             # Save file
             file_path = data_dir / file.filename
             content = await file.read()
-            
+
             with open(file_path, "wb") as f:
                 f.write(content)
-            
+
             logger.info(
                 "File uploaded successfully",
                 extra={"uploaded_filename": file.filename, "size": len(content), "path": str(file_path)}
             )
-            
+
             return UploadResponse(
                 filename=file.filename,
                 size=len(content),
                 trace_id=trace_id,
                 message=f"File {file.filename} uploaded successfully"
             )
-            
+
         except Exception as e:
             logger.error(f"File upload failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
@@ -252,24 +299,40 @@ async def ingest_documents(
     background_tasks: BackgroundTasks,
     request: Request = None
 ):
-    """Ingest documents from data directory."""
-    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    """Ingest documents from data directory.
     
+    Loads documents from the specified data path and prepares them
+    for indexing. Supports fast-pass mode for quick processing.
+    
+    Args:
+        request_data: Ingestion configuration (data path, fast-pass mode).
+        background_tasks: FastAPI background tasks manager (auto-injected).
+        request: FastAPI request object (auto-injected).
+        
+    Returns:
+        IngestResponse: Ingestion status with document count.
+        
+    Raises:
+        HTTPException: 503 if CUBO app not initialized, 404 if path not found,
+                      500 if ingestion fails.
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
     with trace_context(trace_id):
         if not cubo_app:
             raise HTTPException(status_code=503, detail="CUBO app not initialized")
-        
+
         logger.info("Document ingestion started", extra={"fast_pass": request_data.fast_pass})
-        
+
         try:
             data_path = Path(request_data.data_path) if request_data.data_path else Path("data")
-            
+
             if not data_path.exists():
                 raise HTTPException(status_code=404, detail=f"Data path not found: {data_path}")
-            
+
             # Load documents
             documents = cubo_app.document_loader.load_documents(str(data_path))
-            
+
             if not documents:
                 logger.warning("No documents found to ingest")
                 return IngestResponse(
@@ -278,29 +341,29 @@ async def ingest_documents(
                     trace_id=trace_id,
                     message="No documents found"
                 )
-            
+
             logger.info(f"Loaded {len(documents)} documents for ingestion")
-            
+
             # Process documents (this can be time-consuming)
             # For fast_pass mode, we'll use simpler processing
             processed_count = len(documents)
-            
+
             # Store documents for retrieval
             # This would typically involve creating embeddings and storing in vector DB
             # For now, we'll just log and return success
-            
+
             logger.info(
                 "Document ingestion completed",
                 extra={"documents_processed": processed_count}
             )
-            
+
             return IngestResponse(
                 status="completed",
                 documents_processed=processed_count,
                 trace_id=trace_id,
                 message=f"Successfully ingested {processed_count} documents"
             )
-            
+
         except Exception as e:
             logger.error(f"Document ingestion failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
@@ -312,33 +375,51 @@ async def build_index(
     background_tasks: BackgroundTasks,
     request: Request = None
 ):
-    """Build or rebuild search indexes."""
-    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    """Build or rebuild search indexes.
     
+    Creates vector embeddings and BM25 indexes for all ingested documents.
+    Supports force rebuild to recreate indexes from scratch.
+    
+    Args:
+        request_data: Index build configuration (force rebuild flag).
+        background_tasks: FastAPI background tasks manager (auto-injected).
+        request: FastAPI request object (auto-injected).
+        
+    Returns:
+        BuildIndexResponse: Build status with indexed document count.
+        
+    Raises:
+        HTTPException: 503 if CUBO app not initialized, 500 if build fails.
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
     with trace_context(trace_id):
         if not cubo_app:
             raise HTTPException(status_code=503, detail="CUBO app not initialized")
-        
+
         logger.info(
             "Index build started",
             extra={"force_rebuild": request_data.force_rebuild}
         )
-        
+
         try:
-            # This would typically involve:
-            # 1. Creating FAISS index
-            # 2. Building Whoosh BM25 index
-            # 3. Publishing indexes atomically
-            
-            # For now, return success
-            logger.info("Index build completed")
-            
+            # Build index using CUBOApp's build_index method
+            # This will:
+            # 1. Initialize components if needed (model, retriever, generator)
+            # 2. Load documents from data folder
+            # 3. Add documents to vector DB (FAISS/ChromaDB)
+            # 4. Update BM25 indexes
+
+            doc_count = cubo_app.build_index()
+
+            logger.info(f"Index build completed with {doc_count} documents")
+
             return BuildIndexResponse(
                 status="completed",
                 trace_id=trace_id,
-                message="Index built successfully"
+                message=f"Index built successfully with {doc_count} documents"
             )
-            
+
         except Exception as e:
             logger.error(f"Index build failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Index build failed: {str(e)}")
@@ -349,17 +430,36 @@ async def query(
     request_data: QueryRequest,
     request: Request = None
 ):
-    """Query the RAG system."""
-    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    """Query the RAG system.
     
+    Performs semantic search over indexed documents and generates
+    an answer using the retriever and generator components.
+    
+    Args:
+        request_data: Query parameters (query text, top_k, use_reranker).
+        request: FastAPI request object (auto-injected).
+        
+    Returns:
+        QueryResponse: Generated answer with source documents and metadata.
+        
+    Raises:
+        HTTPException: 503 if CUBO app or retriever not initialized,
+                      500 if query processing fails.
+                      
+    Example:
+        >>> response = await query(QueryRequest(query="What is RAG?", top_k=5))
+        >>> print(response.answer)
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
     with trace_context(trace_id):
         if not cubo_app:
             raise HTTPException(status_code=503, detail="CUBO app not initialized")
-        
+
         # Scrub query for logging
         scrubbed_query = security_manager.scrub(request_data.query)
         query_scrubbed = scrubbed_query != request_data.query
-        
+
         logger.info(
             "Query received",
             extra={
@@ -369,7 +469,7 @@ async def query(
                 "scrubbed": query_scrubbed
             }
         )
-        
+
         try:
             # Check if retriever is initialized
             if not hasattr(cubo_app, 'retriever') or not cubo_app.retriever:
@@ -377,16 +477,16 @@ async def query(
                     status_code=503,
                     detail="Retriever not initialized. Please run ingestion and index building first."
                 )
-            
+
             # Retrieve documents
             retrieved_docs = cubo_app.retriever.retrieve(
                 query=request_data.query,
                 top_k=request_data.top_k,
                 use_reranker=request_data.use_reranker
             )
-            
+
             logger.info(f"Retrieved {len(retrieved_docs)} documents")
-            
+
             # Generate answer
             if hasattr(cubo_app, 'generator') and cubo_app.generator:
                 answer = cubo_app.generator.generate(
@@ -397,7 +497,7 @@ async def query(
                 # Fallback: return retrieved documents as context
                 answer = "Retrieved documents (no generator available):\n\n"
                 answer += "\n\n".join([doc.get('content', '')[:200] for doc in retrieved_docs[:3]])
-            
+
             # Format sources
             sources = [
                 {
@@ -407,7 +507,7 @@ async def query(
                 }
                 for doc in retrieved_docs
             ]
-            
+
             logger.info(
                 "Query processed successfully",
                 extra={
@@ -415,14 +515,14 @@ async def query(
                     "sources_count": len(sources)
                 }
             )
-            
+
             return QueryResponse(
                 answer=answer,
                 sources=sources,
                 trace_id=trace_id,
                 query_scrubbed=query_scrubbed
             )
-            
+
         except HTTPException:
             raise
         except Exception as e:
@@ -436,7 +536,13 @@ async def query(
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
+    """Root endpoint.
+    
+    Provides basic API information and links to documentation.
+    
+    Returns:
+        dict: API metadata including version and documentation URL.
+    """
     return {
         "message": "CUBO RAG API",
         "version": "1.0.0",

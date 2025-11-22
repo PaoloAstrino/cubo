@@ -1,5 +1,5 @@
-import uuid
 import contextvars
+import uuid
 from contextlib import contextmanager
 
 TRACE_ID_CTX = contextvars.ContextVar('trace_id', default=None)

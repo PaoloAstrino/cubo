@@ -1,8 +1,8 @@
 """Utility script to clear whichever vector store backend is configured."""
 import argparse
 import shutil
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 

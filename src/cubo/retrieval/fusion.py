@@ -1,7 +1,7 @@
 """
 Fusion utilities for retrieval: RRF fusion and semantic + BM25 combiner.
 """
-from typing import List, Dict
+from typing import Dict, List
 
 
 def rrf_fuse(bm25_results: List[Dict], faiss_results: List[Dict], k: int = 60) -> List[Dict]:

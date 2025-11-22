@@ -19,28 +19,36 @@ CUBO Desktop GUI - Main Application Window
                 self.model_loader = None, personalizable desktop interface for the CUBO RAG system.
 """
 
-import sys
-import logging
-from pathlib import Path
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QSplitter, QStatusBar, QToolBar, QMenuBar, QMenu,
-    QMessageBox, QComboBox, QProgressBar, QTextEdit, QDialog, QSizePolicy
-)
-from PySide6.QtCore import Qt, Signal, QThread
-from PySide6.QtGui import QIcon
-import logging
-from PySide6.QtGui import QAction
 import ctypes
+import logging
 import platform
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QAction, QIcon
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QSizePolicy,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 # Add src to path for backend imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from evaluation.database import EvaluationDatabase, QueryEvaluation
 from gui.components import DocumentWidget, QueryWidget
+
 from src.cubo.services.service_manager import get_service_manager
 from src.cubo.utils.logger import logger
-from evaluation.database import EvaluationDatabase, QueryEvaluation
 
 
 class BackendInitializationWorker(QThread):
@@ -102,8 +110,9 @@ class BackendInitializationWorker(QThread):
 
     def _validate_model_configuration(self):
         """Validate model path configuration."""
-        from src.cubo.config import config
         import os
+
+        from src.cubo.config import config
         model_path = config.get("model_path")
 
         import logging
@@ -204,7 +213,6 @@ class LoadingDialog(QDialog):
 
     def _setup_window_icon(self):
         """Set up the window icon with fallback options."""
-        from PySide6.QtGui import QIcon
         from pathlib import Path
         icon_path = Path(__file__).parent.parent / "assets" / "logo.ico"
         if not icon_path.exists():
@@ -524,7 +532,7 @@ class CUBOGUI(QMainWindow):
             List of Path objects for found documents, or empty list if none found
         """
         import logging
-        from src.cubo.config import config
+
 
         logger = logging.getLogger(__name__)
 
@@ -758,8 +766,9 @@ class CUBOGUI(QMainWindow):
             print(f"Error setting window icon: {e}")
 
         # Set window icon - prefer ICO for Windows compatibility
-        from PySide6.QtGui import QIcon
         from pathlib import Path
+
+        from PySide6.QtGui import QIcon
         icon_path = Path(__file__).parent.parent / "assets" / "logo.ico"
         if not icon_path.exists():
             # Fallback to PNG if ICO doesn't exist
@@ -1299,8 +1308,8 @@ class CUBOGUI(QMainWindow):
     def _save_query_evaluation(self, query, response, relevant_docs_data, settings):
         """Save query evaluation data with detailed chunk scores."""
         try:
-            from datetime import datetime
             import uuid
+            from datetime import datetime
 
             # Extract chunk scores from metadata
             chunk_scores = []
@@ -1539,7 +1548,7 @@ class CUBOGUI(QMainWindow):
             import json
             config_path = Path(__file__).parent.parent / "config.json"
             if config_path.exists():
-                with open(config_path, 'r') as f:
+                with open(config_path) as f:
                     return json.load(f)
         except Exception as e:
             print(f"Error loading settings: {e}")
@@ -1611,8 +1620,7 @@ def _setup_logging():
 
 def _is_instance_already_running():
     """Check if another instance is already running and handle single instance logic."""
-    from PySide6.QtNetwork import QLocalSocket, QLocalServer
-    from PySide6.QtCore import QCoreApplication
+    from PySide6.QtNetwork import QLocalSocket
 
     # Create unique server name for this application
     server_name = "CUBO_GUI_SingleInstance"
@@ -1663,7 +1671,7 @@ def _setup_qt_application():
             print(f"Windows AppUserModelID set: {myappid}")
         except Exception as e:
             print(f"Failed to set AppUserModelID: {e}")
-    
+
     app = QApplication(sys.argv)
     app.setApplicationName("CUBO")
     app.setApplicationVersion("1.0")
@@ -1678,8 +1686,9 @@ def _setup_qt_application():
 def _set_application_icon(app):
     """Set the application icon from assets folder."""
     try:
-        from PySide6.QtGui import QIcon
         import os
+
+        from PySide6.QtGui import QIcon
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(current_dir)
 

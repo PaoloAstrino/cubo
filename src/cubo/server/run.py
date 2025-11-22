@@ -7,7 +7,8 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import uvicorn
-from src.cubo.utils.logger import logger
+
+from cubo.utils.logger import logger
 
 
 def run_server(
@@ -25,7 +26,7 @@ def run_server(
         log_level: Logging level
     """
     logger.info(f"Starting CUBO API server on {host}:{port}")
-    
+
     # Use loop="asyncio" and limit_max_requests to avoid Windows signal issues
     config = uvicorn.Config(
         "src.cubo.server.api:app",
@@ -38,7 +39,7 @@ def run_server(
         use_colors=True
     )
     server = uvicorn.Server(config)
-    
+
     # Run with explicit exception handling
     try:
         server.run()
@@ -49,20 +50,27 @@ def run_server(
         raise
 
 
-if __name__ == "__main__":
+
+
+def main():
+    """Console script entry point for CUBO API server."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Run CUBO API server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     parser.add_argument("--log-level", default="info", help="Log level")
-    
+
     args = parser.parse_args()
-    
+
     run_server(
         host=args.host,
         port=args.port,
         reload=args.reload,
         log_level=args.log_level
     )
+
+
+if __name__ == "__main__":
+    main()

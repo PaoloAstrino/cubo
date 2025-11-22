@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from src.cubo.config import config
-from src.cubo.ingestion.fast_pass_ingestor import FastPassIngestor, build_bm25_index
 from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from src.cubo.ingestion.fast_pass_ingestor import build_bm25_index
 from src.cubo.storage.metadata_manager import get_metadata_manager
 from src.cubo.utils.logger import logger
 

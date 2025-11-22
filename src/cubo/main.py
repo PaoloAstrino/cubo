@@ -7,15 +7,17 @@ A portable Retrieval-Augmented Generation system using embedding models and LLMs
 import argparse
 import os
 import time
+
 from colorama import init
+
 from src.cubo.config import config
-from src.cubo.utils.logger import logger
 from src.cubo.embeddings.model_loader import model_manager
 from src.cubo.ingestion.document_loader import DocumentLoader
-from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.processing.generator import create_response_generator
-from src.cubo.utils.utils import Utils, metrics
+from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.security.security import security_manager
+from src.cubo.utils.logger import logger
+from src.cubo.utils.utils import Utils, metrics
 
 # Initialize colorama
 init()
@@ -418,6 +420,36 @@ class CUBOApp:
     def _add_documents_to_db(self, documents: list):
         """Add documents to the vector database."""
         self.retriever.add_documents(documents)
+
+    # Public API wrappers for programmatic usage (e.g., from API server)
+    def ingest_documents(self, data_folder: str = None) -> int:
+        """Load and chunk all documents from a folder and return count of chunks.
+        This does not add them to the vector DB; call build_index to persist to store.
+        """
+        folder = data_folder or config.get('data_folder')
+        if not self.doc_loader:
+            # Ensure doc loader available even if components not fully initialized
+            self.doc_loader = DocumentLoader()
+        documents = self._load_all_documents(folder)
+        return len(documents)
+
+    def build_index(self, data_folder: str = None) -> int:
+        """Initialize components if needed, load documents (if any) and add them to the vector DB.
+        Returns number of document chunks processed/added.
+        """
+        # Ensure components are set (model, retriever, generator)
+        if not self.model or not self.retriever or not self.generator:
+            if not self.initialize_components():
+                raise RuntimeError('Failed to initialize model and components for index building')
+
+        folder = data_folder or config.get('data_folder')
+        documents = self._load_all_documents(folder)
+        if not documents:
+            return 0
+
+        # Add documents to the vector DB
+        self._add_documents_to_db(documents)
+        return len(documents)
 
     def _process_and_display_query(self, query: str):
         """Process query and display results."""

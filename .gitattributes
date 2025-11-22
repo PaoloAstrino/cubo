@@ -1,0 +1,30 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.msi binary
+*.exe binary
+*.dmg binary
+*.db binary
+*.parquet binary
+
+# Archives
+*.7z binary
+*.gz binary
+*.tar binary
+*.tgz binary
+
+# Documents
+*.docx binary
+*.xlsx binary
+
+# Lock files - treat as binary to avoid merge conflicts
+package-lock.json binary
+pnpm-lock.yaml binary

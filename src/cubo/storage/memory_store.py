@@ -1,23 +1,24 @@
 """
 In-memory vector store fallback for testing and environments without binary dependencies.
 """
+from typing import Any, Dict, List, Optional
+
 import numpy as np
-from typing import List, Dict, Any, Optional
 
 
 class InMemoryCollection:
     """Lightweight in-memory collection fallback for tests and environments 
     where binary dependencies cannot be imported."""
-    
+
     def __init__(self):
         self._docs = []  # list of (id, document, metadata, embedding)
 
-    def add(self, embeddings: Optional[List] = None, documents: Optional[List[str]] = None, 
+    def add(self, embeddings: Optional[List] = None, documents: Optional[List[str]] = None,
             metadatas: Optional[List[Dict]] = None, ids: Optional[List[str]] = None):
         """Add documents to the collection."""
         if not documents:
             return
-            
+
         for idx, doc in enumerate(documents):
             emb = None
             if embeddings:
@@ -30,7 +31,7 @@ class InMemoryCollection:
         """Return the number of documents in the collection."""
         return len(self._docs)
 
-    def get(self, include: Optional[List[str]] = None, where: Optional[Dict] = None, 
+    def get(self, include: Optional[List[str]] = None, where: Optional[Dict] = None,
             ids: Optional[List[str]] = None) -> Dict[str, Any]:
         """Get documents with optional filtering."""
         # Filter by ids or simple where clauses
@@ -46,20 +47,20 @@ class InMemoryCollection:
                     results = [d for d in results if d[2].get(key) in valid_values]
                 else:
                     results = [d for d in results if d[2].get(key) == val]
-        
+
         docs = [d[1] for d in results]
         metas = [d[2] for d in results]
         ids_out = [d[0] for d in results]
         return {"ids": ids_out, "documents": docs, "metadatas": metas}
 
-    def query(self, query_embeddings: Optional[List] = None, n_results: int = 10, 
+    def query(self, query_embeddings: Optional[List] = None, n_results: int = 10,
               include: Optional[List[str]] = None, where: Optional[Dict] = None) -> Dict[str, Any]:
         """Query the collection using cosine similarity."""
         if not query_embeddings or not self._docs:
             return {"documents": [[]], "metadatas": [[]], "distances": [[]], "ids": [[]]}
-        
+
         q = np.asarray(query_embeddings[0], dtype='float32')
-        
+
         # Apply where filter first
         filtered_docs = self._docs
         if where and isinstance(where, dict):
@@ -69,7 +70,7 @@ class InMemoryCollection:
                     filtered_docs = [d for d in filtered_docs if d[2].get(key) in valid_values]
                 else:
                     filtered_docs = [d for d in filtered_docs if d[2].get(key) == val]
-        
+
         # Calculate similarities
         similarities = []
         for i, (doc_id, doc, meta, emb) in enumerate(filtered_docs):
@@ -79,20 +80,20 @@ class InMemoryCollection:
                 denom = (np.linalg.norm(emb) * np.linalg.norm(q))
                 sim = float(np.dot(emb, q) / denom) if denom > 0 else 0.0
             similarities.append((i, sim))
-        
+
         # Sort by similarity descending
         similarities.sort(key=lambda x: x[1], reverse=True)
         top = similarities[:n_results]
-        
+
         docs = [filtered_docs[idx][1] for idx, _ in top]
         metas = [filtered_docs[idx][2] for idx, _ in top]
         dists = [1.0 - sim for _, sim in top]
         doc_ids = [filtered_docs[idx][0] for idx, _ in top]
-        
+
         return {
-            "documents": [docs], 
-            "metadatas": [metas], 
-            "distances": [dists], 
+            "documents": [docs],
+            "metadatas": [metas],
+            "distances": [dists],
             "ids": [doc_ids]
         }
 

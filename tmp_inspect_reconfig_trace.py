@@ -1,7 +1,7 @@
 from pathlib import Path
-from src.cubo.config import config
-from src.cubo.utils.logger import logger_instance, logger
-from src.cubo.services.service_manager import ServiceManager
+from cubo.config import config
+from cubo.utils.logger import logger_instance, logger
+from cubo.services.service_manager import ServiceManager
 import time
 
 log_file = Path(r'C:/Users/paolo/AppData/Local/Temp/pytest-of-paolo/pytest-206/test_logger_reconfig_json_and_0/log.jsonl')
@@ -12,8 +12,8 @@ logger_instance.shutdown(); logger_instance._setup_logging()
 svc = ServiceManager(max_workers=1)
 
 def op():
-    from src.cubo.utils.logging_context import get_current_trace_id
-    from src.cubo.utils.logger import logger as inlogger
+    from cubo.utils.logging_context import get_current_trace_id
+    from cubo.utils.logger import logger as inlogger
     inlogger.info('background op')
     return get_current_trace_id()
 

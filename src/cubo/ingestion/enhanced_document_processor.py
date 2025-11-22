@@ -6,11 +6,12 @@ Combines Dolphin vision parsing with EmbeddingGemma-300M semantic embeddings
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from PIL import Image
 
-from src.cubo.models.dolphin_processor import DolphinProcessor
 from src.cubo.embeddings.model_loader import ModelManager
+from src.cubo.models.dolphin_processor import DolphinProcessor
 from src.cubo.utils.utils import Utils
 
 logger = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ class EnhancedDocumentProcessor:
 			List of processed chunks with embeddings
 		"""
 		try:
-			with open(text_path, 'r', encoding='utf-8') as f:
+			with open(text_path, encoding='utf-8') as f:
 				content = f.read()
 
 			chunks = self._create_enhanced_chunks(content, text_path)

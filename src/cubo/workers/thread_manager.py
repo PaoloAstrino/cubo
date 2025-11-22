@@ -3,11 +3,11 @@ CUBO Thread Manager
 Manages thread pools for async operations with proper lifecycle management.
 """
 
-import time
-from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError
-from typing import Callable, Optional
-from contextlib import contextmanager
 import logging
+import time
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
+from contextlib import contextmanager
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 

@@ -38,7 +38,7 @@ class CacheEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CacheEntry":
+    def from_dict(cls, data: Dict[str, Any]) -> CacheEntry:
         return cls(
             query=data.get("query", ""),
             query_embedding=data.get("query_embedding", []),
@@ -81,7 +81,7 @@ class SemanticCache:
             self._load_from_disk()
         if self._use_index:
             try:
-                import faiss  # type: ignore
+                pass  # type: ignore
             except Exception:
                 logger.warning("FAISS is not available; falling back to linear scan for SemanticCache")
                 self._use_index = False
@@ -144,7 +144,6 @@ class SemanticCache:
         # Try index-based lookup if configured
         if self._use_index and self._index is not None and self._dimension is not None:
             try:
-                import faiss  # type: ignore
                 vec = q_vec.reshape(1, -1).astype('float32')
                 if vec.shape[1] == self._dimension:
                     # normalize for inner-product cosine similarity

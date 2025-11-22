@@ -3,6 +3,7 @@ Debug the postprocessing step to see what's happening to the chunks
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.cubo.embeddings.model_loader import ModelManager

@@ -4,15 +4,15 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import faiss
 
+from src.cubo.indexing.publish_lock import acquire_publish_lock
+
 # Import FAISSIndexManager inside functions to avoid circular import with faiss_index
 from src.cubo.storage.metadata_manager import get_metadata_manager
-from src.cubo.indexing.publish_lock import acquire_publish_lock
 from src.cubo.utils.logger import logger
-
 
 POINTER_FILENAME = 'current_index.json'
 
@@ -25,7 +25,7 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
     meta_path = dir_path / 'metadata.json'
     if not meta_path.exists():
         raise FileNotFoundError(f"metadata.json missing in {dir_path}")
-    with open(meta_path, 'r', encoding='utf-8') as fh:
+    with open(meta_path, encoding='utf-8') as fh:
         metadata = json.load(fh)
 
     dimension = metadata.get('dimension')
@@ -102,7 +102,7 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         if verify:
             metadata = _verify_index_dir(version_dir)
         else:
-            with open(version_dir / 'metadata.json', 'r', encoding='utf-8') as fh:
+            with open(version_dir / 'metadata.json', encoding='utf-8') as fh:
                 metadata = json.load(fh)
 
         # Form the published path: keep version_dir as-is; pointer file references it
@@ -113,7 +113,7 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         previous_pointer_payload = None
         if pointer_final.exists():
             try:
-                with open(pointer_final, 'r', encoding='utf-8') as pfh:
+                with open(pointer_final, encoding='utf-8') as pfh:
                     previous_pointer_payload = json.load(pfh)
             except Exception:
                 previous_pointer_payload = None
@@ -214,7 +214,7 @@ def get_current_index_dir(index_root: Path) -> Optional[Path]:
     pointer = Path(index_root) / POINTER_FILENAME
     if not pointer.exists():
         return None
-    with open(pointer, 'r', encoding='utf-8') as fh:
+    with open(pointer, encoding='utf-8') as fh:
         payload = json.load(fh)
     return Path(payload.get('index_dir')) if payload.get('index_dir') else None
 
@@ -242,7 +242,7 @@ def rollback_to_previous(index_root: Path, telemetry_hook: Optional[callable] = 
     # Determine rollback target: if pointer currently points to the latest recorded version, pick the previous.
     current_pointer_dir = None
     try:
-        with open(pointer_final, 'r', encoding='utf-8') as pfh:
+        with open(pointer_final, encoding='utf-8') as pfh:
             current_pointer_dir = json.load(pfh).get('index_dir')
     except Exception:
         current_pointer_dir = None

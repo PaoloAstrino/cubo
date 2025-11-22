@@ -1,11 +1,12 @@
-import ollama
 import time
-from typing import List, Dict
+from typing import Dict, List
+
+import ollama
 from colorama import Fore, Style
+
 from src.cubo.config import config
-from src.cubo.utils.logger import logger
 from src.cubo.services.service_manager import get_service_manager
-from typing import Callable
+from src.cubo.utils.logger import logger
 
 
 class ResponseGenerator:

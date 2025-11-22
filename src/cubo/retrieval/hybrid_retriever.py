@@ -17,12 +17,13 @@ __all__ = ["HybridRetriever"]
 """
 Hybrid Retriever that combines sparse (BM25) and dense (FAISS) retrieval.
 """
-from typing import List, Dict
+from typing import Dict, List
 
-from src.cubo.retrieval.bm25_searcher import BM25Searcher
-from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from src.cubo.indexing.faiss_index import FAISSIndexManager
+from src.cubo.retrieval.bm25_searcher import BM25Searcher
 from src.cubo.retrieval.fusion import rrf_fuse
+
 
 class HybridRetriever:
     def __init__(
@@ -53,7 +54,7 @@ class HybridRetriever:
 
         # 4. Sort and return top-k
         fused_results.sort(key=lambda x: x['score'], reverse=True)
-        
+
         # Get the full document from the fused results
         final_results = []
         for res in fused_results[:top_k]:

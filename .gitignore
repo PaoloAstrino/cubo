@@ -29,7 +29,6 @@ MANIFEST
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
 
 # Installer logs
 pip-log.txt
@@ -124,26 +123,43 @@ dmypy.json
 .DS_Store
 Thumbs.db
 
-# Project specific
+# Project specific - Generated Data & Artifacts
 logs/
 data/
 models/
 temp/
 chroma_db/
+whoosh_index/
+evaluation/
+cache/
+
+# Large binaries
 *.exe
 *.msi
 *.dmg
+*.zip
+go-installer.msi
+go.zip
 
+# Frontend
+.next/
+node_modules/
+frontend/.next/
+frontend/node_modules/
 
-
+# Internal/temporary files
 how_to_compare.txt
-
 rag_system_complete_specs.md
-
-shadow_components
-
-.next
-
-node_modules
-
+shadow_components/
 final_settings_github.txt
+things_scheduled.txt
+bandit-report.json
+
+# Test outputs
+test_exported.jsonl
+tmp_*.py
+tmp_*.jsonl
+*.spec
+
+
+how_to_be_professional.txt

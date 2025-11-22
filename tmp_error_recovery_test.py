@@ -1,5 +1,5 @@
-from src.cubo.utils.error_recovery import ErrorRecoveryManager
-from src.cubo.utils.logging_context import trace_context, get_current_trace_id
+from cubo.utils.error_recovery import ErrorRecoveryManager
+from cubo.utils.logging_context import trace_context, get_current_trace_id
 
 mgr = ErrorRecoveryManager()
 

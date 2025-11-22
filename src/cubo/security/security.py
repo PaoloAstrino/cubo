@@ -1,9 +1,11 @@
-import os
 import hashlib
+import os
 import secrets
+
 from cryptography.fernet import Fernet
-from src.cubo.utils.logger import logger
+
 from src.cubo.config import config
+from src.cubo.utils.logger import logger
 
 
 class SecurityManager:

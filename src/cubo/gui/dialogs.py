@@ -3,15 +3,26 @@ CUBO GUI Dialogs
 Modal dialogs for the desktop interface.
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QDialogButtonBox, QMessageBox, QProgressDialog,
-    QFileDialog, QInputDialog, QComboBox, QListWidget, QListWidgetItem,
-    QGroupBox, QFormLayout, QSpinBox, QCheckBox, QLineEdit
-)
-from PySide6.QtCore import Qt, QThread, Signal
 import subprocess
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+)
 
 # Common UI Style Constants
 GROUP_BOX_STYLE = "QGroupBox { font-weight: bold; padding-top: 10px; }"

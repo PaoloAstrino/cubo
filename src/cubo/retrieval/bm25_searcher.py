@@ -1,15 +1,14 @@
 """
 Simple BM25 searcher for fast-pass JSONL output and stats.
 """
-from pathlib import Path
 import json
 import math
-from collections import defaultdict, Counter
-from typing import List, Dict
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Dict, List
 
-from src.cubo.utils.logger import logger
 from src.cubo.retrieval.bm25_store_factory import get_bm25_store
-
+from src.cubo.utils.logger import logger
 
 
 class BM25Searcher:
@@ -36,7 +35,7 @@ class BM25Searcher:
         # Load chunks JSONL if provided and store supports index_documents
         docs_parsed = []
         if self.chunks_jsonl and self.chunks_jsonl.exists():
-            with open(self.chunks_jsonl, 'r', encoding='utf-8') as f:
+            with open(self.chunks_jsonl, encoding='utf-8') as f:
                 for line in f:
                     rec = json.loads(line)
                     file_hash = rec.get('file_hash', '')
@@ -68,7 +67,7 @@ class BM25Searcher:
             return self._store.load_stats(path)
         except Exception:
             # Fallback for legacy JSON parsing
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
                 if hasattr(self._store, 'doc_lengths'):
                     self._store.doc_lengths = {k: int(v) for k, v in data.get('doc_lengths', {}).items()}

@@ -14,14 +14,14 @@ project_root = Path(__file__).parent.parent
 def start_backend():
     """Start the FastAPI backend server."""
     print("Starting backend API server on port 8000...")
+    print("=" * 60)
+    print("BACKEND OUTPUT:")
+    print("=" * 60)
     
     backend_process = subprocess.Popen(
         [sys.executable, "src/cubo/server/run.py", "--reload"],
-        cwd=project_root,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
+        cwd=project_root
+        # No stdout/stderr capture - show output directly in terminal
     )
     
     return backend_process
@@ -29,6 +29,9 @@ def start_backend():
 
 def start_frontend():
     """Start the Next.js frontend dev server."""
+    print("\n" + "=" * 60)
+    print("FRONTEND OUTPUT:")
+    print("=" * 60)
     print("Starting frontend dev server on port 3000...")
     
     frontend_dir = project_root / "frontend"
@@ -36,15 +39,13 @@ def start_frontend():
     # Check if node_modules exists
     if not (frontend_dir / "node_modules").exists():
         print("Installing frontend dependencies...")
-        subprocess.run(["pnpm", "install"], cwd=frontend_dir, check=True)
+        subprocess.run(["npm", "install"], cwd=frontend_dir, check=True, shell=True)
     
     frontend_process = subprocess.Popen(
-        ["pnpm", "dev"],
+        ["npm", "run", "dev"],
         cwd=frontend_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
+        shell=True  # Required for Windows to find npm in PATH
+        # No stdout/stderr capture - show output directly in terminal
     )
     
     return frontend_process
@@ -54,19 +55,29 @@ def wait_for_backend():
     """Wait for backend to be ready."""
     import requests
     
+    print("\n" + "=" * 60)
     print("Waiting for backend to be ready...")
-    for i in range(30):
+    print("=" * 60)
+    for i in range(60):  # Wait up to 60 seconds
         try:
-            response = requests.get("http://localhost:8000/api/health", timeout=1)
+            response = requests.get("http://localhost:8000/api/health", timeout=2)
             if response.status_code == 200:
-                print("✓ Backend is ready")
+                print(f"\n✓ Backend is ready! (took {i+1} seconds)")
+                print("=" * 60)
                 return True
-        except Exception:
+        except requests.exceptions.ConnectionError:
+            # Backend not started yet, keep waiting
             pass
+        except Exception as e:
+            print(f"Health check attempt {i+1}/60 - Error: {e}")
         
+        if i % 5 == 0 and i > 0:
+            print(f"Still waiting... ({i} seconds elapsed)")
         time.sleep(1)
     
-    print("✗ Backend failed to start")
+    print("\n✗ Backend failed to start within 60 seconds")
+    print("Check the backend output above for errors")
+    print("=" * 60)
     return False
 
 

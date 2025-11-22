@@ -1,13 +1,13 @@
 """Reindex chunks parquet to ChromaDB collection (generate embeddings and insert)."""
-from pathlib import Path
 import argparse
 import logging
+from pathlib import Path
+
 import pandas as pd
 
-from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
-from tqdm import tqdm
-from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.config import config
+from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
 
 
@@ -42,7 +42,7 @@ def main():
     # Load embedding model via EmbeddingGenerator
     if args.model_path:
         config.set('model_path', args.model_path)
-    
+
     generator = EmbeddingGenerator(batch_size=args.batch_size)
     # We need the model for the retriever constructor, but retriever uses it for query encoding.
     # Here we use generator for document encoding.

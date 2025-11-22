@@ -2,13 +2,15 @@
 CLI to run the deduplication pipeline on a corpus of documents.
 """
 import argparse
+import datetime
 import json
 from pathlib import Path
+
 import pandas as pd
-import datetime
 
 from src.cubo.deduplication.deduplicator import Deduplicator
 from src.cubo.utils.logger import logger
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run the deduplication pipeline.")

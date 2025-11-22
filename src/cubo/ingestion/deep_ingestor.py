@@ -11,8 +11,8 @@ import pandas as pd
 
 from src.cubo.config import config
 from src.cubo.ingestion.document_loader import DocumentLoader
-from src.cubo.utils.logger import logger
 from src.cubo.storage.metadata_manager import get_metadata_manager
+from src.cubo.utils.logger import logger
 
 # Optional dependencies
 try:
@@ -141,14 +141,14 @@ class DeepIngestor:
         chunks: List[Dict[str, Any]] = []
         chunk_index = 0
         metadata = metadata or {}
-        
+
         # Convert all columns to string to ensure consistent text representation
         df_str = df.astype(str)
 
         for start in range(0, len(df), self.csv_rows_per_chunk):
             block = df_str.iloc[start : start + self.csv_rows_per_chunk]
             text = block.to_csv(index=False)
-            
+
             # Prepend sheet name if available
             if chunk_type == "table" and metadata.get("sheet_name"):
                 text = f"Sheet: {metadata['sheet_name']}\n" + text
@@ -162,11 +162,11 @@ class DeepIngestor:
                 "token_count": len(text.split()),
                 "chunk_type": chunk_type,
             }
-            
+
             # Add extra metadata
             if metadata:
                 chunk_data.update(metadata)
-                
+
             chunks.append(chunk_data)
             chunk_index += 1
 
@@ -180,7 +180,7 @@ class DeepIngestor:
             return []
 
         chunks: List[Dict[str, Any]] = []
-        
+
         for sheet_name in excel.sheet_names:
             try:
                 df = excel.parse(sheet_name)
@@ -198,7 +198,7 @@ class DeepIngestor:
                     "n_cols": len(df.columns),
                 },
             }
-            
+
             sheet_chunks = self._process_tabular_data(df, "table", metadata)
             chunks.extend(sheet_chunks)
 
@@ -299,7 +299,7 @@ class DeepIngestor:
             if self.use_file_hash_for_chunk_id and chunk.get("file_hash")
             else chunk.get("filename")
         )
-        
+
         if not base:
             # Fallback if both file_hash and filename are missing
             # This shouldn't happen in normal flow but good for robustness

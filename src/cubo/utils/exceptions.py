@@ -3,7 +3,7 @@ CUBO Custom Exceptions
 Custom exception classes for different error categories in the CUBO system.
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 class CUBOError(Exception):

@@ -3,16 +3,18 @@ CLI to query the RAG pipeline and get a response.
 """
 import argparse
 from pathlib import Path
+
 import pandas as pd
 
-from src.cubo.retrieval.retriever import HybridRetriever
+from src.cubo.config import config
+from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.processing.generator import create_response_generator
 from src.cubo.retrieval.bm25_searcher import BM25Searcher
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
-from src.cubo.config import config
-from src.cubo.utils.logger import logger
+from src.cubo.retrieval.retriever import HybridRetriever
 from src.cubo.security.security import security_manager
+from src.cubo.utils.logger import logger
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Query the RAG pipeline.")
@@ -29,9 +31,9 @@ def main():
     bm25_stats = config.get('bm25_stats_path', 'data/bm25_stats.json')
     faiss_index_dir = config.get('faiss_index_dir', 'faiss_index')
     faiss_index_root = config.get('faiss_index_root', None)
-    
+
     bm25_searcher = BM25Searcher(chunks_jsonl=chunks_jsonl, bm25_stats=bm25_stats)
-    
+
     embedding_generator = EmbeddingGenerator()
     faiss_manager = FAISSIndexManager(dimension=0, index_dir=Path(faiss_index_dir), index_root=Path(faiss_index_root) if faiss_index_root else None)
     faiss_manager.load()

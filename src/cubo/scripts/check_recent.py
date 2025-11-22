@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import sqlite3
 import os
+import sqlite3
+
 from src.cubo.security.security import security_manager
 
 db_path = 'evaluation/evaluation.db'
