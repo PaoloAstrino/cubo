@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { NotionPromptForm } from "@/components/notion-prompt-form"
+
 import { Empty } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -52,26 +52,26 @@ export default function ChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!inputValue.trim()) return
-    
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
       content: inputValue,
     }
-    
+
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
     setIsLoading(true)
-    
+
     try {
       const response = await query({
         query: inputValue,
         top_k: 5,
         use_reranker: true,
       })
-      
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -79,9 +79,9 @@ export default function ChatPage() {
         sources: response.sources,
         trace_id: response.trace_id,
       }
-      
+
       setMessages((prev) => [...prev, assistantMessage])
-      
+
       if (response.query_scrubbed) {
         toast({
           title: "Privacy Notice",
@@ -95,13 +95,13 @@ export default function ChatPage() {
         description: error instanceof Error ? error.message : "Failed to process query",
         variant: "destructive",
       })
-      
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: "Sorry, I encountered an error processing your request. Please make sure documents are uploaded and indexed.",
       }
-      
+
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
@@ -119,7 +119,7 @@ export default function ChatPage() {
         </CardHeader>
         <CardContent className="flex-1 p-0 overflow-hidden relative">
           <ScrollArea ref={scrollAreaRef} className="h-full px-4">
-            <div className="flex flex-col gap-6 pb-4 w-full max-w-5xl mx-auto">
+            <div className="flex flex-col gap-6 pb-4 w-full max-w-5xl mx-auto" role="log" aria-live="polite">
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -129,10 +129,6 @@ export default function ChatPage() {
                   )}
                 >
                   <Avatar className="size-8 shrink-0">
-                    <AvatarImage
-                      src={message.role === "user" ? "https://github.com/shadcn.png" : "/bot-avatar.png"}
-                      alt={message.role}
-                    />
                     <AvatarFallback>{message.role === "user" ? "ME" : "AI"}</AvatarFallback>
                   </Avatar>
                   <div
@@ -180,6 +176,7 @@ export default function ChatPage() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Ask a question about your documents..."
+              aria-label="Ask a question about your documents"
               disabled={isLoading}
               className="flex-1"
             />

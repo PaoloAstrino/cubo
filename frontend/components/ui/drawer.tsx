@@ -1,3 +1,73 @@
+"use client"
+
+import * as React from 'react'
+import { Sheet, SheetTrigger, SheetPortal, SheetOverlay, SheetContent, SheetClose, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from './sheet'
+
+import { cn } from '@/lib/utils'
+
+// Simple Drawer wrapper implemented on top of Radix Sheet (Dialog primitive)
+const Drawer = ({ shouldScaleBackground = true, children, ...props }: React.PropsWithChildren<React.ComponentProps<typeof Sheet>> & { shouldScaleBackground?: boolean }) => (
+  <Sheet {...props}>{children}</Sheet>
+)
+Drawer.displayName = 'Drawer'
+
+const DrawerTrigger = SheetTrigger
+const DrawerPortal = SheetPortal
+const DrawerOverlay = SheetOverlay
+const DrawerClose = SheetClose
+const DrawerContent = SheetContent
+const DrawerHeader = SheetHeader
+const DrawerFooter = SheetFooter
+const DrawerTitle = SheetTitle
+const DrawerDescription = SheetDescription
+
+export {
+  Drawer,
+  DrawerPortal,
+  DrawerOverlay,
+  DrawerTrigger,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerFooter,
+  DrawerTitle,
+  DrawerDescription,
+}
+"use client"
+
+import * as React from 'react'
+import { Sheet, SheetTrigger, SheetPortal, SheetOverlay, SheetContent, SheetClose, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from './sheet'
+
+import { cn } from '@/lib/utils'
+
+// Simple Drawer wrapper implemented on top of Radix Sheet (Dialog primitive)
+const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof Sheet>) => (
+  <Sheet {...props} />
+)
+Drawer.displayName = 'Drawer'
+
+const DrawerTrigger = SheetTrigger
+const DrawerPortal = SheetPortal
+const DrawerOverlay = SheetOverlay
+const DrawerClose = SheetClose
+const DrawerContent = SheetContent
+const DrawerHeader = SheetHeader
+const DrawerFooter = SheetFooter
+const DrawerTitle = SheetTitle
+const DrawerDescription = SheetDescription
+
+export {
+  Drawer,
+  DrawerPortal,
+  DrawerOverlay,
+  DrawerTrigger,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerFooter,
+  DrawerTitle,
+  DrawerDescription,
+}
 'use client'
 
 import * as React from 'react'

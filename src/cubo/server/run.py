@@ -8,7 +8,7 @@ sys.path.insert(0, str(project_root))
 
 import uvicorn
 
-from cubo.utils.logger import logger
+from src.cubo.utils.logger import logger
 
 
 def run_server(

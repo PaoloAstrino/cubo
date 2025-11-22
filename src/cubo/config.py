@@ -145,5 +145,77 @@ class Config:
         return self._config.copy()
 
 
+
 # Global config instance
 config = Config()
+
+
+# Logging configuration
+import logging
+import logging.config
+from pathlib import Path
+from typing import Optional
+
+
+LOGGING_CONFIG = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'detailed': {
+            'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+        'simple': {
+            'format': '%(levelname)s - %(message)s'
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'level': 'INFO',
+            'formatter': 'detailed',
+            'stream': 'ext://sys.stdout'
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'level': 'DEBUG',
+            'formatter': 'detailed',
+            'filename': 'logs/cubo.log',
+            'maxBytes': 10485760,  # 10MB
+            'backupCount': 5
+        }
+    },
+    'loggers': {
+        'cubo': {
+            'level': 'DEBUG',
+            'handlers': ['console', 'file'],
+            'propagate': False
+        }
+    },
+    'root': {
+        'level': 'INFO',
+        'handlers': ['console']
+    }
+}
+
+
+def setup_logging(level: str = "INFO", log_dir: Optional[Path] = None) -> None:
+    """Configure logging for the application.
+    
+    Args:
+        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+        log_dir: Directory for log files. Defaults to 'logs' in current directory.
+    """
+    if log_dir is None:
+        log_dir = Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    logging_config = LOGGING_CONFIG.copy()
+    logging_config['handlers']['file']['filename'] = str(log_dir / 'cubo.log')
+    
+    level = level.upper()
+    logging_config['handlers']['console']['level'] = level
+    logging_config['loggers']['cubo']['level'] = level
+    logging_config['root']['level'] = level
+    
+    logging.config.dictConfig(logging_config)

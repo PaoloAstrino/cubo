@@ -3,6 +3,8 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import datetime
+import os
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -12,11 +14,11 @@ from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, Uplo
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from cubo.main import CUBOApp
-from cubo.security.security import security_manager
-from cubo.services.service_manager import ServiceManager
-from cubo.utils.logger import logger
-from cubo.utils.logging_context import generate_trace_id, trace_context
+from src.cubo.main import CUBOApp
+from src.cubo.security.security import security_manager
+from src.cubo.services.service_manager import ServiceManager
+from src.cubo.utils.logger import logger
+from src.cubo.utils.logging_context import generate_trace_id, trace_context
 
 # Global app instance
 cubo_app: Optional[CUBOApp] = None
@@ -180,11 +182,20 @@ class BuildIndexResponse(BaseModel):
     message: str
 
 
+
 class HealthResponse(BaseModel):
     """Health check response."""
     status: str
     version: str
     components: Dict[str, str]
+
+
+class DocumentResponse(BaseModel):
+    """Document response model."""
+    name: str
+    size: str
+    uploadDate: str
+
 
 
 # API Endpoints
@@ -230,6 +241,60 @@ async def health_check():
             version="1.0.0",
             components=components
         )
+
+
+@app.post("/api/initialize")
+async def initialize_components(request: Request = None):
+    """Explicitly initialize heavyweight components (model, retriever, generator).
+
+    This endpoint allows programmatic control over when the model and
+    retrieval components are loaded — useful for offline environments where
+    heavy initialization should only happen on demand.
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        if not cubo_app:
+            raise HTTPException(status_code=503, detail="CUBO app not created")
+
+        logger.info("Initializing heavyweight CUBO components on demand")
+
+        try:
+            # Trigger initialize_components which loads the model and sets up retriever/generator
+            success = cubo_app.initialize_components()
+            if not success:
+                raise HTTPException(status_code=500, detail="Initialization failed")
+
+            return {"status": "initialized", "trace_id": trace_id}
+        except Exception as e:
+            logger.error(f"Initialization endpoint failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Initialization failed: {str(e)}")
+
+
+@app.get("/api/ready")
+async def readiness_check():
+    """Readiness endpoint returning detailed component readiness.
+    This complements /api/health by returning boolean readiness for each subsystem.
+    """
+    trace_id = generate_trace_id()
+    with trace_context(trace_id):
+        components = {
+            "api": True,
+            "app": cubo_app is not None,
+            "service_manager": service_manager is not None,
+            "retriever": hasattr(cubo_app, 'retriever') and cubo_app.retriever is not None if cubo_app else False,
+            "generator": hasattr(cubo_app, 'generator') and cubo_app.generator is not None if cubo_app else False,
+            "doc_loader": hasattr(cubo_app, 'document_loader') and cubo_app.document_loader is not None if cubo_app else False,
+            "vector_store": False
+        }
+
+        try:
+            if cubo_app and hasattr(cubo_app, 'retriever') and cubo_app.retriever:
+                components['vector_store'] = getattr(cubo_app.retriever, 'collection', None) is not None
+        except Exception:
+            components['vector_store'] = False
+
+        return {"components": components, "trace_id": trace_id}
 
 
 @app.post("/api/upload", response_model=UploadResponse)
@@ -291,6 +356,37 @@ async def upload_file(
         except Exception as e:
             logger.error(f"File upload failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@app.get("/api/documents", response_model=List[DocumentResponse])
+async def list_documents(request: Request = None):
+    """List uploaded documents.
+    
+    Returns a list of files in the data directory.
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    
+    with trace_context(trace_id):
+        try:
+            data_dir = Path("data")
+            if not data_dir.exists():
+                return []
+                
+            documents = []
+            for file_path in data_dir.glob("*"):
+                if file_path.is_file():
+                    stats = file_path.stat()
+                    documents.append(DocumentResponse(
+                        name=file_path.name,
+                        size=f"{stats.st_size / 1024 / 1024:.2f} MB",
+                        uploadDate=datetime.datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d')
+                    ))
+            
+            return documents
+        except Exception as e:
+            logger.error(f"List documents failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
+
 
 
 @app.post("/api/ingest", response_model=IngestResponse)

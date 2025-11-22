@@ -235,6 +235,22 @@ class E2ESmokeTest:
         if not self.check_health():
             logger.error("Health check failed - aborting test")
             return False
+
+        # Step 1.5: Ensure heavy components are initialized (model, retriever)
+        logger.info("Ensuring backend heavy components are initialized...")
+        try:
+            init_resp = requests.post(f"{self.base_url}/api/initialize", timeout=600)
+            if init_resp.status_code != 200:
+                logger.warning(f"Initialization failed or returned non-200: {init_resp.status_code} - {init_resp.text}")
+            else:
+                init_data = init_resp.json()
+                trace_id = init_data.get('trace_id') or init_resp.headers.get('x-trace-id')
+                if trace_id:
+                    self.trace_ids.append(trace_id)
+                    logger.info(f"Initialization completed with trace_id: {trace_id}")
+        except Exception as e:
+            logger.error(f"Initialization request failed: {e}")
+            # Continue even if initialization fails: ingestion or build may trigger initialization on demand
         
         # Step 2: Upload document
         upload_result = self.upload_document()

@@ -146,3 +146,46 @@ def mock_llm_client(monkeypatch):
         pass
 
     yield _DeterministicGenerator()
+
+
+@pytest.fixture(scope='function')
+def tmp_whoosh_index(tmp_path):
+    """Create a temporary Whoosh index for testing.
+    
+    Returns the path to a temporary Whoosh index directory.
+    Tests can use this to avoid relying on the global whoosh_index/ directory.
+    """
+    index_dir = tmp_path / "whoosh_index"
+    index_dir.mkdir(parents=True, exist_ok=True)
+    yield str(index_dir)
+    # Cleanup happens automatically via tmp_path
+
+
+@pytest.fixture(scope='function')
+def mock_embedding_model():
+    """Provide a mock embedding model for testing.
+    
+    Returns a MockEmbeddingModel that generates deterministic embeddings.
+    """
+    from tests.fixtures.mocks import MockEmbeddingModel
+    return MockEmbeddingModel(embedding_dim=384)
+
+
+@pytest.fixture(scope='function')
+def mock_vector_store():
+    """Provide a mock vector store for testing.
+    
+    Returns an in-memory MockVectorStore for fast, isolated testing.
+    """
+    from tests.fixtures.mocks import MockVectorStore
+    return MockVectorStore()
+
+
+@pytest.fixture(scope='function')
+def mock_llm_service():
+    """Provide a mock LLM service for testing.
+    
+    Returns a MockLLMClient that generates deterministic responses.
+    """
+    from tests.fixtures.mocks import MockLLMClient
+    return MockLLMClient(default_response="Test answer from mock LLM")
