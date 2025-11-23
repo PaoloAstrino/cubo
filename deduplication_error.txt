@@ -1,0 +1,45 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.5, pluggy-1.6.0 -- C:\Users\paolo\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\paolo\Desktop\cubo
+configfile: pytest.ini
+plugins: anyio-4.10.0, langsmith-0.3.11, asyncio-1.2.0, cov-7.0.0, mock-3.14.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 3 items
+
+tests/deduplication/test_custom_auto_merging.py::TestHierarchicalChunker::test_create_hierarchical_chunks FAILED [ 33%]
+tests/deduplication/test_custom_auto_merging.py::TestHierarchicalChunker::test_initialization PASSED [ 66%]
+tests/deduplication/test_deduplicator.py::TestDeduplicator::test_initialization PASSED [100%]
+
+================================== FAILURES ===================================
+___________ TestHierarchicalChunker.test_create_hierarchical_chunks ___________
+
+self = <test_custom_auto_merging.TestHierarchicalChunker testMethod=test_create_hierarchical_chunks>
+
+    def test_create_hierarchical_chunks(self):
+        text = "This is a test document. " * 20
+        chunks = self.chunker.create_hierarchical_chunks(text, "test.txt")
+        self.assertIsInstance(chunks, list)
+        self.assertGreater(len(chunks), 0)
+        # Check basic structure
+>       self.assertIn('chunk_id', chunks[0])
+E       AssertionError: 'chunk_id' not found in {'id': '92fd98d8ad33242a', 'text': 'This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document.', 'filename': 'test.txt', 'level': 0, 'chunk_size': 500, 'token_count': 100, 'start_pos': 499, 'end_pos': 500, 'parent_id': None, 'child_ids': []}
+
+tests\deduplication\test_custom_auto_merging.py:20: AssertionError
+============================== warnings summary ===============================
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\faiss\loader.py:28
+  C:\Users\paolo\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\faiss\loader.py:28: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(numpy.__version__) >= "1.19":
+
+..\..\..\..\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\site-packages\setuptools\_distutils\version.py:346
+  C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\site-packages\setuptools\_distutils\version.py:346: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pythonjsonlogger\jsonlogger.py:11
+  C:\Users\paolo\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pythonjsonlogger\jsonlogger.py:11: DeprecationWarning: pythonjsonlogger.jsonlogger has been moved to pythonjsonlogger.json
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/deduplication/test_custom_auto_merging.py::TestHierarchicalChunker::test_create_hierarchical_chunks - AssertionError: 'chunk_id' not found in {'id': '92fd98d8ad33242a', 'text': 'This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document. This is a test document.', 'filename': 'test.txt', 'level': 0, 'chunk_size': 500, 'token_count': 100, 'start_pos': 499, 'end_pos': 500, 'parent_id': None, 'child_ids': []}
+================== 1 failed, 2 passed, 3 warnings in 18.79s ===================

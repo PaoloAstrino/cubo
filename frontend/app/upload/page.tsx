@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Upload, RefreshCw, FileText, HardDrive, File } from "lucide-react"
+import { Upload, FileText, File } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,8 +21,6 @@ export default function UploadPage() {
     const [documents, setDocuments] = React.useState<Document[]>([])
     const [isLoading, setIsLoading] = React.useState(true)
     const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
-    const [isIngesting, setIsIngesting] = React.useState(false)
-    const [isBuildingIndex, setIsBuildingIndex] = React.useState(false)
     const { toast } = useToast()
 
     const fetchDocuments = React.useCallback(async () => {
@@ -54,13 +52,10 @@ export default function UploadPage() {
             setUploadProgress(33)
 
             // Step 2: Ingest
-            setIsIngesting(true)
             await ingestDocuments({ fast_pass: true })
             setUploadProgress(66)
 
             // Step 3: Build Index
-            setIsIngesting(false)
-            setIsBuildingIndex(true)
             await buildIndex({ force_rebuild: false })
             setUploadProgress(100)
 
@@ -78,47 +73,7 @@ export default function UploadPage() {
             })
         } finally {
             setUploadProgress(null)
-            setIsIngesting(false)
-            setIsBuildingIndex(false)
             e.target.value = ''
-        }
-    }
-
-    const handleIngestDocuments = async () => {
-        setIsIngesting(true)
-        try {
-            const response = await ingestDocuments({ fast_pass: true })
-            toast({
-                title: "Ingestion Complete",
-                description: `Processed ${response.documents_processed} documents`,
-            })
-        } catch (error) {
-            toast({
-                title: "Ingestion Failed",
-                description: error instanceof Error ? error.message : "Failed to ingest documents",
-                variant: "destructive",
-            })
-        } finally {
-            setIsIngesting(false)
-        }
-    }
-
-    const handleBuildIndex = async () => {
-        setIsBuildingIndex(true)
-        try {
-            await buildIndex({ force_rebuild: false })
-            toast({
-                title: "Index Built",
-                description: "Search index is ready for queries",
-            })
-        } catch (error) {
-            toast({
-                title: "Index Build Failed",
-                description: error instanceof Error ? error.message : "Failed to build index",
-                variant: "destructive",
-            })
-        } finally {
-            setIsBuildingIndex(false)
         }
     }
 
@@ -127,53 +82,23 @@ export default function UploadPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Documents</h1>
-                    <p className="text-muted-foreground">Upload files to automatically index them</p>
+                    <p className="text-muted-foreground">Upload and automatically index your documents</p>
                 </div>
-                <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={handleIngestDocuments}
-                        disabled={isIngesting}
-                    >
-                        {isIngesting ? (
-                            <>
-                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Ingesting...
-                            </>
-                        ) : (
-                            <>
-                                <FileText className="mr-2 h-4 w-4" /> Ingest All
-                            </>
-                        )}
+                <div className="relative">
+                    <Input
+                        type="file"
+                        className="hidden"
+                        id="file-upload"
+                        onChange={handleFileUpload}
+                        disabled={uploadProgress !== null}
+                        aria-label="Upload document file"
+                    />
+                    <Button asChild disabled={uploadProgress !== null}>
+                        <label htmlFor="file-upload" className="cursor-pointer">
+                            <Upload className="mr-2 h-4 w-4" /> 
+                            {uploadProgress !== null ? 'Processing...' : 'Upload File'}
+                        </label>
                     </Button>
-                    <Button
-                        variant="outline"
-                        onClick={handleBuildIndex}
-                        disabled={isBuildingIndex}
-                    >
-                        {isBuildingIndex ? (
-                            <>
-                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Building...
-                            </>
-                        ) : (
-                            <>
-                                <HardDrive className="mr-2 h-4 w-4" /> Build Index
-                            </>
-                        )}
-                    </Button>
-                    <div className="relative">
-                        <Input
-                            type="file"
-                            className="hidden"
-                            id="file-upload"
-                            onChange={handleFileUpload}
-                            disabled={uploadProgress !== null}
-                        />
-                        <Button asChild disabled={uploadProgress !== null}>
-                            <label htmlFor="file-upload" className="cursor-pointer">
-                                <Upload className="mr-2 h-4 w-4" /> Upload File
-                            </label>
-                        </Button>
-                    </div>
                 </div>
             </div>
 

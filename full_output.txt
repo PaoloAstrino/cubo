@@ -1,0 +1,1437 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.5, pluggy-1.6.0 -- C:\Users\paolo\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\paolo\Desktop\cubo
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.10.0, langsmith-0.3.11, asyncio-1.2.0, cov-7.0.0, mock-3.14.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+2025-11-22 20:00:25.148636: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-22 20:00:25.992955: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+collecting ... collected 178 items
+
+tests/api/test_health.py::test_health_check ERROR                        [  0%]
+tests/api/test_health.py::test_health_check_has_trace_id ERROR           [  1%]
+tests/api/test_health.py::test_health_check_custom_trace_id ERROR        [  1%]
+tests/api/test_query.py::test_query_basic ERROR                          [  2%]
+tests/api/test_query.py::test_query_without_query_text ERROR             [  2%]
+tests/api/test_query.py::test_query_with_invalid_top_k ERROR             [  3%]
+tests/api/test_query.py::test_query_has_trace_id ERROR                   [  3%]
+tests/api/test_query.py::test_query_custom_trace_id ERROR                [  4%]
+tests/api/test_query.py::test_query_default_parameters ERROR             [  5%]
+tests/api/test_upload.py::test_upload_file ERROR                         [  5%]
+tests/api/test_upload.py::test_upload_file_without_file ERROR            [  6%]
+tests/api/test_upload.py::test_upload_file_has_trace_id ERROR            [  6%]
+tests/api/test_upload.py::test_upload_pdf_file ERROR                     [  7%]
+tests/bm25/test_bm25_cli_roundtrip.py::test_bm25_cli_roundtrip PASSED    [  7%]
+tests/bm25/test_bm25_fastpass_whoosh_preserve_json.py::test_fastpass_whoosh_preserve_json PASSED [  8%]
+tests/bm25/test_bm25_migration.py::test_json_to_whoosh_parity PASSED     [  8%]
+tests/bm25/test_bm25_python_store.py::test_python_store_search PASSED    [  9%]
+tests/bm25/test_bm25_python_store.py::test_python_store_compute_score PASSED [ 10%]
+tests/bm25/test_bm25_searcher_loads_chunks.py::test_searcher_loads_chunks PASSED [ 10%]
+tests/bm25/test_bm25_searcher_wrapper.py::test_searcher_explicit_python_backend PASSED [ 11%]
+tests/bm25/test_bm25_searcher_wrapper.py::test_searcher_uses_backend_arg PASSED [ 11%]
+tests/bm25/test_bm25_searcher_wrapper.py::test_searcher_delegates_to_default_store PASSED [ 12%]
+tests/bm25/test_bm25_store_factory.py::test_factory_returns_whoosh_by_default PASSED [ 12%]
+tests/bm25/test_bm25_store_factory.py::test_factory_explicit_python PASSED [ 13%]
+tests/bm25/test_bm25_store_factory.py::test_factory_returns_whoosh_by_default_if_available PASSED [ 14%]
+tests/bm25/test_bm25_store_factory.py::test_factory_whoosh PASSED        [ 14%]
+tests/bm25/test_bm25_store_interface.py::test_bm25store_interface_methods PASSED [ 15%]
+tests/bm25/test_bm25_store_interface.py::test_python_store_basic_flow PASSED [ 15%]
+tests/bm25/test_bm25_whoosh_store.py::test_whoosh_store_basic PASSED     [ 16%]
+tests/config/test_config.py::test_config_load_defaults PASSED            [ 16%]
+tests/config/test_config.py::test_config_load_from_file PASSED           [ 17%]
+tests/config/test_config.py::test_config_set_and_save PASSED             [ 17%]
+tests/config/test_config.py::test_config_all PASSED                      [ 18%]
+tests/deduplication/test_custom_auto_merging.py::TestHierarchicalChunker::test_create_hierarchical_chunks PASSED [ 19%]
+tests/deduplication/test_custom_auto_merging.py::TestHierarchicalChunker::test_initialization PASSED [ 19%]
+tests/deduplication/test_deduplicator.py::TestDeduplicator::test_initialization PASSED [ 20%]
+tests/e2e/test_ingest_retrieve.py::test_ingest_and_retrieve PASSED       [ 20%]
+tests/embeddings/test_embedding_generator.py::test_embedding_generator_uses_threading PASSED [ 21%]
+tests/embeddings/test_embedding_generator.py::test_embedding_generator_embed_summaries_and_chunks PASSED [ 21%]
+tests/indexing/test_faiss_index.py::test_faiss_index_build_search_and_persist PASSED [ 22%]
+tests/indexing/test_faiss_index.py::test_faiss_with_opq PASSED           [ 23%]
+tests/indexing/test_faiss_index.py::test_swap_indexes_basic PASSED       [ 23%]
+tests/indexing/test_faiss_index.py::test_atomic_swap PASSED              [ 24%]
+tests/indexing/test_index_publish_cleanup.py::test_cleanup_retention PASSED [ 24%]
+tests/indexing/test_index_publish_concurrency.py::test_concurrent_publish PASSED [ 25%]
+tests/indexing/test_index_publish_mismatch.py::test_publish_metadata_hot_ids_claim_but_missing_index PASSED [ 25%]
+tests/indexing/test_index_publish_windows.py::test_publish_and_pointer_flip PASSED [ 26%]
+tests/indexing/test_index_publisher_retry.py::test_publish_retries_on_replace PASSED [ 26%]
+tests/indexing/test_publish_db_atomicity.py::test_publish_db_atomicity PASSED [ 27%]
+tests/indexing/test_publish_reader_safety.py::test_publish_reader_safety PASSED [ 28%]
+tests/indexing/test_publish_stress_concurrency.py::test_publish_stress_concurrency PASSED [ 28%]
+tests/indexing/test_publish_telemetry.py::test_publish_telemetry PASSED  [ 29%]
+tests/indexing/test_reader_reload.py::test_reader_reload PASSED          [ 29%]
+tests/indexing/test_reindex_parquet.py::test_reindex_parquet_with_wipe PASSED [ 30%]
+tests/indexing/test_rollback_external_pointer.py::test_rollback_with_external_pointer PASSED [ 30%]
+tests/indexing/test_rollback_to_previous.py::test_rollback_to_previous PASSED [ 31%]
+tests/indexing/test_rollback_to_previous.py::test_rollback_no_previous PASSED [ 32%]
+tests/ingestion/test_deep_ingestor.py::test_deep_ingestor_creates_chunks_parquet PASSED [ 32%]
+tests/ingestion/test_deep_ingestor.py::test_chunk_id_stability_for_identical_files PASSED [ 33%]
+tests/ingestion/test_deep_ingestor.py::test_csv_chunking_groups_rows PASSED [ 33%]
+tests/ingestion/test_deep_ingestor.py::test_deep_ingestor_resume PASSED  [ 34%]
+tests/ingestion/test_deep_ingestor_doc_types.py::test_docx_chunking PASSED [ 34%]
+tests/ingestion/test_deep_ingestor_doc_types.py::test_excel_chunking PASSED [ 35%]
+tests/ingestion/test_deep_ingestor_doc_types.py::test_pdf_chunking PASSED [ 35%]
+tests/ingestion/test_deep_ingestor_embedding.py::test_deep_chunks_can_be_embedded_and_inserted PASSED [ 36%]
+tests/ingestion/test_deep_ingestor_integration.py::test_fast_then_deep_compatibility PASSED [ 37%]
+tests/ingestion/test_ingestion_manager.py::test_start_fast_pass_creates_run PASSED [ 37%]
+tests/llm/test_llm_provider.py::test_create_response_generator_default PASSED [ 38%]
+tests/llm/test_llm_provider.py::test_create_response_generator_local PASSED [ 38%]
+tests/logging/test_log_indexer.py::test_indexer_basic PASSED             [ 39%]
+tests/logging/test_log_scrub.py::test_query_scrubbed_in_logs PASSED      [ 39%]
+tests/logging/test_logger_json_format.py::test_json_log_format PASSED    [ 40%]
+tests/logging/test_logger_reconfig_and_trace.py::test_logger_reconfig_json_and_trace PASSED [ 41%]
+tests/logging/test_trace_id_propagation.py::test_trace_id_propagation PASSED [ 41%]
+tests/monitoring/test_health_monitor.py::TestHealthMonitor::test_initialization PASSED [ 42%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_recall_at_k_perfect PASSED [ 42%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_recall_at_k_partial PASSED [ 43%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_recall_at_k_zero PASSED [ 43%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_recall_at_k_empty_relevant PASSED [ 44%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_precision_at_k_perfect PASSED [ 44%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_precision_at_k_partial PASSED [ 45%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_precision_at_k_zero PASSED [ 46%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_ndcg_at_k_perfect_ranking PASSED [ 46%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_ndcg_at_k_imperfect_ranking PASSED [ 47%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_ndcg_at_k_with_scores PASSED [ 47%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_mrr_first_position PASSED [ 48%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_mrr_second_position PASSED [ 48%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_mrr_not_found PASSED [ 49%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_evaluate_retrieval_complete PASSED [ 50%]
+tests/performance/test_ir_metrics.py::TestIRMetrics::test_evaluate_retrieval_no_ground_truth PASSED [ 50%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_sample_latency_single PASSED [ 51%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_sample_latency_multiple PASSED [ 51%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_sample_latency_with_args PASSED [ 52%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_sample_memory_single PASSED [ 52%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_sample_memory_duration PASSED [ 53%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_log_hardware_metadata PASSED [ 53%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_format_hardware_summary PASSED [ 54%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_latency_percentiles_ordering PASSED [ 55%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_sample_latency_error_handling PASSED [ 55%]
+tests/performance/test_perf_utils.py::TestPerfUtils::test_memory_metrics_valid_ranges PASSED [ 56%]
+tests/performance/test_scaffold_memory.py::TestScaffoldPerformance::test_batch_processing FAILED [ 56%]
+tests/performance/test_scaffold_memory.py::TestScaffoldPerformance::test_memory_usage_large_dataset FAILED [ 57%]
+tests/performance/test_scaffold_memory.py::TestScaffoldPerformance::test_memory_usage_small_dataset FAILED [ 57%]
+tests/performance/test_scaffold_memory.py::TestScaffoldPerformance::test_processing_time_scalability PASSED [ 58%]
+tests/performance/test_scaffold_memory.py::TestEnrichmentPerformance::test_enrichment_failure_handling PASSED [ 58%]
+tests/processing/test_create_scaffolds_parquet.py::test_create_scaffolds_from_parquet_with_run PASSED [ 59%]
+tests/processing/test_enrichment.py::TestChunkEnricher::test_enrich_chunks PASSED [ 60%]
+tests/processing/test_postprocessor.py::TestWindowReplacementPostProcessor::test_custom_metadata_key PASSED [ 60%]
+tests/processing/test_postprocessor.py::TestWindowReplacementPostProcessor::test_empty_results_list PASSED [ 61%]
+tests/processing/test_postprocessor.py::TestWindowReplacementPostProcessor::test_empty_window_context PASSED [ 61%]
+tests/processing/test_postprocessor.py::TestWindowReplacementPostProcessor::test_multiple_results PASSED [ 62%]
+tests/processing/test_postprocessor.py::TestWindowReplacementPostProcessor::test_no_window_in_metadata PASSED [ 62%]
+tests/processing/test_postprocessor.py::TestWindowReplacementPostProcessor::test_replace_with_window_context PASSED [ 63%]
+tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_empty_dataframe FAILED [ 64%]
+tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_generate_scaffold_id PASSED [ 64%]
+tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_generate_scaffolds_basic FAILED [ 65%]
+tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_merge_summaries PASSED [ 65%]
+tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_save_and_load_scaffolds FAILED [ 66%]
+tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_scaffold_grouping_logic FAILED [ 66%]
+tests/processing/test_scaffold_persist.py::test_save_scaffold_run_and_db PASSED [ 67%]
+tests/rerank/test_reranker.py::test_crossencoder_reranker_scores_and_sorts PASSED [ 67%]
+tests/retrieval/test_hybrid_compatibility.py::test_hybrid_retriever_deprecation_warning PASSED [ 68%]
+tests/retrieval/test_hybrid_compatibility.py::test_hybrid_retriever_consistency PASSED [ 69%]
+tests/retrieval/test_hybrid_reranker_integration.py::test_reranker_integration_changes_order PASSED [ 69%]
+tests/retrieval/test_hybrid_strategy_integration.py::test_hybrid_with_strategy PASSED [ 70%]
+tests/retrieval/test_query_router_classify.py::test_classify_basic_cases PASSED [ 70%]
+tests/retrieval/test_query_router_llm_fallback.py::test_llm_not_called_when_confidence_high PASSED [ 71%]
+tests/retrieval/test_query_router_llm_fallback.py::test_llm_called_on_low_conf PASSED [ 71%]
+tests/retrieval/test_query_router_strategy.py::test_compute_strategy_matches_config PASSED [ 72%]
+tests/retrieval/test_retriever.py::test_add_documents_empty PASSED       [ 73%]
+tests/retrieval/test_retriever.py::test_add_documents_success PASSED     [ 73%]
+tests/retrieval/test_retriever.py::test_retrieve_empty_query PASSED      [ 74%]
+tests/retrieval/test_retriever.py::test_retrieve_no_documents PASSED     [ 74%]
+tests/retrieval/test_retriever.py::test_retrieve_success PASSED          [ 75%]
+tests/retrieval/test_retriever.py::test_cache_persistence PASSED         [ 75%]
+tests/retrieval/test_retriever.py::test_retrieve_uses_router_strategy PASSED [ 76%]
+tests/retrieval/test_retriever.py::test_reranker_initialization_with_crossencoder PASSED [ 76%]
+tests/retrieval/test_retriever.py::test_apply_reranking_called_when_enabled PASSED [ 77%]
+tests/retrieval/test_retriever_chunk_ids.py::test_chunk_ids_use_file_hash_when_config_enabled PASSED [ 78%]
+tests/retrieval/test_retriever_chunk_ids.py::test_chunk_ids_use_filename_when_config_disabled PASSED [ 78%]
+tests/retrieval/test_retriever_semantic_cache.py::test_retriever_uses_semantic_cache PASSED [ 79%]
+tests/retrieval/test_router.py::test_router_classify_basic_queries PASSED [ 79%]
+tests/retrieval/test_router.py::test_router_route_query_defaults PASSED  [ 80%]
+tests/retrieval/test_vector_store.py::test_faiss_store_add_and_promote PASSED [ 80%]
+tests/services/test_service_manager.py::TestServiceManager::test_initialization PASSED [ 81%]
+tests/services/test_service_manager.py::TestServiceManager::test_singleton_access PASSED [ 82%]
+tests/storage/test_memory_store.py::TestMemoryStore::test_initialization PASSED [ 82%]
+tests/storage/test_metadata_manager.py::TestMetadataManager::test_initialization PASSED [ 83%]
+tests/storage/test_metadata_migrations.py::test_migrate_scaffold_mappings_add_run_id PASSED [ 83%]
+tests/storage/test_semantic_cache.py::test_semantic_cache_linear_lookup PASSED [ 84%]
+tests/storage/test_semantic_cache.py::test_semantic_cache_faiss_lookup PASSED [ 84%]
+tests/storage/test_semantic_cache.py::test_semantic_cache_ttl_evict PASSED [ 85%]
+tests/storage/test_semantic_cache.py::test_semantic_cache_lru_evict PASSED [ 85%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_initialization PASSED [ 86%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_execute_with_recovery_success PASSED [ 87%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_execute_with_recovery_retry_success PASSED [ 87%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_execute_with_recovery_retry_exhaustion PASSED [ 88%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_execute_with_recovery_fallback PASSED [ 88%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_execute_with_recovery_skip PASSED [ 89%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_execute_with_recovery_timeout PASSED [ 89%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_execute_with_recovery_unknown_operation PASSED [ 90%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_get_health_status_comprehensive PASSED [ 91%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_reset_error_counts_specific PASSED [ 91%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_reset_error_counts_all PASSED [ 92%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_add_recovery_config PASSED [ 92%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_exponential_backoff PASSED [ 93%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_error_tracking_persistence PASSED [ 93%]
+tests/utils/test_error_recovery.py::TestErrorRecoveryManager::test_recent_failure_detection PASSED [ 94%]
+tests/utils/test_utils.py::test_sanitize_path_valid PASSED               [ 94%]
+tests/utils/test_utils.py::test_sanitize_path_traversal PASSED           [ 95%]
+tests/utils/test_utils.py::test_validate_file_size_valid PASSED          [ 96%]
+tests/utils/test_utils.py::test_validate_file_size_too_large PASSED      [ 96%]
+tests/utils/test_utils.py::test_validate_file_type_valid PASSED          [ 97%]
+tests/utils/test_utils.py::test_validate_file_type_invalid PASSED        [ 97%]
+tests/utils/test_utils.py::test_clean_text PASSED                        [ 98%]
+tests/utils/test_utils.py::test_preprocess_text PASSED                   [ 98%]
+tests/utils/test_utils.py::test_chunk_text PASSED                        [ 99%]
+tests/workers/test_thread_manager.py::TestThreadManager::test_initialization PASSED [100%]
+
+=================================== ERRORS ====================================
+_____________________ ERROR at setup of test_health_check _____________________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_health_check>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47AF1950>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+______________ ERROR at setup of test_health_check_has_trace_id _______________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_health_check_has_trace_id>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47A82A50>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_____________ ERROR at setup of test_health_check_custom_trace_id _____________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_health_check_custom_trace_id>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47CF9350>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_____________________ ERROR at setup of test_query_basic ______________________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_query_basic>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47C5AF90>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_______________ ERROR at setup of test_query_without_query_text _______________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_query_without_query_text>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47B4E4D0>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_______________ ERROR at setup of test_query_with_invalid_top_k _______________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_query_with_invalid_top_k>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47B64ED0>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+__________________ ERROR at setup of test_query_has_trace_id __________________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_query_has_trace_id>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47A7F150>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+________________ ERROR at setup of test_query_custom_trace_id _________________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_query_custom_trace_id>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47CB9A90>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_______________ ERROR at setup of test_query_default_parameters _______________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_query_default_parameters>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47DDC8D0>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_____________________ ERROR at setup of test_upload_file ______________________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_upload_file>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47DF8F90>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_______________ ERROR at setup of test_upload_file_without_file _______________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_upload_file_without_file>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47D907D0>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+_______________ ERROR at setup of test_upload_file_has_trace_id _______________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_upload_file_has_trace_id>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A47E00950>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+___________________ ERROR at setup of test_upload_pdf_file ____________________
+
+fixturedef = <FixtureDef argname='client' scope='function' baseid='tests/api'>
+request = <SubRequest 'client' for <Function test_upload_pdf_file>>
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_fixture_setup(fixturedef: FixtureDef, request) -> object | None:
+        asyncio_mode = _get_asyncio_mode(request.config)
+        if not _is_asyncio_fixture_function(fixturedef.func):
+            if asyncio_mode == Mode.STRICT:
+                # Ignore async fixtures without explicit asyncio mark in strict mode
+                # This applies to pytest_trio fixtures, for example
+                return (yield)
+            if not _is_coroutine_or_asyncgen(fixturedef.func):
+>               return (yield)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\api\conftest.py:17: in client
+    with TestClient(app) as test_client:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <starlette.testclient.TestClient object at 0x0000017A454D2C90>
+app = <fastapi.applications.FastAPI object at 0x0000017A436C8D90>
+base_url = 'http://testserver', raise_server_exceptions = True, root_path = ''
+backend = 'asyncio', backend_options = None, cookies = None
+headers = {'user-agent': 'testclient'}
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        base_url: str = "http://testserver",
+        raise_server_exceptions: bool = True,
+        root_path: str = "",
+        backend: str = "asyncio",
+        backend_options: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        cookies: httpx._client.CookieTypes = None,
+        headers: typing.Dict[str, str] = None,
+    ) -> None:
+        self.async_backend = _AsyncBackend(
+            backend=backend, backend_options=backend_options or {}
+        )
+        if _is_asgi3(app):
+            app = typing.cast(ASGI3App, app)
+            asgi_app = app
+        else:
+            app = typing.cast(ASGI2App, app)  # type: ignore[assignment]
+            asgi_app = _WrapASGI2(app)  # type: ignore[arg-type]
+        self.app = asgi_app
+        self.app_state: typing.Dict[str, typing.Any] = {}
+        transport = _TestClientTransport(
+            self.app,
+            portal_factory=self._portal_factory,
+            raise_server_exceptions=raise_server_exceptions,
+            root_path=root_path,
+            app_state=self.app_state,
+        )
+        if headers is None:
+            headers = {}
+        headers.setdefault("user-agent", "testclient")
+>       super().__init__(
+            app=self.app,
+            base_url=base_url,
+            headers=headers,
+            transport=transport,
+            follow_redirects=True,
+            cookies=cookies,
+        )
+E       TypeError: Client.__init__() got an unexpected keyword argument 'app'
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\testclient.py:399: TypeError
+================================== FAILURES ===================================
+________________ TestScaffoldPerformance.test_batch_processing ________________
+
+self = <tests.performance.test_scaffold_memory.TestScaffoldPerformance testMethod=test_batch_processing>
+
+    def test_batch_processing(self):
+        """Test batch processing to handle very large datasets."""
+        # Simulate very large dataset by processing in batches
+        total_chunks = 5000
+        batch_size = 1000
+    
+        def mock_embed(texts):
+            return [np.random.rand(384).tolist() for _ in texts]
+        self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
+    
+        generator = ScaffoldGenerator(
+            enricher=self.mock_enricher,
+            embedding_generator=self.mock_embedding_gen,
+            scaffold_size=5
+        )
+    
+        all_mappings = {}
+        all_scaffolds = []
+    
+        for i in range(0, total_chunks, batch_size):
+            batch_df = pd.DataFrame({
+                'chunk_id': [f'c{j}' for j in range(i, min(i + batch_size, total_chunks))],
+                'text': [f'Chunk {j}' for j in range(i, min(i + batch_size, total_chunks))]
+            })
+    
+            result = generator.generate_scaffolds(batch_df)
+>           all_mappings.update(result['chunk_to_scaffold_mapping'])
+E           KeyError: 'chunk_to_scaffold_mapping'
+
+tests\performance\test_scaffold_memory.py:168: KeyError
+------------------------------ Captured log call ------------------------------
+INFO     cubo:scaffold.py:47 {"event": "Generating scaffolds from 1000 chunks", "timestamp": "2025-11-22T19:01:08.874698Z", "level": "info"}
+INFO     cubo:scaffold.py:95 {"event": "Enriching chunks with summaries", "timestamp": "2025-11-22T19:01:08.875758Z", "level": "info"}
+INFO     cubo:scaffold.py:116 {"event": "Grouped 1000 chunks into 200 scaffolds", "timestamp": "2025-11-22T19:01:08.876935Z", "level": "info"}
+INFO     cubo:scaffold.py:177 {"event": "Generating embeddings for 200 scaffolds", "timestamp": "2025-11-22T19:01:08.931840Z", "level": "info"}
+INFO     cubo:scaffold.py:55 {"event": "Generated 200 scaffolds from 1000 chunks", "timestamp": "2025-11-22T19:01:08.936129Z", "level": "info"}
+___________ TestScaffoldPerformance.test_memory_usage_large_dataset ___________
+
+self = <tests.performance.test_scaffold_memory.TestScaffoldPerformance testMethod=test_memory_usage_large_dataset>
+
+    def test_memory_usage_large_dataset(self):
+        """Test memory usage with larger dataset (10K chunks)."""
+        process = psutil.Process()
+        mem_before = process.memory_info().rss / 1024 / 1024  # MB
+    
+        # Generate 10K chunks
+        chunks_df = pd.DataFrame({
+            'chunk_id': [f'c{i}' for i in range(10000)],
+            'text': [f'Test chunk {i} with content' * 10 for i in range(10000)]  # Longer text
+        })
+    
+        def mock_embed(texts):
+            return [np.random.rand(384).tolist() for _ in texts]
+        self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
+    
+        generator = ScaffoldGenerator(
+            enricher=self.mock_enricher,
+            embedding_generator=self.mock_embedding_gen,
+            scaffold_size=10
+        )
+    
+        result = generator.generate_scaffolds(chunks_df)
+    
+        mem_after = process.memory_info().rss / 1024 / 1024  # MB
+        mem_used = mem_after - mem_before
+    
+        # Should use less than 200MB for 10K chunks
+        self.assertLess(mem_used, 200.0, f"Used {mem_used:.2f} MB for 10K chunks")
+    
+        # Verify all chunks processed
+>       self.assertEqual(len(result['chunk_to_scaffold_mapping']), 10000)
+E       KeyError: 'chunk_to_scaffold_mapping'
+
+tests\performance\test_scaffold_memory.py:97: KeyError
+------------------------------ Captured log call ------------------------------
+INFO     cubo:scaffold.py:47 {"event": "Generating scaffolds from 10000 chunks", "timestamp": "2025-11-22T19:01:09.159002Z", "level": "info"}
+INFO     cubo:scaffold.py:95 {"event": "Enriching chunks with summaries", "timestamp": "2025-11-22T19:01:09.159002Z", "level": "info"}
+INFO     cubo:scaffold.py:116 {"event": "Grouped 10000 chunks into 1000 scaffolds", "timestamp": "2025-11-22T19:01:09.163886Z", "level": "info"}
+INFO     cubo:scaffold.py:177 {"event": "Generating embeddings for 1000 scaffolds", "timestamp": "2025-11-22T19:01:09.800341Z", "level": "info"}
+INFO     cubo:scaffold.py:55 {"event": "Generated 1000 scaffolds from 10000 chunks", "timestamp": "2025-11-22T19:01:09.832214Z", "level": "info"}
+___________ TestScaffoldPerformance.test_memory_usage_small_dataset ___________
+
+self = <tests.performance.test_scaffold_memory.TestScaffoldPerformance testMethod=test_memory_usage_small_dataset>
+
+    def test_memory_usage_small_dataset(self):
+        """Test memory usage with small dataset (1000 chunks)."""
+        process = psutil.Process()
+        mem_before = process.memory_info().rss / 1024 / 1024  # MB
+    
+        # Generate 1000 chunks
+        chunks_df = pd.DataFrame({
+            'chunk_id': [f'c{i}' for i in range(1000)],
+            'text': [f'This is test chunk number {i} with some content.' for i in range(1000)]
+        })
+    
+        # Mock embeddings for all scaffolds
+        def mock_embed(texts):
+            return [np.random.rand(384).tolist() for _ in texts]
+        self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
+    
+        generator = ScaffoldGenerator(
+            enricher=self.mock_enricher,
+            embedding_generator=self.mock_embedding_gen,
+            scaffold_size=5
+        )
+    
+        result = generator.generate_scaffolds(chunks_df)
+    
+        mem_after = process.memory_info().rss / 1024 / 1024  # MB
+        mem_used = mem_after - mem_before
+    
+        # Should use less than 50MB for 1000 chunks
+        self.assertLess(mem_used, 50.0, f"Used {mem_used:.2f} MB for 1000 chunks")
+    
+        # Verify all chunks processed
+>       self.assertEqual(len(result['chunk_to_scaffold_mapping']), 1000)
+E       KeyError: 'chunk_to_scaffold_mapping'
+
+tests\performance\test_scaffold_memory.py:65: KeyError
+------------------------------ Captured log call ------------------------------
+INFO     cubo:scaffold.py:47 {"event": "Generating scaffolds from 1000 chunks", "timestamp": "2025-11-22T19:01:09.841523Z", "level": "info"}
+INFO     cubo:scaffold.py:95 {"event": "Enriching chunks with summaries", "timestamp": "2025-11-22T19:01:09.842055Z", "level": "info"}
+INFO     cubo:scaffold.py:116 {"event": "Grouped 1000 chunks into 200 scaffolds", "timestamp": "2025-11-22T19:01:09.843709Z", "level": "info"}
+INFO     cubo:scaffold.py:177 {"event": "Generating embeddings for 200 scaffolds", "timestamp": "2025-11-22T19:01:09.911738Z", "level": "info"}
+INFO     cubo:scaffold.py:55 {"event": "Generated 200 scaffolds from 1000 chunks", "timestamp": "2025-11-22T19:01:09.916213Z", "level": "info"}
+_________________ TestScaffoldGenerator.test_empty_dataframe __________________
+
+self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_empty_dataframe>
+
+    def test_empty_dataframe(self):
+        """Test handling of empty input DataFrame."""
+        empty_df = pd.DataFrame(columns=['chunk_id', 'text'])
+    
+        result = self.generator.generate_scaffolds(empty_df)
+    
+        # Should return empty structures
+        self.assertEqual(len(result['scaffolds_df']), 0)
+>       self.assertEqual(len(result['chunk_to_scaffold_mapping']), 0)
+E       KeyError: 'chunk_to_scaffold_mapping'
+
+tests\processing\test_scaffold_generator.py:145: KeyError
+------------------------------ Captured log call ------------------------------
+WARNING  cubo:scaffold.py:45 {"event": "Empty chunks DataFrame provided to scaffold generator", "timestamp": "2025-11-22T19:01:10.134182Z", "level": "warning"}
+_____________ TestScaffoldGenerator.test_generate_scaffolds_basic _____________
+
+self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_generate_scaffolds_basic>
+
+    def test_generate_scaffolds_basic(self):
+        """Test basic scaffold generation."""
+        chunks_df = pd.DataFrame({
+            'chunk_id': ['c1', 'c2', 'c3'],
+            'text': [
+                'Chunk 1 about AI',
+                'Chunk 2 about AI applications',
+                'Chunk 3 about finance'
+            ]
+        })
+    
+        result = self.generator.generate_scaffolds(chunks_df)
+    
+        # Check result structure
+        self.assertIn('scaffolds_df', result)
+>       self.assertIn('chunk_to_scaffold_mapping', result)
+E       AssertionError: 'chunk_to_scaffold_mapping' not found in {'scaffolds_df':              scaffold_id  ... compression_ratio
+E       0  scaffold_6e470c0e0abd  ...          0.957447
+E       1  scaffold_950486fc20ee  ...          0.807692
+E       
+E       [2 rows x 12 columns], 'mapping': {'scaffold_6e470c0e0abd': ['c1', 'c2'], 'scaffold_950486fc20ee': ['c3']}, 'scaffold_embeddings': <MagicMock name='mock.encode()' id='1624984249808'>}
+
+tests\processing\test_scaffold_generator.py:72: AssertionError
+------------------------------ Captured log call ------------------------------
+INFO     cubo:scaffold.py:47 {"event": "Generating scaffolds from 3 chunks", "timestamp": "2025-11-22T19:01:10.141971Z", "level": "info"}
+INFO     cubo:scaffold.py:95 {"event": "Enriching chunks with summaries", "timestamp": "2025-11-22T19:01:10.142509Z", "level": "info"}
+INFO     cubo:scaffold.py:116 {"event": "Grouped 3 chunks into 2 scaffolds", "timestamp": "2025-11-22T19:01:10.143129Z", "level": "info"}
+INFO     cubo:scaffold.py:177 {"event": "Generating embeddings for 2 scaffolds", "timestamp": "2025-11-22T19:01:10.143704Z", "level": "info"}
+INFO     cubo:scaffold.py:55 {"event": "Generated 2 scaffolds from 3 chunks", "timestamp": "2025-11-22T19:01:10.144826Z", "level": "info"}
+_____________ TestScaffoldGenerator.test_save_and_load_scaffolds ______________
+
+self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_save_and_load_scaffolds>
+
+    def test_save_and_load_scaffolds(self):
+        """Test scaffold persistence."""
+        import tempfile
+        from pathlib import Path
+    
+        chunks_df = pd.DataFrame({
+            'chunk_id': ['c1', 'c2'],
+            'text': ['Chunk 1', 'Chunk 2']
+        })
+    
+>       result = self.generator.generate_scaffolds(chunks_df)
+
+tests\processing\test_scaffold_generator.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\cubo\processing\scaffold.py:51: in generate_scaffolds
+    scaffolds_data = self._create_scaffold_data(scaffold_groups, enriched_chunks, chunks_df, text_column)
+src\cubo\processing\scaffold.py:130: in _create_scaffold_data
+    chunk_ids = [original_chunks_df.iloc[i].get('chunk_id') for i in group]
+src\cubo\processing\scaffold.py:130: in <listcomp>
+    chunk_ids = [original_chunks_df.iloc[i].get('chunk_id') for i in group]
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pandas\core\indexing.py:1191: in __getitem__
+    return self._getitem_axis(maybe_callable, axis=axis)
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pandas\core\indexing.py:1752: in _getitem_axis
+    self._validate_integer(key, axis)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pandas.core.indexing._iLocIndexer object at 0x0000017A58B40820>, key = 2
+axis = 0
+
+    def _validate_integer(self, key: int | np.integer, axis: AxisInt) -> None:
+        """
+        Check that 'key' is a valid position in the desired axis.
+    
+        Parameters
+        ----------
+        key : int
+            Requested position.
+        axis : int
+            Desired axis.
+    
+        Raises
+        ------
+        IndexError
+            If 'key' is not a valid position in axis 'axis'.
+        """
+        len_axis = len(self.obj._get_axis(axis))
+        if key >= len_axis or key < -len_axis:
+>           raise IndexError("single positional indexer is out-of-bounds")
+E           IndexError: single positional indexer is out-of-bounds
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pandas\core\indexing.py:1685: IndexError
+------------------------------ Captured log call ------------------------------
+INFO     cubo:scaffold.py:47 {"event": "Generating scaffolds from 2 chunks", "timestamp": "2025-11-22T19:01:10.161071Z", "level": "info"}
+INFO     cubo:scaffold.py:95 {"event": "Enriching chunks with summaries", "timestamp": "2025-11-22T19:01:10.161071Z", "level": "info"}
+INFO     cubo:scaffold.py:116 {"event": "Grouped 3 chunks into 2 scaffolds", "timestamp": "2025-11-22T19:01:10.161701Z", "level": "info"}
+_____________ TestScaffoldGenerator.test_scaffold_grouping_logic ______________
+
+self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_scaffold_grouping_logic>
+
+    def test_scaffold_grouping_logic(self):
+        """Test that chunks are grouped correctly by similarity."""
+        chunks_df = pd.DataFrame({
+            'chunk_id': ['c1', 'c2', 'c3'],
+            'text': [
+                'AI and machine learning',
+                'AI applications',
+                'Financial markets'
+            ]
+        })
+    
+        result = self.generator.generate_scaffolds(chunks_df)
+    
+        # Should create at least 2 groups (AI-related and finance-related)
+>       scaffold_groups = result['scaffold_groups']
+E       KeyError: 'scaffold_groups'
+
+tests\processing\test_scaffold_generator.py:100: KeyError
+------------------------------ Captured log call ------------------------------
+INFO     cubo:scaffold.py:47 {"event": "Generating scaffolds from 3 chunks", "timestamp": "2025-11-22T19:01:10.200048Z", "level": "info"}
+INFO     cubo:scaffold.py:95 {"event": "Enriching chunks with summaries", "timestamp": "2025-11-22T19:01:10.200593Z", "level": "info"}
+INFO     cubo:scaffold.py:116 {"event": "Grouped 3 chunks into 2 scaffolds", "timestamp": "2025-11-22T19:01:10.200593Z", "level": "info"}
+INFO     cubo:scaffold.py:177 {"event": "Generating embeddings for 2 scaffolds", "timestamp": "2025-11-22T19:01:10.201281Z", "level": "info"}
+INFO     cubo:scaffold.py:55 {"event": "Generated 2 scaffolds from 3 chunks", "timestamp": "2025-11-22T19:01:10.202449Z", "level": "info"}
+============================== warnings summary ===============================
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\faiss\loader.py:28
+  C:\Users\paolo\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\faiss\loader.py:28: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(numpy.__version__) >= "1.19":
+
+..\..\..\..\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\site-packages\setuptools\_distutils\version.py:346
+  C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib\site-packages\setuptools\_distutils\version.py:346: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\formparsers.py:10
+  C:\Users\paolo\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\starlette\formparsers.py:10: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\PyPDF2\__init__.py:21
+  C:\Users\paolo\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\PyPDF2\__init__.py:21: DeprecationWarning: PyPDF2 is deprecated. Please move to the pypdf library instead.
+    warnings.warn(
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\fastapi\datastructures.py:52
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\fastapi\datastructures.py:52
+  C:\Users\paolo\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\fastapi\datastructures.py:52: DeprecationWarning: `general_plain_validator_function` is deprecated, use `with_info_plain_validator_function` instead.
+    return general_plain_validator_function(cls._validate)
+
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pydantic_core\core_schema.py:4298
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pydantic_core\core_schema.py:4298
+  C:\Users\paolo\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pydantic_core\core_schema.py:4298: DeprecationWarning: `general_plain_validator_function` is deprecated, use `with_info_plain_validator_function` instead.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/performance/test_scaffold_memory.py::TestScaffoldPerformance::test_batch_processing - KeyError: 'chunk_to_scaffold_mapping'
+FAILED tests/performance/test_scaffold_memory.py::TestScaffoldPerformance::test_memory_usage_large_dataset - KeyError: 'chunk_to_scaffold_mapping'
+FAILED tests/performance/test_scaffold_memory.py::TestScaffoldPerformance::test_memory_usage_small_dataset - KeyError: 'chunk_to_scaffold_mapping'
+FAILED tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_empty_dataframe - KeyError: 'chunk_to_scaffold_mapping'
+FAILED tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_generate_scaffolds_basic - AssertionError: 'chunk_to_scaffold_mapping' not found in {'scaffolds_df':              scaffold_id  ... compression_ratio
+0  scaffold_6e470c0e0abd  ...          0.957447
+1  scaffold_950486fc20ee  ...          0.807692
+
+[2 rows x 12 columns], 'mapping': {'scaffold_6e470c0e0abd': ['c1', 'c2'], 'scaffold_950486fc20ee': ['c3']}, 'scaffold_embeddings': <MagicMock name='mock.encode()' id='1624984249808'>}
+FAILED tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_save_and_load_scaffolds - IndexError: single positional indexer is out-of-bounds
+FAILED tests/processing/test_scaffold_generator.py::TestScaffoldGenerator::test_scaffold_grouping_logic - KeyError: 'scaffold_groups'
+ERROR tests/api/test_health.py::test_health_check - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_health.py::test_health_check_has_trace_id - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_health.py::test_health_check_custom_trace_id - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_query.py::test_query_basic - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_query.py::test_query_without_query_text - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_query.py::test_query_with_invalid_top_k - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_query.py::test_query_has_trace_id - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_query.py::test_query_custom_trace_id - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_query.py::test_query_default_parameters - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_upload.py::test_upload_file - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_upload.py::test_upload_file_without_file - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_upload.py::test_upload_file_has_trace_id - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+ERROR tests/api/test_upload.py::test_upload_pdf_file - TypeError: Client.__init__() got an unexpected keyword argument 'app'
+======= 7 failed, 158 passed, 8 warnings, 13 errors in 87.86s (0:01:27) =======

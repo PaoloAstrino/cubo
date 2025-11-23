@@ -62,7 +62,11 @@ class TestScaffoldPerformance(unittest.TestCase):
         self.assertLess(mem_used, 50.0, f"Used {mem_used:.2f} MB for 1000 chunks")
 
         # Verify all chunks processed
-        self.assertEqual(len(result['chunk_to_scaffold_mapping']), 1000)
+        # Count unique chunks in mapping
+        all_chunks = []
+        for chunk_ids in result['mapping'].values():
+            all_chunks.extend(chunk_ids)
+        self.assertEqual(len(set(all_chunks)), 1000)
 
     def test_memory_usage_large_dataset(self):
         """Test memory usage with larger dataset (10K chunks)."""
@@ -94,7 +98,11 @@ class TestScaffoldPerformance(unittest.TestCase):
         self.assertLess(mem_used, 200.0, f"Used {mem_used:.2f} MB for 10K chunks")
 
         # Verify all chunks processed
-        self.assertEqual(len(result['chunk_to_scaffold_mapping']), 10000)
+        # Count unique chunks in mapping
+        all_chunks = []
+        for chunk_ids in result['mapping'].values():
+            all_chunks.extend(chunk_ids)
+        self.assertEqual(len(set(all_chunks)), 10000)
 
     def test_processing_time_scalability(self):
         """Test that processing time scales linearly with dataset size."""
@@ -165,7 +173,10 @@ class TestScaffoldPerformance(unittest.TestCase):
             })
 
             result = generator.generate_scaffolds(batch_df)
-            all_mappings.update(result['chunk_to_scaffold_mapping'])
+            # Invert mapping: scaffold_id -> chunk_ids to chunk_id -> scaffold_id
+            for scaffold_id, chunk_ids in result['mapping'].items():
+                for chunk_id in chunk_ids:
+                    all_mappings[chunk_id] = scaffold_id
             all_scaffolds.append(result['scaffolds_df'])
 
         # Verify all chunks processed

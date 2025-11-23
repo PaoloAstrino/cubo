@@ -160,6 +160,7 @@ test_exported.jsonl
 tmp_*.py
 tmp_*.jsonl
 *.spec
+*.json
 
 
 how_to_be_professional.txt

@@ -20,7 +20,10 @@ except Exception:
     STRUCTLOG_AVAILABLE = False
 
 try:
-    from pythonjsonlogger import jsonlogger
+    try:
+        from pythonjsonlogger import json as jsonlogger
+    except ImportError:
+        from pythonjsonlogger import jsonlogger
     JSONLOGGER_AVAILABLE = True
 except Exception:
     JSONLOGGER_AVAILABLE = False

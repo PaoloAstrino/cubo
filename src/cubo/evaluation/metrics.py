@@ -708,3 +708,264 @@ class PerformanceAnalyzer:
             "Monitor evaluation metrics regularly for system health",
             "Review low-performing queries to identify improvement areas"
         ]
+
+
+class IRMetricsEvaluator:
+    """Information Retrieval metrics for evaluating retrieval quality."""
+
+    @staticmethod
+    def compute_recall_at_k(relevant_ids: List[str], retrieved_ids: List[str], k: int) -> float:
+        """
+        Compute Recall@K metric.
+        
+        Recall@K measures the proportion of relevant documents retrieved in top K results.
+        
+        Args:
+            relevant_ids: List of ground-truth relevant document IDs
+            retrieved_ids: List of retrieved document IDs (in ranked order)
+            k: Cutoff rank
+            
+        Returns:
+            Recall@K score (0.0 to 1.0)
+            
+        Example:
+            >>> relevant = ['doc1', 'doc2', 'doc3']
+            >>> retrieved = ['doc1', 'doc4', 'doc2']
+            >>> compute_recall_at_k(relevant, retrieved, k=3)
+            0.6667  # 2 out of 3 relevant docs found
+        """
+        if not relevant_ids:
+            return 0.0
+        
+        # Take only top K retrieved results
+        retrieved_at_k = set(retrieved_ids[:k])
+        relevant_set = set(relevant_ids)
+        
+        # Count how many relevant docs are in top K
+        relevant_retrieved = len(relevant_set.intersection(retrieved_at_k))
+        
+        return relevant_retrieved / len(relevant_set)
+    
+    @staticmethod
+    def compute_precision_at_k(relevant_ids: List[str], retrieved_ids: List[str], k: int) -> float:
+        """
+        Compute Precision@K metric.
+        
+        Precision@K measures the proportion of retrieved documents that are relevant.
+        
+        Args:
+            relevant_ids: List of ground-truth relevant document IDs
+            retrieved_ids: List of retrieved document IDs (in ranked order)
+            k: Cutoff rank
+            
+        Returns:
+            Precision@K score (0.0 to 1.0)
+        """
+        if not retrieved_ids or k == 0:
+            return 0.0
+        
+        retrieved_at_k = retrieved_ids[:k]
+        relevant_set = set(relevant_ids)
+        
+        relevant_retrieved = sum(1 for doc_id in retrieved_at_k if doc_id in relevant_set)
+        
+        return relevant_retrieved / min(k, len(retrieved_at_k))
+    
+    @staticmethod
+    def compute_ndcg_at_k(relevant_ids: List[str], retrieved_ids: List[str], k: int, 
+                          relevance_scores: Optional[Dict[str, float]] = None) -> float:
+        """
+        Compute Normalized Discounted Cumulative Gain at K (nDCG@K).
+        
+        nDCG@K measures ranking quality with position-dependent discount.
+        
+        Args:
+            relevant_ids: List of ground-truth relevant document IDs
+            retrieved_ids: List of retrieved document IDs (in ranked order)
+            k: Cutoff rank
+            relevance_scores: Optional dict mapping doc_id -> relevance score (default: binary 1/0)
+            
+        Returns:
+            nDCG@K score (0.0 to 1.0)
+            
+        Formula:
+            DCG@K = sum(rel_i / log2(i+1)) for i in 1..K
+            IDCG@K = DCG of perfect ranking
+            nDCG@K = DCG@K / IDCG@K
+        """
+        if not relevant_ids or not retrieved_ids:
+            return 0.0
+        
+        # Default to binary relevance (1 for relevant, 0 for non-relevant)
+        if relevance_scores is None:
+            relevance_scores = {doc_id: 1.0 for doc_id in relevant_ids}
+        
+        # Compute DCG@K
+        dcg = 0.0
+        for i, doc_id in enumerate(retrieved_ids[:k], start=1):
+            rel = relevance_scores.get(doc_id, 0.0)
+            dcg += rel / np.log2(i + 1)
+        
+        # Compute Ideal DCG (IDCG) - best possible ranking
+        ideal_ranking = sorted(relevance_scores.values(), reverse=True)
+        idcg = 0.0
+        for i, rel in enumerate(ideal_ranking[:k], start=1):
+            idcg += rel / np.log2(i + 1)
+        
+        if idcg == 0:
+            return 0.0
+        
+        return dcg / idcg
+    
+    @staticmethod
+    def compute_mrr(relevant_ids: List[str], retrieved_ids: List[str]) -> float:
+        """
+        Compute Mean Reciprocal Rank (MRR).
+        
+        MRR is the reciprocal of the rank of the first relevant document.
+        
+        Args:
+            relevant_ids: List of ground-truth relevant document IDs
+            retrieved_ids: List of retrieved document IDs (in ranked order)
+            
+        Returns:
+            MRR score (0.0 to 1.0)
+        """
+        relevant_set = set(relevant_ids)
+        
+        for i, doc_id in enumerate(retrieved_ids, start=1):
+            if doc_id in relevant_set:
+                return 1.0 / i
+        
+        return 0.0
+    
+    @staticmethod
+    def evaluate_retrieval(
+        question_id: str,
+        retrieved_ids: List[str],
+        ground_truth: Dict[str, List[str]],
+        k_values: List[int] = [5, 10, 20],
+        relevance_scores: Optional[Dict[str, float]] = None
+    ) -> Dict[str, Any]:
+        """
+        Evaluate retrieval quality with multiple IR metrics.
+        
+        Args:
+            question_id: Question identifier for ground truth lookup
+            retrieved_ids: List of retrieved document IDs (in ranked order)
+            ground_truth: Dict mapping question_id -> list of relevant doc IDs
+            k_values: List of K values to compute metrics for
+            relevance_scores: Optional dict mapping doc_id -> relevance score
+            
+        Returns:
+            Dictionary with IR metrics (recall, precision, nDCG, MRR)
+            
+        Example:
+            >>> ground_truth = {'q1': ['doc1', 'doc2', 'doc3']}
+            >>> retrieved = ['doc1', 'doc4', 'doc2', 'doc5', 'doc3']
+            >>> evaluate_retrieval('q1', retrieved, ground_truth, k_values=[5, 10])
+            {
+                'recall_at_k': {5: 1.0, 10: 1.0},
+                'precision_at_k': {5: 0.6, 10: 0.3},
+                'ndcg_at_k': {5: 0.89, 10: 0.89},
+                'mrr': 1.0
+            }
+        """
+        relevant_ids = ground_truth.get(question_id, [])
+        
+        if not relevant_ids:
+            logger.warning(f"No ground truth found for question_id: {question_id}")
+            return {
+                'recall_at_k': {k: 0.0 for k in k_values},
+                'precision_at_k': {k: 0.0 for k in k_values},
+                'ndcg_at_k': {k: 0.0 for k in k_values},
+                'mrr': 0.0,
+                'error': 'no_ground_truth'
+            }
+        
+        results = {
+            'recall_at_k': {},
+            'precision_at_k': {},
+            'ndcg_at_k': {},
+            'mrr': IRMetricsEvaluator.compute_mrr(relevant_ids, retrieved_ids)
+        }
+        
+        for k in k_values:
+            results['recall_at_k'][k] = IRMetricsEvaluator.compute_recall_at_k(
+                relevant_ids, retrieved_ids, k
+            )
+            results['precision_at_k'][k] = IRMetricsEvaluator.compute_precision_at_k(
+                relevant_ids, retrieved_ids, k
+            )
+            results['ndcg_at_k'][k] = IRMetricsEvaluator.compute_ndcg_at_k(
+                relevant_ids, retrieved_ids, k, relevance_scores
+            )
+        
+        return results
+
+
+class GroundTruthLoader:
+    """Load and manage ground truth data for retrieval evaluation."""
+    
+    @staticmethod
+    def load_beir_format(filepath: str) -> Dict[str, List[str]]:
+        """
+        Load ground truth in BeIR format (qrels.tsv or JSON).
+        
+        BeIR format: query-id \t corpus-id \t score
+        
+        Args:
+            filepath: Path to qrels file
+            
+        Returns:
+            Dictionary mapping query_id -> list of relevant doc IDs
+        """
+        import json
+        from pathlib import Path
+        
+        ground_truth = {}
+        path = Path(filepath)
+        
+        if path.suffix == '.json':
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Expecting format: {query_id: {doc_id: relevance_score}}
+            for query_id, doc_scores in data.items():
+                relevant_docs = [doc_id for doc_id, score in doc_scores.items() if score > 0]
+                ground_truth[query_id] = relevant_docs
+                
+        elif path.suffix in ['.tsv', '.txt']:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split('\t')
+                    if len(parts) >= 3:
+                        query_id, doc_id, score = parts[0], parts[1], float(parts[2])
+                        if score > 0:  # Only relevant docs
+                            if query_id not in ground_truth:
+                                ground_truth[query_id] = []
+                            ground_truth[query_id].append(doc_id)
+        else:
+            raise ValueError(f"Unsupported file format: {path.suffix}")
+        
+        return ground_truth
+    
+    @staticmethod
+    def load_custom_format(filepath: str) -> Dict[str, List[str]]:
+        """
+        Load ground truth in custom JSON format.
+        
+        Format: {question_id: [list of relevant doc IDs]}
+        
+        Args:
+            filepath: Path to JSON file
+            
+        Returns:
+            Dictionary mapping question_id -> list of relevant doc IDs
+        """
+        import json
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            ground_truth = json.load(f)
+        
+        return ground_truth

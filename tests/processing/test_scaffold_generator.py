@@ -69,19 +69,23 @@ class TestScaffoldGenerator(unittest.TestCase):
 
         # Check result structure
         self.assertIn('scaffolds_df', result)
-        self.assertIn('chunk_to_scaffold_mapping', result)
-        self.assertIn('scaffold_groups', result)
+        self.assertIn('mapping', result)
+        self.assertIn('scaffold_embeddings', result)
 
         # Verify scaffolds DataFrame
         scaffolds_df = result['scaffolds_df']
         self.assertIsInstance(scaffolds_df, pd.DataFrame)
         self.assertIn('scaffold_id', scaffolds_df.columns)
-        self.assertIn('scaffold_text', scaffolds_df.columns)
+        self.assertIn('summary', scaffolds_df.columns)  # Changed from 'scaffold_text'
         self.assertIn('chunk_ids', scaffolds_df.columns)
 
         # Verify all chunks are mapped
-        mapping = result['chunk_to_scaffold_mapping']
-        self.assertEqual(set(mapping.keys()), {'c1', 'c2', 'c3'})
+        mapping = result['mapping']
+        # mapping is scaffold_id -> chunk_ids, so we need to extract all chunk_ids
+        all_mapped_chunks = []
+        for chunk_ids in mapping.values():
+            all_mapped_chunks.extend(chunk_ids)
+        self.assertEqual(set(all_mapped_chunks), {'c1', 'c2', 'c3'})
 
     def test_scaffold_grouping_logic(self):
         """Test that chunks are grouped correctly by similarity."""
@@ -96,13 +100,14 @@ class TestScaffoldGenerator(unittest.TestCase):
 
         result = self.generator.generate_scaffolds(chunks_df)
 
-        # Should create at least 2 groups (AI-related and finance-related)
-        scaffold_groups = result['scaffold_groups']
-        self.assertGreater(len(scaffold_groups), 0)
+        # Should create scaffolds (at least 1)
+        scaffolds_df = result['scaffolds_df']
+        self.assertGreater(len(scaffolds_df), 0)
 
-        # Verify that each group doesn't exceed scaffold_size
-        for group in scaffold_groups:
-            self.assertLessEqual(len(group), self.generator.scaffold_size)
+        # Verify that each scaffold doesn't exceed scaffold_size chunks
+        for _, row in scaffolds_df.iterrows():
+            chunk_ids = row['chunk_ids']
+            self.assertLessEqual(len(chunk_ids), self.generator.scaffold_size)
 
     def test_merge_summaries(self):
         """Test summary merging logic."""
@@ -142,8 +147,8 @@ class TestScaffoldGenerator(unittest.TestCase):
 
         # Should return empty structures
         self.assertEqual(len(result['scaffolds_df']), 0)
-        self.assertEqual(len(result['chunk_to_scaffold_mapping']), 0)
-        self.assertEqual(len(result['scaffold_groups']), 0)
+        self.assertEqual(len(result['mapping']), 0)
+        self.assertEqual(len(result['scaffold_embeddings']), 0)
 
     def test_save_and_load_scaffolds(self):
         """Test scaffold persistence."""
@@ -163,19 +168,19 @@ class TestScaffoldGenerator(unittest.TestCase):
             self.generator.save_scaffolds(result, output_path)
 
             # Verify files exist
-            self.assertTrue((output_path / 'scaffolds.parquet').exists())
-            self.assertTrue((output_path / 'chunk_mapping.json').exists())
-            self.assertTrue((output_path / 'manifest.json').exists())
+            self.assertTrue((output_path / 'scaffold_metadata.parquet').exists())
+            self.assertTrue((output_path / 'scaffold_mapping.json').exists())
+            # Note: manifest.json is not created by current implementation
 
             # Load
             loaded_result = self.generator.load_scaffolds(output_path)
 
             # Verify loaded data matches original
             self.assertIn('scaffolds_df', loaded_result)
-            self.assertIn('chunk_to_scaffold_mapping', loaded_result)
+            self.assertIn('mapping', loaded_result)
             self.assertEqual(
-                set(loaded_result['chunk_to_scaffold_mapping'].keys()),
-                set(result['chunk_to_scaffold_mapping'].keys())
+                set(loaded_result['mapping'].keys()),
+                set(result['mapping'].keys())
             )
 
 

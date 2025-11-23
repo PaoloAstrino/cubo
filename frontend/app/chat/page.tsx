@@ -37,8 +37,34 @@ export default function ChatPage() {
   ])
   const [isLoading, setIsLoading] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
+  const [hasDocuments, setHasDocuments] = React.useState<boolean | null>(null)
   const { toast } = useToast()
   const scrollAreaRef = React.useRef<HTMLDivElement>(null)
+
+  // Check if documents are available
+  React.useEffect(() => {
+    const checkDocuments = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/api/documents')
+        if (!res.ok) throw new Error('Failed to fetch documents')
+        const data = await res.json()
+        const docsExist = Array.isArray(data) && data.length > 0
+        setHasDocuments(docsExist)
+        
+        if (!docsExist) {
+          setMessages([{
+            id: "1",
+            role: "assistant",
+            content: "Hello! I am CUBO, your RAG assistant. Please upload documents first in the Upload page, then return here to ask questions about them.",
+          }])
+        }
+      } catch (error) {
+        console.error('Error checking documents:', error)
+        setHasDocuments(false)
+      }
+    }
+    checkDocuments()
+  }, [])
 
   // Auto-scroll to bottom when new messages arrive
   React.useEffect(() => {
@@ -54,6 +80,15 @@ export default function ChatPage() {
     e.preventDefault()
 
     if (!inputValue.trim()) return
+
+    if (hasDocuments === false) {
+      toast({
+        title: "No Documents",
+        description: "Please upload documents first before asking questions.",
+        variant: "destructive",
+      })
+      return
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -175,12 +210,12 @@ export default function ChatPage() {
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask a question about your documents..."
+              placeholder={hasDocuments === false ? "Upload documents first..." : "Ask a question about your documents..."}
               aria-label="Ask a question about your documents"
-              disabled={isLoading}
+              disabled={isLoading || hasDocuments === false}
               className="flex-1"
             />
-            <Button type="submit" disabled={isLoading || !inputValue.trim()}>
+            <Button type="submit" disabled={isLoading || !inputValue.trim() || hasDocuments === false}>
               Send
             </Button>
           </form>
