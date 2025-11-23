@@ -14,38 +14,28 @@ class TestScaffoldGenerator(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Mock enricher
+        # Mock enricher that returns enriched chunks matching input length
         self.mock_enricher = MagicMock()
-        self.mock_enricher.enrich_chunks.return_value = [
-            {
-                'text': 'Chunk 1 about AI',
-                'summary': 'AI introduction',
-                'keywords': ['AI', 'machine learning'],
-                'category': 'technology',
-                'consistency_score': 4.5
-            },
-            {
-                'text': 'Chunk 2 about AI applications',
-                'summary': 'AI applications in healthcare',
-                'keywords': ['AI', 'healthcare'],
-                'category': 'technology',
-                'consistency_score': 4.2
-            },
-            {
-                'text': 'Chunk 3 about finance',
-                'summary': 'Financial markets overview',
-                'keywords': ['finance', 'markets'],
-                'category': 'finance',
-                'consistency_score': 4.0
-            }
-        ]
+        def enrich_chunks_side_effect(chunks):
+            """Return enriched chunks matching input."""
+            result = []
+            for i, chunk in enumerate(chunks):
+                result.append({
+                    'text': chunk if isinstance(chunk, str) else str(chunk),
+                    'summary': f'Summary {i+1}',
+                    'keywords': ['keyword1', 'keyword2'],
+                    'category': 'technology',
+                    'consistency_score': 4.0
+                })
+            return result
+        self.mock_enricher.enrich_chunks.side_effect = enrich_chunks_side_effect
 
         # Mock embedding generator
         self.mock_embedding_gen = MagicMock()
-        self.mock_embedding_gen.generate_embeddings.return_value = [
-            np.random.rand(384).tolist(),  # Scaffold 1 embedding
-            np.random.rand(384).tolist(),  # Scaffold 2 embedding
-        ]
+        def generate_embeddings_side_effect(texts):
+            """Return embeddings matching input length."""
+            return [np.random.rand(384).tolist() for _ in texts]
+        self.mock_embedding_gen.generate_embeddings.side_effect = generate_embeddings_side_effect
 
         self.generator = ScaffoldGenerator(
             enricher=self.mock_enricher,

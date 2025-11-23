@@ -37,7 +37,8 @@ class BenchmarkRunner:
 
     def __init__(self, datasets: List[Dict[str, str]], retrieval_configs: List[Dict[str, Any]],
                  ablations: List[Dict[str, Any]], k_values: List[int], mode: str,
-                 output_dir: str = "results/benchmark_runs", max_retries: int = 3, retry_backoff: float = 2.0):
+                 output_dir: str = "results/benchmark_runs", max_retries: int = 3, retry_backoff: float = 2.0,
+                 skip_existing: bool = False, force: bool = False):
         self.datasets = datasets
         self.retrieval_configs = retrieval_configs
         self.ablations = ablations
@@ -48,6 +49,8 @@ class BenchmarkRunner:
         self.summary_path = self.output_dir / "summary.csv"
         self.max_retries = int(max_retries)
         self.retry_backoff = float(retry_backoff)
+        self.skip_existing = bool(skip_existing)
+        self.force = bool(force)
 
     def _save_json_results(self, run_dir: Path, results: Dict[str, Any], filename: str = "run_results.json"):
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -117,6 +120,21 @@ class BenchmarkRunner:
             run_id = f"{ds_name}__{rc_name}__{ab_name}__{int(time.time())}"
             run_dir = self.output_dir / run_id
             run_dir.mkdir(parents=True, exist_ok=True)
+
+            # If skip_existing and the run exists (fully completed), skip it
+            existing_file = run_dir / 'benchmark_run.json'
+            if self.skip_existing and existing_file.exists():
+                logger.info(f"Skipping run {run_id} because results already exist and skip_existing=True")
+                continue
+
+            # If force, clear existing run directory
+            if self.force and run_dir.exists():
+                import shutil
+                try:
+                    shutil.rmtree(run_dir)
+                except Exception as e:
+                    logger.warning(f"Could not remove existing run dir {run_dir}: {e}")
+                run_dir.mkdir(parents=True, exist_ok=True)
 
             # Apply configuration changes to CUBO config
             run_config_updates = rc.get('config_updates', {})
@@ -273,6 +291,8 @@ def main():
     parser.add_argument('--output-dir', default='results/benchmark_runs')
     parser.add_argument('--max-retries', type=int, default=3, help='Maximum retries for failed ingestion/test subprocesses')
     parser.add_argument('--retry-backoff', type=float, default=2.0, help='Backoff factor (seconds) between retries')
+    parser.add_argument('--skip-existing', action='store_true', help='Skip runs that already have results (benchmark_run.json)')
+    parser.add_argument('--force', action='store_true', help='Remove existing run directory and force re-run')
 
     parser.add_argument('--questions', default=None, help='Optional global questions JSON path to use if datasets do not include questions')
     args = parser.parse_args()
@@ -286,7 +306,18 @@ def main():
 
     k_values = [int(x.strip()) for x in args.k_values.split(',')]
 
-    runner = BenchmarkRunner(datasets, retrieval_configs, ablations, k_values, mode=args.mode, output_dir=args.output_dir, max_retries=args.max_retries, retry_backoff=args.retry_backoff)
+    runner = BenchmarkRunner(
+        datasets,
+        retrieval_configs,
+        ablations,
+        k_values,
+        mode=args.mode,
+        output_dir=args.output_dir,
+        max_retries=args.max_retries,
+        retry_backoff=args.retry_backoff,
+        skip_existing=args.skip_existing,
+        force=args.force
+    )
     # If a global questions file provided, assign to each dataset if absent
     if args.questions:
         for ds in datasets:

@@ -275,6 +275,8 @@ python scripts/benchmark_runner.py `
   --retry-backoff 2.0
 ```
 
+Note: The benchmark runner supports resuming long runs by skipping runs that already have results. Use `--skip-existing` to skip runs that have `benchmark_run.json` in the run directory. Use `--force` to remove and overwrite an existing run directory if you want to re-run the same test.
+
 The config JSON format uses an array of objects with `name` and `config_updates` allowing programmatic application of `src.cubo.config.Config.update()`.
 
 Example `configs/benchmark_config.json` (already included in repo):
