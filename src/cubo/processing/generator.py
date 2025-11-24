@@ -15,9 +15,13 @@ class ResponseGenerator:
     def __init__(self):
         self.messages = []
         self.service_manager = get_service_manager()
-        self.system_prompt = ("You are an AI assistant that answers queries strictly based on the "
-                              "provided context from documents. Do not use any external knowledge, "
-                              "assumptions, or invented information.")
+        # Load system prompt from config, with fallback to default
+        self.system_prompt = config.get(
+            'llm.system_prompt',
+            "You are an AI assistant that answers queries strictly based on the "
+            "provided context from documents. Do not use any external knowledge, "
+            "assumptions, or invented information."
+        )
 
     def initialize_conversation(self):
         """Initialize the conversation with system prompt."""
@@ -55,7 +59,13 @@ class ResponseGenerator:
     def _generate_with_ollama(self, conversation_messages: List[Dict[str, str]]) -> str:
         """Generate response using Ollama API."""
         def _generate_operation():
-            model_name = config.get("selected_llm_model") or config.get("llm_model")
+            # Try multiple config keys for model name
+            model_name = (
+                config.get("llm.model_name") or 
+                config.get("selected_llm_model") or 
+                config.get("llm_model") or
+                "llama3"  # Default fallback
+            )
             response = ollama.chat(model=model_name, messages=conversation_messages)
             return response['message']['content']
 

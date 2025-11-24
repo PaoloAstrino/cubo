@@ -128,7 +128,7 @@ logs/
 data/
 models/
 temp/
-chroma_db/
+faiss_index/
 whoosh_index/
 evaluation/
 cache/
@@ -149,7 +149,7 @@ frontend/node_modules/
 
 # Internal/temporary files
 how_to_compare.txt
-rag_system_complete_specs.md
+# rag_system_complete_specs.md
 shadow_components/
 final_settings_github.txt
 things_scheduled.txt
@@ -164,3 +164,5 @@ tmp_*.jsonl
 
 
 how_to_be_professional.txt
+
+*.bin

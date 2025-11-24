@@ -31,7 +31,7 @@ class CUBOError(Exception):
 
 
 class DatabaseError(CUBOError):
-    """Errors related to database operations (ChromaDB, file storage, etc.)."""
+    """Errors related to database operations (vector stores, file storage, etc.)."""
     pass
 
 

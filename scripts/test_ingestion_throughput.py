@@ -176,9 +176,6 @@ class IngestionTester:
         Returns:
             Dictionary with storage size estimates
         """
-        # TODO: Implement actual storage size calculation
-        # For now, return placeholder estimates
-        
         # Check for FAISS index files
         faiss_size = 0
         faiss_dir = Path("faiss_index_dir")
@@ -187,26 +184,17 @@ class IngestionTester:
                 if file_path.is_file():
                     faiss_size += file_path.stat().st_size
         
-        # Check for Chroma DB
-        chroma_size = 0
-        chroma_dir = Path("chroma_db")
-        if chroma_dir.exists():
-            for file_path in chroma_dir.rglob('*'):
-                if file_path.is_file():
-                    chroma_size += file_path.stat().st_size
-        
         # Check for parquet files
         parquet_size = 0
         for file_path in Path(".").rglob('*.parquet'):
             parquet_size += file_path.stat().st_size
         
-        total_bytes = faiss_size + chroma_size + parquet_size
+        total_bytes = faiss_size + parquet_size
         
         return {
             'total_bytes': total_bytes,
             'total_gb': total_bytes / (1024 ** 3),
             'faiss_bytes': faiss_size,
-            'chroma_bytes': chroma_size,
             'parquet_bytes': parquet_size
         }
     

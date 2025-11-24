@@ -1,0 +1,4 @@
+dataset,retrieval_config,ablation,k,avg_recall_at_k_3,avg_recall_at_k_5,avg_recall_at_k_10,ndcg,latency_p50,latency_p95,success,num_questions,ingestion_time,ingestion_throughput
+smoke,hybrid,none,3,0.200,0.200,0.200,0.200,66.4,80.0,1.0,5,0,0
+smoke,hybrid,none,5,0.200,0.200,0.200,0.200,66.4,80.0,1.0,5,0,0
+smoke,hybrid,none,10,0.200,0.200,0.200,0.200,66.4,80.0,1.0,5,0,0

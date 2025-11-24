@@ -45,7 +45,7 @@ def test_retrieval():
         print(f"   Current session docs: {len(retriever.current_documents)}")
 
     # Get all metadata to see what files are actually in the database
-    print("\n4. Querying all documents in ChromaDB...")
+    print("\n4. Querying all documents in vector store...")
     all_data = retriever.collection.get()
     if all_data and all_data.get('metadatas'):
         filenames_in_db = set()

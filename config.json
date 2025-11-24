@@ -9,7 +9,7 @@
   "rate_limit_seconds": 1,
   "log_level": "INFO",
   "log_file": "./logs/cubo_log.txt",
-  "vector_db_path": "./chroma_db",
+  "vector_store_path": "./faiss_index",
   "faiss_index_dir": "./faiss_index",
   "faiss_index_root": "./faiss_index_versions",
   "embedding_batch_size": 32,

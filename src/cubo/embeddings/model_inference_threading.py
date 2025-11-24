@@ -49,7 +49,8 @@ class ModelInferenceThreading:
     def generate_embeddings_threaded(
         self, texts: List[str],
         embedding_model,
-        batch_size: int = 8
+        batch_size: int = 8,
+        timeout_per_batch: int = 60
     ) -> List[List[float]]:
         """
         Generate embeddings using threaded batching.
@@ -82,7 +83,8 @@ class ModelInferenceThreading:
             }
 
             # Collect results in order
-            for future in as_completed(future_to_batch):
+            from concurrent.futures import TimeoutError as FuturesTimeoutError
+            for future in as_completed(future_to_batch, timeout=timeout_per_batch):
                 try:
                     batch_embeddings = future.result()
                     all_embeddings.extend(batch_embeddings)
@@ -91,6 +93,15 @@ class ModelInferenceThreading:
                     # Add empty embeddings for failed batch
                     batch = future_to_batch[future]
                     all_embeddings.extend([[] for _ in batch])
+            # If some futures still pending, cancel them and handle
+            pending = [f for f in future_to_batch.keys() if not f.done()]
+            if pending:
+                for p in pending:
+                    try:
+                        p.cancel()
+                    except Exception:
+                        pass
+                logger.warning(f"{len(pending)} embedding tasks did not complete within timeout ({timeout_per_batch}s) and were cancelled")
 
         # Update stats
         total_time = time.time() - start_time

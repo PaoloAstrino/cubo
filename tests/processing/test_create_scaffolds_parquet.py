@@ -3,8 +3,15 @@ import json
 import pandas as pd
 
 from src.cubo.processing.scaffold import create_scaffolds_from_parquet
+from src.cubo.processing.enrichment import ChunkEnricher
 from src.cubo.config import config
 from src.cubo.storage.metadata_manager import get_metadata_manager
+
+
+class FakeLLM:
+    """Fake LLM provider for testing"""
+    def generate_response(self, prompt, context):
+        return "Test summary"
 
 
 def test_create_scaffolds_from_parquet_with_run(tmp_path: Path):
@@ -17,8 +24,10 @@ def test_create_scaffolds_from_parquet_with_run(tmp_path: Path):
 
     out_dir = tmp_path / 'scaffold_out'
     run_id = 'run_parquet_test'
+    # Create enricher (now mandatory)
+    enricher = ChunkEnricher(llm_provider=FakeLLM())
     # call wrapper
-    res = create_scaffolds_from_parquet(str(parquet_path), str(out_dir), run_id=run_id)
+    res = create_scaffolds_from_parquet(str(parquet_path), str(out_dir), enricher=enricher, run_id=run_id)
 
     # We expect a manifest in data/manifests or under output's manifest location
     manifest_path = Path(out_dir).parent / 'manifests' / f"{run_id}_scaffold_manifest.json"

@@ -1,0 +1,3 @@
+dataset,config,ablation,k,recall,ndcg,latency_p50,latency_p95,success_rate,num_questions,ingestion_time,ingestion_throughput
+smoke,hybrid,none,5,0.000,0.000,61.7,75.0,100.0,5,,,
+smoke,hybrid,none,10,0.000,0.000,61.7,75.0,100.0,5,,,

@@ -6,19 +6,19 @@ from sentence_transformers import SentenceTransformer
 from src.cubo.ingestion.deep_ingestor import DeepIngestor
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.config import config
-
-try:
-    import chromadb.config
-    CHROMADB_AVAILABLE = True
-except ImportError:
-    CHROMADB_AVAILABLE = False
-
 import pytest
 
 
-@pytest.mark.skipif(not CHROMADB_AVAILABLE, reason="ChromaDB not available")
 def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):
-    with patch('src.cubo.config.config', {"vector_store_backend": "chroma"}):
+    # Temporarily override vector store backend to FAISS for the test
+    orig_backend = config.get('vector_store_backend', None)
+    orig_path = config.get('vector_store_path', None)
+    config.set('vector_store_backend', 'faiss')
+    # Use separate index dir for isolation
+    tmpdb = tmp_path / 'faiss'
+    tmpdb.mkdir()
+    config.set('vector_store_path', str(tmpdb))
+    try:
         folder = tmp_path / "docs"
         folder.mkdir()
         (folder / "a.txt").write_text("This is an embedding test document. It has sentences to chunk.")
@@ -37,10 +37,10 @@ def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):
             return [[float(len(t.split()))] * 64 for t in texts]
         mock_model.encode.side_effect = mock_encode
 
-        # Use retriever with mock model
+        # Use retriever with mock model (FAISS backend)
         retriever = DocumentRetriever(model=mock_model)
-        # Use a dedicated collection name for this test
-        retriever.collection = retriever.client.get_or_create_collection("test_deep_embeddings")
+        # Ensure a clean collection for this test
+        retriever.collection.reset()
 
         # Generate embeddings using the mocked model directly
         embeddings = mock_model.encode(texts, batch_size=32)
@@ -49,3 +49,8 @@ def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):
 
         # Confirm that the collection has the inserted count
         assert retriever.collection.count() == len(texts)
+    finally:
+        # restore config
+        config.set('vector_store_backend', orig_backend)
+        if orig_path is not None:
+            config.set('vector_store_path', orig_path)

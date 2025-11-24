@@ -6,12 +6,6 @@ from sentence_transformers import SentenceTransformer
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.config import config
 
-try:
-    import chromadb.config
-    CHROMADB_AVAILABLE = True
-except ImportError:
-    CHROMADB_AVAILABLE = False
-
 @pytest.fixture
 def mock_model():
     """Mock SentenceTransformer model."""
@@ -24,17 +18,18 @@ def mock_model():
         mock_tensor.tolist.return_value = embeddings
         return mock_tensor
     model.encode.side_effect = mock_encode
+    # Ensure embedding dimension is an int to avoid failing FAISS API calls
+    model.get_sentence_embedding_dimension.return_value = 768
     return model
 
 @pytest.fixture
 def temp_db_path():
-    """Create a temporary directory for ChromaDB."""
+    """Create a temporary directory for the vector store."""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield temp_dir
 
 def test_add_documents_empty(mock_model, temp_db_path):
     """Test adding empty documents list."""
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_add_documents_empty')
     # Use FAISS with small dimension to match mock_model embedding size
@@ -46,7 +41,6 @@ def test_add_documents_empty(mock_model, temp_db_path):
 
 def test_add_documents_success(mock_model, temp_db_path):
     """Test adding documents successfully."""
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_add_documents_success')
     config.set('vector_store_backend', 'faiss')
@@ -58,7 +52,6 @@ def test_add_documents_success(mock_model, temp_db_path):
 
 def test_retrieve_empty_query(mock_model, temp_db_path):
     """Test retrieval with empty query."""
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_retrieve_empty_query')
     config.set('vector_store_backend', 'faiss')
@@ -69,7 +62,6 @@ def test_retrieve_empty_query(mock_model, temp_db_path):
 
 def test_retrieve_no_documents(mock_model, temp_db_path):
     """Test retrieval when no documents are loaded."""
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_retrieve_no_documents')
     config.set('vector_store_backend', 'faiss')
@@ -80,7 +72,6 @@ def test_retrieve_no_documents(mock_model, temp_db_path):
 
 def test_retrieve_success(mock_model, temp_db_path):
     """Test successful retrieval."""
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_retrieve_success')
     config.set('vector_store_backend', 'faiss')
@@ -96,7 +87,6 @@ def test_retrieve_success(mock_model, temp_db_path):
 
 def test_cache_persistence(mock_model, temp_db_path):
     """Test that cache is persisted to disk."""
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_cache_persistence')
     config.set('vector_store_backend', 'faiss')
@@ -114,7 +104,6 @@ def test_cache_persistence(mock_model, temp_db_path):
 
 def test_retrieve_uses_router_strategy(mock_model, temp_db_path):
     # Create a retriever and ensure it uses router strategy for k_candidates
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_retrieve_uses_router_strategy')
     config.set('vector_store_backend', 'faiss')
@@ -138,7 +127,6 @@ def test_retrieve_uses_router_strategy(mock_model, temp_db_path):
 
 
 def test_reranker_initialization_with_crossencoder(mock_model, temp_db_path):
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_reranker_initialization')
     config.set('vector_store_backend', 'faiss')
@@ -157,7 +145,6 @@ def test_reranker_initialization_with_crossencoder(mock_model, temp_db_path):
 
 def test_apply_reranking_called_when_enabled(mock_model, temp_db_path):
     # Ensure the internal function respects use_reranker flag
-    config.set('chroma_db_path', temp_db_path)
     config.set('vector_store_path', temp_db_path)
     config.set('collection_name', 'test_apply_reranking_called')
     config.set('vector_store_backend', 'faiss')

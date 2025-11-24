@@ -4,8 +4,15 @@ import pandas as pd
 import json
 
 from src.cubo.processing.scaffold import ScaffoldGenerator, save_scaffold_run
+from src.cubo.processing.enrichment import ChunkEnricher
 from src.cubo.config import config
 from src.cubo.storage.metadata_manager import get_metadata_manager
+
+
+class FakeLLM:
+    """Fake LLM provider for testing"""
+    def generate_response(self, prompt, context):
+        return "Test summary"
 
 
 class FakeEmbeddingGenerator:
@@ -28,7 +35,9 @@ def test_save_scaffold_run_and_db(tmp_path: Path):
         {'chunk_id': f'c{i}', 'text': f'Text of chunk {i}', 'filename': f'doc{i}.txt', 'file_hash': f'hash{i}', 'token_count': 3 + i} for i in range(8)
     ])
 
-    generator = ScaffoldGenerator(enricher=None, embedding_generator=FakeEmbeddingGenerator(dim=4), scaffold_size=3)
+    # Create enricher (now mandatory)
+    enricher = ChunkEnricher(llm_provider=FakeLLM())
+    generator = ScaffoldGenerator(enricher=enricher, embedding_generator=FakeEmbeddingGenerator(dim=4), scaffold_size=3)
     scaffolds_result = generator.generate_scaffolds(df, text_column='text', id_column='chunk_id')
 
     # Save scaffold run

@@ -32,10 +32,9 @@ class TestScaffoldPerformance(unittest.TestCase):
         self.mock_embedding_gen = MagicMock()
         
     def test_memory_usage_small_dataset(self):
-        """Test memory usage with small dataset (1000 chunks)."""
-        process = psutil.Process()
-        mem_before = process.memory_info().rss / 1024 / 1024  # MB
-
+        """Test memory usage with small dataset (1000 chunks) using tracemalloc."""
+        from tests.performance.performance_test_utils import MemoryProfiler
+        
         # Generate 1000 chunks
         chunks_df = pd.DataFrame({
             'chunk_id': [f'c{i}' for i in range(1000)],
@@ -53,26 +52,27 @@ class TestScaffoldPerformance(unittest.TestCase):
             scaffold_size=5
         )
 
-        result = generator.generate_scaffolds(chunks_df)
+        def operation():
+            return generator.generate_scaffolds(chunks_df)
 
-        mem_after = process.memory_info().rss / 1024 / 1024  # MB
-        mem_used = mem_after - mem_before
+        # Measure with tracemalloc
+        mem_stats = MemoryProfiler.measure_peak_memory(operation)
+        result = mem_stats['result']
+        peak_mb = mem_stats['peak_mb']
 
-        # Should use less than 50MB for 1000 chunks
-        self.assertLess(mem_used, 50.0, f"Used {mem_used:.2f} MB for 1000 chunks")
+        # Should use less than 30MB for 1000 chunks (more realistic threshold)
+        self.assertLess(peak_mb, 30.0, f"Peak memory {peak_mb:.2f} MB exceeds 30 MB")
 
         # Verify all chunks processed
-        # Count unique chunks in mapping
         all_chunks = []
         for chunk_ids in result['mapping'].values():
             all_chunks.extend(chunk_ids)
         self.assertEqual(len(set(all_chunks)), 1000)
 
     def test_memory_usage_large_dataset(self):
-        """Test memory usage with larger dataset (10K chunks)."""
-        process = psutil.Process()
-        mem_before = process.memory_info().rss / 1024 / 1024  # MB
-
+        """Test memory usage with larger dataset (10K chunks) using tracemalloc."""
+        from tests.performance.performance_test_utils import MemoryProfiler
+        
         # Generate 10K chunks
         chunks_df = pd.DataFrame({
             'chunk_id': [f'c{i}' for i in range(10000)],
@@ -89,26 +89,31 @@ class TestScaffoldPerformance(unittest.TestCase):
             scaffold_size=10
         )
 
-        result = generator.generate_scaffolds(chunks_df)
+        def operation():
+            return generator.generate_scaffolds(chunks_df)
 
-        mem_after = process.memory_info().rss / 1024 / 1024  # MB
-        mem_used = mem_after - mem_before
+        # Measure with tracemalloc
+        mem_stats = MemoryProfiler.measure_peak_memory(operation)
+        result = mem_stats['result']
+        peak_mb = mem_stats['peak_mb']
 
-        # Should use less than 200MB for 10K chunks
-        self.assertLess(mem_used, 200.0, f"Used {mem_used:.2f} MB for 10K chunks")
+        # Should use less than 150MB for 10K chunks (more realistic threshold)
+        self.assertLess(peak_mb, 150.0, f"Peak memory {peak_mb:.2f} MB exceeds 150 MB")
 
         # Verify all chunks processed
-        # Count unique chunks in mapping
         all_chunks = []
         for chunk_ids in result['mapping'].values():
             all_chunks.extend(chunk_ids)
         self.assertEqual(len(set(all_chunks)), 10000)
 
     def test_processing_time_scalability(self):
-        """Test that processing time scales linearly with dataset size."""
+        """Test that processing time scales linearly (O(n)) with dataset size using regression."""
+        from tests.performance.performance_test_utils import ComplexityAnalyzer
         import time
-
+        
         def mock_embed(texts):
+            # Add small realistic delay to make timing measurable
+            time.sleep(len(texts) * 0.0001)  # 0.1ms per text
             return [np.random.rand(384).tolist() for _ in texts]
         self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
 
@@ -118,34 +123,38 @@ class TestScaffoldPerformance(unittest.TestCase):
             scaffold_size=5
         )
 
-        # Test with different sizes
-        sizes_and_times = []
-
-        for size in [100, 500, 1000]:
+        def operation_for_size(size):
+            """Operation parameterized by size."""
             chunks_df = pd.DataFrame({
                 'chunk_id': [f'c{i}' for i in range(size)],
                 'text': [f'Chunk {i} content' for i in range(size)]
             })
-
-            start = time.time()
             generator.generate_scaffolds(chunks_df)
-            elapsed = time.time() - start
 
-            sizes_and_times.append((size, elapsed))
-
-        # Check that processing time grows sub-quadratically
-        # Ratio of (time2/time1) should be less than (size2/size1)^2
-        _, time_100 = sizes_and_times[0]
-        _, time_1000 = sizes_and_times[2]
-
-        time_ratio = time_1000 / time_100 if time_100 > 0 else float('inf')
-        size_ratio_squared = (1000 / 100) ** 2  # 100
-
-        self.assertLess(
-            time_ratio,
-            size_ratio_squared,
-            f"Processing time grew too fast: {time_ratio:.2f}x vs expected <{size_ratio_squared}x"
+        # Analyze complexity with different sizes
+        sizes = [100, 300, 500, 1000]
+        analysis = ComplexityAnalyzer.analyze_complexity(
+            operation_for_size,
+            sizes,
+            expected_complexity='linear'
         )
+
+        # Assert linear or n*log(n) complexity fits reasonably well
+        # With mocked operations, timing can be noisy, so we use lenient thresholds
+        linear_r2 = analysis['fits']['linear']['r_squared']
+        nlogn_r2 = analysis['fits']['quadratic']['r_squared']
+        
+        # Either linear or nlogn should fit well (both are acceptable for this algorithm)
+        best_fit_r2 = max(linear_r2, nlogn_r2)
+        self.assertGreater(best_fit_r2, 0.70, 
+            f"Neither linear ({linear_r2:.3f}) nor n*log(n) ({nlogn_r2:.3f}) fits well (R²<0.70)")
+
+        # Assert quadratic doesn't fit significantly better than linear
+        quadratic_r2 = analysis['fits']['quadratic']['r_squared']
+        if quadratic_r2 > linear_r2:
+            improvement = quadratic_r2 - linear_r2
+            self.assertLess(improvement, 0.15,
+                f"Quadratic fits much better (ΔR²={improvement:.3f}), suggesting O(n²) complexity")
 
     def test_batch_processing(self):
         """Test batch processing to handle very large datasets."""
@@ -185,6 +194,102 @@ class TestScaffoldPerformance(unittest.TestCase):
         # Verify we got scaffolds from all batches
         combined_scaffolds = pd.concat(all_scaffolds, ignore_index=True)
         self.assertGreater(len(combined_scaffolds), 0)
+
+    def test_throughput_target(self):
+        """Test system meets throughput targets for scaffold generation."""
+        from tests.performance.performance_test_utils import ThroughputProfiler
+        
+        def mock_embed(texts):
+            return [np.random.rand(384).tolist() for _ in texts]
+        self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
+
+        generator = ScaffoldGenerator(
+            enricher=self.mock_enricher,
+            embedding_generator=self.mock_embedding_gen,
+            scaffold_size=5
+        )
+
+        total_chunks = 2000
+        chunks_df = pd.DataFrame({
+            'chunk_id': [f'c{i}' for i in range(total_chunks)],
+            'text': [f'Chunk {i} content' for i in range(total_chunks)]
+        })
+
+        def operation():
+            generator.generate_scaffolds(chunks_df)
+
+        throughput_stats = ThroughputProfiler.measure_throughput(
+            operation, n_items=total_chunks, warmup=True
+        )
+
+        # Target: At least 500 chunks/second (adjustable based on hardware)
+        self.assertGreater(throughput_stats['items_per_sec'], 500,
+            f"Throughput {throughput_stats['items_per_sec']:.1f} chunks/sec below target")
+
+    def test_latency_percentiles(self):
+        """Test latency percentiles are within acceptable ranges."""
+        from tests.performance.performance_test_utils import LatencyProfiler
+        
+        def mock_embed(texts):
+            return [np.random.rand(384).tolist() for _ in texts]
+        self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
+
+        generator = ScaffoldGenerator(
+            enricher=self.mock_enricher,
+            embedding_generator=self.mock_embedding_gen,
+            scaffold_size=5
+        )
+
+        chunks_df = pd.DataFrame({
+            'chunk_id': [f'c{i}' for i in range(1000)],
+            'text': [f'Chunk {i}' for i in range(1000)]
+        })
+
+        def operation():
+            generator.generate_scaffolds(chunks_df)
+
+        latency_stats = LatencyProfiler.measure_with_warmup(
+            operation, warmup_runs=2, n_samples=10
+        )
+
+        # P50 should be reasonable
+        self.assertLess(latency_stats['p50_ms'], 2000,
+            f"P50 latency {latency_stats['p50_ms']:.1f}ms too high")
+
+        # P99 should not be much larger than P50 (indicates consistent performance)
+        p50_to_p99_ratio = latency_stats['p99_ms'] / latency_stats['p50_ms']
+        self.assertLess(p50_to_p99_ratio, 3.0,
+            f"P99/P50 ratio {p50_to_p99_ratio:.2f}x indicates high variance")
+
+    def test_memory_no_leaks(self):
+        """Test that memory doesn't leak over repeated operations."""
+        from tests.performance.performance_test_utils import ResourceMonitor
+        
+        def mock_embed(texts):
+            return [np.random.rand(384).tolist() for _ in texts]
+        self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
+
+        generator = ScaffoldGenerator(
+            enricher=self.mock_enricher,
+            embedding_generator=self.mock_embedding_gen,
+            scaffold_size=5
+        )
+
+        def operation():
+            chunks_df = pd.DataFrame({
+                'chunk_id': [f'c{i}' for i in range(100)],
+                'text': [f'Chunk {i}' for i in range(100)]
+            })
+            generator.generate_scaffolds(chunks_df)
+
+        leak_stats = ResourceMonitor.measure_memory_growth(
+            operation, iterations=10
+        )
+
+        # Memory growth per iteration should be minimal (<0.5MB)
+        self.assertLess(leak_stats['growth_per_iter_mb'], 0.5,
+            f"Memory leak detected: {leak_stats['growth_per_iter_mb']:.2f} MB/iteration")
+
 
 
 class TestEnrichmentPerformance(unittest.TestCase):

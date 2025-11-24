@@ -1,6 +1,8 @@
 # Development dependencies
 pytest  # For unit testing
 pytest-cov  # For test coverage
+pytest-asyncio  # For async test fixtures
+onnxruntime  # Optional: ONNX runtime for embedding functions
 whoosh  # Optional Whoosh backend for BM25
 pyinstaller  # For building executables
 flake8  # For code linting
@@ -9,10 +11,13 @@ reportlab>=4.0
 rouge-score  # For evaluating summaries
 nltk  # For NLP tasks
 scikit-learn  # For F1-score calculation
+hdbscan
+umap-learn
 pandas
 openpyxl
 pyarrow
 filelock
+requests  # For HTTP calls in manual scripts and live tests
 # Optional: Faiss (CPU/GPU builds) is not included by default because it is platform-specific.
 # Install via pip on Linux/macOS: `pip install faiss-cpu` (or `faiss-gpu` for GPU builds).
 # On Windows use conda: `conda install -c conda-forge faiss-cpu`.

@@ -38,11 +38,9 @@ class Config:
             "rate_limit_seconds": 1,
             "log_level": "INFO",
             "log_file": "./logs/rag_log.txt",
-            "vector_db_path": "./chroma_db",
             "faiss_index_dir": "./faiss_index",
             "vector_store_backend": "faiss",
             "vector_store_path": "./faiss_index",
-            "chroma_db_path": "./chroma_db",
             "auto_merging_chunk_sizes": [2048, 512, 128],
             "auto_merging_collection_name": "cubo_auto_merging",
             "auto_merging_candidate_multiplier": 3,
@@ -83,6 +81,41 @@ class Config:
                 "promote_threshold": 10,
                 "nlist": 4096,
                 "pq_m": 64
+            },
+            "deduplication": {
+                "enabled": True,
+                "method": "hybrid",
+                "run_on": "scaffold",
+                "representative_metric": "summary_score",
+                "similarity_threshold": 0.92,
+                "map_path": "output/dedup_clusters.json",
+                "prefilter": {
+                    "use_minhash": True,
+                    "num_perm": 128,
+                    "minhash_threshold": 0.8
+                },
+                "ann": {
+                    "backend": "faiss",
+                    "k": 50
+                },
+                "clustering": {
+                    "algorithm": "hdbscan",
+                    "min_cluster_size": 2,
+                    "min_samples": 1,
+                    "umap_dims": 32
+                }
+            },
+            "llm": {
+                "provider": "ollama",
+                "model_name": "llama3",
+                "system_prompt": "You are a helpful assistant that answers questions based on the provided context. Be concise and accurate.",
+                "enable_streaming": False
+            },
+            "scaffold": {
+                "use_semantic_clustering": False,  # Enable for better scaffold quality
+                "clustering_method": "kmeans",  # or 'hdbscan'
+                "scaffold_size": 5,
+                "min_cluster_size": 3
             }
         }
 

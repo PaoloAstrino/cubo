@@ -50,7 +50,7 @@ Implemented complete Phase I of the CUBO performance testing infrastructure per 
   - Ingestion time (seconds, minutes)
   - Throughput (GB/minute, chunks/second)
   - Memory usage before/after ingestion
-  - Storage size estimation (FAISS, Chroma, parquet)
+  - Storage size estimation (FAISS, parquet)
   - Compression ratio (raw data vs stored index)
 - CLI arguments:
   - `--data-folder` - Documents folder to ingest
@@ -113,7 +113,7 @@ Implemented complete Phase I of the CUBO performance testing infrastructure per 
 ✅ Throughput measurement (GB/minute, chunks/second)
 ✅ Memory consumption tracking
 ✅ Compression ratio estimation
-✅ Storage size breakdown (FAISS, Chroma, parquet)
+✅ Storage size breakdown (FAISS, parquet)
 ✅ Fast-pass vs deep-ingest comparison
 
 ### 5. Output Format
@@ -270,7 +270,7 @@ pytest tests/performance/test_perf_utils.py -v
 
 1. **Document ID Extraction**: Assumes retriever returns documents with 'id', 'doc_id', or 'chunk_id' field. May need adaptation for different retriever implementations.
 
-2. **Storage Size Estimation**: Current implementation uses directory scanning. Could be improved with direct FAISS/Chroma API calls for exact sizes.
+2. **Storage Size Estimation**: Current implementation uses directory scanning. Could be improved with direct FAISS API calls for exact sizes.
 
 3. **RAGAS Win Rate**: Not yet implemented. Requires GPT-4o-mini judge integration or alternative judge LLM setup.
 

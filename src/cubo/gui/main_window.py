@@ -436,7 +436,7 @@ class CUBOGUI(QMainWindow):
         # Define error patterns for each category
         error_patterns = {
             "model_loading": lambda s: "model" in s and ("load" in s or "not found" in s),
-            "database": lambda s: "database" in s or "chroma" in s,
+            "database": lambda s: "database" in s or "vector store" in s or "faiss" in s,
             "memory": lambda s: any(keyword in s for keyword in ["memory", "cuda", "gpu"]),
             "permission": lambda s: any(keyword in s for keyword in ["permission", "access"]),
             "connection": lambda s: any(keyword in s for keyword in ["connection", "network"])

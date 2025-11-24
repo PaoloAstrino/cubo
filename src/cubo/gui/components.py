@@ -1622,8 +1622,8 @@ class AnalyticsWidget(QWidget):
         status_group = QGroupBox("System Status")
         status_layout = QFormLayout(status_group)
 
-        self.chroma_status = QLabel("🔄 Checking...")
-        status_layout.addRow("Vector Database:", self.chroma_status)
+        self.vector_store_status = QLabel("🔄 Checking...")
+        status_layout.addRow("Vector Database:", self.vector_store_status)
 
         self.ollama_status = QLabel("🔄 Checking...")
         status_layout.addRow("LLM Service:", self.ollama_status)
@@ -1655,7 +1655,7 @@ class AnalyticsWidget(QWidget):
     def refresh_status(self):
         """Refresh system status."""
         # This would check actual system status
-        self.chroma_status.setText("✅ Connected")
+        self.vector_store_status.setText("✅ Connected")
         self.ollama_status.setText("✅ Running")
         self.memory_usage.setText("2.1 GB / 8 GB")
 

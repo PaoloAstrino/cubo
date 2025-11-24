@@ -81,6 +81,36 @@ def start_frontend(frontend_dir: Path, port: int) -> subprocess.Popen:
     return frontend_process
 
 
+def check_ollama() -> bool:
+    """Check if Ollama is running and accessible.
+    
+    Returns:
+        True if Ollama is ready, False otherwise.
+    """
+    import requests
+    
+    try:
+        response = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if response.status_code == 200:
+            models = response.json().get('models', [])
+            if models:
+                logger.info(f"[OK] Ollama is running with {len(models)} model(s)")
+                return True
+            else:
+                logger.warning("[WARN] Ollama is running but no models found")
+                logger.warning("  Run: ollama pull llama3.2")
+                return False
+    except requests.exceptions.ConnectionError:
+        logger.warning("[WARN] Ollama is not running")
+        logger.warning("  Please start Ollama and pull a model:")
+        logger.warning("  1. Start Ollama from Start Menu or run 'ollama serve'")
+        logger.warning("  2. Run: ollama pull llama3.2")
+        return False
+    except Exception as e:
+        logger.debug(f"Ollama check failed: {e}")
+        return False
+
+
 def wait_for_backend(backend_url: str, timeout: int = 60) -> bool:
     """Wait for backend to be ready.
     
@@ -101,7 +131,7 @@ def wait_for_backend(backend_url: str, timeout: int = 60) -> bool:
         try:
             response = requests.get(f"{backend_url}/api/health", timeout=2)
             if response.status_code == 200:
-                logger.info(f"\n✓ Backend is ready! (took {i+1} seconds)")
+                logger.info(f"\n[OK] Backend is ready! (took {i+1} seconds)")
                 logger.info("=" * 60)
                 return True
         except requests.exceptions.ConnectionError:
@@ -114,10 +144,45 @@ def wait_for_backend(backend_url: str, timeout: int = 60) -> bool:
             logger.info(f"Still waiting... ({i} seconds elapsed)")
         time.sleep(1)
     
-    logger.error(f"\n✗ Backend failed to start within {timeout} seconds")
+    logger.error(f"\n[FAIL] Backend failed to start within {timeout} seconds")
     logger.error("Check the backend output above for errors")
     logger.info("=" * 60)
     return False
+
+
+def initialize_rag_system(backend_url: str) -> bool:
+    """Initialize the RAG system (load embeddings, vector store, etc.).
+    
+    Args:
+        backend_url: Backend base URL.
+        
+    Returns:
+        True if initialization succeeded, False otherwise.
+    """
+    import requests
+    
+    logger.info("\n" + "=" * 60)
+    logger.info("Initializing RAG System...")
+    logger.info("=" * 60)
+    logger.info("Loading embedding models, vector store, and retriever...")
+    
+    try:
+        response = requests.post(f"{backend_url}/api/initialize", timeout=120)
+        if response.status_code == 200:
+            logger.info("[OK] RAG system initialized successfully!")
+            logger.info("=" * 60)
+            return True
+        else:
+            logger.error(f"[FAIL] Initialization failed: {response.status_code}")
+            logger.error(f"  Response: {response.text}")
+            return False
+    except requests.exceptions.Timeout:
+        logger.error("[FAIL] Initialization timed out (>120s)")
+        logger.error("  This may happen on first run while downloading models")
+        return False
+    except Exception as e:
+        logger.error(f"[FAIL] Initialization error: {e}")
+        return False
 
 
 @click.command()
@@ -196,6 +261,9 @@ def main(
     frontend_process = None
     
     try:
+        # Check Ollama first
+        check_ollama()
+        
         # Start backend
         backend_process = start_backend(
             backend_script,
@@ -207,12 +275,15 @@ def main(
         backend_url = f"http://localhost:{backend_port}"
         if not wait_for_backend(backend_url, timeout):
             return 1
+            
+        # Initialize RAG system (load models, etc.)
+        initialize_rag_system(backend_url)
         
         # Start frontend
         frontend_process = start_frontend(frontend_directory, frontend_port)
         
         logger.info("\n" + "=" * 60)
-        logger.info("✓ CUBO Full Stack Started")
+        logger.info("[OK] CUBO Full Stack Started")
         logger.info("=" * 60)
         logger.info(f"Backend API:  http://localhost:{backend_port}")
         logger.info(f"API Docs:     http://localhost:{backend_port}/docs")
@@ -223,11 +294,11 @@ def main(
         # Monitor processes
         while True:
             if backend_process.poll() is not None:
-                logger.error("\n✗ Backend process died")
+                logger.error("\n[FAIL] Backend process died")
                 break
             
             if frontend_process.poll() is not None:
-                logger.error("\n✗ Frontend process died")
+                logger.error("\n[FAIL] Frontend process died")
                 break
             
             time.sleep(1)
@@ -253,7 +324,7 @@ def main(
             except subprocess.TimeoutExpired:
                 frontend_process.kill()
         
-        logger.info("✓ Shutdown complete")
+        logger.info("[OK] Shutdown complete")
     
     return 0
 

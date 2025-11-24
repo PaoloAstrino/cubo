@@ -24,7 +24,7 @@ print(f"Query: {security_manager.scrub(query)}\n")
 # Get query embedding
 query_embedding = retriever._generate_query_embedding(query)
 
-# Query raw results from ChromaDB (before postprocessing)
+# Query raw results from vector store (before postprocessing)
 raw_results = retriever.collection.query(
     query_embeddings=[query_embedding],
     n_results=5,
@@ -32,7 +32,7 @@ raw_results = retriever.collection.query(
 )
 
 print("=" * 80)
-print("RAW CHROMADB RESULTS (before postprocessing)")
+print("RAW VECTOR STORE RESULTS (before postprocessing)")
 print("=" * 80)
 for i, (doc, metadata, distance) in enumerate(zip(
     raw_results['documents'][0],

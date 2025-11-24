@@ -124,6 +124,8 @@ CI note: The repository's CI runs a Linux job that installs `faiss-cpu` and runs
 ## Features
 
 - **Modular Architecture**: Clean separation of concerns with dedicated modules
+
+- **Semantic Deduplication**: Built-in hybrid deduplication pipeline to reduce duplicate chunks across datasets (MinHash + FAISS + HDBSCAN). See `docs/deduplication.md` for usage and examples.
 - **Multi-format Support**: Supports .txt, .docx, .pdf, and .md files
 - **Sentence Window Chunking**: Intelligent text chunking with configurable context windows for better retrieval
 - **Desktop GUI**: Modern PySide6-based interface with drag-and-drop functionality
@@ -609,7 +611,7 @@ CUBO is designed for privacy-conscious organizations needing secure, offline AI 
 - `torch`: PyTorch for model inference
 - `transformers`: Hugging Face transformers for model loading
 - `ollama`: Python client for Ollama LLM API
-- `chromadb`: Vector database for document storage and retrieval
+- `faiss` (preferred): Local vector index for document storage and retrieval (FAISS)
 - `tokenizers`: Fast tokenization for text processing
 
 **Document Processing:**
@@ -637,7 +639,7 @@ CUBO is designed for privacy-conscious organizations needing secure, offline AI 
 - `torch`: PyTorch for model inference
 - `transformers`: Hugging Face transformers for model loading
 - `ollama`: Python client for Ollama LLM API
-- `chromadb`: Vector database for document storage and retrieval
+- `faiss` (preferred): Local vector index for document storage and retrieval (FAISS)
 - `tokenizers`: Fast tokenization for text processing
 
 **Document Processing:**

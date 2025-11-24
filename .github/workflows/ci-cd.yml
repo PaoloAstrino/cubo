@@ -389,16 +389,6 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
-      - name: Test ChromaDB integration
-        run: |
-          $env:PYTHONPATH = "$env:GITHUB_WORKSPACE"
-          python -c "
-          import sys
-          sys.path.insert(0, '.')
-
-          print('Testing ChromaDB integration...')
-
-
   faiss_e2e:
     runs-on: ubuntu-latest
     needs: test
@@ -495,42 +485,9 @@ jobs:
           export PYTHONPATH="${{ github.workspace }}"
           python -m pytest -q tests/indexing -m "requires_faiss"
 
-          try:
-              import chromadb
-              from sentence_transformers import SentenceTransformer
-
-              # Use EphemeralClient for testing (no file persistence)
-              client = chromadb.EphemeralClient()
-              collection = client.get_or_create_collection('test_collection')
-
-              # Test basic operations
-              model = SentenceTransformer('all-MiniLM-L6-v2')
-              test_texts = ['Document one', 'Document two']
-              embeddings = model.encode(test_texts).tolist()  # Convert numpy arrays to lists
-
-              # Add documents
-              collection.add(
-                  embeddings=embeddings,
-                  documents=test_texts,
-                  metadatas=[{'id': 1}, {'id': 2}],
-                  ids=['doc1', 'doc2']
-              )
-              print('ChromaDB document addition: PASSED')
-
-              # Query documents
-              query_embedding = model.encode(['Document query']).tolist()  # Convert to list
-              results = collection.query(
-                  query_embeddings=query_embedding,
-                  n_results=2
-              )
-
-              assert len(results['documents'][0]) > 0
-              print('ChromaDB querying: PASSED')
-
-          except Exception as e:
-              print(f'ChromaDB integration test failed: {e}')
-              sys.exit(1)
-          "
+            # This step used to test an external vector DB integration. External
+            # DB integration testing has been deprecated; FAISS is the primary
+            # vector store and is tested in the FAISS E2E workflow.
 
       - name: Test SQLite evaluation database
         run: |
@@ -818,7 +775,7 @@ jobs:
           try:
               # Test full pipeline: Document Loading -> Processing -> Retrieval -> Reranking
               from src.document_loader import DocumentLoader
-              from src.retriever import DocumentRetriever
+              from src.cubo.retrieval.retriever import DocumentRetriever
               from sentence_transformers import SentenceTransformer
 
               # Create test document

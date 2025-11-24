@@ -1,21 +1,20 @@
 """
 CUBO Document Retriever
-Handles document embedding, storage, and retrieval with ChromaDB.
+Handles document embedding, storage, and retrieval with FAISS.
 """
 
 import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
 
 if not hasattr(np, "float_"):
     np.float_ = np.float64
 
-# Chromadb import is lazy; import inside _setup_chromadb to avoid loading
-# large native dependencies during test collection (onnxruntime/shim errors)
+# Lazy imports to avoid loading large native dependencies during test collection
 import hashlib
 
 from sentence_transformers import SentenceTransformer
@@ -44,7 +43,7 @@ from src.cubo.utils.logger import logger
 
 
 class DocumentRetriever:
-    """Handles document retrieval using ChromaDB and sentence transformers."""
+    """Handles document retrieval using FAISS and sentence transformers."""
     """
     Note: `DocumentRetriever` will attempt to initialize a reranker based on the
     `retrieval.reranker_model` configuration. If a cross-encoder model is available
@@ -63,6 +62,7 @@ class DocumentRetriever:
         self._initialize_auto_merging_retriever()
         self._setup_vector_store()
         self._setup_caching()
+        self._load_dedup_metadata()
         self._initialize_postprocessors()
         self._initialize_retrieval_strategy()
         self._log_initialization_status()
@@ -79,6 +79,11 @@ class DocumentRetriever:
         self.auto_merge_for_complex = auto_merge_for_complex
         self.window_size = window_size
         self.top_k = top_k
+        self.dedup_enabled = bool(config.get('deduplication.enabled', False))
+        self.dedup_cluster_lookup: Dict[str, int] = {}
+        self.dedup_representatives: Dict[int, Dict[str, Any]] = {}
+        self.dedup_canonical_lookup: Dict[str, str] = {}
+        self._dedup_map_loaded = False
         # Initialize router for query strategy selection
         try:
             from src.cubo.retrieval.router import SemanticRouter
@@ -100,20 +105,32 @@ class DocumentRetriever:
                 self.use_auto_merging = False
 
     def _setup_vector_store(self) -> None:
-        """Setup ChromaDB client and collection.
+        """Setup FAISS vector store.
 
-        If Chromadb or the ONNX runtime is unavailable, create a simple
-        in-memory fallback collection so unit tests can run without
-        GPU/CPU binary dependencies.
+        If FAISS is unavailable, create a simple in-memory fallback
+        collection so unit tests can run without dependencies.
         """
         # Prefer configured backend; default is FAISS for local desktop-focused usage
         from src.cubo.retrieval.vector_store import create_vector_store
         backend = config.get('vector_store_backend', 'faiss')
+        
+        # Get actual dimension from the loaded model, or use default for tests
+        if self.model is not None:
+            model_dimension = self.model.get_sentence_embedding_dimension()
+            logger.info(f"Using embedding dimension: {model_dimension} (from model)")
+        else:
+            # Fallback for tests without a model - use common dimension
+            model_dimension = 384  # Standard dimension for many sentence transformers
+            logger.warning("No model available, using default dimension 384 for in-memory fallback")
+            # Skip vector store creation and go directly to fallback
+            self.collection = InMemoryCollection()
+            return
+        
         try:
             try:
                 self.collection = create_vector_store(
                     backend=backend,
-                    dimension=int(config.get('index_dimension', 1536)),
+                    dimension=model_dimension,
                     index_dir=config.get('vector_store_path'),
                     collection_name=config.get('collection_name', 'cubo_documents')
                 )
@@ -131,7 +148,7 @@ class DocumentRetriever:
         self.current_documents = set()
         self.query_cache = {}
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
-        self._load_cache()
+        self._load_cache()  # Load existing cache if available
         self.semantic_cache = None
         cache_enabled = config.get('retrieval.semantic_cache.enabled', False)
         if cache_enabled:
@@ -151,6 +168,50 @@ class DocumentRetriever:
         self.bm25 = BM25Searcher(bm25_stats=bm25_stats_path)
         if bm25_stats_path and os.path.exists(bm25_stats_path):
             logger.info(f"Loaded BM25 stats from {bm25_stats_path}")
+    
+    def _load_dedup_metadata(self) -> None:
+        """Load deduplication map if configured."""
+        if not self.dedup_enabled:
+            return
+        map_path = config.get('deduplication.map_path')
+        if not map_path or not os.path.exists(map_path):
+            logger.info("Dedup map not found at %s; disabling deduplication", map_path)
+            self.dedup_enabled = False
+            return
+        try:
+            with open(map_path, 'r', encoding='utf-8') as handle:
+                payload = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to load dedup map %s: %s", map_path, exc)
+            self.dedup_enabled = False
+            return
+
+        canonical_map = payload.get('canonical_map', {}) or {}
+        clusters = payload.get('clusters', {}) or {}
+        representatives = payload.get('representatives', {}) or {}
+        self.dedup_canonical_lookup = {str(k): str(v) for k, v in canonical_map.items()}
+        self.dedup_cluster_lookup.clear()
+        for cluster_id, members in clusters.items():
+            if not isinstance(members, list):
+                continue
+            for member in members:
+                self.dedup_cluster_lookup[str(member)] = int(cluster_id)
+        self.dedup_representatives.clear()
+        for cluster_id, rep in representatives.items():
+            chunk_id = rep.get('chunk_id')
+            if not chunk_id:
+                continue
+            cid = int(cluster_id)
+            self.dedup_representatives[cid] = {
+                'chunk_id': str(chunk_id),
+                'score': rep.get('score', 0.0),
+            }
+        self._dedup_map_loaded = True
+        logger.info(
+            "Loaded dedup map with %s clusters (%s representatives)",
+            len(self.dedup_cluster_lookup),
+            len(self.dedup_representatives),
+        )
 
     def _initialize_postprocessors(self) -> None:
         """Initialize postprocessors and reranker based on configuration."""
@@ -188,7 +249,7 @@ class DocumentRetriever:
 
     @property
     def client(self):
-        """Return the vector store client if available (for ChromaDB compatibility)."""
+        """Return the vector store client if available (for compatibility)."""
         if hasattr(self.collection, 'client'):
             return self.collection.client
         return None
@@ -349,15 +410,7 @@ class DocumentRetriever:
                 # Combine results
                 combined_results = sentence_results + auto_results
 
-                # Deduplicate by document content
-                seen_content = set()
-                unique_results = []
-                for result in combined_results:
-                    # Use 'document' field for deduplication
-                    content = result.get('document', result.get('content', ''))
-                    if content not in seen_content:
-                        seen_content.add(content)
-                        unique_results.append(result)
+                unique_results = self._deduplicate_results(combined_results)
 
                 # Re-sort by similarity score after deduplication
                 # This ensures best matches across all documents come first
@@ -513,6 +566,57 @@ class DocumentRetriever:
         """Handle auto-merging retrieval errors."""
         logger.error(f"Auto-merging retrieval failed: {error}, falling back to sentence window")
         return self._retrieve_sentence_window(query, top_k)
+
+    def _deduplicate_results(self, results: List[Dict]) -> List[Dict]:
+        """Deduplicate retrieval results using cluster metadata when available."""
+        if not results:
+            return []
+        if not self.dedup_enabled or not self._dedup_map_loaded:
+            return self._dedup_by_content(results)
+
+        seen: Set[Any] = set()
+        deduped: List[Dict] = []
+        for result in results:
+            chunk_id = self._extract_chunk_id(result)
+            cluster_id = self.dedup_cluster_lookup.get(chunk_id)
+            key: Any = cluster_id if cluster_id is not None else chunk_id or result.get('document')
+            if key in seen:
+                continue
+            seen.add(key)
+            if cluster_id is not None:
+                representative = self.dedup_representatives.get(cluster_id)
+                if representative and chunk_id and representative['chunk_id'] != chunk_id:
+                    result = self._promote_representative(result, representative, cluster_id)
+            deduped.append(result)
+        return deduped
+
+    def _dedup_by_content(self, results: List[Dict]) -> List[Dict]:
+        seen_content: Set[str] = set()
+        unique_results: List[Dict] = []
+        for result in results:
+            content = result.get('document', result.get('content', ''))
+            if content in seen_content:
+                continue
+            seen_content.add(content)
+            unique_results.append(result)
+        return unique_results
+
+    def _extract_chunk_id(self, result: Dict) -> Optional[str]:
+        metadata = result.get('metadata') or {}
+        for key in ('chunk_id', 'id', 'document_id'):
+            value = metadata.get(key)
+            if value:
+                return str(value)
+        return None
+
+    def _promote_representative(self, result: Dict, rep: Dict[str, Any], cluster_id: int) -> Dict:
+        updated = result.copy()
+        metadata = dict(result.get('metadata') or {})
+        metadata['dedup_cluster_id'] = cluster_id
+        metadata['canonical_chunk_id'] = rep.get('chunk_id')
+        updated['metadata'] = metadata
+        updated['canonical_chunk_id'] = rep.get('chunk_id')
+        return updated
 
     def get_loaded_documents(self) -> List[str]:
         """Get list of currently loaded document filenames."""
@@ -771,7 +875,7 @@ class DocumentRetriever:
                                   texts: List[str], metadatas: List[Dict],
                                   chunk_ids: List[str], filename: str) -> None:
         """
-        Add chunks to the ChromaDB collection.
+        Add chunks to the FAISS vector store.
 
         Args:
             embeddings: List of embeddings
@@ -863,13 +967,13 @@ class DocumentRetriever:
             }) from e
 
     def _execute_collection_query(self, query_embedding: List[float], initial_top_k: int):
-        """Execute the ChromaDB collection query."""
+        """Execute the vector store collection query."""
         # If no documents in current session, search ALL documents in database
         # Otherwise, only search current session documents
         query_params = {
             "query_embeddings": [query_embedding],
             "n_results": initial_top_k,
-            "include": ['documents', 'metadatas', 'distances']
+            "include": ['documents', 'metadatas', 'distances', 'ids']
         }
 
         if self.current_documents:
@@ -884,11 +988,14 @@ class DocumentRetriever:
         """Process raw query results into candidate format with optional keyword boosting."""
         candidates = []
         if results['documents'] and results['metadatas'] and results['distances']:
-            for doc, metadata, distance in zip(
+            # Get IDs if available
+            ids = results.get('ids', [[]])[0] if 'ids' in results else []
+            
+            for i, (doc, metadata, distance) in enumerate(zip(
                 results['documents'][0],
                 results['metadatas'][0],
                 results['distances'][0]
-            ):
+            )):
                 base_similarity = 1 - distance  # Convert distance to similarity
 
                 # Apply keyword boost with detailed breakdown
@@ -898,7 +1005,11 @@ class DocumentRetriever:
                 updated_metadata = metadata.copy()
                 updated_metadata['score_breakdown'] = score_breakdown
 
+                # Get document ID if available
+                doc_id = ids[i] if i < len(ids) else None
+
                 candidates.append({
+                    "id": doc_id,
                     "document": doc,
                     "metadata": updated_metadata,
                     "similarity": score_breakdown["final_score"],
@@ -982,14 +1093,15 @@ class DocumentRetriever:
 
     def _retrieve_by_bm25(self, query: str, top_k: int) -> List[dict]:
         try:
-            all_docs = self.collection.get(include=['documents', 'metadatas'], where={"filename": {"$in": list(self.current_documents)}} if self.current_documents else None)
+            all_docs = self.collection.get(include=['documents', 'metadatas', 'ids'], where={"filename": {"$in": list(self.current_documents)}} if self.current_documents else None)
             if not all_docs['documents']:
                 return []
 
             # Prepare docs for BM25Searcher
             docs_for_search = []
-            for doc, metadata in zip(all_docs['documents'], all_docs['metadatas']):
-                doc_id = hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()[:8]
+            ids_list = all_docs.get('ids', [])
+            for i, (doc, metadata) in enumerate(zip(all_docs['documents'], all_docs['metadatas'])):
+                doc_id = ids_list[i] if i < len(ids_list) else hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()[:8]
                 docs_for_search.append({'doc_id': doc_id, 'text': doc, 'metadata': metadata})
 
             # Use BM25Searcher to search
@@ -999,6 +1111,7 @@ class DocumentRetriever:
             scored_docs = []
             for r in results:
                 scored_docs.append({
+                    "id": r['doc_id'],
                     "document": r['text'],
                     "metadata": r['metadata'],
                     "similarity": r['similarity'],

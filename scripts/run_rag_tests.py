@@ -19,6 +19,17 @@ from src.cubo.main import CUBOApp
 from src.cubo.evaluation.metrics import AdvancedEvaluator, IRMetricsEvaluator, GroundTruthLoader
 from src.cubo.evaluation.perf_utils import sample_latency, sample_memory, log_hardware_metadata
 import argparse
+from tqdm import tqdm
+import random
+import math
+try:
+    import pandas as pd
+except Exception:
+    pd = None
+import os
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+import logging as _logging
+_logging.getLogger('sentence_transformers').setLevel(_logging.ERROR)
 
 # Set up logging
 logging.basicConfig(
@@ -115,7 +126,23 @@ class RAGTester:
                 return
 
             logger.info(f"Loading documents from {self.data_folder}...")
-            documents = self.cubo_app.doc_loader.load_documents_from_folder(self.data_folder)
+            # If corpus processed files exist, use dataset-specific loader (BEIR/RAGBench/UltraDomain)
+            documents = None
+            # Try BEIR corpus file
+            beir_corpus = os.path.join(self.data_folder, 'corpus.jsonl')
+            if os.path.exists(beir_corpus):
+                documents = self._load_beir_corpus(beir_corpus)
+            elif os.path.exists(os.path.join(self.data_folder, 'corpus_processed.json')):
+                # Already preprocessed
+                with open(os.path.join(self.data_folder, 'corpus_processed.json'), 'r', encoding='utf-8') as f:
+                    documents = json.load(f)
+            elif any(f.endswith('.parquet') for root, dirs, files in os.walk(self.data_folder) for f in files):
+                documents = self._load_ragbench_parquet(self.data_folder)
+            elif any(f.endswith('.jsonl') for f in os.listdir(self.data_folder)):
+                documents = self._load_ultradomain_corpus(self.data_folder)
+            else:
+                # Fall back to generic loader
+                documents = self.cubo_app.doc_loader.load_documents_from_folder(self.data_folder)
             if not documents:
                 logger.error("No documents loaded")
                 return
@@ -131,7 +158,14 @@ class RAGTester:
                 else:
                     logger.warning(f"Skipping invalid chunk format: {type(chunk)}")
             
-            if document_texts:
+            # Index using batch ingestion if collection supports adding meta/ids
+            if isinstance(documents, list) and documents and isinstance(documents[0], dict) and 'id' in documents[0]:
+                # If skip_index flag set, do not reindex
+                if getattr(self, 'skip_index', False):
+                    logger.info("Skipping indexing step (skip_index=True)")
+                else:
+                    self._index_documents_with_batching(documents, batch_size=getattr(self, 'index_batch_size', 32), sample_size=getattr(self, 'index_sample_size', None), seed=getattr(self, 'index_sample_seed', 42))
+            elif document_texts:
                 self.cubo_app.retriever.add_documents(document_texts)
                 logger.info("Documents added to vector database successfully")
             else:
@@ -144,15 +178,18 @@ class RAGTester:
             logger.error(f"Failed to initialize CUBO system: {e}")
             self.cubo_app = None
 
-    def load_questions(self) -> Dict[str, List[str]]:
+    def load_questions(self) -> Dict[str, Any]:
         """Load questions from JSON file."""
         try:
             with open(self.questions_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             logger.info(f"Loaded {data['metadata']['total_questions']} questions")
+            # Store query IDs if available
+            self.query_ids = data['metadata'].get('query_ids', None)
             return data['questions']
         except Exception as e:
             logger.error(f"Failed to load questions: {e}")
+            self.query_ids = None
             return {"easy": [], "medium": [], "hard": []}
 
     def run_single_test(self, question: str, difficulty: str, question_id: str = None,
@@ -259,6 +296,184 @@ class RAGTester:
 
         return result
 
+    def _load_beir_corpus(self, corpus_path: str) -> List[Dict[str, Any]]:
+        """Load BEIR corpus.jsonl into list of dicts with id/text/metadata."""
+        docs = []
+        try:
+            with open(corpus_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        obj = json.loads(line.strip())
+                        doc_id = str(obj.get('_id') or obj.get('id') or obj.get('doc_id'))
+                        text = obj.get('text') or obj.get('excerpt') or obj.get('content') or ''
+                        docs.append({'id': doc_id, 'text': text, 'filename': os.path.basename(corpus_path), 'file_path': corpus_path, 'chunk_index': 0})
+                    except Exception:
+                        continue
+        except Exception as e:
+            logger.error(f"Failed to load BEIR corpus: {e}")
+        return docs
+
+    def _load_ultradomain_corpus(self, data_folder: str) -> List[Dict[str, Any]]:
+        """Load UltraDomain .jsonl files (multiple domain files) into docs list."""
+        docs = []
+        try:
+            for fname in os.listdir(data_folder):
+                if fname.endswith('.jsonl'):
+                    path = os.path.join(data_folder, fname)
+                    with open(path, 'r', encoding='utf-8') as f:
+                        for i, line in enumerate(f):
+                            if not line.strip():
+                                continue
+                            try:
+                                obj = json.loads(line.strip())
+                                doc_id = obj.get('_id') or obj.get('id') or f"{fname}_{i}"
+                                text = obj.get('text') or obj.get('content') or ''
+                                docs.append({'id': str(doc_id), 'text': text, 'filename': fname, 'file_path': path, 'chunk_index': i})
+                            except Exception:
+                                continue
+        except Exception as e:
+            logger.error(f"Failed to load UltraDomain corpus: {e}")
+        return docs
+
+    def _load_ragbench_parquet(self, data_folder: str) -> List[Dict[str, Any]]:
+        """Load RAGBench parquet files from subdirectories into docs list."""
+        docs = []
+        try:
+            # Walk through data_folder for parquet files
+            for root, dirs, files in os.walk(data_folder):
+                for f in files:
+                    if f.endswith('.parquet'):
+                        path = os.path.join(root, f)
+                        # Read using pandas if available
+                        if pd is None:
+                            logger.warning("Pandas not available; skipping RAGBench parquet loading")
+                            continue
+                        try:
+                            df = pd.read_parquet(path)
+                        except Exception as e:
+                            logger.error(f"Failed to read parquet {path}: {e}")
+                            continue
+                        if 'id' in df.columns:
+                            id_col = 'id'
+                        elif 'doc_id' in df.columns:
+                            id_col = 'doc_id'
+                        else:
+                            id_col = None
+                        # Combine documents array into single text if present
+                        for idx, row in df.iterrows():
+                            doc_id = str(row[id_col]) if id_col else f"{f}_{idx}"
+                            if 'documents' in row and isinstance(row['documents'], (list, )):
+                                # documents is an ndarray or array of strings
+                                texts = [str(x) for x in row['documents']]
+                                text = '\n'.join(texts)
+                            elif 'text' in row:
+                                text = str(row['text'])
+                            else:
+                                # Try response or other fields
+                                text = str(row['response']) if 'response' in row else ''
+                            docs.append({'id': doc_id, 'text': text, 'filename': f, 'file_path': path, 'chunk_index': idx})
+        except Exception as e:
+            logger.error(f"Failed to load RAGBench parquet: {e}")
+        return docs
+
+    def _index_documents_with_batching(self, docs: List[Dict[str, Any]], batch_size: int = 32, sample_size: int = None, seed: int = 42):
+        """Index documents into the retriever using batching and optional sampling."""
+        if not docs:
+            logger.info("No documents to index")
+            return
+
+        # Sample docs if requested
+        if sample_size and sample_size < len(docs):
+            random.seed(seed)
+            docs = random.sample(docs, sample_size)
+            logger.info(f"Sampled {len(docs)} docs for indexing (seed={seed})")
+
+        total = len(docs)
+        batch_size = int(batch_size) if batch_size and batch_size > 0 else 32
+        logger.info(f"Indexing {total} documents with batch size {batch_size}")
+
+        # Process in batches and add to vector store with metadata and preserved IDs
+        commit_size = getattr(self, 'index_commit_size', 4096) or 4096
+        commit_size = min(commit_size, total)
+        # For reproducibility and to avoid unintentionally appending to existing indexes,
+        # reset the collection unless the user explicitly sets skip_index
+        try:
+            if hasattr(self.cubo_app.retriever, 'collection') and hasattr(self.cubo_app.retriever.collection, 'reset'):
+                logger.info("Resetting existing collection before indexing to avoid appending to old data")
+                self.cubo_app.retriever.collection.reset()
+        except Exception:
+            logger.warning("Collection reset failed or not supported; proceeding with append behaviour")
+        all_embeddings = []
+        all_ids = []
+        all_docs = []
+        all_metas = []
+        with tqdm(total=total, desc="Indexing documents", unit="doc", leave=True) as pbar:
+            for i in range(0, total, batch_size):
+                batch = docs[i:i + batch_size]
+                texts = [d['text'] for d in batch]
+                ids = [d['id'] for d in batch]
+                metadatas = [{ 'id': d['id'], 'filename': d.get('filename'), 'chunk_index': d.get('chunk_index')} for d in batch]
+
+                # Generate embeddings in a threaded way (with fallback to sequential encode if threaded fails)
+                try:
+                    embeddings = self.cubo_app.retriever.inference_threading.generate_embeddings_threaded(texts, self.cubo_app.retriever.model, batch_size=batch_size, timeout_per_batch=120)
+                except Exception as e:
+                    logger.warning(f"Threaded embedding generation failed: {e}. Falling back to sequential encode.")
+                    try:
+                        # Use the model directly (may accept batch_size kwarg)
+                        if hasattr(self.cubo_app.retriever.model, 'encode'):
+                            try:
+                                embeddings = self.cubo_app.retriever.model.encode(texts, batch_size=batch_size)
+                            except TypeError:
+                                embeddings = self.cubo_app.retriever.model.encode(texts)
+                            if hasattr(embeddings, 'tolist'):
+                                embeddings = embeddings.tolist()
+                        else:
+                            embeddings = [[] for _ in texts]
+                    except Exception as e2:
+                        logger.error(f"Sequential embedding fallback failed: {e2}")
+                        embeddings = [[] for _ in texts]
+
+                # Buffer embeddings and metadata and perform commits in larger chunks
+                all_embeddings.extend(embeddings)
+                all_ids.extend(ids)
+                all_docs.extend(texts)
+                all_metas.extend(metadatas)
+                try:
+                    if len(all_embeddings) >= commit_size:
+                        if hasattr(self.cubo_app.retriever, 'collection') and hasattr(self.cubo_app.retriever.collection, 'add'):
+                            self.cubo_app.retriever.collection.add(embeddings=all_embeddings, documents=all_docs, metadatas=all_metas, ids=all_ids)
+                        else:
+                            for j, text in enumerate(all_docs):
+                                self.cubo_app.retriever.add_documents([text])
+                        all_embeddings.clear(); all_ids.clear(); all_docs.clear(); all_metas.clear()
+                except Exception as e:
+                    logger.error(f"Failed to commit batch to collection: {e}")
+
+                pbar.update(len(batch))
+                # Update postfix with throughput
+                try:
+                    elapsed = time.time() - start_time
+                    processed = min(i + len(batch), total)
+                    throughput = processed / elapsed if elapsed > 0 else 0
+                    pbar.set_postfix({'batch': batch_size, 'commit_size': commit_size, 'qps': f'{throughput:.1f}/s'})
+                except Exception:
+                    pass
+
+        # Commit any remaining
+        if all_embeddings:
+            try:
+                if hasattr(self.cubo_app.retriever, 'collection') and hasattr(self.cubo_app.retriever.collection, 'add'):
+                    self.cubo_app.retriever.collection.add(embeddings=all_embeddings, documents=all_docs, metadatas=all_metas, ids=all_ids)
+                else:
+                    for j, text in enumerate(all_docs):
+                        self.cubo_app.retriever.add_documents([text])
+            except Exception as e:
+                logger.error(f"Final commit failed: {e}")
+        logger.info(f"Indexing completed: {total} documents")
+
     async def evaluate_response(self, question: str, answer: str, contexts: List[str], response_time: float) -> Dict[str, Any]:
         """Evaluate the RAG response using advanced metrics."""
         try:
@@ -303,12 +518,16 @@ class RAGTester:
         logger.info(f"Running {len(questions)} {difficulty} tests")
 
         results = []
-        for i, question in enumerate(questions, 1):
-            logger.info(f"Progress: {difficulty} {i}/{len(questions)}")
-            # Generate question_id if not provided
-            question_id = f"{difficulty}_{i}"
-            result = self.run_single_test(question, difficulty, question_id=question_id, k_values=k_values)
-            results.append(result)
+        with tqdm(total=len(questions), desc=f"Testing {difficulty}", unit="question") as pbar:
+            for i, question in enumerate(questions, 1):
+                # Use actual query ID from metadata if available, otherwise generate one
+                if self.query_ids and i-1 < len(self.query_ids):
+                    question_id = self.query_ids[i-1]
+                else:
+                    question_id = f"{difficulty}_{i}"
+                result = self.run_single_test(question, difficulty, question_id=question_id, k_values=k_values)
+                results.append(result)
+                pbar.update(1)
 
         return results
 
@@ -540,6 +759,18 @@ def main():
                        help="Limit number of hard questions")
     parser.add_argument("--output", default="test_results.json",
                        help="Output file for results")
+    parser.add_argument("--index-batch-size", type=int, default=32,
+                       help="Batch size to use for indexing/inference embedding generation")
+    parser.add_argument("--index-sample-size", type=int, default=None,
+                       help="If set, randomly sample this many documents from corpus for indexing (performance vs accuracy)")
+    parser.add_argument("--index-sample-seed", type=int, default=42,
+                       help="Seed for random sampling of corpus")
+    parser.add_argument("--skip-index", action='store_true',
+                       help="Skip indexing corpus and assume vector store already populated")
+    parser.add_argument("--save-processed-corpus", action='store_true',
+                       help="Save processed corpus into corpus_processed.json for faster reuse")
+    parser.add_argument("--index-commit-size", type=int, default=4096,
+                       help="Number of documents to commit per vector store.add() call (avoids frequent FAISS re-train warnings)")
 
     args = parser.parse_args()
 
@@ -553,6 +784,14 @@ def main():
         ground_truth_file=args.ground_truth,
         mode=args.mode
     )
+
+    # Set indexing options
+    tester.index_batch_size = args.index_batch_size
+    tester.index_sample_size = args.index_sample_size
+    tester.index_sample_seed = args.index_sample_seed
+    tester.skip_index = args.skip_index
+    tester.save_processed_corpus = args.save_processed_corpus
+    tester.index_commit_size = args.index_commit_size
 
     # Run tests
     results = tester.run_all_tests(

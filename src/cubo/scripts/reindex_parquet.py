@@ -1,4 +1,4 @@
-"""Reindex chunks parquet to ChromaDB collection (generate embeddings and insert)."""
+"""Reindex chunks parquet to FAISS vector store (generate embeddings and insert)."""
 import argparse
 import logging
 from pathlib import Path
@@ -12,13 +12,13 @@ from src.cubo.utils.logger import logger
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Reindex parquet chunks to ChromaDB")
+    parser = argparse.ArgumentParser(description="Reindex parquet chunks to FAISS vector store")
     parser.add_argument('--parquet', required=True, help='Path to chunks parquet file')
     parser.add_argument('--collection', default=config.get('collection_name', 'cubo_documents'))
     parser.add_argument('--model-path', default=config.get('model_path', None))
     parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--replace-collection', action='store_true', help='Replace collection by deleting it first')
-    parser.add_argument('--wipe-db', action='store_true', help='Delete the whole chroma DB folder before reindexing (irrevocable)')
+    parser.add_argument('--replace-collection', action='store_true', help='Replace vector store by deleting it first')
+    parser.add_argument('--wipe-db', action='store_true', help='Delete the FAISS index folder before reindexing (irrevocable)')
     parser.add_argument('--verbose', action='store_true')
     return parser.parse_args()
 
@@ -49,15 +49,15 @@ def main():
     # Retriever constructor expects a model instance.
     retriever = DocumentRetriever(generator.model)
 
-    # Optionally wipe DB directory (completely delete and recreate the folder)
+    # Optionally wipe FAISS index directory (completely delete and recreate the folder)
     if args.wipe_db:
-        db_path = config.get('chroma_db_path')
+        index_path = config.get('vector_store_path', './faiss_index')
         try:
             from shutil import rmtree
-            rmtree(db_path)
-            logger.info(f"Wiped chroma db folder {db_path}")
+            rmtree(index_path)
+            logger.info(f"Wiped FAISS index folder {index_path}")
         except Exception as e:
-            logger.warning(f"Wipe failed or path not found {db_path}: {e}")
+            logger.warning(f"Wipe failed or path not found {index_path}: {e}")
 
     if args.replace_collection:
         reset_fn = getattr(retriever.collection, 'reset', None)

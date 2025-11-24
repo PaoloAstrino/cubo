@@ -8,6 +8,7 @@ echo CUBO API Server starting in new window
 echo ========================================
 echo.
 echo The server will run in a separate window.
-echo You can now run: python test_api_live.py
+echo You can now run live API smoke tests using the env var:
+echo set CUBO_RUN_LIVE_TESTS=1 && pytest tests/api/test_api_live.py -q
 echo.
 pause

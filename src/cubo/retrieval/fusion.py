@@ -35,13 +35,14 @@ def combine_semantic_and_bm25(semantic_candidates: List[Dict], bm25_candidates: 
                              top_k: int = 10) -> List[Dict]:
     """Combine semantic and BM25 candidate lists into a normalized combined ranking.
 
-    Each candidate is expected as {'document': str, 'metadata': dict, 'similarity': float}
+    Each candidate is expected as {'document': str, 'metadata': dict, 'similarity': float, 'id': str}
     """
     combined = {}
     for cand in semantic_candidates:
         doc_key = cand['document'][:100]
         if doc_key not in combined:
             combined[doc_key] = {
+                'id': cand.get('id'),
                 'document': cand['document'],
                 'metadata': cand.get('metadata', {}),
                 'semantic_score': cand.get('similarity', 0.0),
@@ -54,6 +55,7 @@ def combine_semantic_and_bm25(semantic_candidates: List[Dict], bm25_candidates: 
         doc_key = cand['document'][:100]
         if doc_key not in combined:
             combined[doc_key] = {
+                'id': cand.get('id'),
                 'document': cand['document'],
                 'metadata': cand.get('metadata', {}),
                 'semantic_score': 0.0,
@@ -66,6 +68,7 @@ def combine_semantic_and_bm25(semantic_candidates: List[Dict], bm25_candidates: 
     for doc_data in combined.values():
         combined_score = semantic_weight * doc_data['semantic_score'] + bm25_weight * doc_data['bm25_score']
         final_results.append({
+            'id': doc_data.get('id'),
             'document': doc_data['document'],
             'metadata': doc_data.get('metadata', {}),
             'similarity': combined_score,

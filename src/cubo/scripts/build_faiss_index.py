@@ -3,6 +3,8 @@ from pathlib import Path
 import argparse
 import logging
 import json
+import os
+from typing import Any, Dict, Set
 
 import pandas as pd
 
@@ -56,15 +58,10 @@ def main():
         raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
 
     df = pd.read_parquet(parquet_path)
-    
+
     if args.dedup_map:
-        logger.info(f"Applying deduplication map from {args.dedup_map}...")
-        with open(args.dedup_map, 'r') as f:
-            dedup_map = json.load(f)['canonical_map']
-        
-        canonical_ids = set(dedup_map.values())
-        df = df[df[args.id_column].isin(canonical_ids)]
-        logger.info(f"Filtered down to {len(df)} canonical documents.")
+        df = _filter_to_representatives(df, args.id_column, args.dedup_map)
+        logger.info(f"Filtered down to {len(df)} canonical documents after dedup application.")
 
     # Handle scaffold generation if requested
     if args.scaffold:
@@ -127,18 +124,18 @@ def main():
         logger.info(f"Scaffold sample search returned {len(hits)} hits")
         
         if not args.dry_run:
-                if args.index_root:
-                    ts = int(time.time())
-                    version_dir = Path(args.index_root) / f"faiss_v{ts}"
-                    manager.save(path=version_dir)
-                    if args.publish:
-                        publish_version(version_dir, Path(args.index_root))
-                        logger.info(f"Published version {version_dir}")
-                    if args.cleanup:
-                        from src.cubo.indexing.index_publisher import cleanup
-                        cleanup(Path(args.index_root), keep_last_n=args.retention)
-                else:
-                    manager.save()
+            if args.index_root:
+                ts = int(time.time())
+                version_dir = Path(args.index_root) / f"faiss_v{ts}"
+                manager.save(path=version_dir)
+                if args.publish:
+                    publish_version(version_dir, Path(args.index_root))
+                    logger.info(f"Published version {version_dir}")
+                if args.cleanup:
+                    from src.cubo.indexing.index_publisher import cleanup
+                    cleanup(Path(args.index_root), keep_last_n=args.retention)
+            else:
+                manager.save()
             logger.info(f"Scaffold FAISS index saved to {Path(args.scaffold_dir) / 'faiss'}")
         else:
             logger.info("Dry-run enabled; scaffold FAISS index was not saved")
@@ -210,6 +207,47 @@ def main():
             manager.save()
     else:
         logger.info("Dry-run enabled; FAISS indexes were not saved")
+
+
+def _filter_to_representatives(df: pd.DataFrame, id_column: str, map_path: str) -> pd.DataFrame:
+    logger.info("Applying deduplication map from %s", map_path)
+    with open(map_path, 'r', encoding='utf-8') as f:
+        payload = json.load(f)
+
+    canonical_ids = _extract_canonical_ids(payload)
+    if not canonical_ids:
+        logger.warning("Dedup map did not contain canonical ids; skipping filter")
+        return df
+
+    filtered = df[df[id_column].astype(str).isin(canonical_ids)].copy()
+    cluster_lookup = _flatten_cluster_lookup(payload)
+    if cluster_lookup:
+        filtered['cluster_id'] = filtered[id_column].astype(str).map(cluster_lookup)
+        filtered['is_representative'] = filtered[id_column].astype(str).isin(canonical_ids)
+    return filtered
+
+
+def _extract_canonical_ids(payload: Dict[str, Any]) -> Set[str]:
+    representatives = payload.get('representatives')
+    if isinstance(representatives, dict) and representatives:
+        ids = {str(rep.get('chunk_id')) for rep in representatives.values() if rep.get('chunk_id')}
+        if ids:
+            return ids
+    canonical_map = payload.get('canonical_map', {}) or {}
+    return {str(value) for value in canonical_map.values()}
+
+
+def _flatten_cluster_lookup(payload: Dict[str, Any]) -> Dict[str, int]:
+    clusters = payload.get('clusters')
+    if not isinstance(clusters, dict):
+        return {}
+    lookup: Dict[str, int] = {}
+    for cluster_id, members in clusters.items():
+        if not isinstance(members, list):
+            continue
+        for member in members:
+            lookup[str(member)] = int(cluster_id)
+    return lookup
 
 
 if __name__ == '__main__':

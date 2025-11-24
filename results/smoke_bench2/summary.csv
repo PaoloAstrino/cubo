@@ -1,0 +1,2 @@
+run_id,dataset,retrieval_config,ablation,mode,timestamp,success,avg_recall_at_k_10,avg_ndcg_at_k_10,avg_retrieval_latency_p50_ms,avg_answer_relevance,ingestion_minutes_per_gb,ingestion_attempts,test_attempts,error_message
+smoke__hybrid__none__1763918069,smoke,hybrid,none,retrieval-only,1763918069.8354344,0,0,0,0,0,,,,

@@ -356,8 +356,6 @@ class AutoMergingRetriever:
             "dimension": int(config.get("auto_merge_index_dimension", config.get("index_dimension", 1536))),
             "index_dir": config.get("auto_merge_vector_store_path", config.get("vector_store_path"))
         }
-        if backend == "chroma":
-            store_kwargs["db_path"] = config.get("auto_merge_chroma_db_path", config.get("chroma_db_path", "./chroma_db"))
 
         self.collection = create_vector_store(
             backend=backend,
@@ -411,7 +409,7 @@ class AutoMergingRetriever:
                 documents.append(chunk['text'])
 
                 # Create metadata dict from chunk fields
-                # ChromaDB only accepts str, int, float, bool - not None or lists
+                # Vector stores accept primitive metadata types only (not None or lists)
                 metadata = {
                     'id': chunk['id'],
                     'filename': chunk['filename'],
@@ -424,7 +422,7 @@ class AutoMergingRetriever:
                 # Only add parent_id if it's not None
                 if chunk.get('parent_id'):
                     metadata['parent_id'] = chunk['parent_id']
-                # child_ids is a list, ChromaDB doesn't support lists, skip it
+                # child_ids is a list; many vector stores don't support lists, skip it
                 metadatas.append(metadata)
 
             # Add all chunks in batch
@@ -461,7 +459,7 @@ class AutoMergingRetriever:
             if not results['documents']:
                 return []
 
-            processed_results = self._process_chromadb_results(results)
+            processed_results = self._process_store_results(results)
             merged_results = self._apply_auto_merging(results, processed_results, top_k)
             return self._format_final_results(merged_results)
 
@@ -481,8 +479,8 @@ class AutoMergingRetriever:
             n_results=top_k * 3  # Get more results for merging
         )
 
-    def _process_chromadb_results(self, results: Dict) -> List[Dict]:
-        """Process raw ChromaDB results into structured format."""
+    def _process_store_results(self, results: Dict) -> List[Dict]:
+        """Process raw vector store results into structured format."""
         processed_results = []
         for i, (doc, metadata, distance) in enumerate(zip(
             results['documents'][0],

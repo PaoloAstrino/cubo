@@ -111,6 +111,25 @@ class FAISSIndexManager:
         import math
         nbits = max(1, min(8, int(math.floor(math.log2(max(2, vectors.shape[0]))))))
 
+        # FAISS requires a certain number of training points relative to nlist.
+        # A rule of thumb (used by FAISS warnings) is ~39 training points per centroid.
+        MIN_POINTS_PER_CENTROID = 39
+        required_training_points = effective_nlist * MIN_POINTS_PER_CENTROID
+        if vectors.shape[0] < required_training_points:
+            logger.warning(f"Not enough training vectors for IVFPQ (required: {required_training_points}, got: {vectors.shape[0]}). Falling back to Flat index to avoid poor PQ training.")
+            cold_index = faiss.IndexFlatL2(self.dimension)
+            cold_index.add(vectors)
+            return cold_index
+
+        # If there are too few training vectors for reasonable clustering, fallback to flat
+        # Empirically, require roughly 40 training points per centroid to get stable clustering
+        required_training = max(1, effective_nlist * 40)
+        if vectors.shape[0] < required_training:
+            logger.warning(f"Not enough vectors ({vectors.shape[0]}) to reliably train an IVF+PQ index (need >= {required_training}); falling back to flat index")
+            cold_index = faiss.IndexFlatL2(self.dimension)
+            cold_index.add(vectors)
+            return cold_index
+
         if self.use_opq:
             # Apply OPQ (Optimized Product Quantization) transform
             logger.info(f"Building cold index with OPQ (opq_m={self.opq_m})")

@@ -25,29 +25,43 @@ class ScaffoldGenerator:
 
     def __init__(
         self,
-        enricher: Optional[ChunkEnricher] = None,
+        enricher: ChunkEnricher,
         embedding_generator: Optional[EmbeddingGenerator] = None,
         scaffold_size: int = 5,
         similarity_threshold: float = 0.75,
+        use_clustering: bool = False,
+        clustering_method: str = 'kmeans',
     ):
+        if enricher is None:
+            raise ValueError("Enricher is a mandatory component and cannot be None")
         self.enricher = enricher
         self.embedding_generator = embedding_generator
         self.scaffold_size = scaffold_size
         self.similarity_threshold = similarity_threshold
+        self.use_clustering = use_clustering
+        self.clustering_method = clustering_method
+        
+        # Initialize clusterer if needed
+        if self.use_clustering:
+            from src.cubo.processing.clustering import SemanticClusterer
+            self.clusterer = SemanticClusterer(method=clustering_method, min_cluster_size=scaffold_size)
+        else:
+            self.clusterer = None
 
     def generate_scaffolds(
         self,
         chunks_df: pd.DataFrame,
         text_column: str = 'text',
         id_column: str = 'chunk_id',
+        chunk_embeddings: Optional[np.ndarray] = None,
     ) -> Dict[str, Any]:
         if chunks_df.empty:
             logger.warning("Empty chunks DataFrame provided to scaffold generator")
             return {'scaffolds_df': pd.DataFrame(), 'mapping': {}, 'scaffold_embeddings': []}
-        logger.info(f"Generating scaffolds from {len(chunks_df)} chunks")
+        logger.info(f"Generating scaffolds from {len(chunks_df)} chunks (clustering={self.use_clustering})")
         enriched_chunks = self._enrich_chunks_if_needed(chunks_df, text_column)
         chunk_ids = chunks_df[id_column].tolist()
-        scaffold_groups = self._group_chunks_into_scaffolds(enriched_chunks, chunk_ids)
+        scaffold_groups = self._group_chunks_into_scaffolds(enriched_chunks, chunk_ids, chunk_embeddings)
         scaffolds_data = self._create_scaffold_data(scaffold_groups, enriched_chunks, chunks_df, text_column)
         scaffold_embeddings = self._generate_scaffold_embeddings(scaffolds_data)
         scaffolds_df = pd.DataFrame.from_records(scaffolds_data)
@@ -91,19 +105,38 @@ class ScaffoldGenerator:
         return {'scaffolds_df': scaffolds_df, 'mapping': mapping, 'scaffold_embeddings': scaffold_embeddings}
 
     def _enrich_chunks_if_needed(self, chunks_df: pd.DataFrame, text_column: str) -> List[Dict[str, Any]]:
-        if self.enricher:
-            logger.info("Enriching chunks with summaries")
-            texts = chunks_df[text_column].fillna('').tolist()
-            enriched = self.enricher.enrich_chunks(texts)
-            return enriched
-        else:
-            logger.info("No enricher provided, using chunk text as summary")
-            return [
-                {'text': row[text_column], 'summary': row[text_column][:200], 'keywords': [], 'category': 'general'}
-                for _, row in chunks_df.iterrows()
-            ]
+        logger.info("Enriching chunks with summaries (mandatory step)")
+        texts = chunks_df[text_column].fillna('').tolist()
+        enriched = self.enricher.enrich_chunks(texts)
+        return enriched
 
-    def _group_chunks_into_scaffolds(self, enriched_chunks: List[Dict[str, Any]], chunk_ids: List[str]) -> List[List[int]]:
+    def _group_chunks_into_scaffolds(
+        self,
+        enriched_chunks: List[Dict[str, Any]],
+        chunk_ids: List[str],
+        chunk_embeddings: Optional[np.ndarray] = None
+    ) -> List[List[int]]:
+        """Group chunks into scaffolds using clustering or sequential grouping."""
+        
+        # Use semantic clustering if enabled and embeddings are available
+        if self.use_clustering and self.clusterer and chunk_embeddings is not None:
+            try:
+                labels, n_clusters = self.clusterer.cluster_chunks(chunk_embeddings)
+                
+                # Convert cluster labels to groups
+                groups = [[] for _ in range(n_clusters)]
+                for idx, label in enumerate(labels):
+                    groups[label].append(idx)
+                
+                # Filter out empty groups
+                groups = [g for g in groups if g]
+                
+                logger.info(f"Semantic clustering grouped {len(enriched_chunks)} chunks into {len(groups)} scaffolds")
+                return groups
+            except Exception as e:
+                logger.warning(f"Clustering failed: {e}, falling back to sequential grouping")
+        
+        # Fallback to sequential grouping
         groups = []
         current_group = []
         for idx in range(len(enriched_chunks)):
@@ -113,7 +146,7 @@ class ScaffoldGenerator:
                 current_group = []
         if current_group:
             groups.append(current_group)
-        logger.info(f"Grouped {len(enriched_chunks)} chunks into {len(groups)} scaffolds")
+        logger.info(f"Sequential grouping created {len(groups)} scaffolds from {len(enriched_chunks)} chunks")
         return groups
 
     def _create_scaffold_data(
@@ -212,7 +245,17 @@ def save_scaffold_run(
     # Use a nested scaffolds subdirectory under run_id for the final storage layout
     run_dir = Path(output_root) / run_id / 'scaffolds'
     run_dir.mkdir(parents=True, exist_ok=True)
-    generator = ScaffoldGenerator()
+    # Create a minimal generator just for saving (no enricher needed for save operation)
+    # We only need the save_scaffolds method, which doesn't use enricher/embedding_generator
+    from src.cubo.processing.enrichment import ChunkEnricher
+    
+    # Create a dummy enricher for the generator (only used for save operation)
+    class DummyLLM:
+        def generate_response(self, prompt, context):
+            return ""
+    
+    dummy_enricher = ChunkEnricher(llm_provider=DummyLLM())
+    generator = ScaffoldGenerator(enricher=dummy_enricher)
     paths = generator.save_scaffolds(scaffolds_result, run_dir, model_version=model_version)
     manifest_dir = Path(manifests_dir or (Path(run_dir).parent.parent / 'manifests'))
     manifest_dir.mkdir(parents=True, exist_ok=True)
@@ -253,7 +296,7 @@ def save_scaffold_run(
 def create_scaffolds_from_parquet(
     parquet_path: str,
     output_dir: str,
-    enricher: Optional[ChunkEnricher] = None,
+    enricher: ChunkEnricher,
     embedding_generator: Optional[EmbeddingGenerator] = None,
     scaffold_size: int = 5,
     text_column: str = 'text',

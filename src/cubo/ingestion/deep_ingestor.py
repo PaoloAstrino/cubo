@@ -11,6 +11,7 @@ import pandas as pd
 
 from src.cubo.config import config
 from src.cubo.ingestion.document_loader import DocumentLoader
+from src.cubo.ingestion.ocr_processor import OCRProcessor
 from src.cubo.storage.metadata_manager import get_metadata_manager
 from src.cubo.utils.logger import logger
 
@@ -43,6 +44,8 @@ class DeepIngestor:
             else config.get("ingestion.deep.use_file_hash_for_chunk_id", config.get("deep_chunk_id_use_file_hash", True))
         )
         self.loader = DocumentLoader(skip_model=True)
+        self.ocr_processor = OCRProcessor(config)  # Initialize OCR processor
+        self.input_folder.mkdir(parents=True, exist_ok=True)  # Ensure input folder exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._supported_extensions = set(self.loader.supported_extensions) | {".csv", ".xlsx"}
 
@@ -205,7 +208,7 @@ class DeepIngestor:
         return chunks
 
     def _process_pdf(self, path: Path) -> List[Dict[str, Any]]:
-        """Use pdfplumber for page-wise text + table extraction, fallback to PyPDF2 text extract."""
+        """Use pdfplumber for page-wise text + table extraction, with OCR fallback for scanned PDFs."""
         if pdfplumber is None:
             # Fallback: use loader's default PDF parsing which returns a single text blob
             logger.warning("pdfplumber not available, using fallback PDF extraction")
@@ -221,12 +224,14 @@ class DeepIngestor:
             ]
 
         chunks: List[Dict[str, Any]] = []
+        has_text = False
         try:
             with pdfplumber.open(str(path)) as pdf:
                 for page_num, page in enumerate(pdf.pages):
                     # Extract page text
                     text = page.extract_text()
                     if text:
+                        has_text = True
                         # Use sentence window chunking across page content if it's large
                         # We'll call Utils.create_sentence_window_chunks for more granular matching
                         from src.cubo.utils.utils import Utils
@@ -269,6 +274,21 @@ class DeepIngestor:
                             })
         except Exception as exc:
             logger.warning(f"Error processing PDF with pdfplumber {path}: {exc}")
+
+        # OCR fallback for scanned PDFs (no text extracted)
+        if not has_text and self.ocr_processor.enabled:
+            logger.info(f"No text found in {path}, attempting OCR fallback")
+            ocr_text = self.ocr_processor.extract_text(str(path))
+            if ocr_text:
+                # Chunk the OCR text using sentence window chunking
+                from src.cubo.utils.utils import Utils
+                s_chunks = Utils.create_sentence_window_chunks(
+                    ocr_text, window_size=self.chunking_config.get("window_size", 3)
+                )
+                for c in s_chunks:
+                    c["type"] = "text_ocr"  # Mark as OCR-extracted
+                    c["chunk_index"] = c.get("chunk_index", 0)
+                    chunks.append(c)
 
         return chunks
 

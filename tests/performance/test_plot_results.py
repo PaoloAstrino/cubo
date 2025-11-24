@@ -2,8 +2,15 @@ import os
 import csv
 import json
 from pathlib import Path
-from scripts.plot_results import main as plot_main
 import subprocess
+import pytest
+
+try:
+    import matplotlib  # type: ignore
+except Exception:
+    pytest.skip("matplotlib not installed; skipping performance plot tests", allow_module_level=True)
+
+from scripts.plot_results import main as plot_main
 
 
 def create_fake_results(tmp_path: Path):

@@ -1,5 +1,5 @@
 """
-Vector store abstraction to allow swapping FAISS and ChromaDB backends.
+Vector store abstraction with FAISS as the primary backend.
 """
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ class FaissStore(VectorStore):
         return len(self._docs)
 
     def get(self, include=None, where=None, ids=None):
-        # Behavior: return 'ids', 'documents', 'metadatas' arrays; include repeated as lists within lists similar to chroma
+        # Return structure: 'ids', 'documents', 'metadatas' arrays
         ids_out = []
         docs = []
         metas = []
@@ -102,7 +102,7 @@ class FaissStore(VectorStore):
         return {"ids": ids_out, "documents": [docs], "metadatas": [metas]}
 
     def query(self, query_embeddings=None, n_results=10, include=None, where=None):
-        # Query FAISS for nearest neighbors; return structure matching chroma API
+        # Query FAISS for nearest neighbors
         if not query_embeddings or self.count() == 0:
             return {"documents": [[]], "metadatas": [[]], "distances": [[]], "ids": [[]]}
         results = self._index.search(query_embeddings[0], k=n_results)
@@ -186,64 +186,20 @@ class FaissStore(VectorStore):
             self.reset()
 
 
-class ChromaStore(VectorStore):
-    def __init__(self, db_path: str = None, collection_name: Optional[str] = None):
-        import chromadb
-        p = db_path or config.get('chroma_db_path', './chroma_db')
-        self.client = chromadb.PersistentClient(path=p)
-        self.collection_name = collection_name or config.get('collection_name', 'cubo_documents')
-        try:
-            self.collection = self.client.get_or_create_collection(name=self.collection_name)
-        except Exception:
-            # fallback to in-memory collection
-            self.collection = None
-
-    def add(self, embeddings=None, documents=None, metadatas=None, ids=None):
-        if self.collection:
-            self.collection.add(embeddings=embeddings, documents=documents, metadatas=metadatas, ids=ids)
-
-    def count(self) -> int:
-        if self.collection:
-            return self.collection.count()
-        return 0
-
-    def get(self, include=None, where=None, ids=None):
-        if self.collection:
-            return self.collection.get(include=include, where=where, ids=ids)
-        return {"ids": [], "documents": [[]], "metadatas": [[]]}
-
-    def query(self, query_embeddings=None, n_results=10, include=None, where=None):
-        if self.collection:
-            return self.collection.query(query_embeddings=query_embeddings, n_results=n_results, include=include, where=where)
-        return {"documents": [[]], "metadatas": [[]], "distances": [[]], "ids": [[]]}
-
-    def reset(self) -> None:
-        if not self.client:
-            return
-        try:
-            self.client.delete_collection(self.collection_name)
-        except Exception:
-            pass
-        self.collection = self.client.get_or_create_collection(name=self.collection_name)
-
-    def delete(self, ids=None) -> None:
-        if not ids:
-            return
-        if self.collection:
-            self.collection.delete(ids=ids)
-
-
 def create_vector_store(backend: str = None, collection_name: Optional[str] = None, **kwargs) -> VectorStore:
-    backend = backend or config.get('vector_store_backend', 'faiss')
-    if backend == 'faiss':
-        dimension = kwargs.get('dimension', 1536)
-        index_dir_arg = kwargs.get('index_dir', config.get('vector_store_path'))
-        index_dir = Path(index_dir_arg) if index_dir_arg else None
-        index_root_arg = kwargs.get('index_root', config.get('faiss_index_root', None))
-        index_root = Path(index_root_arg) if index_root_arg else None
-        return FaissStore(dimension, index_dir=index_dir, index_root=index_root)
-    elif backend == 'chroma':
-        db_path = kwargs.get('db_path', config.get('chroma_db_path', './chroma_db'))
-        return ChromaStore(db_path, collection_name=collection_name)
-    else:
-        raise ValueError(f"Unknown vector store backend: {backend}")
+    """Create a FAISS vector store instance.
+    
+    Args:
+        backend: Legacy parameter, ignored (FAISS is always used)
+        collection_name: Not used for FAISS
+        **kwargs: Additional arguments for FaissStore (dimension, index_dir, index_root)
+    
+    Returns:
+        FaissStore instance
+    """
+    dimension = kwargs.get('dimension', 1536)
+    index_dir_arg = kwargs.get('index_dir', config.get('vector_store_path'))
+    index_dir = Path(index_dir_arg) if index_dir_arg else None
+    index_root_arg = kwargs.get('index_root', config.get('faiss_index_root', None))
+    index_root = Path(index_root_arg) if index_root_arg else None
+    return FaissStore(dimension, index_dir=index_dir, index_root=index_root)

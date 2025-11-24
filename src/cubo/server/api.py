@@ -138,6 +138,10 @@ class QueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000, description="User query")
     top_k: int = Field(5, ge=1, le=20, description="Number of results to retrieve")
     use_reranker: bool = Field(True, description="Whether to use reranker")
+    # Advanced retrieval parameters
+    bm25_weight: float = Field(0.3, ge=0.0, le=1.0, description="Weight for BM25 sparse retrieval")
+    dense_weight: float = Field(0.7, ge=0.0, le=1.0, description="Weight for dense vector retrieval")
+    retrieval_strategy: str = Field('hybrid', description="Retrieval strategy: 'hybrid', 'dense', or 'sparse'")
 
 
 class QueryResponse(BaseModel):
@@ -165,7 +169,7 @@ class IngestRequest(BaseModel):
 class IngestResponse(BaseModel):
     """Ingest response model."""
     status: str
-    documents_processed: int
+    documents_processed: int  # Actually chunks count
     trace_id: str
     message: str
 
@@ -284,7 +288,7 @@ async def readiness_check():
             "service_manager": service_manager is not None,
             "retriever": hasattr(cubo_app, 'retriever') and cubo_app.retriever is not None if cubo_app else False,
             "generator": hasattr(cubo_app, 'generator') and cubo_app.generator is not None if cubo_app else False,
-            "doc_loader": hasattr(cubo_app, 'document_loader') and cubo_app.document_loader is not None if cubo_app else False,
+            "doc_loader": hasattr(cubo_app, 'doc_loader') and cubo_app.doc_loader is not None if cubo_app else False,
             "vector_store": False
         }
 
@@ -427,7 +431,7 @@ async def ingest_documents(
                 raise HTTPException(status_code=404, detail=f"Data path not found: {data_path}")
 
             # Load documents
-            documents = cubo_app.document_loader.load_documents(str(data_path))
+            documents = cubo_app.doc_loader.load_documents_from_folder(str(data_path))
 
             if not documents:
                 logger.warning("No documents found to ingest")
@@ -440,29 +444,56 @@ async def ingest_documents(
 
             logger.info(f"Loaded {len(documents)} documents for ingestion")
 
-            # Process documents (this can be time-consuming)
-            # For fast_pass mode, we'll use simpler processing
-            processed_count = len(documents)
-
-            # Store documents for retrieval
-            # This would typically involve creating embeddings and storing in vector DB
-            # For now, we'll just log and return success
-
+            # Use DeepIngestor for proper document processing
+            from src.cubo.ingestion.deep_ingestor import DeepIngestor
+            
+            ingestor = DeepIngestor(
+                input_folder=str(data_path),
+                output_dir=config.get('ingestion.deep.output_dir', './data/deep')
+            )
+            
+            # Run ingestion (creates parquet with chunks)
+            result = ingestor.ingest()
+            
+            if not result:
+                logger.warning("Deep ingestion produced no results")
+                return IngestResponse(
+                    status="completed",
+                    documents_processed=0,
+                    trace_id=trace_id,
+                    message="No chunks generated from documents"
+                )
+            
+            chunks_count = result.get('chunks_count', 0)
+            parquet_path = result.get('chunks_parquet', '')
+            
             logger.info(
                 "Document ingestion completed",
-                extra={"documents_processed": processed_count}
+                extra={
+                    "chunks_processed": chunks_count,
+                    "parquet_path": parquet_path
+                }
             )
-
+            
             return IngestResponse(
                 status="completed",
-                documents_processed=processed_count,
+                documents_processed=chunks_count,
                 trace_id=trace_id,
-                message=f"Successfully ingested {processed_count} documents"
+                message="Ingestion completed successfully"
             )
-
+            
         except Exception as e:
-            logger.error(f"Document ingestion failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            logger.error(
+                "Document ingestion failed",
+                extra={"error": str(e), "trace_id": trace_id},
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Ingestion failed: {str(e)}"
+            )
 
 
 @app.post("/api/build-index", response_model=BuildIndexResponse)
@@ -503,7 +534,7 @@ async def build_index(
             # This will:
             # 1. Initialize components if needed (model, retriever, generator)
             # 2. Load documents from data folder
-            # 3. Add documents to vector DB (FAISS/ChromaDB)
+            # 3. Add documents to vector DB (FAISS)
             # 4. Update BM25 indexes
 
             doc_count = cubo_app.build_index()

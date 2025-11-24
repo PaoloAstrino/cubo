@@ -1,26 +1,48 @@
-from src.cubo.retrieval.retriever import *
+"""Compatibility shim: re-export DocumentRetriever.
 
-__all__ = [name for name in dir() if not name.startswith('_')]
+This small module re-exports the concrete `DocumentRetriever` implementation
+from `src.cubo.retrieval.retriever` so existing imports like
+`from src.retriever import DocumentRetriever` continue to work.
+"""
+from src.cubo.retrieval.retriever import DocumentRetriever
 
+__all__ = ["DocumentRetriever"]
+"""Compatibility shim: re-export DocumentRetriever
 
-class DocumentRetriever:
-    """Handles document retrieval using ChromaDB and sentence transformers."""
+This module preserves older import paths by re-exporting the real
+retriever implementation from `src.cubo.retrieval.retriever`.
 
-    def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True,
-                 use_auto_merging: bool = False, auto_merge_for_complex: bool = True,
-                 window_size: int = 3, top_k: int = 3):
-        self._set_basic_attributes(model, use_sentence_window, use_auto_merging,
-                                   auto_merge_for_complex, window_size, top_k)
-        self._initialize_auto_merging_retriever()
-        # use new vector store setup (FAISS/Chroma) factory
-        self._setup_vector_store()
-        self._setup_caching()
-        self._initialize_postprocessors()
-        self._log_initialization_status()
+NOTE: This shim intentionally avoids any references to specific vector
+store implementations. FAISS is the supported default vector store.
+"""
+from src.cubo.retrieval.retriever import DocumentRetriever
 
-    def _set_basic_attributes(self, model: SentenceTransformer, use_sentence_window: bool,
-                              use_auto_merging: bool, auto_merge_for_complex: bool,
-                              window_size: int, top_k: int) -> None:
+__all__ = ["DocumentRetriever"]
+"""Compatibility shim: re-export DocumentRetriever
+
+This module preserves older import paths by re-exporting the real
+retriever implementation from `src.cubo.retrieval.retriever`.
+"""
+from src.cubo.retrieval.retriever import DocumentRetriever
+
+__all__ = ["DocumentRetriever"]
+"""Compatibility shim: re-export DocumentRetriever
+
+This module exists to preserve older imports such as `from src.retriever import DocumentRetriever`.
+The actual implementation lives in `src.cubo.retrieval.retriever`.
+"""
+from src.cubo.retrieval.retriever import DocumentRetriever
+
+__all__ = ["DocumentRetriever"]
+from src.cubo.retrieval.retriever import DocumentRetriever
+
+__all__ = ["DocumentRetriever"]
+
+"""Compatibility shim.
+This module re-exports the main DocumentRetriever implementation from
+`src.cubo.retrieval.retriever` to preserve import paths in older code.
+"""
+
         """Set basic instance attributes."""
         self.model = model
         self.service_manager = get_service_manager()
@@ -44,7 +66,7 @@ class DocumentRetriever:
                 self.use_auto_merging = False
 
     def _setup_vector_store(self) -> None:
-        """Setup the configured vector store (FAISS or Chroma)."""
+        """Setup the configured vector store (FAISS)."""
         from src.cubo.retrieval.vector_store import create_vector_store
         self.collection = create_vector_store(backend=config.get('vector_store_backend', 'faiss'), dimension=config.get('index_dimension', 1536), index_dir=config.get('vector_store_path'))
 
@@ -73,17 +95,15 @@ class DocumentRetriever:
 
     def _initialize_postprocessors(self) -> None:
         """Initialize postprocessors and reranker based on configuration."""
-        if self.use_sentence_window:
-            from .postprocessor import WindowReplacementPostProcessor
-            self.window_postprocessor = WindowReplacementPostProcessor()
-            if self.model:
-                self.reranker = LocalReranker(self.model)
-            else:
-                self.reranker = None
-                logger.warning("Embedding model not available, reranker will not be initialized.")
-        else:
-            self.window_postprocessor = None
-            self.reranker = None
+        from .postprocessor import WindowReplacementPostProcessor
+        self.window_postprocessor = WindowReplacementPostProcessor()
+        
+        # ALWAYS initialize reranker - it's a mandatory component
+        if not self.model:
+            raise ModelNotAvailableError("Reranker requires an embedding model, but none is available")
+        
+        self.reranker = LocalReranker(self.model)
+        logger.info("Reranker initialized (mandatory component)")
 
     def _log_initialization_status(self) -> None:
         """Log the initialization status."""
@@ -655,7 +675,7 @@ class DocumentRetriever:
                                   texts: List[str], metadatas: List[Dict],
                                   chunk_ids: List[str], filename: str) -> None:
         """
-        Add chunks to the ChromaDB collection.
+        Add chunks to the vector store collection.
 
         Args:
             embeddings: List of embeddings
@@ -738,7 +758,7 @@ class DocumentRetriever:
             }) from e
 
     def _execute_collection_query(self, query_embedding: List[float], initial_top_k: int):
-        """Execute the ChromaDB collection query."""
+        """Execute the vector store collection query."""
         # If no documents in current session, search ALL documents in database
         # Otherwise, only search current session documents
         query_params = {

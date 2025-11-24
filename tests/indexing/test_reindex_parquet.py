@@ -6,18 +6,9 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 from src.cubo.ingestion.deep_ingestor import DeepIngestor
 from src.cubo.config import config
-
-try:
-    import chromadb.config
-    CHROMADB_AVAILABLE = True
-except Exception:
-    # chromadb may import but fail during initialization if optional dependencies (e.g., onnxruntime) are missing
-    CHROMADB_AVAILABLE = False
-
 import pytest
 
 
-@pytest.mark.skipif(not CHROMADB_AVAILABLE, reason="ChromaDB not available")
 def test_reindex_parquet_with_wipe(tmp_path: Path):
     # Create input files to produce a parquet
     folder = tmp_path / 'docs'
@@ -30,11 +21,11 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
     parquet = res['chunks_parquet']
     df = pd.read_parquet(parquet)
 
-    # Setup temp chroma db path
-    tmpdb = tmp_path / 'chroma'
+    # Setup temp FAISS index path
+    tmpdb = tmp_path / 'faiss'
     tmpdb.mkdir()
-    config.set('chroma_db_path', str(tmpdb))
-    config.set('vector_store_backend', 'chroma')
+    config.set('vector_store_path', str(tmpdb))
+    config.set('vector_store_backend', 'faiss')
 
     # Ensure model loading is mocked to avoid heavy dependencies
     import runpy
@@ -42,6 +33,7 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
     # Run reindex script in-process with model patched
     with patch('src.cubo.embeddings.model_loader.model_manager.get_model') as mock_get_model:
         mock_model = MagicMock()
+        mock_model.get_sentence_embedding_dimension.return_value = 64
         def mock_encode(texts, batch_size=1):
             return [[0.1] * 64 for _ in texts]
         mock_model.encode.side_effect = mock_encode
@@ -58,5 +50,5 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
     # Verify collection count
     from src.cubo.retrieval.retriever import DocumentRetriever
     retr = DocumentRetriever(model=None)
-    coll = retr.client.get_or_create_collection('test_reindex')
+    coll = retr.collection
     assert coll.count() == len(df)

@@ -36,10 +36,24 @@ def test_retrieval_latency_and_recall_constraints(smoke_data_dir, sample_questio
     # Basic assertions
     metadata = results.get('metadata', {})
     assert metadata.get('total_questions', 0) > 0
-    # Latency check (p50 should be reasonably small in smoke environment)
+    
+    # Environment-aware latency thresholds
+    LATENCY_THRESHOLDS = {
+        'ci': 500,        # CI environment (slower)
+        'dev': 200,       # Dev machines
+        'staging': 100,   # Staging
+        'prod': 50        # Production
+    }
+    
+    env = os.getenv('TEST_ENV', 'dev')
+    threshold_ms = LATENCY_THRESHOLDS.get(env, 200)
+    
+    # Latency check with environment-aware threshold
     overall_latency_p50 = metadata.get('avg_retrieval_latency_p50_ms', 0)
     if overall_latency_p50 and overall_latency_p50 > 0:
-        # Allow higher bound if not present
-        assert overall_latency_p50 < 2000  # 2s in dev env; lower in production
+        assert overall_latency_p50 < threshold_ms, \
+            f"P50 latency {overall_latency_p50}ms exceeds {env} threshold {threshold_ms}ms"
+    
     # Check recall at k present and > 0
     assert metadata.get('avg_recall_at_k_5', 0) >= 0
+
