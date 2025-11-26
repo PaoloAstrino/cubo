@@ -16,6 +16,8 @@ import numpy as np
 
 import numpy as np
 
+import numpy as np
+
 from src.cubo.config import config
 from src.cubo.storage.document_store import DocumentStore
 from src.cubo.storage.embedding_store import EmbeddingStore, create_embedding_store
@@ -100,7 +102,22 @@ class FaissStore(VectorStore):
         embedding_cache_size = int(_config.get('vector_store.embedding_cache_size', 512))
         shard_size = int(_config.get('vector_store.shard_size', 1000))
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+        
+        self._embedding_store: EmbeddingStore = create_embedding_store(
+            mode=embedding_mode,
+            storage_dir=self.index_dir / 'embeddings' if embedding_mode != 'memory' else None,
+            dimension=dimension,
+            dtype=embedding_dtype,
+            cache_size=embedding_cache_size,
+            shard_size=shard_size,
+            enable_cache=True
+        )
+        
+        self._access_counts: Dict[str, int] = {}
+>>>>>>> 1af16bb (feat: Add on-disk embedding persistence with sharding)
         
         self._embedding_store: EmbeddingStore = create_embedding_store(
             mode=embedding_mode,
@@ -137,7 +154,17 @@ class FaissStore(VectorStore):
             return
         self._index.build_indexes(embeddings, ids, append=True)
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+        
+        # Store embeddings via EmbeddingStore (in-memory or on-disk)
+        emb_batch = {did: embeddings[i] for i, did in enumerate(ids)}
+        self._embedding_store.add_batch(emb_batch)
+        
+        for did in ids:
+            self._access_counts.setdefault(did, 0)
+>>>>>>> 1af16bb (feat: Add on-disk embedding persistence with sharding)
         
         # Store embeddings via EmbeddingStore (in-memory or on-disk)
         emb_batch = {did: embeddings[i] for i, did in enumerate(ids)}
@@ -325,6 +352,9 @@ class FaissStore(VectorStore):
         Args:
             doc_id: Document ID to promote
         """
+<<<<<<< HEAD
+>>>>>>> 1af16bb (feat: Add on-disk embedding persistence with sharding)
+=======
 >>>>>>> 1af16bb (feat: Add on-disk embedding persistence with sharding)
         if self._embedding_store.get(doc_id) is None:
             return
