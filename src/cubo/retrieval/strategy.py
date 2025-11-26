@@ -3,6 +3,7 @@ Retrieval strategy for combining semantic and BM25 results.
 """
 from typing import Dict, List
 
+from src.cubo.retrieval.constants import SEMANTIC_WEIGHT_DEFAULT, BM25_WEIGHT_DEFAULT
 from src.cubo.utils.logger import logger
 
 
@@ -18,8 +19,8 @@ class RetrievalStrategy:
         semantic_candidates: List[Dict],
         bm25_candidates: List[Dict],
         top_k: int,
-        semantic_weight: float = 0.7,
-        bm25_weight: float = 0.3
+        semantic_weight: float = SEMANTIC_WEIGHT_DEFAULT,
+        bm25_weight: float = BM25_WEIGHT_DEFAULT
     ) -> List[Dict]:
         """
         Combine semantic and BM25 results using weighted scoring.

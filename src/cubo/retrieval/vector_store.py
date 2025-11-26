@@ -1,28 +1,14 @@
 """
 Vector store abstraction with FAISS as the primary backend.
-
-Uses SQLite-backed DocumentStore for persistent document/metadata storage
-with LRU caching for hot documents, minimizing memory footprint.
-
-Embeddings can be stored in-memory or on-disk via EmbeddingStore backend,
-configurable through config.vector_store.persist_embeddings.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict, List, Optional
 import threading
 from concurrent.futures import ThreadPoolExecutor
-
-import numpy as np
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Set
 
 from src.cubo.config import config
-# Optional DocumentStore import; fallback to None if unavailable
-try:
-    from src.cubo.storage.document_store import DocumentStore
-except Exception:
-    DocumentStore = None  # type: ignore
-from src.cubo.storage.embedding_store import EmbeddingStore, create_embedding_store
 
 # Module-level executor for async operations (lazy initialized)
 _promotion_executor: Optional[ThreadPoolExecutor] = None
@@ -72,14 +58,6 @@ class FaissStore(VectorStore):
     in-memory index (hot) while less-accessed vectors remain in a compressed
     on-disk index (cold). Promotions happen asynchronously to avoid blocking
     query operations.
-    
-    Documents and metadata are persisted to SQLite via DocumentStore with
-    an LRU cache for hot document access, minimizing memory usage.
-    
-    Embeddings can be stored in-memory or on-disk via configurable backend:
-    - 'memory': In-memory dict (default, fast but uses RAM)
-    - 'npy_sharded': Sharded numpy files (good for laptop mode)
-    - 'mmap': Memory-mapped file (best for very large collections)
     """
     
     def __init__(self, dimension: int, index_dir: Optional[Path] = None, index_root: Optional[Path] = None):
@@ -88,78 +66,33 @@ class FaissStore(VectorStore):
         from src.cubo.indexing.faiss_index import FAISSIndexManager
         self._index = FAISSIndexManager(dimension, index_dir=self.index_dir, index_root=index_root)
         self.index_root = index_root
-        
-        # Internal maps for docs/metas to preserve legacy API
+        # local maps: id -> text/metadata
         self._docs: Dict[str, str] = {}
         self._metas: Dict[str, Dict] = {}
-        
-        # Promotion machinery
-        self._promotion_lock = threading.Lock()
-        self._pending_promotions: set[str] = set()
-        self._promotion_in_progress: bool = False
-        
-        # Use DocumentStore with LRU cache for persistent doc/meta storage
-        from src.cubo.config import config as _config
-        cache_size = int(_config.get('document_cache_size', 1000))
-        self._doc_store = None
-        if DocumentStore is not None:
-            try:
-                self._doc_store = DocumentStore(
-                    db_path=self.index_dir / 'documents.db',
-                    cache_size=cache_size,
-                    enable_cache=True
-                )
-            except Exception:
-                # Fallback: keep None if initialization fails
-                self._doc_store = None
-        
-        # Initialize embedding store based on config
-        embedding_mode = _config.get('vector_store.persist_embeddings', 'memory')
-        embedding_dtype = _config.get('vector_store.embedding_dtype', 'float32')
-        embedding_cache_size = int(_config.get('vector_store.embedding_cache_size', 512))
-        shard_size = int(_config.get('vector_store.shard_size', 1000))
-        
-        self._embedding_store: EmbeddingStore = create_embedding_store(
-            mode=embedding_mode,
-            storage_dir=self.index_dir / 'embeddings' if embedding_mode != 'memory' else None,
-            dimension=dimension,
-            dtype=embedding_dtype,
-            cache_size=embedding_cache_size,
-            shard_size=shard_size,
-            enable_cache=True
-        )
-        
+        self._embeddings: Dict[str, List[float]] = {}
         self._access_counts: Dict[str, int] = {}
         # Configure hot fraction from config
+        from src.cubo.config import config as _config
         self.hot_fraction = float(_config.get('vector_index.hot_ratio', 0.2))
         self._index.hot_fraction = self.hot_fraction
+        
+        # Async promotion state
+        self._pending_promotions: Set[str] = set()
+        self._promotion_lock = threading.Lock()
+        self._promotion_in_progress = False
 
     def add(self, embeddings=None, documents=None, metadatas=None, ids=None):
         # Persist to FAISS and store metadata locally
         if not embeddings or not ids:
             return
         self._index.build_indexes(embeddings, ids, append=True)
-        
-        # Store embeddings via EmbeddingStore (in-memory or on-disk)
-        emb_batch = {did: embeddings[i] for i, did in enumerate(ids)}
-        self._embedding_store.add_batch(emb_batch)
-        
-        for did in ids:
-            self._access_counts.setdefault(did, 0)
-        # Persist documents/metadata either to DocumentStore (preferred) or in-memory
+        # Store embeddings for potential rebuilds (e.g., promotion to hot)
         for i, did in enumerate(ids):
-            doc_text = documents[i] if documents and i < len(documents) else ''
-            meta = metadatas[i] if metadatas and i < len(metadatas) else {}
-            if self._doc_store is not None:
-                try:
-                    self._doc_store.add_document(did, doc_text, meta)
-                except Exception:
-                    # Fallback to in-memory on failure
-                    self._docs[did] = doc_text
-                    self._metas[did] = meta
-            else:
-                self._docs[did] = doc_text
-                self._metas[did] = meta
+            self._embeddings[did] = embeddings[i]
+            self._access_counts.setdefault(did, 0)
+        for i, did in enumerate(ids):
+            self._docs[did] = documents[i] if documents and i < len(documents) else ''
+            self._metas[did] = metadatas[i] if metadatas and i < len(metadatas) else {}
 
     def count(self) -> int:
         return len(self._docs)
@@ -171,63 +104,34 @@ class FaissStore(VectorStore):
         metas = []
         if ids:
             for did in ids:
-                # Prefer DocumentStore if available
-                if self._doc_store is not None:
-                    doc = self._doc_store.get_document(did)
-                    if doc is not None:
-                        ids_out.append(did)
-                        docs.append(doc.get('text', ''))
-                        metas.append(doc.get('meta', {}))
-                else:
-                    if did in self._docs:
-                        ids_out.append(did)
-                        docs.append(self._docs.get(did, ''))
-                        metas.append(self._metas.get(did, {}))
+                if did in self._docs:
+                    ids_out.append(did)
+                    docs.append(self._docs.get(did, ''))
+                    metas.append(self._metas.get(did, {}))
         else:
             # If a 'where' filter is provided, apply it against stored metadata
             if where and isinstance(where, dict):
-                # Prefer DocumentStore iteration if available
-                if self._doc_store is not None:
-                    for did, doc in self._doc_store.iter_documents():
-                        meta = doc.get('meta', {})
-                        match = True
-                        for key, val in where.items():
-                            # Support simple equality checks
-                            if meta.get(key) != val:
-                                match = False
-                                break
-                        if match:
-                            ids_out.append(did)
-                            docs.append(doc.get('text', ''))
-                            metas.append(meta)
-                else:
-                    for did, doc in self._docs.items():
-                        meta = self._metas.get(did, {})
-                        match = True
-                        for key, val in where.items():
-                            # Support simple equality checks
-                            if meta.get(key) != val:
-                                match = False
-                                break
-                        if match:
-                            ids_out.append(did)
-                            docs.append(doc)
-                            metas.append(meta)
-            else:
-                if self._doc_store is not None:
-                    for did, doc in self._doc_store.iter_documents():
-                        ids_out.append(did)
-                        docs.append(doc.get('text', ''))
-                        metas.append(doc.get('meta', {}))
-                else:
-                    for did, doc in self._docs.items():
+                for did, doc in self._docs.items():
+                    meta = self._metas.get(did, {})
+                    match = True
+                    for key, val in where.items():
+                        # Support simple equality checks
+                        if meta.get(key) != val:
+                            match = False
+                            break
+                    if match:
                         ids_out.append(did)
                         docs.append(doc)
-                        metas.append(self._metas.get(did, {}))
+                        metas.append(meta)
+            else:
+                for did, doc in self._docs.items():
+                    ids_out.append(did)
+                    docs.append(doc)
+                    metas.append(self._metas.get(did, {}))
         return {"ids": ids_out, "documents": [docs], "metadatas": [metas]}
 
     def query(self, query_embeddings=None, n_results=10, include=None, where=None):
-        # Query FAISS for nearest neighbors
+        """Query FAISS for nearest neighbors with async hot promotion."""
         if not query_embeddings or self.count() == 0:
             return {"documents": [[]], "metadatas": [[]], "distances": [[]], "ids": [[]]}
         results = self._index.search(query_embeddings[0], k=n_results)
@@ -236,27 +140,26 @@ class FaissStore(VectorStore):
         metas = []
         dists = []
         ids_list = []
+        promotion_candidates = []
+        
+        from src.cubo.config import config as _config
+        threshold = int(_config.get('vector_index.promote_threshold', 10))
+        
         for res in results:
             did = res['id']
-            if self._doc_store is not None:
-                doc = self._doc_store.get_document(did)
-                docs.append(doc.get('text', '') if doc else '')
-                metas.append(doc.get('meta', {}) if doc else {})
-            else:
-                docs.append(self._docs.get(did, ''))
-                metas.append(self._metas.get(did, {}))
+            docs.append(self._docs.get(did, ''))
+            metas.append(self._metas.get(did, {}))
             dists.append(res['distance'])
             ids_list.append(did)
             # track access counts to potentially promote to hot
             self._access_counts[did] = self._access_counts.get(did, 0) + 1
-            from src.cubo.config import config as _config
-            threshold = int(_config.get('vector_index.promote_threshold', 10))
             if self._access_counts[did] >= threshold:
-                try:
-                    self.promote_to_hot(did)
-                except Exception:
-                    # Don't fail queries due to promotion operations
-                    pass
+                promotion_candidates.append(did)
+        
+        # Queue promotions asynchronously (non-blocking)
+        if promotion_candidates:
+            self._queue_promotions(promotion_candidates)
+        
         return {"documents": [docs], "metadatas": [metas], "distances": [dists], "ids": [ids_list]}
 
     def _queue_promotions(self, doc_ids: List[str]) -> None:
@@ -272,7 +175,7 @@ class FaissStore(VectorStore):
         with self._promotion_lock:
             # Add to pending set (deduplicates automatically)
             for did in doc_ids:
-                if self._embedding_store.get(did) is not None and did not in self._pending_promotions:
+                if did in self._embeddings and did not in self._pending_promotions:
                     self._pending_promotions.add(did)
             
             # If promotion already running, it will pick up pending items
@@ -321,34 +224,34 @@ class FaissStore(VectorStore):
         if not doc_ids:
             return
         
-        # Get embeddings for valid IDs
-        emb_map = self._embedding_store.get_batch(doc_ids)
-        valid_ids = list(emb_map.keys())
+        # Filter to only valid IDs that exist in embeddings
+        valid_ids = [did for did in doc_ids if did in self._embeddings]
         if not valid_ids:
             return
         
         # Rebuild index with promoted docs at the front (ensures they're in hot set)
-        all_ids = list(self._embedding_store.keys())
+        all_ids = list(self._embeddings.keys())
         for did in valid_ids:
             if did in all_ids:
                 all_ids.remove(did)
         new_ids = valid_ids + all_ids
         
-        # Get all embeddings in order
-        all_emb_map = self._embedding_store.get_batch(new_ids)
-        vectors = [all_emb_map[did].tolist() for did in new_ids if did in all_emb_map]
-        final_ids = [did for did in new_ids if did in all_emb_map]
-        
-        self._index.build_indexes(vectors, final_ids, append=False)
+        vectors = [self._embeddings[did] for did in new_ids]
+        self._index.build_indexes(vectors, new_ids, append=False)
         
         # Reset access counts for promoted docs
         for did in valid_ids:
             self._access_counts[did] = 0
 
     def promote_to_hot(self, doc_id: str) -> None:
-        """Promote a cold doc into the hot set by rebuilding indexes with the doc first.
+        """Promote a cold doc into the hot set (sync version for backward compatibility).
+        
+        For non-blocking promotion, use _queue_promotions() instead.
+        This method is kept for API compatibility but internally queues
+        the promotion asynchronously.
 
-        Note: This is a simplistic implementation that rebuilds FAISS indexes.
+        Args:
+            doc_id: Document ID to promote
         """
         self._queue_promotions([doc_id])
 
@@ -361,21 +264,9 @@ class FaissStore(VectorStore):
         Args:
             doc_id: Document ID to promote
         """
-        if self._embedding_store.get(doc_id) is None:
+        if doc_id not in self._embeddings:
             return
-        # Rebuild with doc_id among the first hot elements
-        # Keep order: put current hot_ids first (if known), then this doc id
-        all_ids = list(self._embedding_store.keys())
-        # Put promoted doc at the front to ensure it's in the hot set after build
-        if doc_id in all_ids:
-            all_ids.remove(doc_id)
-        new_ids = [doc_id] + all_ids
-        # Build corresponding embeddings array
-        emb_map = self._embedding_store.get_batch(new_ids)
-        vectors = [emb_map[did].tolist() for did in new_ids if did in emb_map]
-        self._index.build_indexes(vectors, new_ids, append=False)
-        # Reset access count so promotions don't immediately re-trigger
-        self._access_counts[doc_id] = 0
+        self._promote_batch_to_hot([doc_id])
 
     def save(self, path: Optional[Path] = None) -> None:
         self._index.save(path)
@@ -387,63 +278,30 @@ class FaissStore(VectorStore):
         from src.cubo.indexing.faiss_index import FAISSIndexManager
         self._index = FAISSIndexManager(self.dimension, index_dir=self.index_dir, index_root=getattr(self, 'index_root', None))
         self._index.hot_fraction = self.hot_fraction
-        self._embedding_store.clear()
+        self._docs.clear()
+        self._metas.clear()
+        self._embeddings.clear()
         self._access_counts.clear()
-        
-        # Clear DocumentStore
-        if self._doc_store is not None:
-            try:
-                self._doc_store.clear()
-            except Exception:
-                pass
-
-    def close(self) -> None:
-        """Close the document store and embedding store, releasing resources."""
-        if hasattr(self, '_doc_store') and self._doc_store:
-            self._doc_store.close()
-        if hasattr(self, '_embedding_store') and self._embedding_store:
-            self._embedding_store.close()
-
-    def __del__(self):
-        """Ensure resources are released on garbage collection."""
-        try:
-            self.close()
-        except Exception:
-            pass
 
     def delete(self, ids=None) -> None:
         """Delete entries from the FAISS store by removing them from internal maps and rebuilding the index."""
         if not ids:
             return
         id_set = set(ids)
-        
-        # Remove from DocumentStore
-        if self._doc_store is not None:
-            try:
-                self._doc_store.delete_documents(list(ids))
-            except Exception:
-                pass
-
-        # Remove from EmbeddingStore
-        self._embedding_store.delete_batch(list(ids))
-        
-        # Remove from access counts
-        for did in ids:
-            self._access_counts.pop(did, None)
-        
+        # remove from local metadata
+        for did in list(self._docs.keys()):
+            if did in id_set:
+                self._docs.pop(did, None)
+                self._metas.pop(did, None)
+                self._embeddings.pop(did, None)
+                self._access_counts.pop(did, None)
         # Rebuild indexes with remaining data
-        remaining_ids = list(self._embedding_store.keys())
-        if remaining_ids:
-            emb_map = self._embedding_store.get_batch(remaining_ids)
-            vectors = [emb_map[did].tolist() for did in remaining_ids if did in emb_map]
-            final_ids = [did for did in remaining_ids if did in emb_map]
-            try:
-                self._index.build_indexes(vectors, final_ids, append=False)
-            except Exception:
-                # If rebuild fails, reset the index and fallback to empty
-                self.reset()
-        else:
-            # No remaining embeddings, reset to empty
+        remaining_ids = list(self._embeddings.keys())
+        vectors = [self._embeddings[did] for did in remaining_ids]
+        try:
+            self._index.build_indexes(vectors, remaining_ids, append=False)
+        except Exception:
+            # If rebuild fails, reset the index and fallback to empty
             self.reset()
 
 

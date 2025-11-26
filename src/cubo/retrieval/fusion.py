@@ -3,8 +3,15 @@ Fusion utilities for retrieval: RRF fusion and semantic + BM25 combiner.
 """
 from typing import Dict, List
 
+from src.cubo.retrieval.constants import (
+    RRF_K,
+    SEMANTIC_WEIGHT_DETAILED,
+    BM25_WEIGHT_DETAILED,
+    DEFAULT_TOP_K,
+)
 
-def rrf_fuse(bm25_results: List[Dict], faiss_results: List[Dict], k: int = 60) -> List[Dict]:
+
+def rrf_fuse(bm25_results: List[Dict], faiss_results: List[Dict], k: int = RRF_K) -> List[Dict]:
     """Reciprocal Rank Fusion: combine two ranked lists into fused scores.
 
     Both lists are expected to follow the shape: [{'doc_id': '...', 'score': float}] or
@@ -31,8 +38,9 @@ def rrf_fuse(bm25_results: List[Dict], faiss_results: List[Dict], k: int = 60) -
 
 
 def combine_semantic_and_bm25(semantic_candidates: List[Dict], bm25_candidates: List[Dict],
-                             semantic_weight: float = 0.1, bm25_weight: float = 0.9,
-                             top_k: int = 10) -> List[Dict]:
+                             semantic_weight: float = SEMANTIC_WEIGHT_DETAILED, 
+                             bm25_weight: float = BM25_WEIGHT_DETAILED,
+                             top_k: int = DEFAULT_TOP_K) -> List[Dict]:
     """Combine semantic and BM25 candidate lists into a normalized combined ranking.
 
     Each candidate is expected as {'document': str, 'metadata': dict, 'similarity': float, 'id': str}

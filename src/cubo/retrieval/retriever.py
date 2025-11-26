@@ -26,7 +26,24 @@ from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.rerank.reranker import LocalReranker
 from src.cubo.retrieval.bm25_searcher import BM25Searcher
 from src.cubo.retrieval.cache import SemanticCache
+from src.cubo.retrieval.constants import (
+    BM25_NORMALIZATION_FACTOR,
+    COMPLEXITY_LENGTH_THRESHOLD,
+    DEFAULT_TOP_K,
+    DEFAULT_WINDOW_SIZE,
+    INITIAL_RETRIEVAL_MULTIPLIER,
+    MIN_BM25_THRESHOLD,
+    KEYWORD_BOOST_FACTOR,
+    SEMANTIC_WEIGHT_DETAILED,
+    BM25_WEIGHT_DETAILED,
+)
 from src.cubo.retrieval.fusion import rrf_fuse
+from src.cubo.retrieval.orchestrator import (
+    HybridScorer,
+    TieredRetrievalManager,
+    DeduplicationManager,
+    RetrievalOrchestrator,
+)
 from src.cubo.retrieval.strategy import RetrievalStrategy
 from src.cubo.services.service_manager import get_service_manager
 from src.cubo.storage.memory_store import InMemoryCollection
@@ -56,7 +73,7 @@ class DocumentRetriever:
 
     def __init__(self, model: SentenceTransformer, use_sentence_window: bool = True,
                  use_auto_merging: bool = False, auto_merge_for_complex: bool = True,
-                 window_size: int = 3, top_k: int = 3):
+                 window_size: int = DEFAULT_WINDOW_SIZE, top_k: int = DEFAULT_TOP_K):
         self._set_basic_attributes(model, use_sentence_window, use_auto_merging,
                                    auto_merge_for_complex, window_size, top_k)
         self._initialize_auto_merging_retriever()
@@ -65,6 +82,7 @@ class DocumentRetriever:
         self._load_dedup_metadata()
         self._initialize_postprocessors()
         self._initialize_retrieval_strategy()
+        self._initialize_tiered_retrieval()
         self._log_initialization_status()
 
     def _set_basic_attributes(self, model: SentenceTransformer, use_sentence_window: bool,
@@ -241,11 +259,111 @@ class DocumentRetriever:
         """Initialize retrieval strategy for combining results."""
         self.retrieval_strategy = RetrievalStrategy()
 
+    def _initialize_tiered_retrieval(self) -> None:
+        """Initialize scaffold retriever and summary embeddings for three-tier retrieval."""
+        # Tiered retrieval configuration
+        self.use_summary_prefilter = config.get('retrieval.use_summary_prefilter', False)
+        self.use_scaffold_compression = config.get('retrieval.use_scaffold_compression', False)
+        self.summary_prefilter_k = config.get('retrieval.summary_prefilter_k', 20)
+        self.scaffold_weight = config.get('retrieval.scaffold_weight', 0.3)
+        self.summary_weight = config.get('retrieval.summary_weight', 0.2)
+        self.dense_weight = config.get('retrieval.dense_weight', 0.5)
+        
+        # Scaffold retriever
+        self.scaffold_retriever = None
+        if self.use_scaffold_compression:
+            try:
+                from src.cubo.retrieval.scaffold_retriever import create_scaffold_retriever_from_directory
+                from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+                
+                scaffold_dir = config.get('scaffold.output_dir', './data/scaffolds')
+                if Path(scaffold_dir).exists():
+                    embedding_gen = EmbeddingGenerator()
+                    self.scaffold_retriever = create_scaffold_retriever_from_directory(
+                        scaffold_dir=scaffold_dir,
+                        embedding_generator=embedding_gen
+                    )
+                    if self.scaffold_retriever.is_ready:
+                        logger.info(f"Scaffold retriever initialized from {scaffold_dir}")
+                    else:
+                        logger.warning("Scaffold retriever loaded but not ready (missing data)")
+                        self.scaffold_retriever = None
+                else:
+                    logger.info(f"Scaffold directory not found: {scaffold_dir}, skipping scaffold retrieval")
+            except Exception as e:
+                logger.warning(f"Failed to initialize scaffold retriever: {e}")
+                self.scaffold_retriever = None
+        
+        # Summary embeddings for prefilter
+        self.summary_embedder = None
+        self.summary_embeddings = None
+        self.summary_chunk_ids = None
+        if self.use_summary_prefilter:
+            try:
+                from src.cubo.embeddings.summary_embedder import SummaryEmbedder
+                
+                summary_dir = Path(config.get('summary_embeddings.output_dir', './data/summary_embeddings'))
+                if summary_dir.exists():
+                    self.summary_embedder = SummaryEmbedder()
+                    summary_data = self.summary_embedder.load_summary_embeddings(summary_dir)
+                    self.summary_embeddings = summary_data.get('embeddings')
+                    self.summary_chunk_ids = summary_data.get('chunk_ids', [])
+                    if self.summary_embeddings is not None and len(self.summary_embeddings) > 0:
+                        logger.info(f"Summary embeddings loaded: {self.summary_embeddings.shape}")
+                    else:
+                        logger.warning("Summary embeddings loaded but empty")
+                        self.summary_embeddings = None
+                else:
+                    logger.info(f"Summary embeddings directory not found: {summary_dir}, skipping prefilter")
+            except Exception as e:
+                logger.warning(f"Failed to load summary embeddings: {e}")
+                self.summary_embeddings = None
+        
+        # Initialize the orchestrator with specialized managers
+        self._initialize_orchestrator()
+
+    def _initialize_orchestrator(self) -> None:
+        """Initialize the retrieval orchestrator with specialized managers."""
+        # Create tiered retrieval manager
+        tiered_manager = TieredRetrievalManager(
+            summary_embeddings=self.summary_embeddings,
+            summary_chunk_ids=self.summary_chunk_ids or [],
+            scaffold_retriever=self.scaffold_retriever,
+            summary_weight=self.summary_weight,
+            scaffold_weight=self.scaffold_weight,
+            dense_weight=self.dense_weight,
+        )
+        
+        # Create hybrid scorer
+        hybrid_scorer = HybridScorer()
+        
+        # Create deduplication manager
+        dedup_manager = DeduplicationManager(
+            enabled=self.dedup_enabled,
+            cluster_lookup=self.dedup_cluster_lookup,
+            representatives=self.dedup_representatives,
+            canonical_lookup=self.dedup_canonical_lookup,
+        )
+        
+        # Create orchestrator
+        self.orchestrator = RetrievalOrchestrator(
+            tiered_manager=tiered_manager,
+            hybrid_scorer=hybrid_scorer,
+            dedup_manager=dedup_manager,
+        )
+
     def _log_initialization_status(self) -> None:
         """Log the initialization status."""
+        tiered_status = []
+        if self.scaffold_retriever:
+            tiered_status.append("scaffold")
+        if self.summary_embeddings is not None:
+            tiered_status.append("summary_prefilter")
+        tiered_str = f", tiered=[{','.join(tiered_status)}]" if tiered_status else ""
+        
         logger.info(f"Document retriever initialized "
                     f"(sentence_window={self.use_sentence_window}, "
-                    f"auto_merging={self.use_auto_merging})")
+                    f"auto_merging={self.use_auto_merging}{tiered_str})")
 
     @property
     def client(self):
@@ -446,7 +564,7 @@ class DocumentRetriever:
              'relationship', 'difference', 'benefits', 'impact',
              'advantages', 'disadvantages', 'vs', 'versus']
         )
-        length_threshold = config.get('retrieval.complexity_length_threshold', 12)
+        length_threshold = config.get('retrieval.complexity_length_threshold', COMPLEXITY_LENGTH_THRESHOLD)
 
         query_lower = query.lower()
         # Check for complex keywords
@@ -458,13 +576,13 @@ class DocumentRetriever:
 
     def _retrieve_sentence_window(self, query: str, top_k: int, strategy: Optional[Dict] = None) -> List[Dict]:
         """
-        Retrieve using sentence window method with hybrid semantic + BM25 scoring.
+        Retrieve using sentence window method with three-tier retrieval:
         
-        Does two parallel retrievals:
-        1. Pure semantic similarity search
-        2. Pure BM25 keyword search
+        Tier 1: Summary prefilter (fast, broad) - if enabled
+        Tier 2: Scaffold compression (semantic grouping) - if enabled  
+        Tier 3: Dense vectors + BM25 hybrid (precise, focused)
         
-        Then combines results with 50/50 weighting.
+        Then combines results with configurable weighting.
         """
 
         def _retrieve_operation():
@@ -479,6 +597,44 @@ class DocumentRetriever:
             else:
                 retrieval_k = top_k * 3
 
+            # ============================================================
+            # TIER 1: Summary Prefilter (lightweight, fast)
+            # ============================================================
+            summary_chunk_ids = set()
+            if self.use_summary_prefilter and self.summary_embeddings is not None:
+                try:
+                    summary_chunk_ids = self._retrieve_via_summary_prefilter(
+                        query_embedding, self.summary_prefilter_k
+                    )
+                    logger.debug(f"Summary prefilter returned {len(summary_chunk_ids)} chunk IDs")
+                except Exception as e:
+                    logger.warning(f"Summary prefilter failed: {e}")
+
+            # ============================================================
+            # TIER 2: Scaffold Compression (semantic clustering)
+            # ============================================================
+            scaffold_chunk_ids = set()
+            scaffold_scores = {}
+            if self.use_scaffold_compression and self.scaffold_retriever:
+                try:
+                    scaffold_results = self.scaffold_retriever.retrieve_scaffolds(
+                        query=query,
+                        top_k=max(5, top_k // 2),
+                        expand_to_chunks=True
+                    )
+                    for result in scaffold_results:
+                        chunk_ids = result.get('chunk_ids', [])
+                        score = result.get('score', 0.5)
+                        for cid in chunk_ids:
+                            scaffold_chunk_ids.add(cid)
+                            scaffold_scores[cid] = max(scaffold_scores.get(cid, 0), score)
+                    logger.debug(f"Scaffold retrieval returned {len(scaffold_chunk_ids)} chunk IDs")
+                except Exception as e:
+                    logger.warning(f"Scaffold retrieval failed: {e}")
+
+            # ============================================================
+            # TIER 3: Dense Vector + BM25 Hybrid (standard retrieval)
+            # ============================================================
             # Method 1: Pure semantic retrieval
             semantic_candidates = self._query_collection_for_candidates(
                 query_embedding, retrieval_k, query=""
@@ -487,12 +643,21 @@ class DocumentRetriever:
             # Method 2: Pure BM25 retrieval (scan all docs and score by BM25)
             bm25_candidates = self._retrieve_by_bm25(query, retrieval_k)
 
-            # Combine with 50/50 weighting
             # Combine semantic and BM25 with weights specified in strategy
             bm25_weight = strategy.get('bm25_weight', 0.3) if strategy else 0.3
             dense_weight = strategy.get('dense_weight', 0.7) if strategy else 0.7
             combined_candidates = self._combine_semantic_and_bm25(
-                semantic_candidates, bm25_candidates, top_k, semantic_weight=dense_weight, bm25_weight=bm25_weight
+                semantic_candidates, bm25_candidates, retrieval_k, semantic_weight=dense_weight, bm25_weight=bm25_weight
+            )
+
+            # ============================================================
+            # Combine all tiers with score boosting
+            # ============================================================
+            combined_candidates = self._apply_tiered_boosting(
+                combined_candidates,
+                summary_chunk_ids=summary_chunk_ids,
+                scaffold_chunk_ids=scaffold_chunk_ids,
+                scaffold_scores=scaffold_scores
             )
 
             # Apply sentence window postprocessing
@@ -500,10 +665,98 @@ class DocumentRetriever:
                 combined_candidates, top_k, query, strategy=strategy
             )
 
-            self._log_retrieval_results(combined_candidates, "sentence window (hybrid)")
+            self._log_retrieval_results(combined_candidates, "three-tier hybrid")
             return combined_candidates
 
         return self.service_manager.execute_sync('database_operation', _retrieve_operation)
+
+    def _retrieve_via_summary_prefilter(self, query_embedding: np.ndarray, k: int) -> Set[str]:
+        """
+        Use summary embeddings to quickly identify candidate chunks.
+        
+        Args:
+            query_embedding: Query embedding vector
+            k: Number of summary matches to return
+            
+        Returns:
+            Set of chunk IDs that match the query via summary
+        """
+        if self.summary_embeddings is None or len(self.summary_embeddings) == 0:
+            return set()
+        
+        # Ensure query embedding is 2D
+        if len(query_embedding.shape) == 1:
+            query_embedding = query_embedding.reshape(1, -1)
+        
+        # Handle dimension mismatch (e.g., if PCA compression was used)
+        if query_embedding.shape[1] != self.summary_embeddings.shape[1]:
+            # If summary embeddings are compressed, we need to compress query too
+            # For now, skip if dimensions don't match
+            logger.debug(f"Summary embedding dimension mismatch: query={query_embedding.shape[1]}, summary={self.summary_embeddings.shape[1]}")
+            return set()
+        
+        # Compute cosine similarity
+        query_norm = query_embedding / (np.linalg.norm(query_embedding, axis=1, keepdims=True) + 1e-8)
+        summary_norm = self.summary_embeddings / (np.linalg.norm(self.summary_embeddings, axis=1, keepdims=True) + 1e-8)
+        
+        similarities = np.dot(query_norm, summary_norm.T).flatten()
+        
+        # Get top-k indices
+        top_k = min(k, len(similarities))
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        
+        # Return chunk IDs
+        return {self.summary_chunk_ids[i] for i in top_indices if i < len(self.summary_chunk_ids)}
+
+    def _apply_tiered_boosting(
+        self,
+        candidates: List[Dict],
+        summary_chunk_ids: Set[str],
+        scaffold_chunk_ids: Set[str],
+        scaffold_scores: Dict[str, float]
+    ) -> List[Dict]:
+        """
+        Apply score boosting based on tiered retrieval matches.
+        
+        Chunks that appear in summary prefilter or scaffold results get boosted.
+        
+        Args:
+            candidates: Base candidates from dense+BM25 retrieval
+            summary_chunk_ids: Chunk IDs from summary prefilter
+            scaffold_chunk_ids: Chunk IDs from scaffold expansion
+            scaffold_scores: Scaffold match scores by chunk ID
+            
+        Returns:
+            Candidates with boosted scores
+        """
+        if not summary_chunk_ids and not scaffold_chunk_ids:
+            return candidates
+        
+        boosted = []
+        for candidate in candidates:
+            chunk_id = self._extract_chunk_id(candidate)
+            base_score = candidate.get('similarity', 0.5)
+            boost = 0.0
+            
+            # Boost for summary prefilter match
+            if chunk_id and chunk_id in summary_chunk_ids:
+                boost += self.summary_weight * 0.2  # Small boost for summary match
+            
+            # Boost for scaffold match
+            if chunk_id and chunk_id in scaffold_chunk_ids:
+                scaffold_score = scaffold_scores.get(chunk_id, 0.5)
+                boost += self.scaffold_weight * scaffold_score * 0.3
+            
+            boosted_candidate = candidate.copy()
+            boosted_candidate['similarity'] = min(1.0, base_score + boost)
+            if boost > 0:
+                boosted_candidate['tier_boost'] = boost
+            boosted.append(boosted_candidate)
+        
+        # Re-sort by boosted score
+        boosted.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
+        
+        return boosted
 
     def _has_loaded_documents(self) -> bool:
         """Check if any documents are available for retrieval."""
@@ -925,8 +1178,8 @@ class DocumentRetriever:
         Returns:
             int: Initial number of candidates to retrieve
         """
-        # Retrieve 5x more candidates to allow BM25 reranking to work effectively
-        return top_k * 5 if self.use_sentence_window else top_k
+        # Retrieve more candidates to allow BM25 reranking to work effectively
+        return top_k * INITIAL_RETRIEVAL_MULTIPLIER if self.use_sentence_window else top_k
 
     def _query_collection_for_candidates(
         self, query_embedding: List[float], initial_top_k: int, query: str = ""
@@ -1063,9 +1316,9 @@ class DocumentRetriever:
             return base_similarity
         doc_id = hashlib.md5(document.encode(), usedforsecurity=False).hexdigest()[:8]
         bm25_score = self.bm25.compute_score(query_terms, doc_id, document)
-        normalized_bm25 = min(bm25_score / 15.0, 1.0)
-        if normalized_bm25 > 0.05:
-            boost_factor = 0.3 * normalized_bm25
+        normalized_bm25 = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
+        if normalized_bm25 > MIN_BM25_THRESHOLD:
+            boost_factor = KEYWORD_BOOST_FACTOR * normalized_bm25
             combined_score = base_similarity + boost_factor
             combined_score = min(combined_score, 1.0)
             logger.debug(f"BM25 BOOST: raw={bm25_score:.3f}, norm={normalized_bm25:.3f}, semantic={base_similarity:.3f}, boost={boost_factor:.3f}, combined={combined_score:.3f}")
@@ -1081,9 +1334,9 @@ class DocumentRetriever:
             return {"final_score": base_similarity, "semantic_score": base_similarity, "bm25_score": 0.0, "semantic_contribution": base_similarity, "bm25_contribution": 0.0}
         doc_id = hashlib.md5(document.encode(), usedforsecurity=False).hexdigest()[:8]
         bm25_score = self.bm25.compute_score(query_terms, doc_id, document)
-        normalized_bm25 = min(bm25_score / 15.0, 1.0)
-        semantic_weight = 0.1
-        bm25_weight = 0.9
+        normalized_bm25 = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
+        semantic_weight = SEMANTIC_WEIGHT_DETAILED
+        bm25_weight = BM25_WEIGHT_DETAILED
         semantic_contribution = semantic_weight * base_similarity
         bm25_contribution = bm25_weight * normalized_bm25
         final_score = semantic_contribution + bm25_contribution
@@ -1277,37 +1530,111 @@ class FaissHybridRetriever:
     def search(self, query: str, top_k: int = 10, strategy: Optional[dict] = None) -> List[Dict]:
         """
         Performs hybrid search and returns a list of documents.
+
+        Args:
+            query: The search query string.
+            top_k: Maximum number of results to return.
+            strategy: Optional dict with weights and settings.
+
+        Returns:
+            List of document dicts with scores.
         """
-        # 1. Get BM25 results
-        bm25_k = top_k
-        faiss_k = top_k
-        bm25_weight = 0.5
-        dense_weight = 0.5
-        use_reranker = False
-        if strategy:
-            bm25_k = strategy.get('k_candidates', top_k)
-            faiss_k = strategy.get('k_candidates', top_k)
-            bm25_weight = float(strategy.get('bm25_weight', 0.5))
-            dense_weight = float(strategy.get('dense_weight', 0.5))
-            use_reranker = bool(strategy.get('use_reranker', False))
+        # Parse strategy parameters
+        params = self._parse_strategy_params(strategy, top_k)
 
-        bm25_results = self.bm25_searcher.search(query, top_k=bm25_k)
-
-        # 2. Get FAISS results
+        # Get results from both retrievers
+        bm25_results = self.bm25_searcher.search(query, top_k=params['bm25_k'])
         query_embedding = self.embedding_generator.encode([query])[0]
         faiss_results = self.faiss_manager.search(query_embedding, k=top_k)
 
-        # 3. Fuse results (weighted combination or RRF fallback)
+        # Fuse results
+        fused_results = self._fuse_retrieval_results(
+            bm25_results, faiss_results, params, top_k
+        )
+
+        # Get full documents
+        final_results = self._get_documents_from_results(fused_results, top_k)
+
+        # Apply reranking if requested
+        if params['use_reranker'] and self.reranker and final_results:
+            return self._apply_reranking(query, final_results, top_k)
+
+        return final_results
+
+    def _parse_strategy_params(
+        self, strategy: Optional[dict], top_k: int
+    ) -> Dict[str, Any]:
+        """Parse strategy parameters with defaults.
+
+        Args:
+            strategy: Optional strategy dict.
+            top_k: Default k value.
+
+        Returns:
+            Dict with parsed parameters.
+        """
+        if not strategy:
+            return {
+                'bm25_k': top_k,
+                'faiss_k': top_k,
+                'bm25_weight': 0.5,
+                'dense_weight': 0.5,
+                'use_reranker': False
+            }
+
+        return {
+            'bm25_k': strategy.get('k_candidates', top_k),
+            'faiss_k': strategy.get('k_candidates', top_k),
+            'bm25_weight': float(strategy.get('bm25_weight', 0.5)),
+            'dense_weight': float(strategy.get('dense_weight', 0.5)),
+            'use_reranker': bool(strategy.get('use_reranker', False))
+        }
+
+    def _fuse_retrieval_results(
+        self,
+        bm25_results: List[Dict],
+        faiss_results: List[Dict],
+        params: Dict[str, Any],
+        top_k: int
+    ) -> List[Dict]:
+        """Fuse BM25 and FAISS results.
+
+        Args:
+            bm25_results: Results from BM25 searcher.
+            faiss_results: Results from FAISS search.
+            params: Strategy parameters with weights.
+            top_k: Maximum results.
+
+        Returns:
+            Fused and sorted results.
+        """
         try:
             from src.cubo.retrieval.fusion import combine_semantic_and_bm25
-            fused_results = combine_semantic_and_bm25(faiss_results, bm25_results, semantic_weight=dense_weight, bm25_weight=bm25_weight, top_k=top_k)
+            fused = combine_semantic_and_bm25(
+                faiss_results,
+                bm25_results,
+                semantic_weight=params['dense_weight'],
+                bm25_weight=params['bm25_weight'],
+                top_k=top_k
+            )
         except Exception:
-            fused_results = self._fuse_results(bm25_results, faiss_results)
+            fused = self._fuse_results(bm25_results, faiss_results)
 
-        # 4. Sort and return top-k
-        fused_results.sort(key=lambda x: x['score'], reverse=True)
+        fused.sort(key=lambda x: x['score'], reverse=True)
+        return fused
 
-        # Get the full document from the fused results
+    def _get_documents_from_results(
+        self, fused_results: List[Dict], top_k: int
+    ) -> List[Dict]:
+        """Get full documents from fused results.
+
+        Args:
+            fused_results: Fused search results with doc_ids.
+            top_k: Maximum results.
+
+        Returns:
+            List of full document dicts with scores.
+        """
         final_results = []
         for res in fused_results[:top_k]:
             doc_id = res['doc_id']
@@ -1315,42 +1642,103 @@ class FaissHybridRetriever:
                 doc = self.documents[doc_id]
                 doc['score'] = res['score']
                 final_results.append(doc)
-
-        # If reranker available and strategy requests re-ranking, apply it
-        if use_reranker and self.reranker and final_results:
-            try:
-                # Reranker expects a list of candidates (with 'content' or 'document' keys)
-                # Normalize content key
-                candidates = []
-                for d in final_results:
-                    c = d.copy()
-                    if 'content' not in c and 'text' in c:
-                        c['content'] = c['text']
-                    elif 'content' not in c and 'document' in c:
-                        c['content'] = c.get('document')
-                    candidates.append(c)
-                reranked = self.reranker.rerank(query, candidates, max_results=len(candidates))
-                if reranked:
-                    # Map back reranked results to final doc format (keep score from reranker if available)
-                    output = []
-                    for c in reranked[:top_k]:
-                        # find doc by doc_id or by content
-                        if 'doc_id' in c and c['doc_id'] in self.documents:
-                            doc = self.documents[c['doc_id']]
-                        else:
-                            # search by content small heuristic
-                            doc = next((dd for dd in final_results if (dd.get('text') or dd.get('content') or dd.get('document')) == (c.get('content') or c.get('document') or '')), None)
-                        if doc:
-                            out = doc.copy()
-                            if 'rerank_score' in c:
-                                out['rerank_score'] = c['rerank_score']
-                            output.append(out)
-                    return output[:top_k]
-            except Exception:
-                # fallback: return final_results as-is
-                pass
-
         return final_results
+
+    def _apply_reranking(
+        self, query: str, candidates: List[Dict], top_k: int
+    ) -> List[Dict]:
+        """Apply reranking to candidate documents.
+
+        Args:
+            query: The search query.
+            candidates: Candidate documents to rerank.
+            top_k: Maximum results.
+
+        Returns:
+            Reranked documents or original candidates on failure.
+        """
+        try:
+            normalized = self._normalize_candidates_for_reranking(candidates)
+            reranked = self.reranker.rerank(
+                query, normalized, max_results=len(normalized)
+            )
+            if reranked:
+                return self._map_reranked_to_documents(
+                    reranked, candidates, top_k
+                )
+        except Exception:
+            pass
+        return candidates
+
+    def _normalize_candidates_for_reranking(
+        self, candidates: List[Dict]
+    ) -> List[Dict]:
+        """Normalize candidate documents for reranker input.
+
+        Args:
+            candidates: Raw candidate documents.
+
+        Returns:
+            Candidates with 'content' key set.
+        """
+        normalized = []
+        for d in candidates:
+            c = d.copy()
+            if 'content' not in c:
+                c['content'] = c.get('text') or c.get('document', '')
+            normalized.append(c)
+        return normalized
+
+    def _map_reranked_to_documents(
+        self,
+        reranked: List[Dict],
+        original: List[Dict],
+        top_k: int
+    ) -> List[Dict]:
+        """Map reranked results back to full documents.
+
+        Args:
+            reranked: Reranked candidate list.
+            original: Original candidates for fallback matching.
+            top_k: Maximum results.
+
+        Returns:
+            Documents with rerank scores.
+        """
+        output = []
+        for c in reranked[:top_k]:
+            doc = self._find_document_for_reranked(c, original)
+            if doc:
+                out = doc.copy()
+                if 'rerank_score' in c:
+                    out['rerank_score'] = c['rerank_score']
+                output.append(out)
+        return output
+
+    def _find_document_for_reranked(
+        self, reranked_item: Dict, original: List[Dict]
+    ) -> Optional[Dict]:
+        """Find the original document for a reranked item.
+
+        Args:
+            reranked_item: Reranked result item.
+            original: Original candidates.
+
+        Returns:
+            Matching document or None.
+        """
+        # Try by doc_id first
+        doc_id = reranked_item.get('doc_id')
+        if doc_id and doc_id in self.documents:
+            return self.documents[doc_id]
+
+        # Fall back to content matching
+        content = reranked_item.get('content') or reranked_item.get('document', '')
+        for dd in original:
+            dd_content = dd.get('text') or dd.get('content') or dd.get('document', '')
+            if dd_content == content:
+                return dd
+        return None
 
     def _fuse_results(self, bm25_results: List[Dict], faiss_results: List[Dict]) -> List[Dict]:
         # Use the shared rrf_fuse util for standardization across retrievers
