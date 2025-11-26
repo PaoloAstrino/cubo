@@ -1,6 +1,61 @@
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+
+
+def _detect_system_resources() -> Tuple[float, int]:
+    """Detect system RAM (GB) and CPU core count.
+    
+    Returns:
+        Tuple of (ram_gb, cpu_count). Falls back to conservative defaults.
+    """
+    ram_gb = 16.0  # Conservative default
+    cpu_count = 4  # Conservative default
+    
+    try:
+        import psutil
+        ram_gb = psutil.virtual_memory().total / (1024 ** 3)
+        cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count() or 4
+    except ImportError:
+        # psutil not available, try os-level detection
+        try:
+            cpu_count = os.cpu_count() or 4
+        except Exception:
+            pass
+        # Try to read /proc/meminfo on Linux
+        try:
+            with open('/proc/meminfo', 'r') as f:
+                for line in f:
+                    if line.startswith('MemTotal:'):
+                        ram_kb = int(line.split()[1])
+                        ram_gb = ram_kb / (1024 ** 2)
+                        break
+        except Exception:
+            pass
+    
+    return ram_gb, cpu_count
+
+
+def _should_enable_laptop_mode() -> bool:
+    """Determine if laptop mode should be auto-enabled based on system resources.
+    
+    Laptop mode is enabled by default if:
+    - RAM <= 16GB OR CPU cores <= 6
+    - AND CUBO_LAPTOP_MODE env var is not explicitly set to '0' or 'false'
+    
+    Returns:
+        True if laptop mode should be enabled.
+    """
+    # Check explicit opt-out
+    env_val = os.environ.get('CUBO_LAPTOP_MODE', '').lower()
+    if env_val in ('0', 'false', 'no', 'off'):
+        return False
+    if env_val in ('1', 'true', 'yes', 'on'):
+        return True
+    
+    # Auto-detect based on resources
+    ram_gb, cpu_count = _detect_system_resources()
+    return ram_gb <= 16 or cpu_count <= 6
 
 
 class Config:
@@ -74,8 +129,7 @@ class Config:
                 "enable": True,
                 "factual_bm25_weight": 0.6,
                 "conceptual_dense_weight": 0.8
-            }
-            ,
+            },
             "vector_index": {
                 "hot_ratio": 0.2,
                 "promote_threshold": 10,
@@ -118,6 +172,74 @@ class Config:
                 "min_cluster_size": 3
             }
         }
+
+    @staticmethod
+    def get_laptop_mode_config() -> Dict[str, Any]:
+        """Optimized config for resource-constrained laptops.
+        
+        This config reduces memory and CPU usage while maintaining reasonable
+        retrieval quality. Key optimizations:
+        - Disable LLM chunk enrichment (biggest CPU/GPU saver)
+        - Disable cross-encoder reranking (use semantic cache instead)
+        - Reduce worker count and batch size
+        - Lower FAISS index complexity
+        - Enable on-disk embedding persistence
+        - Cap deduplication candidate pairs
+        """
+        return {
+            "laptop_mode": True,
+            "document_cache_size": 500,
+            "ingestion": {
+                "deep": {
+                    "enrich_enabled": False,
+                    "n_workers": 1,
+                    "batch_size": 5,
+                    "throttle_delay_ms": 500,
+                    "auto_generate_scaffolds": False,
+                }
+            },
+            "retrieval": {
+                "reranker_model": None,
+                "semantic_cache": {
+                    "enabled": True,
+                    "threshold": 0.92,
+                    "max_entries": 500
+                }
+            },
+            "vector_store": {
+                "persist_embeddings": "npy_sharded",
+                "embedding_dtype": "float16",
+                "embedding_cache_size": 512,
+                "shard_size": 1000
+            },
+            "vector_index": {
+                "hot_ratio": 0.1,
+                "promote_threshold": 100,
+                "nlist": 512,
+                "pq_m": 32
+            },
+            "deduplication": {
+                "max_candidates": 200
+            }
+        }
+
+    def apply_laptop_mode(self, force: bool = False) -> bool:
+        """Apply laptop mode configuration if appropriate.
+        
+        Args:
+            force: If True, apply laptop mode regardless of system detection.
+        
+        Returns:
+            True if laptop mode was applied, False otherwise.
+        """
+        if force or _should_enable_laptop_mode():
+            self.update(Config.get_laptop_mode_config())
+            return True
+        return False
+
+    def is_laptop_mode(self) -> bool:
+        """Check if laptop mode is currently enabled."""
+        return bool(self.get('laptop_mode', False))
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value, checking environment variables first."""
@@ -181,6 +303,15 @@ class Config:
 
 # Global config instance
 config = Config()
+
+# Auto-enable laptop mode based on system resources (opt-out via CUBO_LAPTOP_MODE=0)
+_laptop_mode_applied = config.apply_laptop_mode()
+if _laptop_mode_applied:
+    import logging as _logging
+    _logging.getLogger('cubo.config').info(
+        "Laptop mode auto-enabled based on system resources. "
+        "Set CUBO_LAPTOP_MODE=0 to disable."
+    )
 
 
 # Logging configuration

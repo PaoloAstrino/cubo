@@ -488,12 +488,33 @@ class CUBOApp:
     def _parse_command_line_arguments(self):
         """Parse command line arguments."""
         parser = argparse.ArgumentParser(description="CUBO - AI Document Assistant using embedding model and Llama LLM.")
+        parser.add_argument('--version', '-v', action='store_true', help="Show version and exit.")
         parser.add_argument('--data_folder', help="Path to the folder containing documents.")
         parser.add_argument('--query', help="The query to process.")
+        
+        # Laptop mode options
+        laptop_group = parser.add_mutually_exclusive_group()
+        laptop_group.add_argument('--laptop-mode', action='store_true', 
+                                  help="Force enable laptop mode (reduced resource usage).")
+        laptop_group.add_argument('--no-laptop-mode', action='store_true',
+                                  help="Disable laptop mode (use full resources).")
+        
         return parser.parse_args()
 
     def _run_application_mode(self, args):
         """Run the appropriate application mode based on arguments."""
+        if getattr(args, 'version', False):
+            print(f"CUBO version {self._get_version()}")
+            return
+        
+        # Handle laptop mode flags (overrides auto-detection)
+        if getattr(args, 'laptop_mode', False):
+            config.apply_laptop_mode(force=True)
+            logger.info("Laptop mode enabled via --laptop-mode flag.")
+        elif getattr(args, 'no_laptop_mode', False):
+            # Disable laptop mode by resetting relevant settings
+            config.set('laptop_mode', False)
+            logger.info("Laptop mode disabled via --no-laptop-mode flag.")
         if args.data_folder and args.query:
             self.command_line_mode(args)
         else:
