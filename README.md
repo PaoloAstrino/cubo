@@ -124,7 +124,7 @@ CI note: The repository's CI runs a Linux job that installs `faiss-cpu` and runs
 ## Features
 
 - **Modular Architecture**: Clean separation of concerns with dedicated modules
-
+- **🚀 Laptop Mode**: Automatic resource optimization for laptops with limited RAM/CPU. Auto-detects system resources and applies memory-efficient settings. See [docs/LAPTOP_MODE.md](docs/LAPTOP_MODE.md) for details.
 - **Semantic Deduplication**: Built-in hybrid deduplication pipeline to reduce duplicate chunks across datasets (MinHash + FAISS + HDBSCAN). See `docs/deduplication.md` for usage and examples.
 - **Multi-format Support**: Supports .txt, .docx, .pdf, and .md files
 - **Sentence Window Chunking**: Intelligent text chunking with configurable context windows for better retrieval
@@ -437,6 +437,22 @@ Edit `config.json` to customize:
 - `max_file_size_mb`: Maximum file size limit
 - `log_level`: Logging level (DEBUG, INFO, WARNING, ERROR)
 
+### Laptop Mode
+
+CUBO automatically detects laptop hardware (≤16GB RAM or ≤6 CPU cores) and enables optimizations:
+
+```bash
+# Environment variable override
+export CUBO_LAPTOP_MODE=1  # Force enable
+export CUBO_LAPTOP_MODE=0  # Force disable
+
+# CLI flags
+python -m src.main --laptop-mode      # Force enable
+python -m src.main --no-laptop-mode   # Force disable
+```
+
+See [docs/LAPTOP_MODE.md](docs/LAPTOP_MODE.md) for full configuration options.
+
 ### Environment Variables
 
 For security and flexibility, sensitive configuration can be overridden via environment variables:
@@ -444,6 +460,7 @@ For security and flexibility, sensitive configuration can be overridden via envi
 - `CUBO_ENCRYPTION_KEY`: 32-byte key for data encryption (base64 encoded)
 - `CUBO_MODEL_PATH`: Override model path
 - `CUBO_LLM_MODEL`: Override LLM model name
+- `CUBO_LAPTOP_MODE`: Enable/disable laptop mode (1/0)
 
 Example:
 
