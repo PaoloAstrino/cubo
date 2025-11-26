@@ -20,8 +20,8 @@ def test_faiss_store_add_and_promote(tmp_path: Path):
     res = store.query(query_embeddings=[q], n_results=3)
     assert 'documents' in res and res['documents']
 
-    # Promote doc3 explicitly
-    store.promote_to_hot('doc3')
+    # Promote doc3 explicitly (synchronously to make test deterministic)
+    store.promote_to_hot_sync('doc3')
     # After promoting, the doc should be in hot set; query again and the res returned for doc3 should show 'hot' in source
     res2 = store.query(query_embeddings=[q], n_results=3)
     # Search results include ids
