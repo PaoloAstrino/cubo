@@ -14,6 +14,8 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+import numpy as np
+
 from src.cubo.config import config
 from src.cubo.storage.document_store import DocumentStore
 from src.cubo.storage.embedding_store import EmbeddingStore, create_embedding_store
@@ -97,6 +99,21 @@ class FaissStore(VectorStore):
         embedding_dtype = _config.get('vector_store.embedding_dtype', 'float32')
         embedding_cache_size = int(_config.get('vector_store.embedding_cache_size', 512))
         shard_size = int(_config.get('vector_store.shard_size', 1000))
+<<<<<<< HEAD
+=======
+        
+        self._embedding_store: EmbeddingStore = create_embedding_store(
+            mode=embedding_mode,
+            storage_dir=self.index_dir / 'embeddings' if embedding_mode != 'memory' else None,
+            dimension=dimension,
+            dtype=embedding_dtype,
+            cache_size=embedding_cache_size,
+            shard_size=shard_size,
+            enable_cache=True
+        )
+        
+        self._access_counts: Dict[str, int] = {}
+>>>>>>> 1af16bb (feat: Add on-disk embedding persistence with sharding)
         
         self._embedding_store: EmbeddingStore = create_embedding_store(
             mode=embedding_mode,
@@ -119,6 +136,16 @@ class FaissStore(VectorStore):
         if not embeddings or not ids:
             return
         self._index.build_indexes(embeddings, ids, append=True)
+<<<<<<< HEAD
+=======
+        
+        # Store embeddings via EmbeddingStore (in-memory or on-disk)
+        emb_batch = {did: embeddings[i] for i, did in enumerate(ids)}
+        self._embedding_store.add_batch(emb_batch)
+        
+        for did in ids:
+            self._access_counts.setdefault(did, 0)
+>>>>>>> 1af16bb (feat: Add on-disk embedding persistence with sharding)
         
         # Store embeddings via EmbeddingStore (in-memory or on-disk)
         emb_batch = {did: embeddings[i] for i, did in enumerate(ids)}
@@ -285,6 +312,20 @@ class FaissStore(VectorStore):
 
         Note: This is a simplistic implementation that rebuilds FAISS indexes.
         """
+<<<<<<< HEAD
+=======
+        self._queue_promotions([doc_id])
+
+    def promote_to_hot_sync(self, doc_id: str) -> None:
+        """Synchronously promote a doc to hot index (blocks until complete).
+        
+        Use this only when you need guaranteed immediate promotion.
+        For normal use, prefer promote_to_hot() which is non-blocking.
+
+        Args:
+            doc_id: Document ID to promote
+        """
+>>>>>>> 1af16bb (feat: Add on-disk embedding persistence with sharding)
         if self._embedding_store.get(doc_id) is None:
             return
         # Rebuild with doc_id among the first hot elements
