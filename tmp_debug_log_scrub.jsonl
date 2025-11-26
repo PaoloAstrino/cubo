@@ -1,5 +1,0 @@
-{"asctime": "2025-11-21 14:09:36,406", "level": "INFO", "name": "cubo", "message": "Query: 12aeb727bef31a1eeda2336ad9541e6b5df9de9e551bacabd689ea58694b5b81", "trace_id": ""}
-{"asctime": "2025-11-21 14:09:36,406", "level": "INFO", "name": "cubo", "message": "Retrieved Documents:", "trace_id": ""}
-{"asctime": "2025-11-21 14:09:36,406", "level": "INFO", "name": "cubo", "message": "1. doc1...", "trace_id": ""}
-{"asctime": "2025-11-21 14:09:36,406", "level": "INFO", "name": "cubo", "message": "Generated Response:", "trace_id": ""}
-{"asctime": "2025-11-21 14:09:36,406", "level": "INFO", "name": "cubo", "message": "ok", "trace_id": ""}
