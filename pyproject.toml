@@ -229,3 +229,8 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+# Bandit security scanner configuration
+[tool.bandit]
+exclude_dirs = ["tests", "integration_tests", ".venv", "build", "dist"]
+skips = ["B101", "B601"]  # Skip assert_used and paramiko calls

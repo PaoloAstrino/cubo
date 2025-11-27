@@ -1,31 +1,34 @@
 """
 Tests for the ChunkEnricher class.
 """
+
 import unittest
 from unittest.mock import MagicMock
 
-from src.cubo.processing.enrichment import ChunkEnricher
+import nltk
 from rouge_score import rouge_scorer
 from sklearn.metrics import f1_score
-import nltk
+
+from src.cubo.processing.enrichment import ChunkEnricher
+
 
 class TestChunkEnricher(unittest.TestCase):
 
     def setUp(self):
         # Download the 'punkt' tokenizer for NLTK
         try:
-            nltk.data.find('tokenizers/punkt')
+            nltk.data.find("tokenizers/punkt")
         except LookupError:
             try:
-                nltk.download('punkt')
+                nltk.download("punkt")
             except Exception:
                 # If we cannot download the tokenizer (e.g., no network), skip the test
-                self.skipTest('Could not ensure punkt tokenizer for NLTK')
+                self.skipTest("Could not ensure punkt tokenizer for NLTK")
 
     def test_enrich_chunks(self):
         # 1. Create a mock LLM provider
         mock_llm_provider = MagicMock()
-        
+
         # Define the responses for the different prompts
         mock_llm_provider.generate_response.side_effect = [
             # First chunk
@@ -48,14 +51,14 @@ class TestChunkEnricher(unittest.TestCase):
             "This is the first chunk of text.",
             "This is the second chunk of text.",
         ]
-        
+
         reference_summaries = [
             "A summary of the first chunk.",
             "A summary of the second chunk.",
         ]
         reference_keywords = [
             ["keyword1", "keyword2"],
-            ["keyword3", "keyword5"], # Intentionally different to test F1 score
+            ["keyword3", "keyword5"],  # Intentionally different to test F1 score
         ]
 
         # 4. Call the enrich_chunks method
@@ -65,24 +68,25 @@ class TestChunkEnricher(unittest.TestCase):
         self.assertEqual(len(enriched_chunks), 2)
 
         # 6. Evaluate the quality of the summaries and keywords
-        scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
-        
+        scorer = rouge_scorer.RougeScorer(["rouge1", "rougeL"], use_stemmer=True)
+
         for i in range(len(chunks)):
             # Evaluate summary
-            scores = scorer.score(reference_summaries[i], enriched_chunks[i]['summary'])
-            self.assertGreater(scores['rouge1'].fmeasure, 0.5)
-            self.assertGreater(scores['rougeL'].fmeasure, 0.5)
+            scores = scorer.score(reference_summaries[i], enriched_chunks[i]["summary"])
+            self.assertGreater(scores["rouge1"].fmeasure, 0.5)
+            self.assertGreater(scores["rougeL"].fmeasure, 0.5)
 
             # Evaluate keywords
             # Convert keywords to a binary representation for F1 score calculation
-            all_keywords = sorted(list(set(reference_keywords[i] + enriched_chunks[i]['keywords'])))
+            all_keywords = sorted(list(set(reference_keywords[i] + enriched_chunks[i]["keywords"])))
             y_true = [1 if k in reference_keywords[i] else 0 for k in all_keywords]
-            y_pred = [1 if k in enriched_chunks[i]['keywords'] else 0 for k in all_keywords]
-            
+            y_pred = [1 if k in enriched_chunks[i]["keywords"] else 0 for k in all_keywords]
+
             if len(all_keywords) > 0:
                 f1 = f1_score(y_true, y_pred)
                 # Allow equality at the boundary to be more robust in CI
                 self.assertGreaterEqual(f1, 0.5)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

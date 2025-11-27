@@ -5,13 +5,14 @@ Usage:
     python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
     python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
-from typing import Any, Dict, List
 import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
@@ -41,13 +42,14 @@ Usage:
   python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
   python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
-from typing import Any, Dict, List
 import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
@@ -226,13 +228,14 @@ Usage:
   python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
   python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
-from typing import Any, Dict, List
 import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
@@ -411,13 +414,14 @@ Usage:
   python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
   python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
-from typing import Any, Dict, List
 import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
@@ -697,13 +701,14 @@ Usage:
   python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
   python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
-from typing import Any, Dict, List
 import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
@@ -879,13 +884,14 @@ Usage:
   python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
   python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
-from typing import Any, Dict, List
 import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
@@ -1060,12 +1066,13 @@ Usage:
   python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
   python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
+from pathlib import Path
 from typing import Any, Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger
@@ -1239,13 +1246,14 @@ Usage:
     python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
     python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
-from pathlib import Path
 import argparse
 import json
 import os
-from typing import List, Dict
+from pathlib import Path
+from typing import Dict, List
 
 from tqdm import tqdm
+
 from src.cubo.config import config
 from src.cubo.retrieval.retriever import DocumentRetriever
 from src.cubo.utils.logger import logger

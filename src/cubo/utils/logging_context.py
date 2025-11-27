@@ -2,7 +2,7 @@ import contextvars
 import uuid
 from contextlib import contextmanager
 
-TRACE_ID_CTX = contextvars.ContextVar('trace_id', default=None)
+TRACE_ID_CTX = contextvars.ContextVar("trace_id", default=None)
 
 
 def generate_trace_id() -> str:

@@ -1,11 +1,25 @@
 # Development dependencies
+
+# Testing
 pytest  # For unit testing
 pytest-cov  # For test coverage
 pytest-asyncio  # For async test fixtures
+pytest-mock>=3.11.0  # For mocking in tests
+
+# Code quality and formatting
+pre-commit>=3.5.0  # Pre-commit hooks
+black>=24.0.0  # Code formatter
+ruff>=0.7.0  # Fast Python linter
+isort>=5.13.0  # Import sorter
+mypy>=1.13.0  # Type checker
+bandit[toml]>=1.7.0  # Security scanner
+
+# Build and packaging
+pyinstaller  # For building executables
+
+# Optional dependencies
 onnxruntime  # Optional: ONNX runtime for embedding functions
 whoosh  # Optional Whoosh backend for BM25
-pyinstaller  # For building executables
-flake8  # For code linting
 PySide6>=6.5.0  # For desktop GUI development
 reportlab>=4.0
 rouge-score  # For evaluating summaries
@@ -18,6 +32,7 @@ openpyxl
 pyarrow
 filelock
 requests  # For HTTP calls in manual scripts and live tests
+
 # Optional: Faiss (CPU/GPU builds) is not included by default because it is platform-specific.
 # Install via pip on Linux/macOS: `pip install faiss-cpu` (or `faiss-gpu` for GPU builds).
 # On Windows use conda: `conda install -c conda-forge faiss-cpu`.

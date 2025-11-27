@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
-import { uploadFile, ingestDocuments, buildIndex } from "@/lib/api"
+import { uploadFile, ingestDocuments, buildIndex, getDocuments } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 interface Document {
@@ -25,9 +25,7 @@ export default function UploadPage() {
 
     const fetchDocuments = React.useCallback(async () => {
         try {
-            const res = await fetch('http://localhost:8000/api/documents')
-            if (!res.ok) throw new Error('Failed to fetch documents')
-            const data = await res.json()
+            const data = await getDocuments()
             setDocuments(data)
         } catch (error) {
             console.error(error)
@@ -95,7 +93,7 @@ export default function UploadPage() {
                     />
                     <Button asChild disabled={uploadProgress !== null}>
                         <label htmlFor="file-upload" className="cursor-pointer">
-                            <Upload className="mr-2 h-4 w-4" /> 
+                            <Upload className="mr-2 h-4 w-4" />
                             {uploadProgress !== null ? 'Processing...' : 'Upload File'}
                         </label>
                     </Button>

@@ -1,9 +1,8 @@
 import json
 import time
-from pathlib import Path
-import pytest
-from src.cubo.services.service_manager import ServiceManager
+
 from src.cubo.config import config
+from src.cubo.services.service_manager import ServiceManager
 from src.cubo.utils.logger import logger_instance
 
 
@@ -15,9 +14,9 @@ def test_trace_id_propagation(tmp_path):
     and asserts that a ``trace_id`` field is present.
     """
     # Configure logger to write JSON logs to a temporary file
-    log_file = tmp_path / 'trace_log.jsonl'
-    config.set('logging.log_file', str(log_file))
-    config.set('logging.format', 'json')
+    log_file = tmp_path / "trace_log.jsonl"
+    config.set("logging.log_file", str(log_file))
+    config.set("logging.format", "json")
     logger_instance.shutdown()
     logger_instance._setup_logging()
 
@@ -26,15 +25,16 @@ def test_trace_id_propagation(tmp_path):
     def op(filepath):
         # Simple operation that logs something
         from src.cubo.utils.logger import logger as inlogger
-        inlogger.info('op started', extra={'file': filepath})
+
+        inlogger.info("op started", extra={"file": filepath})
         return True
 
-    fut = svc.execute_async('document_processing', op, 'dummy.txt', with_retry=False)
+    fut = svc.execute_async("document_processing", op, "dummy.txt", with_retry=False)
     res = fut.result(timeout=5)
     assert res
     # Allow logger to flush
     time.sleep(0.1)
-    with open(log_file, 'r', encoding='utf-8') as f:
+    with open(log_file, encoding="utf-8") as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
     assert lines, "Log file should contain entries"
     print(f"DEBUG: Captured lines: {lines}")
@@ -46,21 +46,21 @@ def test_trace_id_propagation(tmp_path):
         except Exception:
             continue
         # Extract the actual message text (handle double‑encoded JSON)
-        msg = rec.get('message') or rec.get('msg')
-        if isinstance(msg, str) and msg.startswith('{'):
+        msg = rec.get("message") or rec.get("msg")
+        if isinstance(msg, str) and msg.startswith("{"):
             try:
                 inner = json.loads(msg)
-                msg_text = inner.get('event') or inner.get('message')
+                msg_text = inner.get("event") or inner.get("message")
                 # Propagate trace_id if present in inner payload
-                if 'trace_id' in inner:
-                    rec['trace_id'] = inner['trace_id']
+                if "trace_id" in inner:
+                    rec["trace_id"] = inner["trace_id"]
             except Exception:
                 msg_text = msg
         else:
             msg_text = msg
-        if msg_text == 'op started':
+        if msg_text == "op started":
             # Verify trace_id exists (non‑empty string)
-            assert 'trace_id' in rec and rec['trace_id'], "trace_id missing in log record"
+            assert "trace_id" in rec and rec["trace_id"], "trace_id missing in log record"
             found = True
             break
     assert found, "Expected log entry with message 'op started' not found"

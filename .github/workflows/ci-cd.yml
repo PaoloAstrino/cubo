@@ -205,23 +205,23 @@ jobs:
 
           try:
               app = QApplication.instance() or QApplication([])
-              
+
               # Test basic QWidget creation instead of full CUBOGUI
               # to avoid backend initialization issues in CI/CD
               widget = QWidget()
               widget.setWindowTitle('Test Widget')
               print('Basic GUI widget creation: PASSED')
-              
+
               # Test DocumentWidget creation
               doc_widget = DocumentWidget()
               print('Document widget creation: PASSED')
-              
+
               # Clean up
               widget.deleteLater()
               doc_widget.deleteLater()
-              
+
               print('GUI component tests: PASSED')
-              
+
           except Exception as e:
               print(f'GUI component tests failed: {e}')
               import traceback
@@ -803,12 +803,12 @@ jobs:
                   import uuid
                   unique_id = uuid.uuid4().hex
                   unique_collection_name = "integration_test_" + unique_id[:8]
-                  
+
                   # Temporarily override config for unique collection
                   from src.config import config
                   original_collection_name = config.get("collection_name", "cubo_documents")
                   config.set("collection_name", unique_collection_name)
-                  
+
                   model = SentenceTransformer("all-MiniLM-L6-v2")
                   retriever = DocumentRetriever(model)
                   success = retriever.add_documents([test_content])

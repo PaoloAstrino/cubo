@@ -22,7 +22,7 @@ class SecurityManager:
 
     def _get_or_create_key(self) -> bytes:
         """Get encryption key from environment or create one."""
-        key_env = os.getenv('CUBO_ENCRYPTION_KEY')
+        key_env = os.getenv("CUBO_ENCRYPTION_KEY")
         if key_env:
             # Fernet keys should be 32 bytes, base64 encoded (44 characters)
             key_str = key_env.encode()
@@ -33,14 +33,20 @@ class SecurityManager:
                     Fernet(key_str)
                     return key_str
                 except Exception:
-                    logger.warning("CUBO_ENCRYPTION_KEY appears to be base64 but is invalid. Hashing to derive a 32-byte key.")
+                    logger.warning(
+                        "CUBO_ENCRYPTION_KEY appears to be base64 but is invalid. Hashing to derive a 32-byte key."
+                    )
                     return hashlib.sha256(key_str).digest()
             else:
-                logger.warning("CUBO_ENCRYPTION_KEY is not 44 bytes (base64 encoded). Hashing to derive a 32-byte key.")
+                logger.warning(
+                    "CUBO_ENCRYPTION_KEY is not 44 bytes (base64 encoded). Hashing to derive a 32-byte key."
+                )
                 return hashlib.sha256(key_str).digest()
         else:
-            error_msg = ("CUBO_ENCRYPTION_KEY environment variable not set. "
-                         "Encryption/decryption will not work. Please set a secure, persistent key.")
+            error_msg = (
+                "CUBO_ENCRYPTION_KEY environment variable not set. "
+                "Encryption/decryption will not work. Please set a secure, persistent key."
+            )
             logger.critical(error_msg)
             raise ValueError(error_msg)
 
@@ -73,7 +79,7 @@ class SecurityManager:
         """Return either the raw data or a hashed representation based on config 'scrub_queries'."""
         if not isinstance(data, str):
             return data
-        scrub_flag = config.get('logging.scrub_queries', config.get('scrub_queries', False))
+        scrub_flag = config.get("logging.scrub_queries", config.get("scrub_queries", False))
         if scrub_flag:
             return self.hash_sensitive_data(data)
         return data
@@ -92,7 +98,7 @@ class SecurityManager:
     @staticmethod
     def validate_environment():
         """Validate that required environment variables are set."""
-        required_vars = ['CUBO_ENCRYPTION_KEY']  # Add more as needed
+        required_vars = ["CUBO_ENCRYPTION_KEY"]  # Add more as needed
         missing = [var for var in required_vars if not os.getenv(var)]
         if missing:
             logger.warning(f"Missing environment variables: {missing}")
@@ -105,7 +111,7 @@ class SecurityManager:
         if not isinstance(input_str, str):
             raise ValueError("Input must be a string")
         # Remove potentially dangerous characters
-        sanitized = input_str.replace('\n', ' ').replace('\r', ' ')
+        sanitized = input_str.replace("\n", " ").replace("\r", " ")
         if len(sanitized) > max_length:
             sanitized = sanitized[:max_length] + "..."
         return sanitized.strip()

@@ -35,7 +35,9 @@ class HierarchicalChunker:
 
         return chunks
 
-    def _create_chunks_at_level(self, text: str, chunk_size: int, level: int, filename: str) -> List[Dict[str, Any]]:
+    def _create_chunks_at_level(
+        self, text: str, chunk_size: int, level: int, filename: str
+    ) -> List[Dict[str, Any]]:
         """Create chunks at a specific hierarchical level."""
         chunks = []
         words = text.split()
@@ -46,8 +48,7 @@ class HierarchicalChunker:
         # Process each word
         for word in words:
             current_chunk, current_tokens, chunks = self._process_word_in_chunk(
-                word, current_chunk, current_tokens, chunk_size,
-                level, filename, chunks, words
+                word, current_chunk, current_tokens, chunk_size, level, filename, chunks, words
             )
 
         # Add any remaining chunk
@@ -62,9 +63,17 @@ class HierarchicalChunker:
         """Initialize variables for the chunking process."""
         return [], 0
 
-    def _process_word_in_chunk(self, word: str, current_chunk: List[str], current_tokens: int,
-                               chunk_size: int, level: int, filename: str, chunks: List[Dict[str, Any]],
-                               words: List[str]) -> tuple:
+    def _process_word_in_chunk(
+        self,
+        word: str,
+        current_chunk: List[str],
+        current_tokens: int,
+        chunk_size: int,
+        level: int,
+        filename: str,
+        chunks: List[Dict[str, Any]],
+        words: List[str],
+    ) -> tuple:
         """Process a word and determine if a new chunk should be created."""
         word_tokens = len(word.split())  # Approximate token count
 
@@ -83,46 +92,58 @@ class HierarchicalChunker:
 
         return current_chunk, current_tokens, chunks
 
-    def _create_chunk_from_current(self, current_chunk: List[str], current_tokens: int,
-                                   level: int, filename: str, chunks: List[Dict[str, Any]],
-                                   words: List[str]) -> List[Dict[str, Any]]:
+    def _create_chunk_from_current(
+        self,
+        current_chunk: List[str],
+        current_tokens: int,
+        level: int,
+        filename: str,
+        chunks: List[Dict[str, Any]],
+        words: List[str],
+    ) -> List[Dict[str, Any]]:
         """Create a chunk from the currently accumulated words."""
-        chunk_text = ' '.join(current_chunk)
+        chunk_text = " ".join(current_chunk)
         chunk_id = self._generate_chunk_id(filename, level, len(chunks))
 
         chunk = {
-            'id': chunk_id,
-            'text': chunk_text,
-            'filename': filename,
-            'level': level,
-            'chunk_size': len(current_chunk) * 5,  # Approximate chunk size
-            'token_count': current_tokens,
-            'start_pos': len(' '.join(words[:len(current_chunk)])),
-            'end_pos': len(' '.join(words[:len(current_chunk) + len(current_chunk)])),
-            'parent_id': None,  # Will be set later
-            'child_ids': []
+            "id": chunk_id,
+            "text": chunk_text,
+            "filename": filename,
+            "level": level,
+            "chunk_size": len(current_chunk) * 5,  # Approximate chunk size
+            "token_count": current_tokens,
+            "start_pos": len(" ".join(words[: len(current_chunk)])),
+            "end_pos": len(" ".join(words[: len(current_chunk) + len(current_chunk)])),
+            "parent_id": None,  # Will be set later
+            "child_ids": [],
         }
         chunks.append(chunk)
         return chunks
 
-    def _finalize_remaining_chunk(self, current_chunk: List[str], current_tokens: int,
-                                  level: int, filename: str, chunks: List[Dict[str, Any]],
-                                  text: str) -> List[Dict[str, Any]]:
+    def _finalize_remaining_chunk(
+        self,
+        current_chunk: List[str],
+        current_tokens: int,
+        level: int,
+        filename: str,
+        chunks: List[Dict[str, Any]],
+        text: str,
+    ) -> List[Dict[str, Any]]:
         """Create the final chunk from any remaining words."""
-        chunk_text = ' '.join(current_chunk)
+        chunk_text = " ".join(current_chunk)
         chunk_id = self._generate_chunk_id(filename, level, len(chunks))
 
         chunk = {
-            'id': chunk_id,
-            'text': chunk_text,
-            'filename': filename,
-            'level': level,
-            'chunk_size': len(current_chunk) * 5,  # Approximate chunk size
-            'token_count': current_tokens,
-            'start_pos': len(' '.join(current_chunk)),
-            'end_pos': len(text),
-            'parent_id': None,
-            'child_ids': []
+            "id": chunk_id,
+            "text": chunk_text,
+            "filename": filename,
+            "level": level,
+            "chunk_size": len(current_chunk) * 5,  # Approximate chunk size
+            "token_count": current_tokens,
+            "start_pos": len(" ".join(current_chunk)),
+            "end_pos": len(text),
+            "parent_id": None,
+            "child_ids": [],
         }
         chunks.append(chunk)
         return chunks
@@ -142,7 +163,9 @@ class HierarchicalChunker:
 
         return chunks
 
-    def _group_chunks_by_level(self, chunks: List[Dict[str, Any]]) -> Dict[int, List[Dict[str, Any]]]:
+    def _group_chunks_by_level(
+        self, chunks: List[Dict[str, Any]]
+    ) -> Dict[int, List[Dict[str, Any]]]:
         """
         Group chunks by their hierarchical level.
 
@@ -154,10 +177,12 @@ class HierarchicalChunker:
         """
         level_groups = defaultdict(list)
         for chunk in chunks:
-            level_groups[chunk['level']].append(chunk)
+            level_groups[chunk["level"]].append(chunk)
         return level_groups
 
-    def _establish_parent_child_relationships(self, level_groups: Dict[int, List[Dict[str, Any]]]) -> None:
+    def _establish_parent_child_relationships(
+        self, level_groups: Dict[int, List[Dict[str, Any]]]
+    ) -> None:
         """
         Establish parent-child relationships between chunks at different levels.
 
@@ -176,7 +201,9 @@ class HierarchicalChunker:
                 for parent in parents:
                     self._assign_children_to_parent(parent, children)
 
-    def _assign_children_to_parent(self, parent: Dict[str, Any], children: List[Dict[str, Any]]) -> None:
+    def _assign_children_to_parent(
+        self, parent: Dict[str, Any], children: List[Dict[str, Any]]
+    ) -> None:
         """
         Assign child chunks to a parent chunk based on position overlap.
 
@@ -185,21 +212,23 @@ class HierarchicalChunker:
             children: List of potential child chunks
         """
         parent_children = []
-        parent_start = parent['start_pos']
-        parent_end = parent['end_pos']
+        parent_start = parent["start_pos"]
+        parent_end = parent["end_pos"]
 
         for child in children:
-            child_start = child['start_pos']
-            child_end = child['end_pos']
+            child_start = child["start_pos"]
+            child_end = child["end_pos"]
 
             # Check if child overlaps with parent
             if self._chunks_overlap(parent_start, parent_end, child_start, child_end):
-                parent_children.append(child['id'])
-                child['parent_id'] = parent['id']
+                parent_children.append(child["id"])
+                child["parent_id"] = parent["id"]
 
-        parent['child_ids'] = parent_children
+        parent["child_ids"] = parent_children
 
-    def _chunks_overlap(self, parent_start: int, parent_end: int, child_start: int, child_end: int) -> bool:
+    def _chunks_overlap(
+        self, parent_start: int, parent_end: int, child_start: int, child_end: int
+    ) -> bool:
         """
         Check if two chunks overlap in position.
 
@@ -212,31 +241,30 @@ class HierarchicalChunker:
         Returns:
             True if chunks overlap
         """
-        return (child_start >= parent_start and child_start <= parent_end) or \
-               (child_end >= parent_start and child_end <= parent_end) or \
-               (child_start <= parent_start and child_end >= parent_end)
+        return (
+            (child_start >= parent_start and child_start <= parent_end)
+            or (child_end >= parent_start and child_end <= parent_end)
+            or (child_start <= parent_start and child_end >= parent_end)
+        )
 
     def _merge_chunks(self, candidates, top_k: int) -> List[Dict[str, Any]]:
         """Apply auto-merging logic to retrieved chunks."""
         merged_results = []
 
-        documents = candidates['documents'][0]
-        metadatas = candidates['metadatas'][0]
-        distances = candidates['distances'][0]
+        documents = candidates["documents"][0]
+        metadatas = candidates["metadatas"][0]
+        distances = candidates["distances"][0]
 
         # Group chunks by document and level
         doc_chunks = defaultdict(lambda: defaultdict(list))
 
         for doc, metadata, distance in zip(documents, metadatas, distances):
-            filename = metadata['filename']
-            level = metadata['level']
+            filename = metadata["filename"]
+            level = metadata["level"]
 
-            doc_chunks[filename][level].append({
-                'text': doc,
-                'metadata': metadata,
-                'similarity': 1 - distance,
-                'level': level
-            })
+            doc_chunks[filename][level].append(
+                {"text": doc, "metadata": metadata, "similarity": 1 - distance, "level": level}
+            )
 
         # For each document, apply merging logic
         for filename, level_chunks in doc_chunks.items():
@@ -244,10 +272,12 @@ class HierarchicalChunker:
             merged_results.extend(doc_results)
 
         # Sort by similarity and return top_k
-        merged_results.sort(key=lambda x: x['similarity'], reverse=True)
+        merged_results.sort(key=lambda x: x["similarity"], reverse=True)
         return merged_results[:top_k]
 
-    def _merge_document_chunks(self, level_chunks: Dict[int, List], top_k: int) -> List[Dict[str, Any]]:
+    def _merge_document_chunks(
+        self, level_chunks: Dict[int, List], top_k: int
+    ) -> List[Dict[str, Any]]:
         """Merge chunks within a document using hierarchical logic."""
         results = []
 
@@ -256,7 +286,7 @@ class HierarchicalChunker:
         leaf_chunks = level_chunks[leaf_level]
 
         # Sort by similarity
-        leaf_chunks.sort(key=lambda x: x['similarity'], reverse=True)
+        leaf_chunks.sort(key=lambda x: x["similarity"], reverse=True)
 
         # For top chunks, try to merge with parents
         for chunk in leaf_chunks[:top_k]:
@@ -265,7 +295,9 @@ class HierarchicalChunker:
 
         return results
 
-    def _get_merged_content(self, chunk: Dict[str, Any], level_chunks: Dict[int, List]) -> Dict[str, Any]:
+    def _get_merged_content(
+        self, chunk: Dict[str, Any], level_chunks: Dict[int, List]
+    ) -> Dict[str, Any]:
         """Get merged content for a chunk, preferring larger parent chunks when beneficial."""
         # Check if parent chunk should be used instead
         if self._should_use_parent_chunk(chunk, level_chunks):
@@ -276,7 +308,9 @@ class HierarchicalChunker:
         # Return the original chunk
         return self._create_chunk_result(chunk)
 
-    def _should_use_parent_chunk(self, chunk: Dict[str, Any], level_chunks: Dict[int, List]) -> bool:
+    def _should_use_parent_chunk(
+        self, chunk: Dict[str, Any], level_chunks: Dict[int, List]
+    ) -> bool:
         """
         Determine if a parent chunk should be used instead of the current chunk.
 
@@ -287,12 +321,14 @@ class HierarchicalChunker:
         Returns:
             True if parent chunk should be used
         """
-        parent_id = chunk['metadata'].get('parent_id')
-        current_level = chunk['level']
+        parent_id = chunk["metadata"].get("parent_id")
+        current_level = chunk["level"]
 
         return parent_id and current_level > 0 and (current_level - 1) in level_chunks
 
-    def _find_parent_chunk(self, chunk: Dict[str, Any], level_chunks: Dict[int, List]) -> Optional[Dict[str, Any]]:
+    def _find_parent_chunk(
+        self, chunk: Dict[str, Any], level_chunks: Dict[int, List]
+    ) -> Optional[Dict[str, Any]]:
         """
         Find the parent chunk for a given chunk.
 
@@ -303,16 +339,18 @@ class HierarchicalChunker:
         Returns:
             Parent chunk if found and better, None otherwise
         """
-        parent_id = chunk['metadata'].get('parent_id')
-        parent_level = chunk['level'] - 1
+        parent_id = chunk["metadata"].get("parent_id")
+        parent_level = chunk["level"] - 1
 
         for parent_chunk in level_chunks[parent_level]:
-            if parent_chunk['metadata'].get('id') == parent_id:
+            if parent_chunk["metadata"].get("id") == parent_id:
                 # Check if parent has significantly higher similarity
-                parent_similarity = parent_chunk['similarity']
-                child_similarity = chunk['similarity']
+                parent_similarity = parent_chunk["similarity"]
+                child_similarity = chunk["similarity"]
 
-                if parent_similarity > child_similarity + getattr(self, 'parent_similarity_threshold', 0.1):
+                if parent_similarity > child_similarity + getattr(
+                    self, "parent_similarity_threshold", 0.1
+                ):
                     return parent_chunk
 
         return None
@@ -328,9 +366,9 @@ class HierarchicalChunker:
             Standardized result dictionary
         """
         return {
-            'document': chunk['text'],
-            'metadata': chunk['metadata'],
-            'similarity': chunk['similarity']
+            "document": chunk["text"],
+            "metadata": chunk["metadata"],
+            "similarity": chunk["similarity"],
         }
 
 
@@ -351,16 +389,20 @@ class AutoMergingRetriever:
         self.collection_name = "cubo_auto_merging"
         self.loaded_documents = set()
 
-        backend = config.get("auto_merge_vector_store_backend", config.get("vector_store_backend", "faiss"))
+        backend = config.get(
+            "auto_merge_vector_store_backend", config.get("vector_store_backend", "faiss")
+        )
         store_kwargs: Dict[str, Any] = {
-            "dimension": int(config.get("auto_merge_index_dimension", config.get("index_dimension", 1536))),
-            "index_dir": config.get("auto_merge_vector_store_path", config.get("vector_store_path"))
+            "dimension": int(
+                config.get("auto_merge_index_dimension", config.get("index_dimension", 1536))
+            ),
+            "index_dir": config.get(
+                "auto_merge_vector_store_path", config.get("vector_store_path")
+            ),
         }
 
         self.collection = create_vector_store(
-            backend=backend,
-            collection_name=self.collection_name,
-            **store_kwargs
+            backend=backend, collection_name=self.collection_name, **store_kwargs
         )
 
         logger.info("AutoMergingRetriever initialized")
@@ -384,7 +426,7 @@ class AutoMergingRetriever:
 
         try:
             # Read the document
-            with open(file_path, encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 text = f.read()
 
             # Create hierarchical chunks
@@ -394,7 +436,7 @@ class AutoMergingRetriever:
             chunks = self.chunker.build_hierarchy(chunks)
 
             # Generate embeddings for all chunks
-            chunk_texts = [chunk['text'] for chunk in chunks]
+            chunk_texts = [chunk["text"] for chunk in chunks]
             embeddings = self.model.encode(chunk_texts)
             embeddings_list = [emb.tolist() for emb in embeddings]
 
@@ -404,33 +446,30 @@ class AutoMergingRetriever:
             metadatas = []
 
             for chunk, embedding in zip(chunks, embeddings_list):
-                chunk_id = chunk['id']
+                chunk_id = chunk["id"]
                 chunk_ids.append(chunk_id)
-                documents.append(chunk['text'])
+                documents.append(chunk["text"])
 
                 # Create metadata dict from chunk fields
                 # Vector stores accept primitive metadata types only (not None or lists)
                 metadata = {
-                    'id': chunk['id'],
-                    'filename': chunk['filename'],
-                    'level': chunk['level'],
-                    'chunk_size': chunk.get('chunk_size', 0) or 0,
-                    'token_count': chunk.get('token_count', 0) or 0,
-                    'start_pos': chunk.get('start_pos', 0) or 0,
-                    'end_pos': chunk.get('end_pos', 0) or 0,
+                    "id": chunk["id"],
+                    "filename": chunk["filename"],
+                    "level": chunk["level"],
+                    "chunk_size": chunk.get("chunk_size", 0) or 0,
+                    "token_count": chunk.get("token_count", 0) or 0,
+                    "start_pos": chunk.get("start_pos", 0) or 0,
+                    "end_pos": chunk.get("end_pos", 0) or 0,
                 }
                 # Only add parent_id if it's not None
-                if chunk.get('parent_id'):
-                    metadata['parent_id'] = chunk['parent_id']
+                if chunk.get("parent_id"):
+                    metadata["parent_id"] = chunk["parent_id"]
                 # child_ids is a list; many vector stores don't support lists, skip it
                 metadatas.append(metadata)
 
             # Add all chunks in batch
             self.collection.add(
-                ids=chunk_ids,
-                documents=documents,
-                embeddings=embeddings_list,
-                metadatas=metadatas
+                ids=chunk_ids, documents=documents, embeddings=embeddings_list, metadatas=metadatas
             )
 
             self.loaded_documents.add(filename)
@@ -456,7 +495,7 @@ class AutoMergingRetriever:
             query_embedding = self._generate_query_embedding(query)
             results = self._query_store(query_embedding, top_k)
 
-            if not results['documents']:
+            if not results["documents"]:
                 return []
 
             processed_results = self._process_store_results(results)
@@ -475,61 +514,62 @@ class AutoMergingRetriever:
     def _query_store(self, query_embedding: List[float], top_k: int) -> Dict:
         """Query the configured vector store for results."""
         return self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k * 3  # Get more results for merging
+            query_embeddings=[query_embedding], n_results=top_k * 3  # Get more results for merging
         )
 
     def _process_store_results(self, results: Dict) -> List[Dict]:
         """Process raw vector store results into structured format."""
         processed_results = []
-        for i, (doc, metadata, distance) in enumerate(zip(
-            results['documents'][0],
-            results['metadatas'][0],
-            results['distances'][0]
-        )):
+        for i, (doc, metadata, distance) in enumerate(
+            zip(results["documents"][0], results["metadatas"][0], results["distances"][0])
+        ):
             similarity = 1 - distance
 
             # Ensure metadata has required fields
             if not metadata:
                 metadata = {}
-            if 'id' not in metadata:
-                metadata['id'] = f"chunk_{i}"
-            if 'level' not in metadata:
-                metadata['level'] = 0
+            if "id" not in metadata:
+                metadata["id"] = f"chunk_{i}"
+            if "level" not in metadata:
+                metadata["level"] = 0
 
             chunk = {
-                'text': doc,
-                'metadata': metadata,
-                'similarity': similarity,
-                'level': metadata.get('level', 0)
+                "text": doc,
+                "metadata": metadata,
+                "similarity": similarity,
+                "level": metadata.get("level", 0),
             }
             processed_results.append(chunk)
         return processed_results
 
-    def _apply_auto_merging(self, results: Dict, processed_results: List[Dict], top_k: int) -> List[Dict]:
+    def _apply_auto_merging(
+        self, results: Dict, processed_results: List[Dict], top_k: int
+    ) -> List[Dict]:
         """Apply auto-merging logic to results."""
         try:
             candidates = {
-                'documents': [results['documents'][0]],
-                'metadatas': [results['metadatas'][0]],
-                'distances': [results['distances'][0]]
+                "documents": [results["documents"][0]],
+                "metadatas": [results["metadatas"][0]],
+                "distances": [results["distances"][0]],
             }
             return self.chunker._merge_chunks(candidates, top_k)
         except Exception as e:
             logger.error(f"Error in auto-merging: {e}")
             # Fallback: just return top results without merging
-            processed_results.sort(key=lambda x: x['similarity'], reverse=True)
+            processed_results.sort(key=lambda x: x["similarity"], reverse=True)
             return processed_results[:top_k]
 
     def _format_final_results(self, merged_results: List[Dict]) -> List[Dict]:
         """Format merged results into expected output format."""
         final_results = []
         for result in merged_results:
-            final_results.append({
-                'document': result['document'],
-                'metadata': result['metadata'],
-                'similarity': result['similarity']
-            })
+            final_results.append(
+                {
+                    "document": result["document"],
+                    "metadata": result["metadata"],
+                    "similarity": result["similarity"],
+                }
+            )
         return final_results
 
     def get_loaded_documents(self) -> List[str]:

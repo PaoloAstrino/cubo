@@ -1,7 +1,6 @@
-from pathlib import Path
 import threading
 import time
-import pytest
+from pathlib import Path
 
 from src.cubo.indexing.faiss_index import FAISSIndexManager
 
@@ -17,12 +16,7 @@ def test_faiss_index_build_search_and_persist(tmp_path: Path):
     ids = [f"id_{i}" for i in range(len(embeddings))]
     index_dir = tmp_path / "faiss"
     manager = FAISSIndexManager(
-        dimension=2,
-        index_dir=index_dir,
-        nlist=4,
-        m=2,
-        hnsw_m=8,
-        hot_fraction=0.5
+        dimension=2, index_dir=index_dir, nlist=4, m=2, hnsw_m=8, hot_fraction=0.5
     )
     manager.build_indexes(embeddings, ids)
     assert len(manager.hot_ids) == 10
@@ -32,7 +26,7 @@ def test_faiss_index_build_search_and_persist(tmp_path: Path):
 
     hits = manager.search([0.1, 1.1], k=3)
     assert hits
-    assert hits[0]['id'] in manager.hot_ids + manager.cold_ids
+    assert hits[0]["id"] in manager.hot_ids + manager.cold_ids
 
     manager.save()
     reloaded = FAISSIndexManager(dimension=2, index_dir=index_dir)
@@ -48,7 +42,7 @@ def test_faiss_with_opq(tmp_path: Path):
     embeddings = _fake_embeddings(512, dimension=64)
     ids = [f"id_{i}" for i in range(len(embeddings))]
     index_dir = tmp_path / "faiss_opq"
-    
+
     # Build index with OPQ enabled
     manager = FAISSIndexManager(
         dimension=64,
@@ -58,29 +52,29 @@ def test_faiss_with_opq(tmp_path: Path):
         hnsw_m=8,
         hot_fraction=0.3,
         use_opq=True,
-        opq_m=16
+        opq_m=16,
     )
     manager.build_indexes(embeddings, ids)
-    
+
     # Verify indexes were built
     assert manager.hot_index is not None
     assert manager.cold_index is not None
-    
+
     # Test search with OPQ
     query = [float(i) for i in range(64)]
     hits = manager.search(query, k=5)
     assert len(hits) > 0
-    assert all(h['id'] in ids for h in hits)
-    
+    assert all(h["id"] in ids for h in hits)
+
     # Save and reload to ensure OPQ config persists
     manager.save()
     reloaded = FAISSIndexManager(dimension=64, index_dir=index_dir)
     reloaded.load()
-    
+
     # Verify OPQ config was loaded
     assert reloaded.use_opq == True
     assert reloaded.opq_m == 16
-    
+
     # Test search on reloaded index
     reloaded_hits = reloaded.search(query, k=5)
     assert len(reloaded_hits) > 0
@@ -98,13 +92,15 @@ def test_swap_indexes_basic(tmp_path: Path):
 
     # Verify initial search works
     hits_before = manager.search([0.1, 1.1], k=2)
-    assert all(h['id'] in ids_v1 for h in hits_before)
+    assert all(h["id"] in ids_v1 for h in hits_before)
 
     # Build new index in separate directory
     embeddings_v2 = _fake_embeddings(8)
     ids_v2 = [f"v2_id_{i}" for i in range(len(embeddings_v2))]
     dir_v2 = tmp_path / "index_v2"
-    manager_v2 = FAISSIndexManager(dimension=2, index_dir=dir_v2, nlist=2, hnsw_m=8, hot_fraction=0.5)
+    manager_v2 = FAISSIndexManager(
+        dimension=2, index_dir=dir_v2, nlist=2, hnsw_m=8, hot_fraction=0.5
+    )
     manager_v2.build_indexes(embeddings_v2, ids_v2)
     manager_v2.save()
 
@@ -113,7 +109,7 @@ def test_swap_indexes_basic(tmp_path: Path):
 
     # Verify new index is active
     hits_after = manager.search([0.1, 1.1], k=2)
-    assert all(h['id'] in ids_v2 for h in hits_after)
+    assert all(h["id"] in ids_v2 for h in hits_after)
     assert manager.index_dir == dir_v2
 
 
@@ -134,7 +130,7 @@ def test_atomic_swap(tmp_path: Path):
         while not stop_event.is_set():
             hits = manager.search([0.1, 1.1], k=1)
             if hits:
-                search_results.append(hits[0]['id'])
+                search_results.append(hits[0]["id"])
             time.sleep(0.01)
 
     thread = threading.Thread(target=search_thread)

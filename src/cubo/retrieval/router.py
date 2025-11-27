@@ -1,5 +1,6 @@
 """Semantic Router responsible for classifying the query and returning a retrieval strategy.
 """
+
 from __future__ import annotations
 
 import re
@@ -39,20 +40,33 @@ class SemanticRouter:
     def _build_default_patterns(self):
         return {
             QueryType.FACTUAL: [
-                r"\bwhat is\b", r"\bwho is\b", r"\bwhen did\b",
-                r"\bhow many\b", r"\bdefine\b", r"\blist\b"
+                r"\bwhat is\b",
+                r"\bwho is\b",
+                r"\bwhen did\b",
+                r"\bhow many\b",
+                r"\bdefine\b",
+                r"\blist\b",
             ],
             QueryType.TEMPORAL: [
-                r"\brecent\b", r"\blatest\b", r"\blast\b",
-                r"\b20\d{2}\b", r"\bthis year\b"
+                r"\brecent\b",
+                r"\blatest\b",
+                r"\blast\b",
+                r"\b20\d{2}\b",
+                r"\bthis year\b",
             ],
             QueryType.COMPARATIVE: [
-                r"\bcompare\b", r"\bversus\b", r"\bvs\b",
-                r"\bdifference between\b", r"\bbetter than\b"
+                r"\bcompare\b",
+                r"\bversus\b",
+                r"\bvs\b",
+                r"\bdifference between\b",
+                r"\bbetter than\b",
             ],
             QueryType.CONCEPTUAL: [
-                r"\bexplain\b", r"\bwhy\b", r"\bhow does\b",
-                r"\brelationship\b", r"\bimpact\b"
+                r"\bexplain\b",
+                r"\bwhy\b",
+                r"\bhow does\b",
+                r"\brelationship\b",
+                r"\bimpact\b",
             ],
         }
 
@@ -105,13 +119,13 @@ class SemanticRouter:
             try:
                 strat = default_router.compute_strategy(query_text)
                 return {
-                    'query_type': strat.classification['label'],
-                    'temporal_filter': strat.temporal_range,
-                    'use_bm25': True,
-                    'bm25_weight': strat.bm25_weight,
-                    'dense_weight': strat.dense_weight,
-                    'use_reranker': strat.use_reranker,
-                    'k_candidates': strat.k_candidates
+                    "query_type": strat.classification["label"],
+                    "temporal_filter": strat.temporal_range,
+                    "use_bm25": True,
+                    "bm25_weight": strat.bm25_weight,
+                    "dense_weight": strat.dense_weight,
+                    "use_reranker": strat.use_reranker,
+                    "k_candidates": strat.k_candidates,
                 }
             except Exception:
                 # Fallback to our simple logic below
@@ -123,51 +137,51 @@ class SemanticRouter:
 
         # Base defaults. Allow overriding via config
         defaults = {
-            'bm25_weight': float(self.config.get('routing.factual_bm25_weight', 0.6)),
-            'dense_weight': float(self.config.get('routing.conceptual_dense_weight', 0.8)),
-            'k_candidates': int(self.config.get('retrieval.bm25_candidates', 500)),
-            'use_reranker': bool(self.config.get('retrieval.use_reranker', False)),
+            "bm25_weight": float(self.config.get("routing.factual_bm25_weight", 0.6)),
+            "dense_weight": float(self.config.get("routing.conceptual_dense_weight", 0.8)),
+            "k_candidates": int(self.config.get("retrieval.bm25_candidates", 500)),
+            "use_reranker": bool(self.config.get("retrieval.use_reranker", False)),
         }
 
         # Adjust defaults by query type
         strategy = {
-            'query_type': q_type.value,
-            'temporal_filter': temporal,
-            'use_bm25': True,
-            'bm25_weight': 0.3,
-            'dense_weight': 0.7,
-            'use_reranker': defaults['use_reranker'],
-            'k_candidates': defaults['k_candidates']
+            "query_type": q_type.value,
+            "temporal_filter": temporal,
+            "use_bm25": True,
+            "bm25_weight": 0.3,
+            "dense_weight": 0.7,
+            "use_reranker": defaults["use_reranker"],
+            "k_candidates": defaults["k_candidates"],
         }
 
         if q_type == QueryType.FACTUAL:
-            strategy['bm25_weight'] = 0.6
-            strategy['dense_weight'] = 0.4
-            strategy['k_candidates'] = max(50, int(defaults['k_candidates'] * 0.6))
+            strategy["bm25_weight"] = 0.6
+            strategy["dense_weight"] = 0.4
+            strategy["k_candidates"] = max(50, int(defaults["k_candidates"] * 0.6))
         elif q_type == QueryType.CONCEPTUAL:
-            strategy['bm25_weight'] = 0.2
-            strategy['dense_weight'] = 0.8
-            strategy['use_reranker'] = True
-            strategy['k_candidates'] = int(defaults['k_candidates'] * 0.8)
+            strategy["bm25_weight"] = 0.2
+            strategy["dense_weight"] = 0.8
+            strategy["use_reranker"] = True
+            strategy["k_candidates"] = int(defaults["k_candidates"] * 0.8)
         elif q_type == QueryType.COMPARATIVE:
-            strategy['use_reranker'] = True
-            strategy['k_candidates'] = int(defaults['k_candidates'] * 0.5)
+            strategy["use_reranker"] = True
+            strategy["k_candidates"] = int(defaults["k_candidates"] * 0.5)
         elif q_type == QueryType.TEMPORAL:
-            strategy['bm25_weight'] = 0.4
-            strategy['dense_weight'] = 0.6
-            strategy['k_candidates'] = int(defaults['k_candidates'] * 0.75)
+            strategy["bm25_weight"] = 0.4
+            strategy["dense_weight"] = 0.6
+            strategy["k_candidates"] = int(defaults["k_candidates"] * 0.75)
 
         # Allow final override via config flags
-        if self.config.get('routing.enable', True) is False:
+        if self.config.get("routing.enable", True) is False:
             # Router disabled: use default retrieval parameters
             return {
-                'query_type': QueryType.EXPLORATORY.value,
-                'temporal_filter': None,
-                'use_bm25': True,
-                'bm25_weight': 0.3,
-                'dense_weight': 0.7,
-                'use_reranker': defaults['use_reranker'],
-                'k_candidates': defaults['k_candidates']
+                "query_type": QueryType.EXPLORATORY.value,
+                "temporal_filter": None,
+                "use_bm25": True,
+                "bm25_weight": 0.3,
+                "dense_weight": 0.7,
+                "use_reranker": defaults["use_reranker"],
+                "k_candidates": defaults["k_candidates"],
             }
 
         return strategy

@@ -4,6 +4,7 @@ Simple BM25 searcher for fast-pass JSONL output and stats.
 This module provides BM25 ranking functionality with support for
 multiple backend implementations (Python, Whoosh, etc.).
 """
+
 import json
 import math
 from collections import Counter, defaultdict
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.cubo.retrieval.bm25_store_factory import get_bm25_store
-from src.cubo.retrieval.constants import BM25_K1, BM25_B, BM25_NORMALIZATION_FACTOR
+from src.cubo.retrieval.constants import BM25_B, BM25_K1, BM25_NORMALIZATION_FACTOR
 from src.cubo.utils.logger import logger
 
 
@@ -32,11 +33,7 @@ class BM25Searcher:
     B = BM25_B
 
     def __init__(
-        self,
-        chunks_jsonl: str = None,
-        bm25_stats: str = None,
-        backend: str = None,
-        **kwargs
+        self, chunks_jsonl: str = None, bm25_stats: str = None, backend: str = None, **kwargs
     ):
         """Initialize BM25 searcher with optional data paths.
 
@@ -66,7 +63,7 @@ class BM25Searcher:
         docs_parsed = self._parse_chunks_file()
         self._index_parsed_docs(docs_parsed)
         self._load_bm25_stats()
-        self.docs = getattr(self._store, 'docs', [])
+        self.docs = getattr(self._store, "docs", [])
 
     def _parse_chunks_file(self) -> List[Dict[str, Any]]:
         """Parse chunks from JSONL file.
@@ -78,16 +75,12 @@ class BM25Searcher:
             return []
 
         docs_parsed = []
-        with open(self.chunks_jsonl, encoding='utf-8') as f:
+        with open(self.chunks_jsonl, encoding="utf-8") as f:
             for line in f:
                 rec = json.loads(line)
                 doc_id = self._build_doc_id(rec)
-                text = rec.get('text', rec.get('document', ''))
-                docs_parsed.append({
-                    'doc_id': doc_id,
-                    'text': text,
-                    'metadata': rec
-                })
+                text = rec.get("text", rec.get("document", ""))
+                docs_parsed.append({"doc_id": doc_id, "text": text, "metadata": rec})
         return docs_parsed
 
     def _build_doc_id(self, rec: Dict[str, Any]) -> str:
@@ -99,9 +92,9 @@ class BM25Searcher:
         Returns:
             Unique document ID string.
         """
-        file_hash = rec.get('file_hash', '')
-        chunk_index = rec.get('chunk_index', 0)
-        filename = rec.get('filename', 'unknown')
+        file_hash = rec.get("file_hash", "")
+        chunk_index = rec.get("chunk_index", 0)
+        filename = rec.get("filename", "unknown")
 
         if file_hash:
             return f"{file_hash}_{chunk_index}"
@@ -130,7 +123,7 @@ class BM25Searcher:
         try:
             self._store.add_documents(docs_parsed)
         except Exception:
-            logger.warning('Failed to index docs into BM25 store')
+            logger.warning("Failed to index docs into BM25 store")
 
     def _load_bm25_stats(self) -> None:
         """Load BM25 statistics from configured stats file."""
@@ -140,7 +133,7 @@ class BM25Searcher:
         try:
             self._store.load_stats(str(self.bm25_stats))
         except Exception:
-            logger.warning('BM25 store failed to load stats')
+            logger.warning("BM25 store failed to load stats")
 
     def load_stats(self, path: str) -> None:
         """Load BM25 statistics from a JSON file.
@@ -159,7 +152,7 @@ class BM25Searcher:
         Args:
             path: Path to the stats JSON file.
         """
-        with open(path, encoding='utf-8') as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         self._apply_stats_to_store(data)
@@ -170,20 +163,18 @@ class BM25Searcher:
         Args:
             data: Dict containing doc_lengths, avg_doc_length, etc.
         """
-        if hasattr(self._store, 'doc_lengths'):
-            self._store.doc_lengths = {
-                k: int(v) for k, v in data.get('doc_lengths', {}).items()
-            }
-        if hasattr(self._store, 'avg_doc_length'):
-            self._store.avg_doc_length = float(data.get('avg_doc_length', 0.0))
-        if hasattr(self._store, 'term_doc_freq'):
-            self._store.term_doc_freq = defaultdict(int, {
-                k: int(v) for k, v in data.get('term_doc_freq', {}).items()
-            })
-        if hasattr(self._store, 'doc_term_freq'):
+        if hasattr(self._store, "doc_lengths"):
+            self._store.doc_lengths = {k: int(v) for k, v in data.get("doc_lengths", {}).items()}
+        if hasattr(self._store, "avg_doc_length"):
+            self._store.avg_doc_length = float(data.get("avg_doc_length", 0.0))
+        if hasattr(self._store, "term_doc_freq"):
+            self._store.term_doc_freq = defaultdict(
+                int, {k: int(v) for k, v in data.get("term_doc_freq", {}).items()}
+            )
+        if hasattr(self._store, "doc_term_freq"):
             self._store.doc_term_freq = {
                 k: {tk: int(tv) for tk, tv in v.items()}
-                for k, v in data.get('doc_term_freq', {}).items()
+                for k, v in data.get("doc_term_freq", {}).items()
             }
 
     def save_stats(self, path: str) -> None:
@@ -204,16 +195,16 @@ class BM25Searcher:
             path: Path for the output JSON file.
         """
         data = {
-            "doc_lengths": getattr(self._store, 'doc_lengths', {}),
-            "avg_doc_length": getattr(self._store, 'avg_doc_length', 0.0),
-            "term_doc_freq": dict(getattr(self._store, 'term_doc_freq', {})),
+            "doc_lengths": getattr(self._store, "doc_lengths", {}),
+            "avg_doc_length": getattr(self._store, "avg_doc_length", 0.0),
+            "term_doc_freq": dict(getattr(self._store, "term_doc_freq", {})),
             "doc_term_freq": {
                 doc_id: dict(freqs)
-                for doc_id, freqs in getattr(self._store, 'doc_term_freq', {}).items()
-            }
+                for doc_id, freqs in getattr(self._store, "doc_term_freq", {}).items()
+            },
         }
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
 
     def index_documents(self, docs: List[Dict]) -> Any:
@@ -242,9 +233,7 @@ class BM25Searcher:
         except Exception:
             return self._add_documents_fallback(docs, reset)
 
-    def _add_documents_fallback(
-        self, docs: List[Dict], reset: bool
-    ) -> None:
+    def _add_documents_fallback(self, docs: List[Dict], reset: bool) -> None:
         """Fallback implementation for adding documents.
 
         Args:
@@ -256,13 +245,13 @@ class BM25Searcher:
             return
 
         for d in docs:
-            doc_id = d.get('doc_id')
+            doc_id = d.get("doc_id")
             if not doc_id:
                 continue
             if d not in self.docs:
                 self.docs.append(d)
 
-            text = d.get('text', '')
+            text = d.get("text", "")
             tokens = self._tokenize(text)
             self._update_doc_stats(doc_id, tokens)
 
@@ -297,12 +286,10 @@ class BM25Searcher:
         Returns:
             List of tokens (words with length > 2).
         """
-        normalized = ''.join(c if c.isalnum() else ' ' for c in text.lower())
+        normalized = "".join(c if c.isalnum() else " " for c in text.lower())
         return [w for w in normalized.split() if len(w) > 2]
 
-    def compute_score(
-        self, query_terms: List[str], doc_id: str, doc_text: str = None
-    ) -> float:
+    def compute_score(self, query_terms: List[str], doc_id: str, doc_text: str = None) -> float:
         """Compute BM25 score for a document.
 
         Args:
@@ -342,9 +329,7 @@ class BM25Searcher:
         avg_len = self.avg_doc_length if self.avg_doc_length > 0 else doc_len
         doc_terms = self._get_doc_terms(doc_id, doc_text)
 
-        return self._sum_term_scores(
-            query_terms, doc_terms, doc_len, avg_len, total_docs
-        )
+        return self._sum_term_scores(query_terms, doc_terms, doc_len, avg_len, total_docs)
 
     def _get_doc_length(self, doc_id: str, doc_text: Optional[str]) -> int:
         """Get document length, computing from text if not cached.
@@ -361,9 +346,7 @@ class BM25Searcher:
             return len(self._tokenize(doc_text))
         return doc_len
 
-    def _get_doc_terms(
-        self, doc_id: str, doc_text: Optional[str]
-    ) -> Dict[str, int]:
+    def _get_doc_terms(self, doc_id: str, doc_text: Optional[str]) -> Dict[str, int]:
         """Get term frequencies for a document.
 
         Args:
@@ -389,10 +372,7 @@ class BM25Searcher:
         Returns:
             Document text or empty string if not found.
         """
-        return next(
-            (d['text'] for d in self.docs if d.get('doc_id') == doc_id),
-            ''
-        )
+        return next((d["text"] for d in self.docs if d.get("doc_id") == doc_id), "")
 
     def _sum_term_scores(
         self,
@@ -400,7 +380,7 @@ class BM25Searcher:
         doc_terms: Dict[str, int],
         doc_len: int,
         avg_len: float,
-        total_docs: int
+        total_docs: int,
     ) -> float:
         """Sum BM25 scores for all query terms.
 
@@ -419,18 +399,11 @@ class BM25Searcher:
             tf = doc_terms.get(term, 0)
             if tf == 0:
                 continue
-            score += self._compute_term_score(
-                term, tf, doc_len, avg_len, total_docs
-            )
+            score += self._compute_term_score(term, tf, doc_len, avg_len, total_docs)
         return score
 
     def _compute_term_score(
-        self,
-        term: str,
-        tf: int,
-        doc_len: int,
-        avg_len: float,
-        total_docs: int
+        self, term: str, tf: int, doc_len: int, avg_len: float, total_docs: int
     ) -> float:
         """Compute BM25 score contribution from a single term.
 
@@ -450,9 +423,7 @@ class BM25Searcher:
         denominator = tf + self.K1 * (1 - self.B + self.B * (doc_len / avg_len))
         return idf * (numerator / denominator)
 
-    def search(
-        self, query: str, top_k: int = 10, docs: List[Dict] = None
-    ) -> List[Dict]:
+    def search(self, query: str, top_k: int = 10, docs: List[Dict] = None) -> List[Dict]:
         """Search for documents matching query.
 
         Args:
@@ -468,9 +439,7 @@ class BM25Searcher:
         except Exception:
             return self._search_fallback(query, top_k, docs)
 
-    def _search_fallback(
-        self, query: str, top_k: int, docs: Optional[List[Dict]]
-    ) -> List[Dict]:
+    def _search_fallback(self, query: str, top_k: int, docs: Optional[List[Dict]]) -> List[Dict]:
         """Fallback search implementation using wrapper scoring.
 
         Args:
@@ -487,12 +456,10 @@ class BM25Searcher:
 
         docs_to_search = docs if docs is not None else self.docs
         results = self._score_documents(query_terms, docs_to_search)
-        results.sort(key=lambda x: x['similarity'], reverse=True)
+        results.sort(key=lambda x: x["similarity"], reverse=True)
         return results[:top_k]
 
-    def _score_documents(
-        self, query_terms: List[str], docs_to_search: List[Dict]
-    ) -> List[Dict]:
+    def _score_documents(self, query_terms: List[str], docs_to_search: List[Dict]) -> List[Dict]:
         """Score all documents against query terms.
 
         Args:
@@ -504,16 +471,18 @@ class BM25Searcher:
         """
         results = []
         for d in docs_to_search:
-            doc_id = d.get('doc_id')
+            doc_id = d.get("doc_id")
             if not doc_id:
                 continue
             bm25_score = self._compute_bm25_score(query_terms, doc_id)
             norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
             if norm_score > 0.0:
-                results.append({
-                    'doc_id': doc_id,
-                    'similarity': norm_score,
-                    'metadata': d.get('metadata', {}),
-                    'text': d.get('text', '')
-                })
+                results.append(
+                    {
+                        "doc_id": doc_id,
+                        "similarity": norm_score,
+                        "metadata": d.get("metadata", {}),
+                        "text": d.get("text", ""),
+                    }
+                )
         return results

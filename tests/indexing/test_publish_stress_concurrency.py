@@ -1,10 +1,12 @@
 import concurrent.futures
 import time
 from pathlib import Path
+
 import pytest
+
 from tests.utils import create_and_publish_faiss_index
 
-pytest.importorskip('faiss')
+pytest.importorskip("faiss")
 pytestmark = pytest.mark.requires_faiss
 
 
@@ -28,7 +30,7 @@ def _publisher_task(index_root: Path, count: int = 10, delay: float = 0.02):
     errors = []
     for i in range(1, count + 1):
         try:
-            create_and_publish_faiss_index(index_root, f'faiss_v{i}', n_vectors=16, dim=2)
+            create_and_publish_faiss_index(index_root, f"faiss_v{i}", n_vectors=16, dim=2)
         except Exception as exc:
             errors.append(exc)
         time.sleep(delay)
@@ -42,11 +44,11 @@ def test_publish_stress_concurrency(tmp_path: Path, tmp_metadata_db):
     The test asserts that publishers can create and publish versions without crashing and readers only
     encounter a low number of transient errors.
     """
-    index_root = tmp_path / 'indexes'
+    index_root = tmp_path / "indexes"
     index_root.mkdir(parents=True)
 
     # Initial published version
-    create_and_publish_faiss_index(index_root, 'faiss_v0', n_vectors=8, dim=2)
+    create_and_publish_faiss_index(index_root, "faiss_v0", n_vectors=8, dim=2)
 
     num_readers = 4
     publish_count = 12
@@ -65,10 +67,15 @@ def test_publish_stress_concurrency(tmp_path: Path, tmp_metadata_db):
 
     # Allow a small number of transient reader errors due to pointer flips, but assert they are limited
     total_reader_errors = sum(len(e) for e in reader_errors)
-    assert total_reader_errors < (num_readers * 10), f"Too many reader errors during stress test: {total_reader_errors}"
+    assert total_reader_errors < (
+        num_readers * 10
+    ), f"Too many reader errors during stress test: {total_reader_errors}"
 
     # Ensure pointer points to the last published directory
     from src.cubo.indexing.index_publisher import get_current_index_dir
+
     last_published = get_current_index_dir(index_root)
     assert last_published is not None, "No pointer present after publishing"
-    assert last_published.name == f'faiss_v{publish_count}', "Pointer did not end on the expected latest index"
+    assert (
+        last_published.name == f"faiss_v{publish_count}"
+    ), "Pointer did not end on the expected latest index"

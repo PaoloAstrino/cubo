@@ -15,6 +15,7 @@ from src.cubo.utils.logging_context import get_current_trace_id
 
 try:
     import structlog
+
     STRUCTLOG_AVAILABLE = True
 except Exception:
     STRUCTLOG_AVAILABLE = False
@@ -30,7 +31,7 @@ except Exception:
 
 
 def _ensure_log_dir(path: str):
-    log_dir = os.path.dirname(path) or '.'
+    log_dir = os.path.dirname(path) or "."
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
@@ -66,72 +67,74 @@ class Logger:
         self._setup_logging()
 
     def _get_formatter(self):
-        fmt = _cfg_logging_or('format', 'json')
-        if fmt == 'json' and JSONLOGGER_AVAILABLE:
+        fmt = _cfg_logging_or("format", "json")
+        if fmt == "json" and JSONLOGGER_AVAILABLE:
             # Include a 'trace_id' field if present
-            fmt_str = '%(asctime)s %(levelname)s %(name)s %(message)s %(trace_id)s'
+            fmt_str = "%(asctime)s %(levelname)s %(name)s %(message)s %(trace_id)s"
             return jsonlogger.JsonFormatter(fmt_str)
-        if fmt == 'json' and not JSONLOGGER_AVAILABLE:
+        if fmt == "json" and not JSONLOGGER_AVAILABLE:
             # Fallback JSON formatter if python-json-logger is not available. This
             # emits minimal JSON objects with fields used by tests: level, message,
             # name, asctime and trace_id.
             class SimpleJsonFormatter(logging.Formatter):
                 def format(self, record):
                     try:
-                        trace_id = getattr(record, 'trace_id', '')
+                        trace_id = getattr(record, "trace_id", "")
                     except Exception:
-                        trace_id = ''
+                        trace_id = ""
                     payload = {
-                        'asctime': self.formatTime(record, datefmt=None),
-                        'level': record.levelname,
-                        'name': record.name,
-                        'message': record.getMessage(),
-                        'trace_id': trace_id or ''
+                        "asctime": self.formatTime(record, datefmt=None),
+                        "level": record.levelname,
+                        "name": record.name,
+                        "message": record.getMessage(),
+                        "trace_id": trace_id or "",
                     }
                     try:
                         import json as _json
+
                         return _json.dumps(payload, ensure_ascii=False)
                     except Exception:
                         return str(payload)
+
             return SimpleJsonFormatter()
         # Default human readable format
-        return logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+        return logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
     def _setup_handlers(self):
-        path = str(_cfg_logging_or('log_file', './logs/cubo_log.jsonl'))
+        path = str(_cfg_logging_or("log_file", "./logs/cubo_log.jsonl"))
         _ensure_log_dir(path)
         # Ensure the log file exists so tests and external tools can open it immediately
         try:
-            with open(path, 'a', encoding='utf-8'):
+            with open(path, "a", encoding="utf-8"):
                 pass
         except Exception:
             pass
 
-        rotate_method = _cfg_logging_or('rotate_method', 'midnight')
-        retention_days = int(_cfg_logging_or('retention_days', 30))
-        compress_rotated = bool(_cfg_logging_or('compress_rotated', True))
+        rotate_method = _cfg_logging_or("rotate_method", "midnight")
+        retention_days = int(_cfg_logging_or("retention_days", 30))
+        compress_rotated = bool(_cfg_logging_or("compress_rotated", True))
 
-        if rotate_method == 'size':
-            size = int(_cfg_logging_or('rotate_size', 100 * 1024 * 1024))
-            handler = RotatingFileHandler(path, maxBytes=size, backupCount=10, encoding='utf-8')
-        elif rotate_method == 'time' or rotate_method == 'midnight':
-            when = _cfg_logging_or('rotate_when', 'midnight')
-            handler = TimedRotatingFileHandler(path, when=when, backupCount=10, encoding='utf-8')
+        if rotate_method == "size":
+            size = int(_cfg_logging_or("rotate_size", 100 * 1024 * 1024))
+            handler = RotatingFileHandler(path, maxBytes=size, backupCount=10, encoding="utf-8")
+        elif rotate_method == "time" or rotate_method == "midnight":
+            when = _cfg_logging_or("rotate_when", "midnight")
+            handler = TimedRotatingFileHandler(path, when=when, backupCount=10, encoding="utf-8")
         else:
-            handler = logging.FileHandler(path, encoding='utf-8')
+            handler = logging.FileHandler(path, encoding="utf-8")
 
         handler.setFormatter(self._get_formatter())
         return handler
 
     def _setup_logging(self):
         # Avoid re-configuring if already set up
-        if self.logger and getattr(self.logger, 'handlers', None):
+        if self.logger and getattr(self.logger, "handlers", None):
             return
 
         root_logger = logging.getLogger()
-        root_logger.setLevel(getattr(logging, _cfg_logging_or('log_level', 'INFO')))
+        root_logger.setLevel(getattr(logging, _cfg_logging_or("log_level", "INFO")))
 
-        queue_enabled = bool(_cfg_logging_or('enable_queue', True))
+        queue_enabled = bool(_cfg_logging_or("enable_queue", True))
         handler = self._setup_handlers()
 
         if queue_enabled:
@@ -158,7 +161,7 @@ class Logger:
             def filter(self, record):
                 trace = get_current_trace_id()
                 try:
-                    record.trace_id = trace or ''
+                    record.trace_id = trace or ""
                 except Exception:
                     pass
                 return True
@@ -172,7 +175,7 @@ class Logger:
         # created with that logger get the trace id before being passed to handlers.
         try:
             # At this moment self.logger may be a structlog BoundLogger or stdlib logger
-            if hasattr(self.logger, 'logger'):
+            if hasattr(self.logger, "logger"):
                 # structlog BoundLogger wraps underlying stdlib logger at .logger
                 try:
                     self.logger.logger.addFilter(TraceIDFilter())
@@ -194,36 +197,41 @@ class Logger:
                 try:
                     trace = get_current_trace_id()
                     if trace:
-                        event_dict['trace_id'] = trace
+                        event_dict["trace_id"] = trace
                 except Exception:
                     pass
                 return event_dict
 
             structlog.configure(
                 processors=[
-                    structlog.processors.TimeStamper(fmt='iso'),
+                    structlog.processors.TimeStamper(fmt="iso"),
                     structlog.processors.add_log_level,
                     structlog.processors.StackInfoRenderer(),
                     structlog.processors.format_exc_info,
                     _structlog_add_trace_id,
-                    structlog.processors.JSONRenderer() if _cfg_logging_or('format', 'json') == 'json' else structlog.dev.ConsoleRenderer()
+                    (
+                        structlog.processors.JSONRenderer()
+                        if _cfg_logging_or("format", "json") == "json"
+                        else structlog.dev.ConsoleRenderer()
+                    ),
                 ],
                 context_class=dict,
                 logger_factory=structlog.stdlib.LoggerFactory(),
                 wrapper_class=structlog.stdlib.BoundLogger,
                 cache_logger_on_first_use=True,
             )
-            self.logger = structlog.get_logger('cubo')
+            self.logger = structlog.get_logger("cubo")
             trace = get_current_trace_id()
             if trace:
                 self.logger = self.logger.bind(trace_id=trace)
         else:
-            self.logger = logging.getLogger('cubo')
+            self.logger = logging.getLogger("cubo")
         # Export the configured logger as module-level `logger` so external
         # modules referencing `from src.cubo.utils.logger import logger` see
         # the updated logger instance after reconfiguration.
         try:
             import sys
+
             module = sys.modules[__name__]
             module.logger = self.logger
         except Exception:

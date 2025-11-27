@@ -18,12 +18,16 @@ class DocumentProcessorWorker(QObject):
 
     # Signals for GUI communication
     progress_updated = Signal(int, str)  # progress %, status message
-    processing_finished = Signal(list)   # results (chunks)
-    error_occurred = Signal(str)         # error message
+    processing_finished = Signal(list)  # results (chunks)
+    error_occurred = Signal(str)  # error message
     document_processed = Signal(str, int)  # filename, chunk_count
 
-    def __init__(self, file_paths: List[str], processor_type: str = "auto",
-                 config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        file_paths: List[str],
+        processor_type: str = "auto",
+        config: Optional[Dict[str, Any]] = None,
+    ):
         """
         Initialize document processor worker.
 
@@ -75,7 +79,9 @@ class DocumentProcessorWorker(QObject):
 
         return start_time, all_chunks, total_files
 
-    def _process_document_batch(self, all_chunks: List, total_files: int, start_time: float) -> List:
+    def _process_document_batch(
+        self, all_chunks: List, total_files: int, start_time: float
+    ) -> List:
         """Process all documents in the batch."""
         for i, file_path in enumerate(self.file_paths):
             if self.is_cancelled:
@@ -83,12 +89,9 @@ class DocumentProcessorWorker(QObject):
                 break
 
             file_start_time = time.time()
-            filename = file_path.split('/')[-1].split('\\')[-1]
+            filename = file_path.split("/")[-1].split("\\")[-1]
 
-            self.progress_updated.emit(
-                int((i / total_files) * 100),
-                f"Processing {filename}..."
-            )
+            self.progress_updated.emit(int((i / total_files) * 100), f"Processing {filename}...")
 
             try:
                 # Process single document
@@ -97,7 +100,9 @@ class DocumentProcessorWorker(QObject):
                 if chunks:
                     all_chunks.extend(chunks)
                     processing_time = time.time() - file_start_time
-                    logger.info(f"Processed {filename}: {len(chunks)} chunks in {processing_time:.2f}s")
+                    logger.info(
+                        f"Processed {filename}: {len(chunks)} chunks in {processing_time:.2f}s"
+                    )
 
                     # Signal individual document completion
                     self.document_processed.emit(filename, len(chunks))
@@ -109,8 +114,7 @@ class DocumentProcessorWorker(QObject):
                 logger.error(error_msg)
                 # Continue with other files instead of failing completely
                 self.progress_updated.emit(
-                    int((i / total_files) * 100),
-                    f"Error processing {filename}, continuing..."
+                    int((i / total_files) * 100), f"Error processing {filename}, continuing..."
                 )
 
         return all_chunks
@@ -118,9 +122,13 @@ class DocumentProcessorWorker(QObject):
     def _handle_processing_completion(self, all_chunks: List, total_files: int, start_time: float):
         """Handle successful completion of processing."""
         total_time = time.time() - start_time
-        self.progress_updated.emit(100, f"Processing complete! {len(all_chunks)} total chunks in {total_time:.2f}s")
+        self.progress_updated.emit(
+            100, f"Processing complete! {len(all_chunks)} total chunks in {total_time:.2f}s"
+        )
         self.processing_finished.emit(all_chunks)
-        logger.info(f"Document processing completed: {len(all_chunks)} chunks from {total_files} files")
+        logger.info(
+            f"Document processing completed: {len(all_chunks)} chunks from {total_files} files"
+        )
 
     def _handle_processing_error(self, error: Exception):
         """Handle critical processing errors."""
@@ -132,6 +140,7 @@ class DocumentProcessorWorker(QObject):
         """Initialize document processors."""
         try:
             from src.cubo.ingestion.document_loader import DocumentLoader
+
             self.document_loader = DocumentLoader()
 
             # Initialize enhanced processor if needed
@@ -140,12 +149,15 @@ class DocumentProcessorWorker(QObject):
                     from src.cubo.ingestion.enhanced_document_processor import (
                         EnhancedDocumentProcessor,
                     )
+
                     self.enhanced_processor = EnhancedDocumentProcessor(self.config)
                     logger.info("Enhanced document processor initialized")
                 except Exception as e:
                     logger.warning(f"Could not initialize enhanced processor: {e}")
                     if self.processor_type == "enhanced":
-                        raise RuntimeError("Enhanced processing requested but Dolphin not available")
+                        raise RuntimeError(
+                            "Enhanced processing requested but Dolphin not available"
+                        )
 
         except Exception as e:
             logger.error(f"Failed to initialize processors: {e}")
@@ -157,9 +169,8 @@ class DocumentProcessorWorker(QObject):
             return []
 
         # Determine processing method
-        use_enhanced = (
-            self.processor_type == "enhanced" or
-            (self.processor_type == "auto" and self.enhanced_processor is not None)
+        use_enhanced = self.processor_type == "enhanced" or (
+            self.processor_type == "auto" and self.enhanced_processor is not None
         )
 
         if use_enhanced and self.enhanced_processor:
@@ -173,13 +184,16 @@ class DocumentProcessorWorker(QObject):
             # Use the enhanced processor
             return self.enhanced_processor.process_document(file_path)
         except Exception as e:
-            logger.warning(f"Enhanced processing failed for {file_path}, falling back to standard: {e}")
+            logger.warning(
+                f"Enhanced processing failed for {file_path}, falling back to standard: {e}"
+            )
             return self._process_with_standard(file_path)
 
     def _process_with_standard(self, file_path: str) -> List[Dict[str, Any]]:
         """Process document with standard processing."""
         try:
             from src.cubo.ingestion.document_loader import DocumentLoader
+
             loader = DocumentLoader()
             return loader.load_single_document(file_path)
         except Exception as e:
@@ -194,9 +208,7 @@ class BatchDocumentProcessor:
         self.thread_manager = thread_manager
 
     def process_documents_batch(
-        self, file_paths: List[str],
-        processor_type: str = "auto",
-        batch_size: int = 5
+        self, file_paths: List[str], processor_type: str = "auto", batch_size: int = 5
     ) -> List[Dict[str, Any]]:
         """
         Process documents in batches for better resource utilization.
@@ -211,13 +223,14 @@ class BatchDocumentProcessor:
         """
         if not self.thread_manager:
             from src.cubo.workers.enhanced_thread_manager import get_enhanced_thread_manager
+
             self.thread_manager = get_enhanced_thread_manager()
 
         all_chunks = []
 
         # Process in batches
         for i in range(0, len(file_paths), batch_size):
-            batch = file_paths[i:i + batch_size]
+            batch = file_paths[i : i + batch_size]
 
             # Submit batch processing tasks
             futures = []
@@ -247,6 +260,7 @@ class BatchDocumentProcessor:
         """Process single file with enhanced processing."""
         try:
             from src.cubo.ingestion.enhanced_document_processor import EnhancedDocumentProcessor
+
             processor = EnhancedDocumentProcessor()
             return processor.process_document(file_path)
         except Exception as e:
@@ -257,6 +271,7 @@ class BatchDocumentProcessor:
         """Process single file with standard processing."""
         try:
             from src.cubo.ingestion.document_loader import DocumentLoader
+
             loader = DocumentLoader()
             return loader.load_single_document(file_path)
         except Exception as e:

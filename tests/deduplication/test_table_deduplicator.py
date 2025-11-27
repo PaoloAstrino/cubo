@@ -10,7 +10,7 @@ class FakeEmbedder:
         vectors = []
         for text in texts:
             length = len(text)
-            commas = text.count(',')
+            commas = text.count(",")
             vectors.append([length, commas])
         arr = np.asarray(vectors, dtype=np.float32)
         return arr if convert_to_numpy else arr.tolist()
@@ -35,6 +35,7 @@ def test_table_deduplicator_clusters_and_virtual_tables():
 
     # Force sklearn fallback for deterministic clustering within unit tests (avoid HDBSCAN stochastic behavior)
     import src.cubo.deduplication.table_deduplicator as tdd
+
     tdd.hdbscan = None
     tdd.umap = None
     deduplicator = TableDeduplicator(FakeEmbedder(), min_cluster_size=2, min_samples=1)
@@ -46,7 +47,9 @@ def test_table_deduplicator_clusters_and_virtual_tables():
     virtual_tables = deduplicator.create_virtual_tables(tables, labels)
 
     assert isinstance(virtual_tables, list)
-    assert any(vt["common_columns"] == ["id", "value"] for vt in virtual_tables if vt["source_tables"])
+    assert any(
+        vt["common_columns"] == ["id", "value"] for vt in virtual_tables if vt["source_tables"]
+    )
 
 
 def test_embed_tables_handles_empty_dataframe():
@@ -86,10 +89,14 @@ def test_create_virtual_tables_requires_matching_label_lengths():
 def test_virtual_table_common_columns_with_mixed_schemas_and_noise():
     tables = pd.DataFrame(
         [
-            _sample_table("t1", ["id", "value", "timestamp"], [{"id": 1, "value": "x", "timestamp": "2020"}]),
+            _sample_table(
+                "t1", ["id", "value", "timestamp"], [{"id": 1, "value": "x", "timestamp": "2020"}]
+            ),
             _sample_table("t2", ["value", "id"], [{"id": 2, "value": "y"}]),
             _sample_table("t3", ["user", "score"], [{"user": "a", "score": 5}]),
-            _sample_table("t4", ["score", "user", "region"], [{"user": "b", "score": 3, "region": "na"}]),
+            _sample_table(
+                "t4", ["score", "user", "region"], [{"user": "b", "score": 3, "region": "na"}]
+            ),
         ]
     )
     deduplicator = TableDeduplicator(FakeEmbedder(), min_cluster_size=1, min_samples=1)

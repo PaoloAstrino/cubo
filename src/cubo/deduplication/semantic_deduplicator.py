@@ -1,11 +1,12 @@
 """Hybrid semantic deduplication pipeline combining MinHash, FAISS ANN, and clustering."""
+
 from __future__ import annotations
 
 import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import networkx as nx
 import numpy as np
@@ -61,7 +62,11 @@ class HybridDeduplicator:
         self.method = method
         self.similarity_threshold = similarity_threshold
         self.representative_metric = representative_metric
-        self.prefilter_cfg = prefilter or {"use_minhash": True, "num_perm": 128, "minhash_threshold": 0.8}
+        self.prefilter_cfg = prefilter or {
+            "use_minhash": True,
+            "num_perm": 128,
+            "minhash_threshold": 0.8,
+        }
         self.ann_cfg = ann or {"backend": "faiss", "k": 50}
         self.clustering_cfg = clustering or {
             "algorithm": "hdbscan",
@@ -104,7 +109,9 @@ class HybridDeduplicator:
             "clustering": self.clustering_cfg,
         }
 
-        result = DeduplicationResult(canonical_map, cluster_mapping, representatives, clusters, metadata)
+        result = DeduplicationResult(
+            canonical_map, cluster_mapping, representatives, clusters, metadata
+        )
         if output_map_path:
             self.save_map(output_map_path, result)
         return result
@@ -124,7 +131,9 @@ class HybridDeduplicator:
             self._add_prefilter_edges(graph, embeddings, chunk_ids, candidate_pairs)
         return graph
 
-    def find_clusters(self, embeddings: Optional[np.ndarray] = None) -> Tuple[List[Set[str]], Dict[str, int]]:
+    def find_clusters(
+        self, embeddings: Optional[np.ndarray] = None
+    ) -> Tuple[List[Set[str]], Dict[str, int]]:
         algo = (self.clustering_cfg.get("algorithm") or "graph").lower()
         if algo == "hdbscan" and hdbscan and embeddings is not None:
             return self._cluster_with_hdbscan(embeddings)
@@ -145,7 +154,11 @@ class HybridDeduplicator:
         indexed = chunks_df.set_index("chunk_id", drop=False)
         representatives: Dict[int, Dict[str, Any]] = {}
         for cid, cluster in enumerate(clusters):
-            cluster_rows = indexed.loc[list(cluster)] if len(cluster) > 1 else indexed.loc[[next(iter(cluster))]]
+            cluster_rows = (
+                indexed.loc[list(cluster)]
+                if len(cluster) > 1
+                else indexed.loc[[next(iter(cluster))]]
+            )
             metric_series = self._extract_metric(cluster_rows)
             best_idx = metric_series.idxmax()
             best_row = cluster_rows.loc[best_idx]
@@ -282,15 +295,21 @@ class HybridDeduplicator:
                 continue
             vec_a = embeddings[ia]
             vec_b = embeddings[ib]
-            similarity = float(np.dot(vec_a, vec_b) / (np.linalg.norm(vec_a) * np.linalg.norm(vec_b) + 1e-9))
+            similarity = float(
+                np.dot(vec_a, vec_b) / (np.linalg.norm(vec_a) * np.linalg.norm(vec_b) + 1e-9)
+            )
             if similarity >= self.similarity_threshold:
                 graph.add_edge(doc_a, doc_b, weight=similarity)
 
-    def _cluster_with_hdbscan(self, embeddings: np.ndarray) -> Tuple[List[Set[str]], Dict[str, int]]:
+    def _cluster_with_hdbscan(
+        self, embeddings: np.ndarray
+    ) -> Tuple[List[Set[str]], Dict[str, int]]:
         dims = int(self.clustering_cfg.get("umap_dims", 32))
         reduced = embeddings
         if umap and embeddings.shape[1] > dims:
-            reducer = umap.UMAP(n_components=dims, metric="cosine", n_neighbors=min(50, len(embeddings) - 1))
+            reducer = umap.UMAP(
+                n_components=dims, metric="cosine", n_neighbors=min(50, len(embeddings) - 1)
+            )
             reduced = reducer.fit_transform(embeddings)
         elif embeddings.shape[1] > dims:
             reduced = embeddings[:, :dims]

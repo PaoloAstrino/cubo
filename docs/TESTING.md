@@ -134,7 +134,7 @@ pytest tests/processing/ --cov=src.cubo.processing --cov-report=html
    ```python
    # tests/processing/test_llm_local.py
    from src.cubo.processing.llm_local import LocalResponseGenerator
-   
+
    llm = LocalResponseGenerator(model_path="test_model.gguf")
    response = llm.generate_response("Test query", "Test context")
    ```
@@ -175,18 +175,18 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           pip install -e .
           pip install pytest pytest-cov psutil
-      
+
       - name: Run unit tests
         run: pytest tests/processing/ -v --cov=src.cubo.processing
-      
+
       - name: Run performance tests
         run: pytest tests/performance/ -v
-      
+
       - name: Upload coverage
         uses: codecov/codecov-action@v3
 ```
@@ -269,10 +269,10 @@ self.assertLess(mem_used, 50.0 * 1.5)  # 50% tolerance
 def test_new_enrichment_feature(self):
     mock_llm = MagicMock()
     mock_llm.generate_response.return_value = "Expected output"
-    
+
     enricher = ChunkEnricher(llm_provider=mock_llm)
     result = enricher.new_method(input_data)
-    
+
     self.assertEqual(result, expected_output)
 ```
 
@@ -285,7 +285,7 @@ def test_new_performance_metric(self):
     start = time.time()
     # operation to benchmark
     elapsed = time.time() - start
-    
+
     self.assertLess(elapsed, threshold)
 ```
 

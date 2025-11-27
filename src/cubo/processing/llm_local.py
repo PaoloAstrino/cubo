@@ -3,6 +3,7 @@
 This wrapper keeps the API minimal: it exposes `generate_response(query, context, messages=None)` and
 implements a synchronous generation via the service_manager to keep parity with the Ollama wrapper.
 """
+
 from __future__ import annotations
 
 import time
@@ -17,7 +18,7 @@ class LocalResponseGenerator:
     """Wrapper around llama_cpp's Llama for local model generation."""
 
     def __init__(self, model_path: Optional[str] = None):
-        self.model_path = model_path or config.get('local_llama_model_path')
+        self.model_path = model_path or config.get("local_llama_model_path")
         self.service_manager = get_service_manager()
         self._model = None
         if not self.model_path:
@@ -25,12 +26,15 @@ class LocalResponseGenerator:
         try:
             # Import lazily to avoid crash if llama_cpp is missing
             from llama_cpp import Llama  # type: ignore
+
             self._llm = Llama(model_path=self.model_path)
         except Exception as e:
             logger.warning("Failed to initialize local llama model: %s", e)
             self._llm = None
 
-    def generate_response(self, query: str, context: str, messages: List[Dict[str, str]] = None) -> str:
+    def generate_response(
+        self, query: str, context: str, messages: List[Dict[str, str]] = None
+    ) -> str:
         """Generate a response with local LLM.
 
         Args:
@@ -54,19 +58,19 @@ class LocalResponseGenerator:
                 raise RuntimeError("Local LLM not initialized; check model path and dependencies")
             try:
                 # llama_cpp API supports create_completion or generate depending on versions; try both
-                if hasattr(self._llm, 'create_completion'):
+                if hasattr(self._llm, "create_completion"):
                     resp = self._llm.create_completion(prompt=prompt, max_tokens=512)
                     # older versions return dict
                     if isinstance(resp, dict):
                         # Support choices structure returned by newer APIs
-                        text = resp.get('choices', [{}])[0].get('text') or resp.get('text') or ''
+                        text = resp.get("choices", [{}])[0].get("text") or resp.get("text") or ""
                         return text
                     return str(resp)
-                elif hasattr(self._llm, 'generate'):
+                elif hasattr(self._llm, "generate"):
                     resp = self._llm.generate(prompt)
                     # generate usually returns an object with 'choices'
-                    if hasattr(resp, 'choices'):
-                        return getattr(resp.choices[0], 'text', '')
+                    if hasattr(resp, "choices"):
+                        return getattr(resp.choices[0], "text", "")
                     return str(resp)
                 else:
                     # Fallback: try calling model directly
@@ -76,6 +80,6 @@ class LocalResponseGenerator:
                 raise
 
         start = time.time()
-        result = self.service_manager.execute_sync('llm_generation', _generate_operation)
+        result = self.service_manager.execute_sync("llm_generation", _generate_operation)
         logger.info("Local LLM generated response in %.2fs", time.time() - start)
         return result

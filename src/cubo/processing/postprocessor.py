@@ -30,7 +30,7 @@ class WindowReplacementPostProcessor:
 
     def _should_replace_with_window(self, result: Dict) -> bool:
         """Check if result should be replaced with window context."""
-        metadata = result.get('metadata', {})
+        metadata = result.get("metadata", {})
         if self.target_metadata_key not in metadata:
             return False
 
@@ -39,11 +39,8 @@ class WindowReplacementPostProcessor:
 
     def _replace_with_window_context(self, processed_result: Dict, original_result: Dict):
         """Replace document text with window context."""
-        metadata = original_result.get('metadata', {})
+        metadata = original_result.get("metadata", {})
         window_text = metadata[self.target_metadata_key]
 
-        processed_result['document'] = window_text
-        logger.debug(
-            f"Replaced sentence with window context "
-            f"({len(window_text)} chars)"
-        )
+        processed_result["document"] = window_text
+        logger.debug(f"Replaced sentence with window context " f"({len(window_text)} chars)")

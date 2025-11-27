@@ -1,15 +1,16 @@
 import warnings
-from typing import List, Dict
-
-import pytest
+from typing import List
 
 
 def test_hybrid_retriever_deprecation_warning():
     # Importing the old module should raise a DeprecationWarning
     with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter('always')
+        warnings.simplefilter("always")
         from src.cubo.retrieval.hybrid_retriever import HybridRetriever  # noqa: F401
-        assert any(issubclass(x.category, DeprecationWarning) for x in w), "No DeprecationWarning raised"
+
+        assert any(
+            issubclass(x.category, DeprecationWarning) for x in w
+        ), "No DeprecationWarning raised"
 
 
 def test_hybrid_retriever_consistency():
@@ -39,8 +40,8 @@ def test_hybrid_retriever_consistency():
     ]
 
     # Import both classes
-    from src.cubo.retrieval.retriever import FaissHybridRetriever
     from src.cubo.retrieval.hybrid_retriever import HybridRetriever as ShimHybrid
+    from src.cubo.retrieval.retriever import FaissHybridRetriever
 
     # Instantiate both with fake components
     bm25 = FakeBM25()
@@ -58,5 +59,5 @@ def test_hybrid_retriever_consistency():
     assert len(out1) == len(out2)
     # Compare by doc_id and score
     for a, b in zip(out1, out2):
-        assert a['doc_id'] == b['doc_id']
-        assert a.get('score') == b.get('score')
+        assert a["doc_id"] == b["doc_id"]
+        assert a.get("score") == b.get("score")

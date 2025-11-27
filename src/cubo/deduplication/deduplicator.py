@@ -5,6 +5,7 @@ documents in a corpus.
 Uses MinHash + LSH for approximate matching, with configurable candidate pair limits
 to control memory usage on resource-constrained systems.
 """
+
 import logging
 from typing import Dict, List, Optional, Set
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 class Deduplicator:
     """
     Finds and marks duplicate documents in a corpus using MinHash and LSH.
-    
+
     Features:
     - Configurable similarity threshold and MinHash permutations
     - Candidate pair cap to limit memory on constrained systems
@@ -27,13 +28,10 @@ class Deduplicator:
     """
 
     def __init__(
-        self,
-        threshold: float = 0.8,
-        num_perm: int = 128,
-        max_candidates: Optional[int] = None
+        self, threshold: float = 0.8, num_perm: int = 128, max_candidates: Optional[int] = None
     ):
         """Initialize the Deduplicator.
-        
+
         Args:
             threshold: Jaccard similarity threshold for duplicates (0-1)
             num_perm: Number of MinHash permutations (higher = more accurate)
@@ -41,16 +39,16 @@ class Deduplicator:
         """
         self.threshold = threshold
         self.num_perm = num_perm
-        
+
         # Get max_candidates from config if not specified
         if max_candidates is None:
-            dedup_config = config.get('deduplication', {})
+            dedup_config = config.get("deduplication", {})
             if isinstance(dedup_config, dict):
-                max_candidates = dedup_config.get('max_candidates')
+                max_candidates = dedup_config.get("max_candidates")
         self.max_candidates = max_candidates
-        
+
         self.lsh = MinHashLSH(threshold=self.threshold, num_perm=self.num_perm)
-        
+
         # Statistics
         self._total_pairs_found = 0
         self._pairs_used = 0
@@ -77,9 +75,9 @@ class Deduplicator:
         minhashes = {}
         for doc in documents:
             minhash = MinHash(num_perm=self.num_perm)
-            for word in set(doc['text'].split()):
-                minhash.update(word.encode('utf8'))
-            minhashes[doc['doc_id']] = minhash
+            for word in set(doc["text"].split()):
+                minhash.update(word.encode("utf8"))
+            minhashes[doc["doc_id"]] = minhash
         return minhashes
 
     def _index_minhashes(self, minhashes: Dict[str, MinHash]):
@@ -89,27 +87,27 @@ class Deduplicator:
 
     def _find_candidate_pairs(self, minhashes: Dict[str, MinHash]) -> Set[tuple]:
         """Finds candidate pairs of duplicates using LSH.
-        
+
         When max_candidates is set, stops after finding that many pairs
         to limit memory usage. Uses a priority heuristic to process
         documents with more potential matches first.
         """
         candidate_pairs: Set[tuple] = set()
-        
+
         # If we have a cap, we want to prioritize docs with more matches
         if self.max_candidates:
             # Quick pass to count matches per doc
             match_counts = {}
             for doc_id in minhashes:
                 match_counts[doc_id] = len(self.lsh.query(minhashes[doc_id]))
-            
+
             # Process in order of most matches (more likely to find clusters)
             sorted_docs = sorted(match_counts.keys(), key=lambda x: match_counts[x], reverse=True)
-            
+
             for doc_id in sorted_docs:
                 if len(candidate_pairs) >= self.max_candidates:
                     break
-                    
+
                 result = self.lsh.query(minhashes[doc_id])
                 for other_doc_id in result:
                     if doc_id != other_doc_id:
@@ -125,17 +123,19 @@ class Deduplicator:
                 for other_doc_id in result:
                     if doc_id != other_doc_id:
                         candidate_pairs.add(tuple(sorted((doc_id, other_doc_id))))
-        
+
         # Record stats
-        self._total_pairs_found = len(candidate_pairs) if not self.max_candidates else len(candidate_pairs)
+        self._total_pairs_found = (
+            len(candidate_pairs) if not self.max_candidates else len(candidate_pairs)
+        )
         self._pairs_used = len(candidate_pairs)
-        
+
         if self.max_candidates and len(candidate_pairs) >= self.max_candidates:
             logger.debug(
                 f"Deduplication capped at {self.max_candidates} candidate pairs "
                 f"(may have missed some duplicates)"
             )
-        
+
         return candidate_pairs
 
     def _build_graph(self, candidate_pairs: Set[tuple]) -> nx.Graph:
@@ -152,25 +152,25 @@ class Deduplicator:
         """
         Gets the canonical document for each cluster and returns the deduplication map.
         """
-        doc_map = {doc['doc_id']: doc for doc in documents}
+        doc_map = {doc["doc_id"]: doc for doc in documents}
         canonical_map = {}
         for cluster in clusters:
             # Choose the longest document as the canonical one
-            canonical_doc_id = max(cluster, key=lambda doc_id: len(doc_map[doc_id]['text']))
+            canonical_doc_id = max(cluster, key=lambda doc_id: len(doc_map[doc_id]["text"]))
             for doc_id in cluster:
                 canonical_map[doc_id] = canonical_doc_id
 
         # Add single documents to the map
         all_docs_in_clusters = set.union(*clusters) if clusters else set()
         for doc in documents:
-            if doc['doc_id'] not in all_docs_in_clusters:
-                canonical_map[doc['doc_id']] = doc['doc_id']
+            if doc["doc_id"] not in all_docs_in_clusters:
+                canonical_map[doc["doc_id"]] = doc["doc_id"]
 
         return canonical_map
 
     def get_stats(self) -> Dict[str, int]:
         """Return deduplication statistics from the last run.
-        
+
         Returns:
             Dictionary with stats:
             - pairs_found: Number of candidate pairs discovered
@@ -179,11 +179,10 @@ class Deduplicator:
             - was_capped: Whether the cap was hit
         """
         return {
-            'pairs_found': self._total_pairs_found,
-            'pairs_used': self._pairs_used,
-            'max_candidates': self.max_candidates,
-            'was_capped': (
-                self.max_candidates is not None and 
-                self._pairs_used >= self.max_candidates
-            )
+            "pairs_found": self._total_pairs_found,
+            "pairs_used": self._pairs_used,
+            "max_candidates": self.max_candidates,
+            "was_capped": (
+                self.max_candidates is not None and self._pairs_used >= self.max_candidates
+            ),
         }

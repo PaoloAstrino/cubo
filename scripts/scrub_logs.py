@@ -8,6 +8,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+
 from src.cubo.security.security import security_manager
 
 
@@ -16,24 +17,31 @@ def scrub_line_json(line: str) -> str:
         rec = json.loads(line)
     except Exception:
         return line
-    msg = rec.get('message') or rec.get('msg')
+    msg = rec.get("message") or rec.get("msg")
     if not msg:
         return line
+
     # Find patterns that include query text
     # e.g. "Processed query: ..." or "Query: '...'", "Saved evaluation for query: ..."
     def replace_query(m):
         q = m.group(1)
         return m.group(0).replace(q, security_manager.hash_sensitive_data(q))
 
-    patterns = [r"Processed query: (.+)$", r"Query: '(.+)'", r"Query: (.+)$", r"Saved evaluation for query: (.+?) with", r"Testing \[.*\]: (.+)$"]
+    patterns = [
+        r"Processed query: (.+)$",
+        r"Query: '(.+)'",
+        r"Query: (.+)$",
+        r"Saved evaluation for query: (.+?) with",
+        r"Testing \[.*\]: (.+)$",
+    ]
     for pat in patterns:
         m = re.search(pat, msg)
         if m:
             new_msg = re.sub(pat, lambda mo: replace_query(mo), msg)
-            if 'message' in rec:
-                rec['message'] = new_msg
-            elif 'msg' in rec:
-                rec['msg'] = new_msg
+            if "message" in rec:
+                rec["message"] = new_msg
+            elif "msg" in rec:
+                rec["msg"] = new_msg
             try:
                 return json.dumps(rec) + "\n"
             except Exception:
@@ -42,7 +50,12 @@ def scrub_line_json(line: str) -> str:
 
 
 def scrub_plain_text_line(line: str) -> str:
-    patterns = [r"Processed query: (.+)$", r"Query: '(.+)'", r"Query: (.+)$", r"Saved evaluation for query: (.+?) with"]
+    patterns = [
+        r"Processed query: (.+)$",
+        r"Query: '(.+)'",
+        r"Query: (.+)$",
+        r"Saved evaluation for query: (.+?) with",
+    ]
     for pat in patterns:
         m = re.search(pat, line)
         if m:
@@ -53,7 +66,7 @@ def scrub_plain_text_line(line: str) -> str:
 
 def scrub_file(src: Path, dst: Path):
     dst.parent.mkdir(parents=True, exist_ok=True)
-    with src.open('r', encoding='utf-8') as f_in, dst.open('w', encoding='utf-8') as f_out:
+    with src.open("r", encoding="utf-8") as f_in, dst.open("w", encoding="utf-8") as f_out:
         for line in f_in:
             # try JSON first
             new_line = scrub_line_json(line)
@@ -63,18 +76,20 @@ def scrub_file(src: Path, dst: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Scrub sensitive queries from log file')
-    parser.add_argument('--input', required=True, help='Input log file (JSONL or plaintext)')
-    parser.add_argument('--output', required=False, help='Output scrubbed file (default: <input>.scrubbed)')
+    parser = argparse.ArgumentParser(description="Scrub sensitive queries from log file")
+    parser.add_argument("--input", required=True, help="Input log file (JSONL or plaintext)")
+    parser.add_argument(
+        "--output", required=False, help="Output scrubbed file (default: <input>.scrubbed)"
+    )
     args = parser.parse_args()
     src = Path(args.input)
     if not src.exists():
         print(f"Input log file not found: {src}")
         return
-    dst = Path(args.output) if args.output else src.with_suffix(src.suffix + '.scrubbed')
+    dst = Path(args.output) if args.output else src.with_suffix(src.suffix + ".scrubbed")
     scrub_file(src, dst)
     print(f"Done. Scrubbed log written to: {dst}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

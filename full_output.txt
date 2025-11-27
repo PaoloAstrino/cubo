@@ -206,7 +206,7 @@ request = <SubRequest 'client' for <Function test_health_check>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -277,7 +277,7 @@ request = <SubRequest 'client' for <Function test_health_check_has_trace_id>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -348,7 +348,7 @@ request = <SubRequest 'client' for <Function test_health_check_custom_trace_id>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -419,7 +419,7 @@ request = <SubRequest 'client' for <Function test_query_basic>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -490,7 +490,7 @@ request = <SubRequest 'client' for <Function test_query_without_query_text>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -561,7 +561,7 @@ request = <SubRequest 'client' for <Function test_query_with_invalid_top_k>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -632,7 +632,7 @@ request = <SubRequest 'client' for <Function test_query_has_trace_id>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -703,7 +703,7 @@ request = <SubRequest 'client' for <Function test_query_custom_trace_id>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -774,7 +774,7 @@ request = <SubRequest 'client' for <Function test_query_default_parameters>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -845,7 +845,7 @@ request = <SubRequest 'client' for <Function test_upload_file>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -916,7 +916,7 @@ request = <SubRequest 'client' for <Function test_upload_file_without_file>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -987,7 +987,7 @@ request = <SubRequest 'client' for <Function test_upload_file_has_trace_id>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -1058,7 +1058,7 @@ request = <SubRequest 'client' for <Function test_upload_pdf_file>>
             if not _is_coroutine_or_asyncgen(fixturedef.func):
 >               return (yield)
 
-..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735: 
+..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\pytest_asyncio\plugin.py:735:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 tests\api\conftest.py:17: in client
     with TestClient(app) as test_client:
@@ -1123,26 +1123,26 @@ self = <tests.performance.test_scaffold_memory.TestScaffoldPerformance testMetho
         # Simulate very large dataset by processing in batches
         total_chunks = 5000
         batch_size = 1000
-    
+
         def mock_embed(texts):
             return [np.random.rand(384).tolist() for _ in texts]
         self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
-    
+
         generator = ScaffoldGenerator(
             enricher=self.mock_enricher,
             embedding_generator=self.mock_embedding_gen,
             scaffold_size=5
         )
-    
+
         all_mappings = {}
         all_scaffolds = []
-    
+
         for i in range(0, total_chunks, batch_size):
             batch_df = pd.DataFrame({
                 'chunk_id': [f'c{j}' for j in range(i, min(i + batch_size, total_chunks))],
                 'text': [f'Chunk {j}' for j in range(i, min(i + batch_size, total_chunks))]
             })
-    
+
             result = generator.generate_scaffolds(batch_df)
 >           all_mappings.update(result['chunk_to_scaffold_mapping'])
 E           KeyError: 'chunk_to_scaffold_mapping'
@@ -1162,31 +1162,31 @@ self = <tests.performance.test_scaffold_memory.TestScaffoldPerformance testMetho
         """Test memory usage with larger dataset (10K chunks)."""
         process = psutil.Process()
         mem_before = process.memory_info().rss / 1024 / 1024  # MB
-    
+
         # Generate 10K chunks
         chunks_df = pd.DataFrame({
             'chunk_id': [f'c{i}' for i in range(10000)],
             'text': [f'Test chunk {i} with content' * 10 for i in range(10000)]  # Longer text
         })
-    
+
         def mock_embed(texts):
             return [np.random.rand(384).tolist() for _ in texts]
         self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
-    
+
         generator = ScaffoldGenerator(
             enricher=self.mock_enricher,
             embedding_generator=self.mock_embedding_gen,
             scaffold_size=10
         )
-    
+
         result = generator.generate_scaffolds(chunks_df)
-    
+
         mem_after = process.memory_info().rss / 1024 / 1024  # MB
         mem_used = mem_after - mem_before
-    
+
         # Should use less than 200MB for 10K chunks
         self.assertLess(mem_used, 200.0, f"Used {mem_used:.2f} MB for 10K chunks")
-    
+
         # Verify all chunks processed
 >       self.assertEqual(len(result['chunk_to_scaffold_mapping']), 10000)
 E       KeyError: 'chunk_to_scaffold_mapping'
@@ -1206,32 +1206,32 @@ self = <tests.performance.test_scaffold_memory.TestScaffoldPerformance testMetho
         """Test memory usage with small dataset (1000 chunks)."""
         process = psutil.Process()
         mem_before = process.memory_info().rss / 1024 / 1024  # MB
-    
+
         # Generate 1000 chunks
         chunks_df = pd.DataFrame({
             'chunk_id': [f'c{i}' for i in range(1000)],
             'text': [f'This is test chunk number {i} with some content.' for i in range(1000)]
         })
-    
+
         # Mock embeddings for all scaffolds
         def mock_embed(texts):
             return [np.random.rand(384).tolist() for _ in texts]
         self.mock_embedding_gen.generate_embeddings.side_effect = mock_embed
-    
+
         generator = ScaffoldGenerator(
             enricher=self.mock_enricher,
             embedding_generator=self.mock_embedding_gen,
             scaffold_size=5
         )
-    
+
         result = generator.generate_scaffolds(chunks_df)
-    
+
         mem_after = process.memory_info().rss / 1024 / 1024  # MB
         mem_used = mem_after - mem_before
-    
+
         # Should use less than 50MB for 1000 chunks
         self.assertLess(mem_used, 50.0, f"Used {mem_used:.2f} MB for 1000 chunks")
-    
+
         # Verify all chunks processed
 >       self.assertEqual(len(result['chunk_to_scaffold_mapping']), 1000)
 E       KeyError: 'chunk_to_scaffold_mapping'
@@ -1250,9 +1250,9 @@ self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_empty_data
     def test_empty_dataframe(self):
         """Test handling of empty input DataFrame."""
         empty_df = pd.DataFrame(columns=['chunk_id', 'text'])
-    
+
         result = self.generator.generate_scaffolds(empty_df)
-    
+
         # Should return empty structures
         self.assertEqual(len(result['scaffolds_df']), 0)
 >       self.assertEqual(len(result['chunk_to_scaffold_mapping']), 0)
@@ -1275,16 +1275,16 @@ self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_generate_s
                 'Chunk 3 about finance'
             ]
         })
-    
+
         result = self.generator.generate_scaffolds(chunks_df)
-    
+
         # Check result structure
         self.assertIn('scaffolds_df', result)
 >       self.assertIn('chunk_to_scaffold_mapping', result)
 E       AssertionError: 'chunk_to_scaffold_mapping' not found in {'scaffolds_df':              scaffold_id  ... compression_ratio
 E       0  scaffold_6e470c0e0abd  ...          0.957447
 E       1  scaffold_950486fc20ee  ...          0.807692
-E       
+E
 E       [2 rows x 12 columns], 'mapping': {'scaffold_6e470c0e0abd': ['c1', 'c2'], 'scaffold_950486fc20ee': ['c3']}, 'scaffold_embeddings': <MagicMock name='mock.encode()' id='1624984249808'>}
 
 tests\processing\test_scaffold_generator.py:72: AssertionError
@@ -1302,15 +1302,15 @@ self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_save_and_l
         """Test scaffold persistence."""
         import tempfile
         from pathlib import Path
-    
+
         chunks_df = pd.DataFrame({
             'chunk_id': ['c1', 'c2'],
             'text': ['Chunk 1', 'Chunk 2']
         })
-    
+
 >       result = self.generator.generate_scaffolds(chunks_df)
 
-tests\processing\test_scaffold_generator.py:158: 
+tests\processing\test_scaffold_generator.py:158:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 src\cubo\processing\scaffold.py:51: in generate_scaffolds
     scaffolds_data = self._create_scaffold_data(scaffold_groups, enriched_chunks, chunks_df, text_column)
@@ -1330,14 +1330,14 @@ axis = 0
     def _validate_integer(self, key: int | np.integer, axis: AxisInt) -> None:
         """
         Check that 'key' is a valid position in the desired axis.
-    
+
         Parameters
         ----------
         key : int
             Requested position.
         axis : int
             Desired axis.
-    
+
         Raises
         ------
         IndexError
@@ -1367,9 +1367,9 @@ self = <test_scaffold_generator.TestScaffoldGenerator testMethod=test_scaffold_g
                 'Financial markets'
             ]
         })
-    
+
         result = self.generator.generate_scaffolds(chunks_df)
-    
+
         # Should create at least 2 groups (AI-related and finance-related)
 >       scaffold_groups = result['scaffold_groups']
 E       KeyError: 'scaffold_groups'

@@ -17,22 +17,17 @@ class ThreadManager:
 
     def __init__(self, max_workers: int = 4, thread_name_prefix: str = "cubo"):
         self.executor = ThreadPoolExecutor(
-            max_workers=max_workers,
-            thread_name_prefix=thread_name_prefix
+            max_workers=max_workers, thread_name_prefix=thread_name_prefix
         )
         self.active_futures = set()  # Use set to prevent duplicates
         self._shutdown = False
 
-        logger.info(f"ThreadManager initialized with {max_workers} max workers and "
-                    f"prefix '{thread_name_prefix}'")
+        logger.info(
+            f"ThreadManager initialized with {max_workers} max workers and "
+            f"prefix '{thread_name_prefix}'"
+        )
 
-    def submit_task(
-        self,
-        fn: Callable,
-        *args,
-        timeout: Optional[float] = None,
-        **kwargs
-    ) -> Future:
+    def submit_task(self, fn: Callable, *args, timeout: Optional[float] = None, **kwargs) -> Future:
         """
         Submit a task to the thread pool with tracking.
 
@@ -55,10 +50,10 @@ class ThreadManager:
         return future
 
     def _create_task_wrapper(
-        self, fn: Callable, args: tuple, kwargs: dict,
-        timeout: Optional[float]
+        self, fn: Callable, args: tuple, kwargs: dict, timeout: Optional[float]
     ) -> Callable:
         """Create a wrapper function that handles timeouts and exceptions."""
+
         def task_wrapper():
             try:
                 if timeout:
@@ -89,6 +84,7 @@ class ThreadManager:
         # and ctx.run to ensure the same context is available in the inner thread.
         try:
             import contextvars
+
             ctx = contextvars.copy_context()
             thread = threading.Thread(target=lambda: ctx.run(run_with_timeout), daemon=True)
         except Exception:
@@ -120,7 +116,7 @@ class ThreadManager:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         timeout: Optional[float] = None,
-        **kwargs
+        **kwargs,
     ) -> Future:
         """
         Submit a task with automatic retry on failure.
@@ -141,8 +137,10 @@ class ThreadManager:
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries:
-                        logger.warning(f"Task attempt {attempt + 1} failed: {e}. "
-                                       f"Retrying in {current_retry_delay}s...")
+                        logger.warning(
+                            f"Task attempt {attempt + 1} failed: {e}. "
+                            f"Retrying in {current_retry_delay}s..."
+                        )
                         time.sleep(current_retry_delay)
                         current_retry_delay *= 1.5  # Exponential backoff
                     else:
@@ -203,7 +201,7 @@ class ThreadManager:
         return {
             "active_tasks": self.get_active_count(),
             "max_workers": self.executor._max_workers,
-            "shutdown": self._shutdown
+            "shutdown": self._shutdown,
         }
 
     def shutdown(self, wait: bool = True):

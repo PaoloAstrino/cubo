@@ -1,9 +1,11 @@
 """
 Tests for Deduplicator.
 """
+
 import unittest
-from unittest.mock import MagicMock
+
 from src.cubo.deduplication.deduplicator import Deduplicator
+
 
 class TestDeduplicator(unittest.TestCase):
     def setUp(self):

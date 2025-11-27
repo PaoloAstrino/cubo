@@ -1,8 +1,10 @@
-from pathlib import Path
-import os
 import json
+import os
 import shutil
+from pathlib import Path
+
 import pytest
+
 from scripts.benchmark_runner import BenchmarkRunner
 
 
@@ -10,14 +12,16 @@ def create_sample_dataset(tmpdir: str):
     data_folder = Path(tmpdir) / "sample_data"
     data_folder.mkdir(parents=True, exist_ok=True)
     (data_folder / "doc1.txt").write_text("This is a test document about agriculture and crops.")
-    (data_folder / "doc2.txt").write_text("This is a test document about computer science and algorithms.")
+    (data_folder / "doc2.txt").write_text(
+        "This is a test document about computer science and algorithms."
+    )
     questions = {
         "metadata": {"total_questions": 2},
         "questions": {
             "easy": ["What is crop rotation?", "What is a binary search algorithm?"],
             "medium": [],
-            "hard": []
-        }
+            "hard": [],
+        },
     }
     qpath = Path(tmpdir) / "questions.json"
     qpath.write_text(json.dumps(questions))
@@ -28,12 +32,29 @@ def create_sample_dataset(tmpdir: str):
 
 
 def test_benchmark_runner_retrieval_only(tmp_path):
-    pytest.importorskip('sentence_transformers')
+    pytest.importorskip("sentence_transformers")
     base_dir = str(tmp_path)
     data_folder, questions_path, ground_truth = create_sample_dataset(base_dir)
-    retrieval_configs = [{"name": "hybrid_test", "config_updates": {"vector_store_backend": "faiss"}}]
+    retrieval_configs = [
+        {"name": "hybrid_test", "config_updates": {"vector_store_backend": "faiss"}}
+    ]
     ablations = [{"name": "none", "config_updates": {}}]
-    runner = BenchmarkRunner(datasets=[{"path": data_folder, "name": "sample", "questions": questions_path, "ground_truth": ground_truth, "easy_limit": 1}], retrieval_configs=retrieval_configs, ablations=ablations, k_values=[5, 10], mode="retrieval-only", output_dir=os.path.join(base_dir, "results"))
+    runner = BenchmarkRunner(
+        datasets=[
+            {
+                "path": data_folder,
+                "name": "sample",
+                "questions": questions_path,
+                "ground_truth": ground_truth,
+                "easy_limit": 1,
+            }
+        ],
+        retrieval_configs=retrieval_configs,
+        ablations=ablations,
+        k_values=[5, 10],
+        mode="retrieval-only",
+        output_dir=os.path.join(base_dir, "results"),
+    )
     runner.run(run_ingest_first=False)
     results_dir = Path(base_dir) / "results"
     assert results_dir.exists()

@@ -1,8 +1,11 @@
 """
 Tests for MemoryStore.
 """
+
 import unittest
+
 from src.cubo.storage.memory_store import InMemoryCollection
+
 
 class TestMemoryStore(unittest.TestCase):
     def setUp(self):

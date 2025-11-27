@@ -1,4 +1,5 @@
 """Run the CUBO API server with hypercorn (better Windows support)."""
+
 import sys
 from pathlib import Path
 
@@ -14,10 +15,7 @@ from hypercorn.config import Config
 from src.cubo.utils.logger import logger
 
 
-async def run_server_async(
-    host: str = "0.0.0.0",
-    port: int = 8000
-):
+async def run_server_async(host: str = "0.0.0.0", port: int = 8000):
     """Run the FastAPI server with hypercorn."""
     config = Config()
     config.bind = [f"{host}:{port}"]

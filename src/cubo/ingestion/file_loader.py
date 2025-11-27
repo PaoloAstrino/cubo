@@ -1,6 +1,7 @@
 """
 File loader abstraction that supports text/pdf/docx/csv loading in a uniform way.
 """
+
 import os
 from pathlib import Path
 from typing import Dict, List
@@ -31,7 +32,7 @@ class FileLoader:
         # Additionally process CSV files
         for root, _, files in os.walk(folder_path):
             for filename in files:
-                if filename.lower().endswith('.csv'):
+                if filename.lower().endswith(".csv"):
                     file_path = os.path.join(root, filename)
                     logger.info(f"Loading CSV file {file_path}")
                     chunks.extend(self._load_csv(file_path))
@@ -48,10 +49,10 @@ class FileLoader:
         text_col = self.text_column
         if not text_col:
             # Heuristic: try `text` or `content` or first string column
-            if 'text' in df.columns:
-                text_col = 'text'
-            elif 'content' in df.columns:
-                text_col = 'content'
+            if "text" in df.columns:
+                text_col = "text"
+            elif "content" in df.columns:
+                text_col = "content"
             else:
                 # Fallback to first column with object dtype
                 text_col = None
@@ -65,16 +66,18 @@ class FileLoader:
 
         chunks = []
         for i, row in df.iterrows():
-            text = str(row.get(text_col, ''))
-            if not text or text.strip() == '':
+            text = str(row.get(text_col, ""))
+            if not text or text.strip() == "":
                 continue
             # Minimal chunk metadata to align with DocumentLoader output
-            chunks.append({
-                'filename': Path(csv_path).name,
-                'file_hash': '',
-                'chunk_index': i,
-                'text': text,
-                'token_count': len(text.split()),
-                'char_length': len(text)
-            })
+            chunks.append(
+                {
+                    "filename": Path(csv_path).name,
+                    "file_hash": "",
+                    "chunk_index": i,
+                    "text": text,
+                    "token_count": len(text.split()),
+                    "char_length": len(text),
+                }
+            )
         return chunks

@@ -5,7 +5,7 @@ This document explains how the deduplication (semantic + hybrid) pipeline works 
 ## Overview
 
 - The deduplication pipeline combines a MinHash prefilter to reduce false positive edges and a nearest-neighbor approach (FAISS / HNSW / scikit-learn) to build a similarity graph.
-- Clustering is performed using HDBSCAN (recommended) or as a connected component analysis 
+- Clustering is performed using HDBSCAN (recommended) or as a connected component analysis
 - Each cluster gets a representative document chosen by the configured `representative_metric`. By default, `summary_score` is preferred.
 - The canonical map is written as a JSON file that contains `canonical_map`, `clusters`, and a top-level `representatives` map.
 

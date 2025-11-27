@@ -18,6 +18,7 @@ def log_errors(success_msg: str = None, error_prefix: str = "Error"):
         success_msg: Message to log on success (optional)
         error_prefix: Prefix for error messages
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -29,7 +30,9 @@ def log_errors(success_msg: str = None, error_prefix: str = "Error"):
             except Exception as e:
                 logger.error(f"{error_prefix} in {func.__name__}: {e}")
                 raise
+
         return wrapper
+
     return decorator
 
 
@@ -67,7 +70,7 @@ class Utils:
     def clean_text(text: str) -> str:
         """Clean and normalize text content."""
         # Remove extra whitespace, normalize
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"\s+", " ", text)
         text = text.strip()
         return text
 
@@ -78,7 +81,7 @@ class Utils:
         if lowercase:
             text = text.lower()
         if remove_punct:
-            text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+            text = re.sub(r"[^\w\s]", "", text)  # Remove punctuation
         text = Utils.clean_text(text)  # Reuse clean_text
         return text
 
@@ -95,7 +98,9 @@ class Utils:
         return chunks
 
     @staticmethod
-    def _get_adaptive_chunk_params(text_length: int, chunk_size: int = None, overlap: int = None) -> tuple:
+    def _get_adaptive_chunk_params(
+        text_length: int, chunk_size: int = None, overlap: int = None
+    ) -> tuple:
         """Determine adaptive chunk size and overlap based on text length."""
         if chunk_size is None:
             if text_length < 1000:
@@ -132,9 +137,9 @@ class Utils:
     @staticmethod
     def _split_into_sentences(text: str) -> List[str]:
         """Lightweight sentence splitter using regex."""
-        text = re.sub(r'\s+', ' ', text.strip())
+        text = re.sub(r"\s+", " ", text.strip())
         # Split after terminal punctuation followed by space
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
         return [s.strip() for s in sentences if s.strip()]
 
     @staticmethod
@@ -151,9 +156,7 @@ class Utils:
     @staticmethod
     @log_errors("Sentence window chunks created successfully")
     def create_sentence_window_chunks(
-        text: str,
-        window_size: int = 3,
-        tokenizer_name: Optional[str] = None
+        text: str, window_size: int = 3, tokenizer_name: Optional[str] = None
     ) -> List[dict]:
         """
         Create sentence window chunks: single sentences with window metadata.
@@ -200,17 +203,21 @@ class Utils:
                 sentence_tokens = Utils._token_count(sentence, tokenizer)
                 window_tokens = Utils._token_count(window_text, tokenizer)
 
-                chunks.append({
-                    "text": sentence,  # Single sentence for embedding/matching
-                    "window": window_text,  # Full window for context
-                    "sentence_index": i,
-                    "window_start": start,
-                    "window_end": end - 1,
-                    "sentence_token_count": sentence_tokens,
-                    "window_token_count": window_tokens
-                })
+                chunks.append(
+                    {
+                        "text": sentence,  # Single sentence for embedding/matching
+                        "window": window_text,  # Full window for context
+                        "sentence_index": i,
+                        "window_start": start,
+                        "window_end": end - 1,
+                        "sentence_token_count": sentence_tokens,
+                        "window_token_count": window_tokens,
+                    }
+                )
 
-            logger.info(f"Created {len(chunks)} sentence window chunks with window_size={window_size}")
+            logger.info(
+                f"Created {len(chunks)} sentence window chunks with window_size={window_size}"
+            )
             return chunks
         except Exception as e:
             logger.error(f"Error creating sentence window chunks: {e}")

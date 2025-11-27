@@ -24,21 +24,23 @@ logger = logging.getLogger(__name__)
 
 class RerankerCache:
     """LRU cache for reranker results and embeddings.
-    
+
     Provides two levels of caching:
     1. Query result cache: Caches full rerank results for repeated queries
     2. Embedding cache: Caches document embeddings to avoid re-encoding
-    
+
     The cache uses a hash of the query + candidate IDs as the key,
     so identical query+candidates combinations return cached results.
     """
-    
-    def __init__(self, 
-                 max_query_results: int = 500,
-                 max_embeddings: int = 5000,
-                 similarity_threshold: float = 0.92):
+
+    def __init__(
+        self,
+        max_query_results: int = 500,
+        max_embeddings: int = 5000,
+        similarity_threshold: float = 0.92,
+    ):
         """Initialize the reranker cache.
-        
+
         Args:
             max_query_results: Max cached query results
             max_embeddings: Max cached document embeddings
@@ -47,27 +49,29 @@ class RerankerCache:
         self._query_cache: OrderedDict[str, List[Dict[str, Any]]] = OrderedDict()
         self._embedding_cache: OrderedDict[str, np.ndarray] = OrderedDict()
         self._query_embedding_cache: OrderedDict[str, np.ndarray] = OrderedDict()
-        
+
         self._max_query_results = max_query_results
         self._max_embeddings = max_embeddings
         self._similarity_threshold = similarity_threshold
-        
+
         self._lock = threading.Lock()
-        
+
         # Stats
         self._query_hits = 0
         self._query_misses = 0
         self._embedding_hits = 0
         self._embedding_misses = 0
-    
+
     def _make_cache_key(self, query: str, candidate_ids: List[str]) -> str:
         """Create a deterministic cache key from query and candidate IDs."""
         # Sort IDs for consistent key regardless of order
         sorted_ids = sorted(candidate_ids)
         key_str = f"{query}||{'|'.join(sorted_ids)}"
         return hashlib.sha256(key_str.encode()).hexdigest()[:32]
-    
-    def get_query_result(self, query: str, candidate_ids: List[str]) -> Optional[List[Dict[str, Any]]]:
+
+    def get_query_result(
+        self, query: str, candidate_ids: List[str]
+    ) -> Optional[List[Dict[str, Any]]]:
         """Get cached rerank result for query+candidates."""
         key = self._make_cache_key(query, candidate_ids)
         with self._lock:
@@ -77,9 +81,10 @@ class RerankerCache:
                 return self._query_cache[key]
             self._query_misses += 1
             return None
-    
-    def put_query_result(self, query: str, candidate_ids: List[str], 
-                         results: List[Dict[str, Any]]) -> None:
+
+    def put_query_result(
+        self, query: str, candidate_ids: List[str], results: List[Dict[str, Any]]
+    ) -> None:
         """Cache rerank result for query+candidates."""
         key = self._make_cache_key(query, candidate_ids)
         with self._lock:
@@ -89,7 +94,7 @@ class RerankerCache:
                 if len(self._query_cache) >= self._max_query_results:
                     self._query_cache.popitem(last=False)
             self._query_cache[key] = results
-    
+
     def get_embedding(self, doc_id: str) -> Optional[np.ndarray]:
         """Get cached document embedding."""
         with self._lock:
@@ -99,7 +104,7 @@ class RerankerCache:
                 return self._embedding_cache[doc_id]
             self._embedding_misses += 1
             return None
-    
+
     def put_embedding(self, doc_id: str, embedding: np.ndarray) -> None:
         """Cache a document embedding."""
         with self._lock:
@@ -109,10 +114,10 @@ class RerankerCache:
                 if len(self._embedding_cache) >= self._max_embeddings:
                     self._embedding_cache.popitem(last=False)
             self._embedding_cache[doc_id] = embedding
-    
+
     def get_embeddings_batch(self, doc_ids: List[str]) -> Tuple[Dict[str, np.ndarray], List[str]]:
         """Get cached embeddings for a batch of doc IDs.
-        
+
         Returns:
             Tuple of (found_embeddings_dict, missing_ids_list)
         """
@@ -128,7 +133,7 @@ class RerankerCache:
                     missing.append(doc_id)
                     self._embedding_misses += 1
         return found, missing
-    
+
     def put_embeddings_batch(self, embeddings: Dict[str, np.ndarray]) -> None:
         """Cache multiple embeddings at once."""
         with self._lock:
@@ -139,7 +144,7 @@ class RerankerCache:
                     if len(self._embedding_cache) >= self._max_embeddings:
                         self._embedding_cache.popitem(last=False)
                 self._embedding_cache[doc_id] = embedding
-    
+
     def get_query_embedding(self, query: str) -> Optional[np.ndarray]:
         """Get cached query embedding."""
         with self._lock:
@@ -147,7 +152,7 @@ class RerankerCache:
                 self._query_embedding_cache.move_to_end(query)
                 return self._query_embedding_cache[query]
             return None
-    
+
     def put_query_embedding(self, query: str, embedding: np.ndarray) -> None:
         """Cache a query embedding."""
         with self._lock:
@@ -158,7 +163,7 @@ class RerankerCache:
                 if len(self._query_embedding_cache) >= 1000:
                     self._query_embedding_cache.popitem(last=False)
             self._query_embedding_cache[query] = embedding
-    
+
     def clear(self) -> None:
         """Clear all caches."""
         with self._lock:
@@ -169,7 +174,7 @@ class RerankerCache:
             self._query_misses = 0
             self._embedding_hits = 0
             self._embedding_misses = 0
-    
+
     @property
     def stats(self) -> Dict[str, Any]:
         """Return cache statistics."""
@@ -177,16 +182,18 @@ class RerankerCache:
             query_total = self._query_hits + self._query_misses
             emb_total = self._embedding_hits + self._embedding_misses
             return {
-                'query_cache_size': len(self._query_cache),
-                'query_cache_max': self._max_query_results,
-                'query_hits': self._query_hits,
-                'query_misses': self._query_misses,
-                'query_hit_rate': (self._query_hits / query_total * 100) if query_total > 0 else 0,
-                'embedding_cache_size': len(self._embedding_cache),
-                'embedding_cache_max': self._max_embeddings,
-                'embedding_hits': self._embedding_hits,
-                'embedding_misses': self._embedding_misses,
-                'embedding_hit_rate': (self._embedding_hits / emb_total * 100) if emb_total > 0 else 0,
+                "query_cache_size": len(self._query_cache),
+                "query_cache_max": self._max_query_results,
+                "query_hits": self._query_hits,
+                "query_misses": self._query_misses,
+                "query_hit_rate": (self._query_hits / query_total * 100) if query_total > 0 else 0,
+                "embedding_cache_size": len(self._embedding_cache),
+                "embedding_cache_max": self._max_embeddings,
+                "embedding_hits": self._embedding_hits,
+                "embedding_misses": self._embedding_misses,
+                "embedding_hit_rate": (
+                    (self._embedding_hits / emb_total * 100) if emb_total > 0 else 0
+                ),
             }
 
 
@@ -201,16 +208,15 @@ def get_reranker_cache() -> RerankerCache:
     if _reranker_cache is None:
         with _cache_lock:
             if _reranker_cache is None:
-                cache_config = config.get('retrieval.semantic_cache', {})
+                cache_config = config.get("retrieval.semantic_cache", {})
                 if isinstance(cache_config, dict):
-                    max_entries = cache_config.get('max_entries', 500)
-                    threshold = cache_config.get('threshold', 0.92)
+                    max_entries = cache_config.get("max_entries", 500)
+                    threshold = cache_config.get("threshold", 0.92)
                 else:
                     max_entries = 500
                     threshold = 0.92
                 _reranker_cache = RerankerCache(
-                    max_query_results=max_entries,
-                    similarity_threshold=threshold
+                    max_query_results=max_entries, similarity_threshold=threshold
                 )
     return _reranker_cache
 
@@ -220,7 +226,7 @@ class LocalReranker:
     Local reranker that uses semantic similarity for better
     relevance scoring. Uses the embedding model to compute
     cosine similarity between query and document embeddings.
-    
+
     Features LRU caching for:
     - Query+candidate results (fast path for repeated queries)
     - Document embeddings (avoid re-encoding known documents)
@@ -238,17 +244,20 @@ class LocalReranker:
         """
         self.model = model
         self.top_n = top_n
-        self.device = getattr(model, 'device', 'cpu') if model else 'cpu'
-        
+        self.device = getattr(model, "device", "cpu") if model else "cpu"
+
         # Use provided cache or global cache
         self._cache = cache or get_reranker_cache()
-        
-        # Check if caching is enabled via config
-        cache_config = config.get('retrieval.semantic_cache', {})
-        self._cache_enabled = cache_config.get('enabled', True) if isinstance(cache_config, dict) else True
 
-    def rerank(self, query: str, candidates: List[Dict[str, Any]],
-               max_results: Optional[int] = None) -> List[Dict[str, Any]]:
+        # Check if caching is enabled via config
+        cache_config = config.get("retrieval.semantic_cache", {})
+        self._cache_enabled = (
+            cache_config.get("enabled", True) if isinstance(cache_config, dict) else True
+        )
+
+    def rerank(
+        self, query: str, candidates: List[Dict[str, Any]], max_results: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Rerank candidates based on relevance to query.
 
@@ -261,7 +270,7 @@ class LocalReranker:
             Reranked list of candidates
         """
         if not self._validate_rerank_inputs(candidates):
-            return candidates[:max_results or self.top_n]
+            return candidates[: max_results or self.top_n]
 
         try:
             # Try cache first for identical query+candidates
@@ -270,16 +279,16 @@ class LocalReranker:
                 cached = self._cache.get_query_result(query, candidate_ids)
                 if cached is not None:
                     logger.debug(f"Rerank cache hit for query: {query[:50]}...")
-                    return cached[:max_results or self.top_n]
-            
+                    return cached[: max_results or self.top_n]
+
             # Perform reranking
             result = self._perform_reranking(query, candidates, max_results)
-            
+
             # Cache the result
             if self._cache_enabled:
                 candidate_ids = self._get_candidate_ids(candidates)
                 self._cache.put_query_result(query, candidate_ids, result)
-            
+
             return result
         except Exception as e:
             logger.error(f"Reranking failed: {e}")
@@ -289,7 +298,7 @@ class LocalReranker:
         """Extract unique IDs from candidates for cache key."""
         ids = []
         for i, c in enumerate(candidates):
-            doc_id = c.get('metadata', {}).get('chunk_id') or c.get('id') or str(i)
+            doc_id = c.get("metadata", {}).get("chunk_id") or c.get("id") or str(i)
             ids.append(str(doc_id))
         return ids
 
@@ -304,24 +313,27 @@ class LocalReranker:
 
         return True
 
-    def _perform_reranking(self, query: str, candidates: List[Dict[str, Any]],
-                           max_results: Optional[int]) -> List[Dict[str, Any]]:
+    def _perform_reranking(
+        self, query: str, candidates: List[Dict[str, Any]], max_results: Optional[int]
+    ) -> List[Dict[str, Any]]:
         """Perform the actual reranking operation."""
         scored_candidates = self._score_candidates(query, candidates)
         sorted_candidates = self._sort_candidates_by_score(scored_candidates)
         return self._limit_results(sorted_candidates, max_results)
 
-    def _score_candidates(self, query: str, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _score_candidates(
+        self, query: str, candidates: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Score all candidates against the query with caching."""
         # Get query embedding (with cache)
         query_emb = self._get_query_embedding(query)
-        
+
         # Batch process document embeddings
         scored_candidates = []
         for candidate in candidates:
             score = self._score_with_cached_embeddings(query_emb, candidate)
             candidate_copy = candidate.copy()
-            candidate_copy['rerank_score'] = score
+            candidate_copy["rerank_score"] = score
             scored_candidates.append(candidate_copy)
         return scored_candidates
 
@@ -331,42 +343,43 @@ class LocalReranker:
             cached = self._cache.get_query_embedding(query)
             if cached is not None:
                 return cached
-        
+
         emb = self.model.encode(query, convert_to_tensor=False)
-        
+
         if self._cache_enabled:
             self._cache.put_query_embedding(query, emb)
-        
+
         return emb
 
-    def _score_with_cached_embeddings(self, query_emb: np.ndarray, 
-                                       document: Dict[str, Any]) -> float:
+    def _score_with_cached_embeddings(
+        self, query_emb: np.ndarray, document: Dict[str, Any]
+    ) -> float:
         """Score a document using cached embeddings where possible."""
         try:
-            doc_content = document.get('content', '') or document.get('document', '')
+            doc_content = document.get("content", "") or document.get("document", "")
             if not doc_content:
                 return 0.0
-            
-            doc_id = document.get('metadata', {}).get('chunk_id') or document.get('id')
-            
+
+            doc_id = document.get("metadata", {}).get("chunk_id") or document.get("id")
+
             # Try cache first
             doc_emb = None
             if self._cache_enabled and doc_id:
                 doc_emb = self._cache.get_embedding(str(doc_id))
-            
+
             if doc_emb is None:
                 doc_emb = self.model.encode(doc_content, convert_to_tensor=False)
                 if self._cache_enabled and doc_id:
                     self._cache.put_embedding(str(doc_id), doc_emb)
-            
+
             # Compute cosine similarity
             dot_product = np.dot(query_emb, doc_emb)
             query_norm = np.linalg.norm(query_emb)
             doc_norm = np.linalg.norm(doc_emb)
-            
+
             if query_norm == 0 or doc_norm == 0:
                 return 0.0
-            
+
             return float(dot_product / (query_norm * doc_norm))
         except Exception as e:
             logger.error(f"Error scoring document: {e}")
@@ -374,20 +387,20 @@ class LocalReranker:
 
     def _sort_candidates_by_score(self, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Sort candidates by rerank score (higher is better)."""
-        return sorted(candidates, key=lambda x: x['rerank_score'], reverse=True)
+        return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
 
-    def _limit_results(self, candidates: List[Dict[str, Any]], max_results: Optional[int]) -> List[Dict[str, Any]]:
+    def _limit_results(
+        self, candidates: List[Dict[str, Any]], max_results: Optional[int]
+    ) -> List[Dict[str, Any]]:
         """Limit results to max_results or default top_n."""
         max_results = max_results or self.top_n
         return candidates[:max_results]
 
     def _fallback_to_original_order(
-        self,
-        candidates: List[Dict[str, Any]],
-        max_results: Optional[int]
+        self, candidates: List[Dict[str, Any]], max_results: Optional[int]
     ) -> List[Dict[str, Any]]:
         """Return original candidates when reranking fails."""
-        return candidates[:max_results or self.top_n]
+        return candidates[: max_results or self.top_n]
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
@@ -408,10 +421,7 @@ class CrossEncoderReranker(LocalReranker):
     implementation with proper cross-encoder models.
     """
 
-    def __init__(
-        self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-        top_n: int = 10
-    ):
+    def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2", top_n: int = 10):
         """
         Initialize cross-encoder reranker.
 
@@ -422,12 +432,11 @@ class CrossEncoderReranker(LocalReranker):
         # Placeholder for future cross-encoder implementation
         super().__init__(model=None, top_n=top_n)
         self.model_name = model_name
-        logger.info(
-            f"CrossEncoderReranker initialized with model: {model_name}"
-        )
+        logger.info(f"CrossEncoderReranker initialized with model: {model_name}")
 
-    def rerank(self, query: str, candidates: List[Dict[str, Any]],
-               max_results: Optional[int] = None) -> List[Dict[str, Any]]:
+    def rerank(
+        self, query: str, candidates: List[Dict[str, Any]], max_results: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """
         Rerank using cross-encoder model.
         Currently falls back to LocalReranker until cross-encoder
@@ -445,16 +454,16 @@ class CrossEncoderReranker(LocalReranker):
                 self.model = CrossEncoder(self.model_name)
 
             # Build pair list
-            pairs = [[query, c.get('document') or c.get('content', '')] for c in candidates]
+            pairs = [[query, c.get("document") or c.get("content", "")] for c in candidates]
             # Get scores from CrossEncoder
             scores = self.model.predict(pairs)
             scored = []
             for c, s in zip(candidates, scores):
                 c2 = c.copy()
-                c2['rerank_score'] = float(s)
+                c2["rerank_score"] = float(s)
                 scored.append(c2)
-            scored.sort(key=lambda x: x['rerank_score'], reverse=True)
-            return scored[:max_results or self.top_n]
+            scored.sort(key=lambda x: x["rerank_score"], reverse=True)
+            return scored[: max_results or self.top_n]
         except Exception as e:
             logger.error(f"CrossEncoderReranker failed: {e}; falling back to LocalReranker")
             return super().rerank(query, candidates, max_results)

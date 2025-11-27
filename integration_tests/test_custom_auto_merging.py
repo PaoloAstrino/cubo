@@ -10,9 +10,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import pytest
-from sentence_transformers import SentenceTransformer
+
 from src.cubo.deduplication.custom_auto_merging import AutoMergingRetriever
 from src.cubo.utils.logger import logger
+
 
 def test_custom_auto_merging():
     """Test the custom auto-merging retrieval system."""
@@ -25,13 +26,16 @@ def test_custom_auto_merging():
     try:
         # For test stability, use a dummy lightweight model that returns 2D embeddings
         import numpy as np
+
         class DummyModel:
             def encode(self, texts):
-                return np.array([[0.1, 0.1] for _ in texts], dtype='float32')
+                return np.array([[0.1, 0.1] for _ in texts], dtype="float32")
+
         model = DummyModel()
         # Ensure FAISS uses dimension 2 for the auto-merging vector store
         from src.cubo.config import config as _cfg
-        _cfg.set('auto_merge_index_dimension', 2)
+
+        _cfg.set("auto_merge_index_dimension", 2)
         logger.info("Dummy model set for testing")
     except Exception as e:
         pytest.skip(f"Failed to load model: {e}")
@@ -61,7 +65,7 @@ def test_custom_auto_merging():
     test_queries = [
         "What is the story about?",
         "Who are the main characters?",
-        "What happens in the end?"
+        "What happens in the end?",
     ]
 
     for query in test_queries:
@@ -80,6 +84,7 @@ def test_custom_auto_merging():
 
     logger.info("All tests passed!")
     assert True
+
 
 if __name__ == "__main__":
     test_custom_auto_merging()

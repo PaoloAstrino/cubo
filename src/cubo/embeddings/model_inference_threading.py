@@ -35,22 +35,21 @@ class ModelInferenceThreading:
         self.gpu_available = torch.cuda.is_available()
         if self.gpu_available:
             self.total_gpu_memory = torch.cuda.get_device_properties(0).total_memory
-            logger.info(f"GPU detected: {torch.cuda.get_device_name(0)} "
-                        f"({self.total_gpu_memory / 1024**3:.1f}GB)")
+            logger.info(
+                f"GPU detected: {torch.cuda.get_device_name(0)} "
+                f"({self.total_gpu_memory / 1024**3:.1f}GB)"
+            )
 
         # Performance tracking
         self.inference_stats = {
-            'embeddings_generated': 0,
-            'dolphin_inferences': 0,
-            'total_embedding_time': 0.0,
-            'total_dolphin_time': 0.0
+            "embeddings_generated": 0,
+            "dolphin_inferences": 0,
+            "total_embedding_time": 0.0,
+            "total_dolphin_time": 0.0,
         }
 
     def generate_embeddings_threaded(
-        self, texts: List[str],
-        embedding_model,
-        batch_size: int = 8,
-        timeout_per_batch: int = 60
+        self, texts: List[str], embedding_model, batch_size: int = 8, timeout_per_batch: int = 60
     ) -> List[List[float]]:
         """
         Generate embeddings using threaded batching.
@@ -70,7 +69,7 @@ class ModelInferenceThreading:
         logger.info(f"Starting threaded embedding generation for {len(texts)} texts")
 
         # Split into batches
-        batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+        batches = [texts[i : i + batch_size] for i in range(0, len(texts), batch_size)]
         logger.info(f"Split into {len(batches)} batches of max size {batch_size}")
 
         # Process batches in parallel
@@ -83,7 +82,7 @@ class ModelInferenceThreading:
             }
 
             # Collect results in order
-            from concurrent.futures import TimeoutError as FuturesTimeoutError
+
             for future in as_completed(future_to_batch, timeout=timeout_per_batch):
                 try:
                     batch_embeddings = future.result()
@@ -101,15 +100,19 @@ class ModelInferenceThreading:
                         p.cancel()
                     except Exception:
                         pass
-                logger.warning(f"{len(pending)} embedding tasks did not complete within timeout ({timeout_per_batch}s) and were cancelled")
+                logger.warning(
+                    f"{len(pending)} embedding tasks did not complete within timeout ({timeout_per_batch}s) and were cancelled"
+                )
 
         # Update stats
         total_time = time.time() - start_time
-        self.inference_stats['embeddings_generated'] += len(texts)
-        self.inference_stats['total_embedding_time'] += total_time
+        self.inference_stats["embeddings_generated"] += len(texts)
+        self.inference_stats["total_embedding_time"] += total_time
 
-        logger.info(f"Threaded embedding completed: {len(all_embeddings)} embeddings "
-                    f"in {total_time:.2f}s ({len(texts)/total_time:.1f} texts/sec)")
+        logger.info(
+            f"Threaded embedding completed: {len(all_embeddings)} embeddings "
+            f"in {total_time:.2f}s ({len(texts)/total_time:.1f} texts/sec)"
+        )
 
         return all_embeddings
 
@@ -129,7 +132,7 @@ class ModelInferenceThreading:
                     embeddings = embedding_model.encode(text_batch)
 
                 # Convert to list if needed
-                if hasattr(embeddings, 'tolist'):
+                if hasattr(embeddings, "tolist"):
                     embeddings = embeddings.tolist()
 
                 return embeddings
@@ -139,9 +142,7 @@ class ModelInferenceThreading:
                 return [[] for _ in text_batch]
 
     def run_dolphin_inference_threaded(
-        self, images_or_texts: List[Any],
-        dolphin_processor,
-        batch_size: int = 1
+        self, images_or_texts: List[Any], dolphin_processor, batch_size: int = 1
     ) -> List[Dict[str, Any]]:
         """
         Run Dolphin inference with threading.
@@ -160,8 +161,9 @@ class ModelInferenceThreading:
         start_time = time.time()
         logger.info(f"Starting threaded Dolphin inference for {len(images_or_texts)} items")
 
-        batches = [images_or_texts[i:i + batch_size]
-                   for i in range(0, len(images_or_texts), batch_size)]
+        batches = [
+            images_or_texts[i : i + batch_size] for i in range(0, len(images_or_texts), batch_size)
+        ]
 
         all_results = []
         with ThreadPoolExecutor(max_workers=min(self.max_concurrent, 2)) as executor:
@@ -183,11 +185,13 @@ class ModelInferenceThreading:
 
         # Update stats
         total_time = time.time() - start_time
-        self.inference_stats['dolphin_inferences'] += len(images_or_texts)
-        self.inference_stats['total_dolphin_time'] += total_time
+        self.inference_stats["dolphin_inferences"] += len(images_or_texts)
+        self.inference_stats["total_dolphin_time"] += total_time
 
-        logger.info(f"Threaded Dolphin inference completed: {len(all_results)} results "
-                    f"in {total_time:.2f}s")
+        logger.info(
+            f"Threaded Dolphin inference completed: {len(all_results)} results "
+            f"in {total_time:.2f}s"
+        )
 
         return all_results
 
@@ -243,8 +247,7 @@ class ModelInferenceThreading:
             logger.error(f"GPU memory management failed: {e}")
 
     def run_inference_threaded(
-        self, inference_fn: Callable, inputs: List[Any],
-        batch_size: int = 4, use_gpu: bool = False
+        self, inference_fn: Callable, inputs: List[Any], batch_size: int = 4, use_gpu: bool = False
     ) -> List[Any]:
         """
         Generic threaded inference function.
@@ -262,7 +265,7 @@ class ModelInferenceThreading:
             return []
 
         # Split into batches
-        batches = [inputs[i:i + batch_size] for i in range(0, len(inputs), batch_size)]
+        batches = [inputs[i : i + batch_size] for i in range(0, len(inputs), batch_size)]
 
         all_results = []
         with ThreadPoolExecutor(max_workers=self.max_concurrent) as executor:
@@ -283,8 +286,7 @@ class ModelInferenceThreading:
         return all_results
 
     def _run_batch_inference(
-        self, inference_fn: Callable, batch: List[Any],
-        use_gpu: bool
+        self, inference_fn: Callable, batch: List[Any], use_gpu: bool
     ) -> List[Any]:
         """Run inference on a batch."""
         results = []
@@ -307,21 +309,21 @@ class ModelInferenceThreading:
         stats = self.inference_stats.copy()
 
         # Calculate rates
-        if stats['total_embedding_time'] > 0:
-            stats['embedding_rate'] = stats['embeddings_generated'] / stats['total_embedding_time']
+        if stats["total_embedding_time"] > 0:
+            stats["embedding_rate"] = stats["embeddings_generated"] / stats["total_embedding_time"]
 
-        if stats['total_dolphin_time'] > 0:
-            stats['dolphin_rate'] = stats['dolphin_inferences'] / stats['total_dolphin_time']
+        if stats["total_dolphin_time"] > 0:
+            stats["dolphin_rate"] = stats["dolphin_inferences"] / stats["total_dolphin_time"]
 
         return stats
 
     def reset_stats(self):
         """Reset performance statistics."""
         self.inference_stats = {
-            'embeddings_generated': 0,
-            'dolphin_inferences': 0,
-            'total_embedding_time': 0.0,
-            'total_dolphin_time': 0.0
+            "embeddings_generated": 0,
+            "dolphin_inferences": 0,
+            "total_embedding_time": 0.0,
+            "total_dolphin_time": 0.0,
         }
 
 

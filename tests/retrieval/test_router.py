@@ -1,6 +1,4 @@
-import pytest
-from src.cubo.retrieval.router import SemanticRouter, QueryType
-from src.cubo.config import config
+from src.cubo.retrieval.router import QueryType, SemanticRouter
 
 
 def test_router_classify_basic_queries():
@@ -15,6 +13,6 @@ def test_router_classify_basic_queries():
 def test_router_route_query_defaults():
     router = SemanticRouter()
     strategy = router.route_query("What is the capital of France?")
-    assert strategy['query_type'] == 'factual'
-    assert 'bm25_weight' in strategy and 'dense_weight' in strategy
-    assert strategy['bm25_weight'] >= 0 and strategy['dense_weight'] >= 0
+    assert strategy["query_type"] == "factual"
+    assert "bm25_weight" in strategy and "dense_weight" in strategy
+    assert strategy["bm25_weight"] >= 0 and strategy["dense_weight"] >= 0

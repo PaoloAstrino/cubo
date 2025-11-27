@@ -1,12 +1,15 @@
-import pytest
 import os
 import tempfile
+
+import pytest
+
 from src.cubo.utils.utils import Utils
+
 
 def test_sanitize_path_valid():
     """Test path sanitization with valid paths."""
     # Use platform-appropriate paths
-    if os.name == 'nt':  # Windows
+    if os.name == "nt":  # Windows
         base_dir = "C:\\base"
         path = "C:\\base\\subdir\\file.txt"
     else:  # Unix/Linux
@@ -18,6 +21,7 @@ def test_sanitize_path_valid():
     expected = os.path.abspath(path)
     assert result == expected
 
+
 def test_sanitize_path_traversal():
     """Test path sanitization blocks directory traversal."""
     base_dir = "/base"
@@ -25,12 +29,14 @@ def test_sanitize_path_traversal():
     with pytest.raises(ValueError, match="Path traversal detected"):
         Utils.sanitize_path(path, base_dir)
 
+
 def test_validate_file_size_valid():
     """Test file size validation for valid size."""
     with tempfile.NamedTemporaryFile() as f:
         f.write(b"x" * 1000)  # 1KB
         f.flush()
         Utils.validate_file_size(f.name, 10)  # Should not raise
+
 
 def test_validate_file_size_too_large():
     """Test file size validation for oversized file."""
@@ -40,10 +46,12 @@ def test_validate_file_size_too_large():
         with pytest.raises(ValueError, match="File size .* exceeds limit"):
             Utils.validate_file_size(f.name, 1)  # 1MB limit
 
+
 def test_validate_file_type_valid():
     """Test file type validation for allowed extension."""
     allowed = [".txt", ".pdf"]
     Utils.validate_file_type("file.txt", allowed)  # Should not raise
+
 
 def test_validate_file_type_invalid():
     """Test file type validation for disallowed extension."""
@@ -51,17 +59,20 @@ def test_validate_file_type_invalid():
     with pytest.raises(ValueError, match="File type .* not allowed"):
         Utils.validate_file_type("file.exe", allowed)
 
+
 def test_clean_text():
     """Test text cleaning."""
     text = "  Hello   World!  "
     result = Utils.clean_text(text)
     assert result == "Hello World!"
 
+
 def test_preprocess_text():
     """Test text preprocessing."""
     text = "Hello, WORLD!"
     result = Utils.preprocess_text(text, lowercase=True, remove_punct=True)
     assert result == "hello world"
+
 
 def test_chunk_text():
     """Test text chunking."""

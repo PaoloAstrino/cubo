@@ -113,4 +113,9 @@
       "index_dir": "./logs/index",
       "scrub_queries": true
     }
+  ,
+  "trace_collector": {
+    "max_events_per_trace": 200,
+    "keep_seconds": 600
+  }
 }

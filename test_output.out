@@ -20,34 +20,34 @@ tmp_path = WindowsPath('C:/Users/paolo/AppData/Local/Temp/pytest-of-paolo/pytest
         log_file = tmp_path / 'log.jsonl'
         config.set('logging.log_file', str(log_file))
         config.set('logging.format', 'json')
-    
+
         # Re-init the logger
         logger_instance.shutdown()
         logger_instance._setup_logging()
-    
+
         # Acquire the reconfigured logger and write a main-thread log
         log = logger_instance.get_logger()
         log.info('main started')
-    
+
         # Emit a log from a background operation via ServiceManager which should attach trace_id
         svc = ServiceManager(max_workers=1)
-    
+
         def op():
             from src.cubo.utils.logging_context import get_current_trace_id
             from src.cubo.utils.logger import logger as inlogger
             inlogger.info('background op')
             return get_current_trace_id()
-    
+
         fut = svc.execute_async('document_processing', op, with_retry=False)
         trace = fut.result(timeout=5)
         assert trace
-    
+
         # Allow flush
         time.sleep(0.05)
-    
+
         with open(log_file, 'r', encoding='utf-8') as f:
             lines = [l.strip() for l in f.readlines() if l.strip()]
-    
+
         assert lines
         print(f"DEBUG: Captured lines: {lines}")
         # Confirm at least one JSON line has message and trace_id

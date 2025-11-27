@@ -1,8 +1,7 @@
-import json
 import subprocess
 import time
 from pathlib import Path
-from typing import Tuple, List, Callable, Optional
+from typing import List, Optional, Tuple
 
 from src.cubo.indexing.faiss_index import FAISSIndexManager
 from src.cubo.indexing.index_publisher import publish_version
@@ -16,14 +15,16 @@ def create_and_publish_faiss_index(index_root: Path, vname: str, n_vectors: int 
     vdir = Path(index_root) / vname
     manager = FAISSIndexManager(dimension=dim, index_dir=vdir)
     vectors = make_vectors(n_vectors, dim)
-    ids = [f'id_{i}' for i in range(len(vectors))]
+    ids = [f"id_{i}" for i in range(len(vectors))]
     manager.build_indexes(vectors, ids)
     manager.save(path=vdir)
     publish_version(vdir, index_root)
     return vdir, vectors, ids
 
 
-def reader_loop(manager: FAISSIndexManager, query: List[float], iterations: int = 100, delay: float = 0.01):
+def reader_loop(
+    manager: FAISSIndexManager, query: List[float], iterations: int = 100, delay: float = 0.01
+):
     errors = []
     results = []
     for _ in range(iterations):
@@ -40,5 +41,7 @@ def run_script(script: Path, args: List[str], cwd: Optional[Path] = None) -> Tup
     env = dict()
     # Use the existing environment to pass PYTHONPATH and other vars
     env.update({})
-    process = subprocess.run([str(script)] + args, cwd=cwd or Path.cwd(), capture_output=True, text=True, env=None)
+    process = subprocess.run(
+        [str(script)] + args, cwd=cwd or Path.cwd(), capture_output=True, text=True, env=None
+    )
     return process.returncode, process.stdout, process.stderr

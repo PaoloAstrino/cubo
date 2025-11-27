@@ -1,40 +1,44 @@
 from pathlib import Path
-import pandas as pd
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
+import pandas as pd
 from sentence_transformers import SentenceTransformer
+
+from src.cubo.config import config
 from src.cubo.ingestion.deep_ingestor import DeepIngestor
 from src.cubo.retrieval.retriever import DocumentRetriever
-from src.cubo.config import config
-import pytest
 
 
 def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):
     # Temporarily override vector store backend to FAISS for the test
-    orig_backend = config.get('vector_store_backend', None)
-    orig_path = config.get('vector_store_path', None)
-    config.set('vector_store_backend', 'faiss')
+    orig_backend = config.get("vector_store_backend", None)
+    orig_path = config.get("vector_store_path", None)
+    config.set("vector_store_backend", "faiss")
     # Use separate index dir for isolation
-    tmpdb = tmp_path / 'faiss'
+    tmpdb = tmp_path / "faiss"
     tmpdb.mkdir()
-    config.set('vector_store_path', str(tmpdb))
+    config.set("vector_store_path", str(tmpdb))
     try:
         folder = tmp_path / "docs"
         folder.mkdir()
-        (folder / "a.txt").write_text("This is an embedding test document. It has sentences to chunk.")
+        (folder / "a.txt").write_text(
+            "This is an embedding test document. It has sentences to chunk."
+        )
 
         out = tmp_path / "out"
         res = DeepIngestor(input_folder=str(folder), output_dir=str(out)).ingest()
-        df = pd.read_parquet(res['chunks_parquet'])
-        texts = df['text'].tolist()
-        metadatas = df.to_dict(orient='records')
-        chunk_ids = df['chunk_id'].tolist()
+        df = pd.read_parquet(res["chunks_parquet"])
+        texts = df["text"].tolist()
+        metadatas = df.to_dict(orient="records")
+        chunk_ids = df["chunk_id"].tolist()
 
         # Mock a small SentenceTransformer model that returns 64-d vectors
         mock_model = MagicMock(spec=SentenceTransformer)
+
         def mock_encode(texts, batch_size=1):
             # Return deterministic embeddings by text length
             return [[float(len(t.split()))] * 64 for t in texts]
+
         mock_model.encode.side_effect = mock_encode
 
         # Use retriever with mock model (FAISS backend)
@@ -51,6 +55,6 @@ def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):
         assert retriever.collection.count() == len(texts)
     finally:
         # restore config
-        config.set('vector_store_backend', orig_backend)
+        config.set("vector_store_backend", orig_backend)
         if orig_path is not None:
-            config.set('vector_store_path', orig_path)
+            config.set("vector_store_path", orig_path)

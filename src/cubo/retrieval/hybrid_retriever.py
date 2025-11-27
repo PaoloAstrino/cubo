@@ -3,6 +3,7 @@ DEPRECATED shim module. Use `src.cubo.retrieval.retriever.HybridRetriever` inste
 This file remains as a compatibility wrapper: it re-exports the canonical implementation
 from `retriever.py` and emits a DeprecationWarning on import so callers can migrate.
 """
+
 import warnings
 
 warnings.warn(
@@ -36,7 +37,7 @@ class HybridRetriever:
         self.bm25_searcher = bm25_searcher
         self.faiss_manager = faiss_manager
         self.embedding_generator = embedding_generator
-        self.documents = {doc['doc_id']: doc for doc in documents}
+        self.documents = {doc["doc_id"]: doc for doc in documents}
 
     def search(self, query: str, top_k: int = 10) -> List[Dict]:
         """
@@ -53,15 +54,15 @@ class HybridRetriever:
         fused_results = self._fuse_results(bm25_results, faiss_results)
 
         # 4. Sort and return top-k
-        fused_results.sort(key=lambda x: x['score'], reverse=True)
+        fused_results.sort(key=lambda x: x["score"], reverse=True)
 
         # Get the full document from the fused results
         final_results = []
         for res in fused_results[:top_k]:
-            doc_id = res['doc_id']
+            doc_id = res["doc_id"]
             if doc_id in self.documents:
                 doc = self.documents[doc_id]
-                doc['score'] = res['score']
+                doc["score"] = res["score"]
                 final_results.append(doc)
 
         return final_results

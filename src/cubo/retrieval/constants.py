@@ -61,7 +61,7 @@ MIN_BM25_THRESHOLD = 0.05
 KEYWORD_BOOST_FACTOR = 0.3
 
 # =============================================================================
-# CACHE PARAMETERS  
+# CACHE PARAMETERS
 # =============================================================================
 
 # Default cache size (number of entries)

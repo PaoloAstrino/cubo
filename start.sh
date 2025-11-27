@@ -33,4 +33,4 @@ cd ..
 # Start full stack
 echo ""
 echo "Starting CUBO full stack..."
-python3 scripts/start_fullstack.py
+python3 scripts/start_fullstack.py "$@"

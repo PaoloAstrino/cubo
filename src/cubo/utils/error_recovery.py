@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class RecoveryStrategy(Enum):
     """Available recovery strategies."""
+
     RETRY = "retry"
     SKIP = "skip"
     FALLBACK = "fallback"
@@ -29,34 +30,34 @@ class ErrorRecoveryManager:
 
     def __init__(self, recent_failure_threshold: int = 300):
         self.recovery_configs = {
-            'document_processing': {
-                'strategy': RecoveryStrategy.RETRY,
-                'max_retries': 3,
-                'retry_delay': 1.0,
-                'timeout': 300.0  # 5 minutes
+            "document_processing": {
+                "strategy": RecoveryStrategy.RETRY,
+                "max_retries": 3,
+                "retry_delay": 1.0,
+                "timeout": 300.0,  # 5 minutes
             },
-            'embedding_generation': {
-                'strategy': RecoveryStrategy.RETRY,
-                'max_retries': 2,
-                'retry_delay': 2.0,
-                'timeout': 120.0  # 2 minutes
+            "embedding_generation": {
+                "strategy": RecoveryStrategy.RETRY,
+                "max_retries": 2,
+                "retry_delay": 2.0,
+                "timeout": 120.0,  # 2 minutes
             },
-            'database_operation': {
-                'strategy': RecoveryStrategy.RETRY,
-                'max_retries': 5,
-                'retry_delay': 1.0,
-                'timeout': 60.0  # 1 minute
+            "database_operation": {
+                "strategy": RecoveryStrategy.RETRY,
+                "max_retries": 5,
+                "retry_delay": 1.0,
+                "timeout": 60.0,  # 1 minute
             },
-            'llm_generation': {
-                'strategy': RecoveryStrategy.FALLBACK,
-                'max_retries': 2,
-                'retry_delay': 3.0,
-                'timeout': 180.0,  # 3 minutes
-                'fallback_response': (
+            "llm_generation": {
+                "strategy": RecoveryStrategy.FALLBACK,
+                "max_retries": 2,
+                "retry_delay": 3.0,
+                "timeout": 180.0,  # 3 minutes
+                "fallback_response": (
                     "I apologize, but I'm unable to generate a response at this time. "
                     "Please try again."
-                )
-            }
+                ),
+            },
         }
 
         self.error_counts = {}
@@ -64,11 +65,7 @@ class ErrorRecoveryManager:
         self.recent_failure_threshold = recent_failure_threshold
 
     def execute_with_recovery(
-        self,
-        operation_type: str,
-        operation: Callable,
-        *args,
-        **kwargs
+        self, operation_type: str, operation: Callable, *args, **kwargs
     ) -> Any:
         """
         Execute an operation with error recovery.
@@ -84,24 +81,25 @@ class ErrorRecoveryManager:
         Raises:
             Exception: If recovery fails
         """
-        config = self.recovery_configs.get(operation_type, {
-            'strategy': RecoveryStrategy.RETRY,
-            'max_retries': 1,
-            'retry_delay': 1.0,
-            'timeout': 30.0
-        })
+        config = self.recovery_configs.get(
+            operation_type,
+            {
+                "strategy": RecoveryStrategy.RETRY,
+                "max_retries": 1,
+                "retry_delay": 1.0,
+                "timeout": 30.0,
+            },
+        )
 
         last_exception = None
 
-        for attempt in range(config['max_retries'] + 1):
+        for attempt in range(config["max_retries"] + 1):
             try:
                 # Track error counts
                 self._record_attempt(operation_type, attempt == 0)
 
                 # Execute with timeout
-                result = self._execute_with_timeout(
-                    operation, config['timeout'], *args, **kwargs
-                )
+                result = self._execute_with_timeout(operation, config["timeout"], *args, **kwargs)
 
                 # Success - reset error counts
                 self._record_success(operation_type)
@@ -112,28 +110,29 @@ class ErrorRecoveryManager:
                 self._record_error(operation_type, e)
 
                 # Special handling for document processing: DocumentAlreadyExistsError is success
-                if (operation_type == 'document_processing' and
-                        isinstance(e, DocumentAlreadyExistsError)):
+                if operation_type == "document_processing" and isinstance(
+                    e, DocumentAlreadyExistsError
+                ):
                     logger.info(f"Document already exists, treating as success: {e}")
                     self._record_success(operation_type)  # Reset error counts
                     return False  # DocumentAlreadyExistsError returns False from add_document
 
-                if attempt < config['max_retries']:
+                if attempt < config["max_retries"]:
                     logger.warning(
                         f"{operation_type} attempt {attempt + 1} failed: {e}. "
                         f"Retrying in {config['retry_delay']}s..."
                     )
-                    time.sleep(config['retry_delay'])
-                    config['retry_delay'] *= 1.5  # Exponential backoff
+                    time.sleep(config["retry_delay"])
+                    config["retry_delay"] *= 1.5  # Exponential backoff
                 else:
                     logger.error(
                         f"{operation_type} failed after {config['max_retries'] + 1} attempts: {e}"
                     )
 
                     # Try fallback strategy
-                    if config['strategy'] == RecoveryStrategy.FALLBACK:
+                    if config["strategy"] == RecoveryStrategy.FALLBACK:
                         return self._execute_fallback(config, e)
-                    elif config['strategy'] == RecoveryStrategy.SKIP:
+                    elif config["strategy"] == RecoveryStrategy.SKIP:
                         logger.info(f"Skipping {operation_type} due to error: {e}")
                         return None
 
@@ -155,11 +154,13 @@ class ErrorRecoveryManager:
             except Exception as e:
                 exception[0] = e
                 completed[0] = True
+
         # Propagate contextvars into the new thread so trace_id and other context
         # elements are available to the operation. Use contextvars.copy_context() to
         # run the operation within the same context in the new thread.
         try:
             import contextvars
+
             ctx = contextvars.copy_context()
             thread = threading.Thread(target=lambda: ctx.run(run_operation), daemon=True)
         except Exception:
@@ -167,6 +168,7 @@ class ErrorRecoveryManager:
             # operation runs so that trace_id and other ContextVars remain available.
             try:
                 import contextvars
+
                 ctx = contextvars.copy_context()
                 thread = threading.Thread(target=lambda: ctx.run(run_operation), daemon=True)
             except Exception:
@@ -184,37 +186,37 @@ class ErrorRecoveryManager:
     def _execute_fallback(self, config: Dict, original_error: Exception) -> Any:
         """Execute fallback strategy."""
         logger.info(f"Executing fallback for error: {original_error}")
-        return config.get('fallback_response', None)
+        return config.get("fallback_response", None)
 
     def _record_attempt(self, operation_type: str, is_first_attempt: bool):
         """Record an attempt for monitoring."""
         if operation_type not in self.error_counts:
             self.error_counts[operation_type] = {
-                'total_attempts': 0,
-                'failures': 0,
-                'successes': 0,
-                'last_failure': None
+                "total_attempts": 0,
+                "failures": 0,
+                "successes": 0,
+                "last_failure": None,
             }
 
-        self.error_counts[operation_type]['total_attempts'] += 1
+        self.error_counts[operation_type]["total_attempts"] += 1
 
     def _record_success(self, operation_type: str):
         """Record a successful operation."""
         if operation_type in self.error_counts:
-            self.error_counts[operation_type]['successes'] += 1
+            self.error_counts[operation_type]["successes"] += 1
 
     def _record_error(self, operation_type: str, error: Exception):
         """Record an error for monitoring."""
         if operation_type not in self.error_counts:
             self.error_counts[operation_type] = {
-                'total_attempts': 0,
-                'failures': 0,
-                'successes': 0,
-                'last_failure': None
+                "total_attempts": 0,
+                "failures": 0,
+                "successes": 0,
+                "last_failure": None,
             }
 
-        self.error_counts[operation_type]['failures'] += 1
-        self.error_counts[operation_type]['last_failure'] = time.time()
+        self.error_counts[operation_type]["failures"] += 1
+        self.error_counts[operation_type]["last_failure"] = time.time()
         self.last_errors[operation_type] = str(error)
 
     def get_health_status(self) -> Dict[str, Any]:
@@ -222,21 +224,22 @@ class ErrorRecoveryManager:
         status = {}
 
         for operation_type, counts in self.error_counts.items():
-            failure_rate = counts['failures'] / max(counts['total_attempts'], 1)
+            failure_rate = counts["failures"] / max(counts["total_attempts"], 1)
             recent_failure = False
 
-            if counts['last_failure']:
+            if counts["last_failure"]:
                 # Consider recent if within last 'recent_failure_threshold' seconds
                 recent_failure = (
-                    (time.time() - counts['last_failure']) < self.recent_failure_threshold
-                )
+                    time.time() - counts["last_failure"]
+                ) < self.recent_failure_threshold
 
             status[operation_type] = {
-                'healthy': failure_rate < 0.5 and not recent_failure,
-                'failure_rate': failure_rate,
-                'total_attempts': counts['total_attempts'],
-                'recent_failure': recent_failure,
-                'last_error': self.last_errors.get(operation_type)}
+                "healthy": failure_rate < 0.5 and not recent_failure,
+                "failure_rate": failure_rate,
+                "total_attempts": counts["total_attempts"],
+                "recent_failure": recent_failure,
+                "last_error": self.last_errors.get(operation_type),
+            }
 
         return status
 

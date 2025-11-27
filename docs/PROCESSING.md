@@ -13,11 +13,11 @@ graph TD
     C --> D[ScaffoldGenerator]
     D --> E[Semantic Scaffolds<br/>compressed representations]
     E --> F[Vector Database]
-    
+
     G[Query] --> H[Retriever]
     H --> I[WindowReplacementPostProcessor]
     I --> J[Enhanced Results]
-    
+
     K[LLM Backend] -.provides.-> B
     K -.provides.-> L[ResponseGenerator]
     M[llm_local.py] -.alternative.-> K
@@ -219,7 +219,7 @@ response = generator.generate_response(
 4. **Use in code**:
    ```python
    from src.cubo.processing.llm_local import LocalResponseGenerator
-   
+
    llm = LocalResponseGenerator()
    response = llm.generate_response(
        query="What is this about?",

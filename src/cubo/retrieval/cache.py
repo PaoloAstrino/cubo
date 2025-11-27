@@ -1,4 +1,5 @@
 """Embedding-aware semantic cache for retriever responses."""
+
 from __future__ import annotations
 
 import json
@@ -63,7 +64,7 @@ class SemanticCache:
         max_entries: int = 256,
         cache_path: Optional[str] = None,
         use_index: bool = True,
-        index_type: str = 'hnsw',
+        index_type: str = "hnsw",
         hnsw_m: int = 16,
     ):
         self.ttl_seconds = ttl_seconds
@@ -83,14 +84,16 @@ class SemanticCache:
             try:
                 pass  # type: ignore
             except Exception:
-                logger.warning("FAISS is not available; falling back to linear scan for SemanticCache")
+                logger.warning(
+                    "FAISS is not available; falling back to linear scan for SemanticCache"
+                )
                 self._use_index = False
 
     def _load_from_disk(self) -> None:
         if not self.cache_path or not self.cache_path.exists():
             return
         try:
-            with self.cache_path.open('r', encoding='utf-8') as fh:
+            with self.cache_path.open("r", encoding="utf-8") as fh:
                 raw = json.load(fh)
             self._entries = [CacheEntry.from_dict(item) for item in raw]
             logger.info("Loaded %d semantic cache entries", len(self._entries))
@@ -110,7 +113,7 @@ class SemanticCache:
         try:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             data = [entry.to_dict() for entry in self._entries]
-            with self.cache_path.open('w', encoding='utf-8') as fh:
+            with self.cache_path.open("w", encoding="utf-8") as fh:
                 json.dump(data, fh)
         except Exception as exc:
             logger.warning("Failed to persist semantic cache: %s", exc)
@@ -118,7 +121,9 @@ class SemanticCache:
     def _evict_expired(self) -> None:
         now = time.time()
         before = len(self._entries)
-        self._entries = [entry for entry in self._entries if now - entry.timestamp <= self.ttl_seconds]
+        self._entries = [
+            entry for entry in self._entries if now - entry.timestamp <= self.ttl_seconds
+        ]
         if len(self._entries) != before:
             logger.debug("Evicted %d expired semantic cache entries", before - len(self._entries))
 
@@ -135,94 +140,88 @@ class SemanticCache:
         if self._use_index and removed_any:
             self._rebuild_index()
 
-    def _try_index_lookup(
-        self, 
-        q_vec: np.ndarray
-    ) -> Optional[Tuple[float, 'CacheEntry']]:
+    def _try_index_lookup(self, q_vec: np.ndarray) -> Optional[Tuple[float, CacheEntry]]:
         """
         Attempt to find a cache match using the FAISS/HNSW index.
-        
+
         Uses approximate nearest neighbor search for fast lookup when
         the index is available. Falls back to None if index lookup fails.
-        
+
         Args:
             q_vec: Normalized query embedding vector.
-            
+
         Returns:
             Tuple of (similarity_score, entry) if match found above threshold,
             None otherwise.
         """
         if not self._use_index or self._index is None or self._dimension is None:
             return None
-            
+
         try:
-            vec = q_vec.reshape(1, -1).astype('float32')
+            vec = q_vec.reshape(1, -1).astype("float32")
             if vec.shape[1] != self._dimension:
                 return None
-                
+
             # Normalize for inner-product cosine similarity
             vec_norm = np.linalg.norm(vec, axis=1, keepdims=True)
             vec_norm[vec_norm == 0] = 1.0
             qnorm = vec / vec_norm
-            
+
             # Search for nearest neighbor
             k = 1
             distances, indexes = self._index.search(qnorm, k)
             idx = int(indexes[0][0]) if indexes[0].size and indexes[0][0] != -1 else -1
-            
+
             if idx == -1 or idx >= len(self._entries):
                 return None
-                
+
             # Verify similarity meets threshold
             entry = self._entries[idx]
-            entry_vec = np.asarray(entry.query_embedding, dtype='float32')
+            entry_vec = np.asarray(entry.query_embedding, dtype="float32")
             entry_norm = np.linalg.norm(entry_vec)
             if entry_norm == 0:
                 return None
             score = _cosine_similarity(qnorm.flatten(), entry_vec / entry_norm)
-            
+
             if score >= self.similarity_threshold:
                 return (score, entry)
-                
+
         except Exception:
             # Fallback to linear scan on any index failure
             pass
-            
+
         return None
 
-    def _linear_scan_lookup(
-        self, 
-        q_vec: np.ndarray
-    ) -> Optional[Tuple[float, 'CacheEntry']]:
+    def _linear_scan_lookup(self, q_vec: np.ndarray) -> Optional[Tuple[float, CacheEntry]]:
         """
         Find best cache match using linear scan over all entries.
-        
+
         Used as fallback when index is unavailable or when index
         lookup fails to find a match.
-        
+
         Args:
             q_vec: Query embedding vector.
-            
+
         Returns:
             Tuple of (similarity_score, entry) for best match above threshold,
             None if no match found.
         """
         best_match: Optional[Tuple[float, CacheEntry]] = None
-        
+
         for entry in self._entries:
-            entry_vec = np.asarray(entry.query_embedding, dtype='float32')
+            entry_vec = np.asarray(entry.query_embedding, dtype="float32")
             score = _cosine_similarity(q_vec, entry_vec)
-            
+
             if score >= self.similarity_threshold:
                 if not best_match or score > best_match[0]:
                     best_match = (score, entry)
-                    
+
         return best_match
 
-    def _update_entry_access(self, entry: 'CacheEntry') -> None:
+    def _update_entry_access(self, entry: CacheEntry) -> None:
         """
         Update entry access tracking for LRU eviction and TTL refresh.
-        
+
         Args:
             entry: Cache entry to update.
         """
@@ -231,47 +230,44 @@ class SemanticCache:
         entry.timestamp = time.time()
 
     def lookup(
-        self, 
-        query_embedding: List[float], 
-        n_results: Optional[int] = None
+        self, query_embedding: List[float], n_results: Optional[int] = None
     ) -> Optional[List[Dict[str, Any]]]:
         """
         Look up cached results for a semantically similar query.
-        
+
         Searches the cache for an entry whose query embedding has
         cosine similarity above the threshold. Uses FAISS index for
         fast lookup when available, falling back to linear scan.
-        
+
         Args:
             query_embedding: Query vector to search for.
             n_results: Optional limit on number of results to return.
-            
+
         Returns:
             Cached results list if match found, None otherwise.
         """
         if not query_embedding or not self._entries:
             return None
-            
+
         self._evict_expired()
-        q_vec = np.asarray(query_embedding, dtype='float32')
-        
+        q_vec = np.asarray(query_embedding, dtype="float32")
+
         # Try index-based lookup first, then fall back to linear scan
         best_match = self._try_index_lookup(q_vec)
         if best_match is None:
             best_match = self._linear_scan_lookup(q_vec)
-            
+
         if best_match is None:
             return None
-            
+
         # Update access tracking
         score, entry = best_match
         self._update_entry_access(entry)
-        
+
         logger.debug(
-            "SemanticCache hit: %s score=%.3f last_access=%d", 
-            entry.query, score, entry.last_access
+            "SemanticCache hit: %s score=%.3f last_access=%d", entry.query, score, entry.last_access
         )
-        
+
         # Return results, optionally sliced
         results = entry.results
         if n_results is not None and isinstance(n_results, int):
@@ -320,14 +316,17 @@ class SemanticCache:
             return
         try:
             import faiss  # type: ignore
-            vectors = np.stack([np.asarray(e.query_embedding, dtype='float32') for e in self._entries])
+
+            vectors = np.stack(
+                [np.asarray(e.query_embedding, dtype="float32") for e in self._entries]
+            )
             # normalize vectors for cosine similarity if using inner product
             norms = np.linalg.norm(vectors, axis=1, keepdims=True)
             norms[norms == 0] = 1.0
             vectors = vectors / norms
             dim = vectors.shape[1]
             self._dimension = dim
-            if self._index_type == 'hnsw':
+            if self._index_type == "hnsw":
                 idx = faiss.IndexHNSWFlat(dim, self._hnsw_m, faiss.METRIC_INNER_PRODUCT)
                 idx.hnsw.efConstruction = max(40, self._hnsw_m * 2)
                 idx.hnsw.efSearch = max(50, self._hnsw_m * 2)

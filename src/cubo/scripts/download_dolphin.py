@@ -43,22 +43,14 @@ def _setup_directories():
 def _download_model_components(dolphin_dir):
     """Download tokenizer, processor, and model components."""
     print("📥 Downloading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(
-        "ByteDance/Dolphin",
-        cache_dir=str(dolphin_dir)
-    )
+    tokenizer = AutoTokenizer.from_pretrained("ByteDance/Dolphin", cache_dir=str(dolphin_dir))
 
     print("📥 Downloading processor...")
-    processor = AutoProcessor.from_pretrained(
-        "ByteDance/Dolphin",
-        cache_dir=str(dolphin_dir)
-    )
+    processor = AutoProcessor.from_pretrained("ByteDance/Dolphin", cache_dir=str(dolphin_dir))
 
     print("📥 Downloading model (400MB)...")
     model = AutoModelForVision2Seq.from_pretrained(
-        "ByteDance/Dolphin",
-        cache_dir=str(dolphin_dir),
-        torch_dtype="auto"
+        "ByteDance/Dolphin", cache_dir=str(dolphin_dir), torch_dtype="auto"
     )
 
     return tokenizer, processor, model
@@ -115,6 +107,7 @@ def test_dolphin_model():
     except Exception as e:
         print(f"❌ Test failed: {e}")
         return False
+
 
 if __name__ == "__main__":
     import argparse

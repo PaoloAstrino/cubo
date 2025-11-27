@@ -1,9 +1,6 @@
 import os
-import sys
-import json
 import stat
-import time
-from pathlib import Path
+import sys
 
 from scripts.benchmark_runner import BenchmarkRunner
 
@@ -37,9 +34,13 @@ else:
         os.chmod(str(script_path), st.st_mode | stat.S_IEXEC)
     except Exception:
         pass
-    runner = BenchmarkRunner(datasets=[], retrieval_configs=[], ablations=[], k_values=[5], mode='retrieval-only')
+    runner = BenchmarkRunner(
+        datasets=[], retrieval_configs=[], ablations=[], k_values=[5], mode="retrieval-only"
+    )
     cmd = [sys.executable, str(script_path)]
-    succeeded, attempts, err = runner._run_with_retries(cmd, cwd=str(tmp_path), max_retries=5, backoff=0.1)
+    succeeded, attempts, err = runner._run_with_retries(
+        cmd, cwd=str(tmp_path), max_retries=5, backoff=0.1
+    )
     assert succeeded is True
     assert attempts >= threshold
     assert output_file.exists()
@@ -48,9 +49,13 @@ else:
 def test_run_with_retries_fail(tmp_path):
     script_path = tmp_path / "always_fail.py"
     script_path.write_text("import sys; sys.exit(2)")
-    runner = BenchmarkRunner(datasets=[], retrieval_configs=[], ablations=[], k_values=[5], mode='retrieval-only')
+    runner = BenchmarkRunner(
+        datasets=[], retrieval_configs=[], ablations=[], k_values=[5], mode="retrieval-only"
+    )
     cmd = [sys.executable, str(script_path)]
-    succeeded, attempts, err = runner._run_with_retries(cmd, cwd=str(tmp_path), max_retries=2, backoff=0.1)
+    succeeded, attempts, err = runner._run_with_retries(
+        cmd, cwd=str(tmp_path), max_retries=2, backoff=0.1
+    )
     assert succeeded is False
     assert attempts == 2
     assert err is not None

@@ -15,6 +15,7 @@ from src.cubo.utils.logger import logger
 
 class HealthStatus(Enum):
     """Health status levels."""
+
     HEALTHY = "healthy"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -24,10 +25,11 @@ class HealthStatus(Enum):
 @dataclass
 class HealthCheck:
     """Represents a health check."""
+
     name: str
     check_function: Callable[[], Dict[str, Any]]
     interval: float = 30.0  # Check every 30 seconds
-    timeout: float = 10.0   # Timeout after 10 seconds
+    timeout: float = 10.0  # Timeout after 10 seconds
     last_check: float = 0.0
     last_result: Optional[Dict[str, Any]] = None
 
@@ -38,14 +40,16 @@ class HealthMonitor:
     Provides status reporting and alerting capabilities.
     """
 
-    def __init__(self,
-                 memory_warning_threshold: float = 80.0,
-                 memory_critical_threshold: float = 90.0,
-                 cpu_warning_threshold: float = 85.0,
-                 cpu_critical_threshold: float = 95.0,
-                 disk_warning_threshold: float = 90.0,
-                 disk_critical_threshold: float = 95.0,
-                 disk_check_path: str = '/'):
+    def __init__(
+        self,
+        memory_warning_threshold: float = 80.0,
+        memory_critical_threshold: float = 90.0,
+        cpu_warning_threshold: float = 85.0,
+        cpu_critical_threshold: float = 95.0,
+        disk_warning_threshold: float = 90.0,
+        disk_critical_threshold: float = 95.0,
+        disk_check_path: str = "/",
+    ):
         self.health_checks: Dict[str, HealthCheck] = {}
         self.alert_callbacks: List[Callable[[str, HealthStatus, Dict], None]] = []
         self.status_history: Dict[str, List[Dict]] = {}
@@ -70,14 +74,11 @@ class HealthMonitor:
         name: str,
         check_function: Callable[[], Dict[str, Any]],
         interval: float = 30.0,
-        timeout: float = 10.0
+        timeout: float = 10.0,
     ):
         """Add a health check."""
         self.health_checks[name] = HealthCheck(
-            name=name,
-            check_function=check_function,
-            interval=interval,
-            timeout=timeout
+            name=name, check_function=check_function, interval=interval, timeout=timeout
         )
         self.status_history[name] = []
         logger.info(f"Added health check: {name}")
@@ -109,9 +110,9 @@ class HealthMonitor:
     def _create_unknown_check_result(self, check_name: str) -> Dict[str, Any]:
         """Create result for unknown health check."""
         return {
-            'status': HealthStatus.UNKNOWN.value,
-            'message': f'Health check {check_name} not found',
-            'timestamp': time.time()
+            "status": HealthStatus.UNKNOWN.value,
+            "message": f"Health check {check_name} not found",
+            "timestamp": time.time(),
         }
 
     def _execute_and_process_check(self, check_name: str, check: HealthCheck) -> Dict[str, Any]:
@@ -142,10 +143,10 @@ class HealthMonitor:
     ) -> Dict[str, Any]:
         """Handle errors during health check execution."""
         error_result = {
-            'status': HealthStatus.CRITICAL.value,
-            'message': f'Health check failed: {str(error)}',
-            'timestamp': time.time(),
-            'error': str(error)
+            "status": HealthStatus.CRITICAL.value,
+            "message": f"Health check failed: {str(error)}",
+            "timestamp": time.time(),
+            "error": str(error),
         }
 
         check.last_result = error_result
@@ -189,8 +190,9 @@ class HealthMonitor:
         thread.join(check.timeout)
 
         if not completed[0]:
-            raise TimeoutError(f"Health check '{check.name}' timed out after "
-                               f"{check.timeout} seconds")
+            raise TimeoutError(
+                f"Health check '{check.name}' timed out after " f"{check.timeout} seconds"
+            )
 
         if exception[0]:
             raise exception[0]
@@ -199,19 +201,22 @@ class HealthMonitor:
 
     def _check_for_alerts(self, check_name: str, result: Dict[str, Any]):
         """Check if alerts should be triggered."""
-        current_status = HealthStatus(result['status'])
+        current_status = HealthStatus(result["status"])
 
         # Get previous status
         history = self.status_history[check_name]
         previous_status = HealthStatus.UNKNOWN
         if len(history) > 1:
-            previous_status = HealthStatus(history[-2]['status'])
+            previous_status = HealthStatus(history[-2]["status"])
 
         # Trigger alert if status changed to warning/critical or recovered
-        if (current_status in [HealthStatus.WARNING, HealthStatus.CRITICAL] and
-                previous_status not in [HealthStatus.WARNING, HealthStatus.CRITICAL]) or \
-                (current_status == HealthStatus.HEALTHY and
-                 previous_status in [HealthStatus.WARNING, HealthStatus.CRITICAL]):
+        if (
+            current_status in [HealthStatus.WARNING, HealthStatus.CRITICAL]
+            and previous_status not in [HealthStatus.WARNING, HealthStatus.CRITICAL]
+        ) or (
+            current_status == HealthStatus.HEALTHY
+            and previous_status in [HealthStatus.WARNING, HealthStatus.CRITICAL]
+        ):
 
             for callback in self.alert_callbacks:
                 try:
@@ -235,11 +240,11 @@ class HealthMonitor:
             message = f"Memory usage normal: {usage_percent:.1f}%"
 
         return {
-            'status': status.value,
-            'message': message,
-            'usage_percent': usage_percent,
-            'available_gb': memory.available / (1024**3),
-            'timestamp': time.time()
+            "status": status.value,
+            "message": message,
+            "usage_percent": usage_percent,
+            "available_gb": memory.available / (1024**3),
+            "timestamp": time.time(),
         }
 
     def _check_system_cpu(self) -> Dict[str, Any]:
@@ -257,10 +262,10 @@ class HealthMonitor:
             message = f"CPU usage normal: {cpu_percent:.1f}%"
 
         return {
-            'status': status.value,
-            'message': message,
-            'usage_percent': cpu_percent,
-            'timestamp': time.time()
+            "status": status.value,
+            "message": message,
+            "usage_percent": cpu_percent,
+            "timestamp": time.time(),
         }
 
     def _check_disk_space(self) -> Dict[str, Any]:
@@ -279,11 +284,11 @@ class HealthMonitor:
             message = f"Disk space normal: {usage_percent:.1f}%"
 
         return {
-            'status': status.value,
-            'message': message,
-            'usage_percent': usage_percent,
-            'free_gb': disk.free / (1024**3),
-            'timestamp': time.time()
+            "status": status.value,
+            "message": message,
+            "usage_percent": usage_percent,
+            "free_gb": disk.free / (1024**3),
+            "timestamp": time.time(),
         }
 
     def _get_single_health_status(self, check_name: str) -> Dict[str, Any]:
@@ -297,7 +302,7 @@ class HealthMonitor:
             Dictionary containing check status information
         """
         if check_name not in self.health_checks:
-            return {'error': f'Health check {check_name} not found'}
+            return {"error": f"Health check {check_name} not found"}
 
         check = self.health_checks[check_name]
         current_time = time.time()
@@ -307,11 +312,11 @@ class HealthMonitor:
             self.perform_health_check(check_name)
 
         return {
-            'name': check_name,
-            'status': check.last_result or {'status': HealthStatus.UNKNOWN.value},
-            'last_check': check.last_check,
-            'next_check': check.last_check + check.interval,
-            'history': self.status_history[check_name][-5:]  # Last 5 results
+            "name": check_name,
+            "status": check.last_result or {"status": HealthStatus.UNKNOWN.value},
+            "last_check": check.last_check,
+            "next_check": check.last_check + check.interval,
+            "history": self.status_history[check_name][-5:],  # Last 5 results
         }
 
     def _get_all_health_statuses(self) -> Dict[str, Any]:
@@ -332,15 +337,13 @@ class HealthMonitor:
             overall_status = self._calculate_overall_status(overall_status, status_info)
 
         return {
-            'overall_status': overall_status.value,
-            'checks': all_statuses,
-            'timestamp': time.time()
+            "overall_status": overall_status.value,
+            "checks": all_statuses,
+            "timestamp": time.time(),
         }
 
     def _calculate_overall_status(
-        self,
-        current_overall: HealthStatus,
-        status_info: Dict
+        self, current_overall: HealthStatus, status_info: Dict
     ) -> HealthStatus:
         """
         Calculate the overall health status based on individual check status.
@@ -352,12 +355,11 @@ class HealthMonitor:
         Returns:
             Updated overall health status
         """
-        check_status = status_info['status']['status']
+        check_status = status_info["status"]["status"]
 
         if check_status == HealthStatus.CRITICAL.value:
             return HealthStatus.CRITICAL
-        elif (check_status == HealthStatus.WARNING.value and
-              current_overall == HealthStatus.HEALTHY):
+        elif check_status == HealthStatus.WARNING.value and current_overall == HealthStatus.HEALTHY:
             return HealthStatus.WARNING
 
         return current_overall

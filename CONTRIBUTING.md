@@ -10,6 +10,9 @@ We welcome contributions! Please follow these steps:
    .venv\Scripts\activate  # Windows
    pip install -r requirements.txt -r requirements-dev.txt
 
+   # Install pre-commit hooks (automatic code checks)
+   pre-commit install
+
    # Frontend (Node.js)
    npm run install:frontend
    ```
@@ -27,6 +30,25 @@ We welcome contributions! Please follow these steps:
    ```
 6. **Commit with a clear message** and push to your fork.
 7. **Open a Pull Request** targeting the `main` branch. Include a description of the changes and any relevant issue numbers.
+
+### Pre-commit Hooks
+
+Pre-commit hooks automatically check code quality before each commit:
+- **Black**: Code formatting (100 character line length)
+- **Ruff**: Fast Python linting
+- **isort**: Import sorting
+- **mypy**: Type checking
+- **Bandit**: Security scanning
+
+To run checks manually on all files:
+```bash
+pre-commit run --all-files
+```
+
+To skip hooks (not recommended):
+```bash
+git commit --no-verify
+```
 
 ### Code of Conduct
 By contributing, you agree to abide by the project's [Code of Conduct](CODE_OF_CONDUCT.md).

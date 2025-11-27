@@ -1,9 +1,16 @@
 """Richer ingestion pipeline for chunk-level processing (moved from src.ingest)
+
+Resource Optimization:
+- Streaming saves: chunks are flushed to temp parquet files periodically
+- Prevents RAM accumulation for large document sets
+- Temp files are merged at the end into final parquet
 """
+
 from __future__ import annotations
 
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,9 +29,13 @@ except ImportError:
     pdfplumber = None
 
 
-
 class DeepIngestor:
-    """Full text ingestion flow that produces stable chunk IDs and parquet output."""
+    """Full text ingestion flow that produces stable chunk IDs and parquet output.
+
+    Resource Optimization:
+    - Chunks are flushed to temp parquet files every N chunks to prevent OOM
+    - Temp files are merged at the end for final output
+    """
 
     def __init__(
         self,
@@ -33,24 +44,94 @@ class DeepIngestor:
         chunking_config: Optional[Dict[str, Any]] = None,
         csv_rows_per_chunk: Optional[int] = None,
         use_file_hash_for_chunk_id: Optional[bool] = None,
+        chunk_batch_size: Optional[int] = None,
     ):
         self.input_folder = Path(input_folder or config.get("data_folder", "./data"))
-        self.output_dir = Path(output_dir or config.get("ingestion.deep.output_dir", config.get("deep_output_dir", "./data/deep")))
+        self.output_dir = Path(
+            output_dir
+            or config.get("ingestion.deep.output_dir", config.get("deep_output_dir", "./data/deep"))
+        )
         self.chunking_config = chunking_config or {}
-        self.csv_rows_per_chunk = csv_rows_per_chunk or config.get("ingestion.deep.csv_rows_per_chunk", config.get("deep_csv_rows_per_chunk", 25))
+        self.csv_rows_per_chunk = csv_rows_per_chunk or config.get(
+            "ingestion.deep.csv_rows_per_chunk", config.get("deep_csv_rows_per_chunk", 25)
+        )
         self.use_file_hash_for_chunk_id = (
             use_file_hash_for_chunk_id
             if use_file_hash_for_chunk_id is not None
-            else config.get("ingestion.deep.use_file_hash_for_chunk_id", config.get("deep_chunk_id_use_file_hash", True))
+            else config.get(
+                "ingestion.deep.use_file_hash_for_chunk_id",
+                config.get("deep_chunk_id_use_file_hash", True),
+            )
         )
+
+        # Streaming save configuration - flush every N chunks to disk
+        self.chunk_batch_size = chunk_batch_size or config.get(
+            "ingestion.deep.chunk_batch_size", 100
+        )
+        self._temp_parquet_files: List[Path] = []
+        self._run_id = uuid.uuid4().hex[:8]
+
         self.loader = DocumentLoader(skip_model=True)
         self.ocr_processor = OCRProcessor(config)  # Initialize OCR processor
         self.input_folder.mkdir(parents=True, exist_ok=True)  # Ensure input folder exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._supported_extensions = set(self.loader.supported_extensions) | {".csv", ".xlsx"}
 
+    def _flush_chunk_batch(self, chunks: List[Dict[str, Any]]) -> None:
+        """Flush a batch of chunks to a temporary parquet file.
+
+        This prevents RAM accumulation for large ingestion jobs.
+        """
+        if not chunks:
+            return
+
+        batch_num = len(self._temp_parquet_files)
+        temp_file = self.output_dir / f"temp_chunks_{self._run_id}_{batch_num}.parquet"
+
+        try:
+            df = pd.DataFrame.from_records(chunks)
+            df.to_parquet(temp_file, index=False, engine="pyarrow")
+            self._temp_parquet_files.append(temp_file)
+            logger.debug(f"Flushed {len(chunks)} chunks to {temp_file.name}")
+        except Exception as e:
+            logger.warning(f"Failed to flush chunk batch: {e}")
+
+    def _merge_temp_parquets(self, final_path: Path) -> None:
+        """Merge all temporary parquet files into the final output."""
+        if not self._temp_parquet_files:
+            return
+
+        try:
+            all_dfs = []
+            for temp_file in self._temp_parquet_files:
+                if temp_file.exists():
+                    all_dfs.append(pd.read_parquet(temp_file))
+
+            if all_dfs:
+                merged_df = pd.concat(all_dfs, ignore_index=True)
+                merged_df.to_parquet(final_path, index=False, engine="pyarrow")
+                logger.info(
+                    f"Merged {len(self._temp_parquet_files)} temp files into {final_path.name}"
+                )
+        finally:
+            # Clean up temp files
+            self._cleanup_temp_files()
+
+    def _cleanup_temp_files(self) -> None:
+        """Remove temporary parquet files."""
+        for temp_file in self._temp_parquet_files:
+            try:
+                if temp_file.exists():
+                    os.remove(str(temp_file))
+            except Exception:
+                pass
+        self._temp_parquet_files.clear()
+
     def ingest(self, resume: bool = False) -> Dict[str, Any]:
-        """Process every supported document and persist chunks to parquet."""
+        """Process every supported document and persist chunks to parquet.
+
+        Uses streaming saves to prevent RAM accumulation on large datasets.
+        """
         if not self.input_folder.exists():
             raise FileNotFoundError(f"Input folder {self.input_folder} does not exist")
 
@@ -62,40 +143,67 @@ class DeepIngestor:
             if existing_parquet.exists():
                 try:
                     existing_df = pd.read_parquet(existing_parquet)
-                    processed_set = set(existing_df['file_path'].tolist())
-                    logger.info(f"Resuming deep ingest; skipping {len(processed_set)} already processed files")
+                    processed_set = set(existing_df["file_path"].tolist())
+                    logger.info(
+                        f"Resuming deep ingest; skipping {len(processed_set)} already processed files"
+                    )
                 except Exception:
-                    logger.warning("Failed reading existing chunks parquet for resume; full reprocess will occur")
+                    logger.warning(
+                        "Failed reading existing chunks parquet for resume; full reprocess will occur"
+                    )
+
         processed_files: List[str] = []
-        all_chunks: List[Dict[str, Any]] = []
+        current_batch: List[Dict[str, Any]] = []
+        total_chunks = 0
+
+        # Reset temp files for this run
+        self._temp_parquet_files = []
+        self._run_id = uuid.uuid4().hex[:8]
 
         for path in files:
             if resume and str(path) in processed_set:
                 continue
             chunks = self._process_file(path)
             if chunks:
-                all_chunks.extend(chunks)
+                current_batch.extend(chunks)
                 processed_files.append(str(path))
 
-        if not all_chunks:
+                # Flush to disk when batch size reached (streaming save)
+                if len(current_batch) >= self.chunk_batch_size:
+                    self._flush_chunk_batch(current_batch)
+                    total_chunks += len(current_batch)
+                    current_batch = []  # Clear to free memory
+
+        # Flush any remaining chunks
+        if current_batch:
+            self._flush_chunk_batch(current_batch)
+            total_chunks += len(current_batch)
+
+        if total_chunks == 0 and not self._temp_parquet_files:
             logger.warning("Deep ingest produced no chunks")
             return {}
 
-        df = pd.DataFrame.from_records(all_chunks)
-        parquet_path = self._save_chunks_parquet(df)
-        manifest_path = self._write_manifest(len(all_chunks), processed_files)
+        # Merge temp files into final parquet
+        parquet_path = self.output_dir / "chunks_deep.parquet"
+        if self._temp_parquet_files:
+            self._merge_temp_parquets(parquet_path)
+
+        manifest_path = self._write_manifest(total_chunks, processed_files)
+
         # Record ingestion run
         try:
             manager = get_metadata_manager()
             run_id = f"deep_{os.path.basename(str(self.input_folder))}_{int(pd.Timestamp.utcnow().timestamp())}"
-            manager.record_ingestion_run(run_id, str(self.input_folder), len(all_chunks), str(parquet_path))
+            manager.record_ingestion_run(
+                run_id, str(self.input_folder), total_chunks, str(parquet_path)
+            )
         except Exception:
             logger.warning("Failed to record deep ingestion run to metadata DB")
 
         return {
             "chunks_parquet": str(parquet_path),
             "manifest": str(manifest_path),
-            "chunks_count": len(all_chunks),
+            "chunks_count": total_chunks,
             "processed_files": processed_files,
         }
 
@@ -139,7 +247,9 @@ class DeepIngestor:
 
         return self._process_tabular_data(df, "csv")
 
-    def _process_tabular_data(self, df: pd.DataFrame, chunk_type: str, metadata: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    def _process_tabular_data(
+        self, df: pd.DataFrame, chunk_type: str, metadata: Dict[str, Any] = None
+    ) -> List[Dict[str, Any]]:
         """Generic processing for tabular data (CSV, Excel)."""
         chunks: List[Dict[str, Any]] = []
         chunk_index = 0
@@ -235,7 +345,10 @@ class DeepIngestor:
                         # Use sentence window chunking across page content if it's large
                         # We'll call Utils.create_sentence_window_chunks for more granular matching
                         from src.cubo.utils.utils import Utils
-                        s_chunks = Utils.create_sentence_window_chunks(text, window_size=self.chunking_config.get("window_size", 3))
+
+                        s_chunks = Utils.create_sentence_window_chunks(
+                            text, window_size=self.chunking_config.get("window_size", 3)
+                        )
                         for c in s_chunks:
                             c["type"] = "text"
                             c["page"] = page_num
@@ -250,6 +363,7 @@ class DeepIngestor:
                             # Build structured CSV text for the table
                             import csv
                             from io import StringIO
+
                             sio = StringIO()
                             writer = csv.writer(sio)
                             for row in table:
@@ -260,18 +374,20 @@ class DeepIngestor:
                             n_rows = len(table)
                             n_cols = max((len(r) for r in table), default=0)
                             sample_rows = table[:3]
-                            chunks.append({
-                                "text": table_text,
-                                "type": "table",
-                                "chunk_index": len(chunks),
-                                "page": page_num,
-                                "table_index": t_idx,
-                                "table_metadata": {
-                                    "n_rows": n_rows,
-                                    "n_cols": n_cols,
-                                    "sample_rows": sample_rows,
-                                },
-                            })
+                            chunks.append(
+                                {
+                                    "text": table_text,
+                                    "type": "table",
+                                    "chunk_index": len(chunks),
+                                    "page": page_num,
+                                    "table_index": t_idx,
+                                    "table_metadata": {
+                                        "n_rows": n_rows,
+                                        "n_cols": n_cols,
+                                        "sample_rows": sample_rows,
+                                    },
+                                }
+                            )
         except Exception as exc:
             logger.warning(f"Error processing PDF with pdfplumber {path}: {exc}")
 
@@ -282,6 +398,7 @@ class DeepIngestor:
             if ocr_text:
                 # Chunk the OCR text using sentence window chunking
                 from src.cubo.utils.utils import Utils
+
                 s_chunks = Utils.create_sentence_window_chunks(
                     ocr_text, window_size=self.chunking_config.get("window_size", 3)
                 )
@@ -301,14 +418,22 @@ class DeepIngestor:
         record.setdefault("token_count", len(record.get("text", "").split()))
         record["file_hash"] = record.get("file_hash") or self.loader._compute_file_hash(str(path))
         # Allow page/table formats for chunk IDs
-        if record.get("type") == "table" and record.get("page") is not None and record.get("table_index") is not None:
+        if (
+            record.get("type") == "table"
+            and record.get("page") is not None
+            and record.get("table_index") is not None
+        ):
             record["chunk_id"] = f"{record['file_hash']}_p{record['page']}_t{record['table_index']}"
         elif record.get("type") == "text" and record.get("page") is not None:
             # If we have sentence windows inside pages, we use sentence_index if available
             if record.get("sentence_index") is not None:
-                record["chunk_id"] = f"{record['file_hash']}_p{record['page']}_s{record['sentence_index']}"
+                record["chunk_id"] = (
+                    f"{record['file_hash']}_p{record['page']}_s{record['sentence_index']}"
+                )
             else:
-                record["chunk_id"] = f"{record['file_hash']}_p{record['page']}_chunk_{record.get('chunk_index', 0)}"
+                record["chunk_id"] = (
+                    f"{record['file_hash']}_p{record['page']}_chunk_{record.get('chunk_index', 0)}"
+                )
         else:
             record["chunk_id"] = self._make_chunk_id(record)
         return record
@@ -324,6 +449,7 @@ class DeepIngestor:
             # Fallback if both file_hash and filename are missing
             # This shouldn't happen in normal flow but good for robustness
             import uuid
+
             base = f"unknown_{uuid.uuid4().hex[:8]}"
             logger.warning(f"Chunk missing filename/hash, using random base: {base}")
 
@@ -367,7 +493,11 @@ class DeepIngestor:
             json.dump(manifest, fh, indent=2, ensure_ascii=False)
         os.replace(str(tmp_manifest), str(manifest_path))
         return manifest_path
-def build_deep_index(folder_path: str, output_dir: str = None, skip_model: bool = False, csv_text_column: str = None) -> Dict[str, str]:
+
+
+def build_deep_index(
+    folder_path: str, output_dir: str = None, skip_model: bool = False, csv_text_column: str = None
+) -> Dict[str, str]:
     """Compatibility wrapper for legacy callers/tests.
 
     The newer DeepIngestor implementation lives above (first class in this file)
@@ -375,7 +505,12 @@ def build_deep_index(folder_path: str, output_dir: str = None, skip_model: bool 
     the historical `build_deep_index` contract used by integration tests, i.e.
     returning a dict that contains `parquet` and `chunks_count` keys.
     """
-    ingestor = DeepIngestor(input_folder=folder_path, output_dir=output_dir, chunking_config=None, csv_rows_per_chunk=None)
+    ingestor = DeepIngestor(
+        input_folder=folder_path,
+        output_dir=output_dir,
+        chunking_config=None,
+        csv_rows_per_chunk=None,
+    )
     result = ingestor.ingest()
     # Map the modern keys to the older expected return value
     if not result:

@@ -76,7 +76,7 @@ This module re-exports the main DocumentRetriever implementation from
         self.query_cache = {}
         self.cache_file = os.path.join(config.get("cache_dir", "./cache"), "query_cache.json")
         self._load_cache()
-        
+
         # BM25 parameters and document statistics
         self.bm25_k1 = 1.5  # Term frequency saturation parameter
         self.bm25_b = 0.75  # Length normalization parameter
@@ -97,11 +97,11 @@ This module re-exports the main DocumentRetriever implementation from
         """Initialize postprocessors and reranker based on configuration."""
         from .postprocessor import WindowReplacementPostProcessor
         self.window_postprocessor = WindowReplacementPostProcessor()
-        
+
         # ALWAYS initialize reranker - it's a mandatory component
         if not self.model:
             raise ModelNotAvailableError("Reranker requires an embedding model, but none is available")
-        
+
         self.reranker = LocalReranker(self.model)
         logger.info("Reranker initialized (mandatory component)")
 
@@ -316,11 +316,11 @@ This module re-exports the main DocumentRetriever implementation from
     def _retrieve_sentence_window(self, query: str, top_k: int) -> List[Dict]:
         """
         Retrieve using sentence window method with hybrid semantic + BM25 scoring.
-        
+
         Does two parallel retrievals:
         1. Pure semantic similarity search
         2. Pure BM25 keyword search
-        
+
         Then combines results with 50/50 weighting.
         """
 
@@ -329,23 +329,23 @@ This module re-exports the main DocumentRetriever implementation from
                 return []
 
             query_embedding = self._generate_query_embedding(query)
-            
+
             # Retrieve more candidates for each method
             retrieval_k = top_k * 3
-            
+
             # Method 1: Pure semantic retrieval
             semantic_candidates = self._query_collection_for_candidates(
                 query_embedding, retrieval_k, query=""
             )
-            
+
             # Method 2: Pure BM25 retrieval (scan all docs and score by BM25)
             bm25_candidates = self._retrieve_by_bm25(query, retrieval_k)
-            
+
             # Combine with 50/50 weighting
             combined_candidates = self._combine_semantic_and_bm25(
                 semantic_candidates, bm25_candidates, top_k
             )
-            
+
             # Apply sentence window postprocessing
             combined_candidates = self._apply_sentence_window_postprocessing(
                 combined_candidates, top_k, query
@@ -715,7 +715,7 @@ This module re-exports the main DocumentRetriever implementation from
     def _calculate_initial_top_k(self, top_k: int) -> int:
         """
         Calculate initial number of candidates to retrieve before reranking.
-        
+
         Retrieve more candidates to allow BM25 keyword scoring to find
         semantically dissimilar but lexically relevant documents.
 
@@ -812,20 +812,20 @@ This module re-exports the main DocumentRetriever implementation from
         for doc_id, text in zip(doc_ids, texts):
             # Tokenize document
             tokens = self._tokenize(text)
-            
+
             # Store term frequencies for this document
             term_freq = Counter(tokens)
             self.doc_term_freq[doc_id] = term_freq
             self.doc_lengths[doc_id] = len(tokens)
-            
+
             # Update document frequency for each unique term
             for term in term_freq.keys():
                 self.term_doc_freq[term] += 1
-        
+
         # Update average document length
         if self.doc_lengths:
             self.avg_doc_length = sum(self.doc_lengths.values()) / len(self.doc_lengths)
-        
+
         logger.debug(f"Updated BM25 stats: {len(doc_ids)} chunks, "
                      f"total chunks={len(self.doc_lengths)}, avg_len={self.avg_doc_length:.1f}, "
                      f"unique_terms={len(self.term_doc_freq)}")
@@ -964,7 +964,7 @@ This module re-exports the main DocumentRetriever implementation from
             combined_score = base_similarity + boost_factor
             # Cap at 1.0 to keep in valid similarity range
             combined_score = min(combined_score, 1.0)
-            
+
             logger.debug(f"BM25 BOOST: raw={bm25_score:.3f}, norm={normalized_bm25:.3f}, "
                          f"semantic={base_similarity:.3f}, boost={boost_factor:.3f}, combined={combined_score:.3f}")
             return combined_score
@@ -1038,13 +1038,13 @@ This module re-exports the main DocumentRetriever implementation from
     def _retrieve_by_bm25(self, query: str, top_k: int) -> List[dict]:
         """
         Retrieve documents using pure BM25 scoring.
-        
+
         Scans all documents in the collection and ranks by BM25 score only.
-        
+
         Args:
             query: Search query
             top_k: Number of results to return
-            
+
         Returns:
             List of documents ranked by BM25 score
         """
@@ -1054,24 +1054,24 @@ This module re-exports the main DocumentRetriever implementation from
                 include=['documents', 'metadatas'],
                 where={"filename": {"$in": list(self.current_documents)}} if self.current_documents else None
             )
-            
+
             if not all_docs['documents']:
                 return []
-            
+
             # Tokenize query
             query_terms = self._tokenize(query)
             if not query_terms:
                 return []
-            
+
             # Score all documents by BM25
             scored_docs = []
             for doc, metadata in zip(all_docs['documents'], all_docs['metadatas']):
                 doc_id = hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()[:8]
                 bm25_score = self._compute_bm25_score(query_terms, doc_id, doc)
-                
+
                 # Normalize to [0, 1]
                 normalized_score = min(bm25_score / 15.0, 1.0)
-                
+
                 if normalized_score > 0.01:  # Only include docs with some keyword match
                     scored_docs.append({
                         "document": doc,
@@ -1080,13 +1080,13 @@ This module re-exports the main DocumentRetriever implementation from
                         "base_similarity": 0.0,  # No semantic score for pure BM25
                         "bm25_score": bm25_score
                     })
-            
+
             # Sort by BM25 score and return top_k
             scored_docs.sort(key=lambda x: x['similarity'], reverse=True)
             logger.info(f"BM25 retrieval: scored {len(scored_docs)} docs, returning top {min(top_k, len(scored_docs))}")
-            
+
             return scored_docs[:top_k]
-            
+
         except Exception as e:
             logger.error(f"Error in BM25 retrieval: {e}")
             return []
@@ -1096,18 +1096,18 @@ This module re-exports the main DocumentRetriever implementation from
     ) -> List[dict]:
         """
         Combine semantic and BM25 retrieval results with 50/50 weighting.
-        
+
         Args:
             semantic_candidates: Results from semantic similarity search
             bm25_candidates: Results from BM25 keyword search
             top_k: Number of final results to return
-            
+
         Returns:
             Combined and re-ranked results
         """
         # Create a document index for deduplication
         combined = {}
-        
+
         # Add semantic results (50% weight)
         for cand in semantic_candidates:
             doc_key = cand['document'][:100]  # Use first 100 chars as key
@@ -1124,7 +1124,7 @@ This module re-exports the main DocumentRetriever implementation from
                     combined[doc_key]['semantic_score'],
                     cand.get('base_similarity', cand['similarity'])
                 )
-        
+
         # Add BM25 results (50% weight)
         for cand in bm25_candidates:
             doc_key = cand['document'][:100]
@@ -1141,7 +1141,7 @@ This module re-exports the main DocumentRetriever implementation from
                     combined[doc_key]['bm25_score'],
                     cand['similarity']
                 )
-        
+
         # Compute combined scores (10% semantic + 90% BM25)
         # Give strong preference to keyword matches for entity-specific retrieval
         final_results = []
@@ -1154,19 +1154,19 @@ This module re-exports the main DocumentRetriever implementation from
                 "base_similarity": doc_data['semantic_score'],
                 "bm25_normalized": doc_data['bm25_score']
             })
-            
+
             # Debug logging (commented out for production)
             # if doc_data['bm25_score'] > 0.05 or doc_data['semantic_score'] > 0.4:
             #     filename = doc_data['metadata'].get('filename', 'unknown')
             #     logger.info(f"  {filename}: sem={doc_data['semantic_score']:.3f}, "
             #                f"bm25={doc_data['bm25_score']:.3f}, combined={combined_score:.3f}")
-        
+
         # Sort by combined score
         final_results.sort(key=lambda x: x['similarity'], reverse=True)
-        
+
         logger.info(f"Combined {len(semantic_candidates)} semantic + {len(bm25_candidates)} BM25 "
                    f"results into {len(final_results)} unique docs")
-        
+
         return final_results[:top_k]
 
     def _apply_sentence_window_postprocessing(self, candidates: List[dict], top_k: int, query: str) -> List[dict]:

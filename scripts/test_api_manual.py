@@ -1,6 +1,8 @@
 """Quick manual test of the API server."""
-import requests
+
 import time
+
+import requests
 
 API_URL = "http://localhost:8000"
 
@@ -44,10 +46,7 @@ with open("data/frog_story.txt", "rb") as f:
 
 # Query (will likely fail without retriever initialized)
 print("\n4. Query:")
-response = requests.post(
-    f"{API_URL}/api/query",
-    json={"query": "What is this about?", "top_k": 3}
-)
+response = requests.post(f"{API_URL}/api/query", json={"query": "What is this about?", "top_k": 3})
 print(f"Status: {response.status_code}")
 if response.status_code == 200:
     data = response.json()

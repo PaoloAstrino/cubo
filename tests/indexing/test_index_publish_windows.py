@@ -1,10 +1,9 @@
 from pathlib import Path
+
 import pytest
-import time
-import os
 
 from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.indexing.index_publisher import publish_version, get_current_index_dir
+from src.cubo.indexing.index_publisher import get_current_index_dir, publish_version
 from src.cubo.storage.metadata_manager import get_metadata_manager
 
 
@@ -14,11 +13,11 @@ def _fake_embeddings(count: int, dimension: int = 2):
 
 def test_publish_and_pointer_flip(tmp_path: Path):
     # Build an index v1 and publish
-    index_root = tmp_path / 'indexes'
-    v1 = index_root / 'faiss_v1'
+    index_root = tmp_path / "indexes"
+    v1 = index_root / "faiss_v1"
     manager = FAISSIndexManager(dimension=2, index_dir=v1)
     embs = _fake_embeddings(10)
-    ids = [f'id_{i}' for i in range(len(embs))]
+    ids = [f"id_{i}" for i in range(len(embs))]
     manager.build_indexes(embs, ids)
     manager.save(path=v1)
 
@@ -29,11 +28,11 @@ def test_publish_and_pointer_flip(tmp_path: Path):
     assert ptr == v1
 
     # Now create a partially written v2 to simulate failure
-    v2 = index_root / 'faiss_v2'
+    v2 = index_root / "faiss_v2"
     v2.mkdir(parents=True)
     # Create metadata only but no index files (simulate a failure scenario)
-    with open(v2 / 'metadata.json', 'w', encoding='utf-8') as fh:
-        fh.write('{}')
+    with open(v2 / "metadata.json", "w", encoding="utf-8") as fh:
+        fh.write("{}")
 
     # Attempt publish with verify=True should raise
     with pytest.raises(Exception):
@@ -43,10 +42,10 @@ def test_publish_and_pointer_flip(tmp_path: Path):
     assert get_current_index_dir(index_root) == v1
 
     # Create a valid v3 and publish
-    v3 = index_root / 'faiss_v3'
+    v3 = index_root / "faiss_v3"
     manager3 = FAISSIndexManager(dimension=2, index_dir=v3)
     embs3 = _fake_embeddings(12)
-    ids3 = [f'id_{i}' for i in range(len(embs3))]
+    ids3 = [f"id_{i}" for i in range(len(embs3))]
     manager3.build_indexes(embs3, ids3)
     manager3.save(path=v3)
     published3 = publish_version(v3, index_root)
@@ -55,4 +54,4 @@ def test_publish_and_pointer_flip(tmp_path: Path):
     # DB should have the latest version recorded
     latest = get_metadata_manager().get_latest_index_version()
     assert latest is not None
-    assert latest['index_dir'] == str(v3)
+    assert latest["index_dir"] == str(v3)

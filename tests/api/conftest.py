@@ -1,7 +1,9 @@
 """Test fixtures for API tests."""
-import pytest
+
 import sys
 from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 # Add project root to path

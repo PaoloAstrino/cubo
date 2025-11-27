@@ -1,8 +1,11 @@
 """
 Tests for HierarchicalChunker in CustomAutoMerging.
 """
+
 import unittest
+
 from src.cubo.deduplication.custom_auto_merging import HierarchicalChunker
+
 
 class TestHierarchicalChunker(unittest.TestCase):
     def setUp(self):
@@ -17,9 +20,10 @@ class TestHierarchicalChunker(unittest.TestCase):
         self.assertIsInstance(chunks, list)
         self.assertGreater(len(chunks), 0)
         # Check basic structure
-        self.assertIn('id', chunks[0])
-        self.assertIn('text', chunks[0])
-        self.assertIn('level', chunks[0])
+        self.assertIn("id", chunks[0])
+        self.assertIn("text", chunks[0])
+        self.assertIn("level", chunks[0])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

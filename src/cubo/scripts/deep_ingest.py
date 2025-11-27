@@ -3,6 +3,7 @@
 Usage:
   python scripts/deep_ingest.py --input data/docs --output data/deep
 """
+
 import argparse
 import logging
 
@@ -13,10 +14,18 @@ from src.cubo.utils.logger import logger
 def parse_args():
     parser = argparse.ArgumentParser(description="Run DeepIngestor over a folder")
     parser.add_argument("--input", required=True, help="Input folder to process")
-    parser.add_argument("--output", required=False, help="Output directory for parquet and manifest")
-    parser.add_argument("--csv-rows", type=int, default=None, help="Rows per CSV chunk (overrides config)")
-    parser.add_argument("--no-filehash", dest="filehash", action="store_false",
-                        help="Disable file-hash based chunk IDs (use filename-based IDs)")
+    parser.add_argument(
+        "--output", required=False, help="Output directory for parquet and manifest"
+    )
+    parser.add_argument(
+        "--csv-rows", type=int, default=None, help="Rows per CSV chunk (overrides config)"
+    )
+    parser.add_argument(
+        "--no-filehash",
+        dest="filehash",
+        action="store_false",
+        help="Disable file-hash based chunk IDs (use filename-based IDs)",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     return parser.parse_args()
 

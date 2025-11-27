@@ -35,3 +35,6 @@ python-multipart>=0.0.6
 huggingface_hub>=0.20.0
 datasets>=2.14.0
 
+
+ragas>=0.1.0
+langchain-openai>=0.0.5

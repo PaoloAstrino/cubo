@@ -2,7 +2,6 @@ import math
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from src.cubo.ingestion.deep_ingestor import DeepIngestor
 
@@ -48,8 +47,12 @@ def test_chunk_id_stability_for_identical_files(tmp_path: Path):
     out1 = tmp_path / "out1"
     out2 = tmp_path / "out2"
 
-    df1 = pd.read_parquet(DeepIngestor(input_folder=str(first), output_dir=str(out1)).ingest()["chunks_parquet"])
-    df2 = pd.read_parquet(DeepIngestor(input_folder=str(second), output_dir=str(out2)).ingest()["chunks_parquet"])
+    df1 = pd.read_parquet(
+        DeepIngestor(input_folder=str(first), output_dir=str(out1)).ingest()["chunks_parquet"]
+    )
+    df2 = pd.read_parquet(
+        DeepIngestor(input_folder=str(second), output_dir=str(out2)).ingest()["chunks_parquet"]
+    )
 
     assert list(df1["chunk_id"]) == list(df2["chunk_id"])
 
@@ -92,4 +95,4 @@ def test_deep_ingestor_resume(tmp_path: Path):
     # New parquet should exist and only contain new files
     assert parquet2
     df2 = pd.read_parquet(parquet2)
-    assert all(fp not in list(df1['file_path']) for fp in df2['file_path'])
+    assert all(fp not in list(df1["file_path"]) for fp in df2["file_path"])

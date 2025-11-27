@@ -31,12 +31,10 @@ class EnhancedThreadManager:
 
         # Thread pools for different task types
         self.cpu_executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.max_cpu_workers,
-            thread_name_prefix="cpu_worker"
+            max_workers=self.max_cpu_workers, thread_name_prefix="cpu_worker"
         )
         self.io_executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.max_io_workers,
-            thread_name_prefix="io_worker"
+            max_workers=self.max_io_workers, thread_name_prefix="io_worker"
         )
 
         # GPU task queue (single thread for GPU operations to avoid context switching)
@@ -50,15 +48,17 @@ class EnhancedThreadManager:
 
         # Performance monitoring
         self.task_stats = {
-            'cpu_tasks_completed': 0,
-            'io_tasks_completed': 0,
-            'gpu_tasks_completed': 0,
-            'cpu_task_times': [],
-            'io_task_times': [],
-            'gpu_task_times': []
+            "cpu_tasks_completed": 0,
+            "io_tasks_completed": 0,
+            "gpu_tasks_completed": 0,
+            "cpu_task_times": [],
+            "io_task_times": [],
+            "gpu_task_times": [],
         }
 
-        logger.info(f"EnhancedThreadManager initialized: CPU={self.max_cpu_workers}, I/O={self.max_io_workers}")
+        logger.info(
+            f"EnhancedThreadManager initialized: CPU={self.max_cpu_workers}, I/O={self.max_io_workers}"
+        )
 
     def submit_cpu_task(self, fn: Callable, *args, **kwargs) -> concurrent.futures.Future:
         """Submit CPU-intensive task (model inference, embeddings, computation)."""
@@ -111,9 +111,9 @@ class EnhancedThreadManager:
         with self.task_lock:
             task_id = id(future)
             self.active_tasks[task_id] = {
-                'future': future,
-                'type': task_type,
-                'start_time': time.time()
+                "future": future,
+                "type": task_type,
+                "start_time": time.time(),
             }
 
             # Cleanup completed tasks periodically
@@ -123,28 +123,27 @@ class EnhancedThreadManager:
     def _cleanup_completed_tasks(self):
         """Remove completed tasks from tracking."""
         with self.task_lock:
-            completed = [tid for tid, info in self.active_tasks.items()
-                         if info['future'].done()]
+            completed = [tid for tid, info in self.active_tasks.items() if info["future"].done()]
             for tid in completed:
                 del self.active_tasks[tid]
 
     def _record_task_completion(self, task_type: str, execution_time: float):
         """Record task completion statistics."""
         with self.task_lock:
-            self.task_stats[f'{task_type}_tasks_completed'] += 1
-            self.task_stats[f'{task_type}_task_times'].append(execution_time)
+            self.task_stats[f"{task_type}_tasks_completed"] += 1
+            self.task_stats[f"{task_type}_task_times"].append(execution_time)
 
             # Keep only last 100 times for memory efficiency
-            times_list = self.task_stats[f'{task_type}_task_times']
+            times_list = self.task_stats[f"{task_type}_task_times"]
             if len(times_list) > 100:
                 times_list.pop(0)
 
     def get_active_task_count(self) -> Dict[str, int]:
         """Get count of active tasks by type."""
         with self.task_lock:
-            counts = {'cpu': 0, 'io': 0, 'gpu': 0}
+            counts = {"cpu": 0, "io": 0, "gpu": 0}
             for info in self.active_tasks.values():
-                counts[info['type']] += 1
+                counts[info["type"]] += 1
             return counts
 
     def get_performance_stats(self) -> Dict[str, Any]:
@@ -153,15 +152,15 @@ class EnhancedThreadManager:
             stats = self.task_stats.copy()
 
             # Calculate averages
-            for task_type in ['cpu', 'io', 'gpu']:
-                times = stats[f'{task_type}_task_times']
+            for task_type in ["cpu", "io", "gpu"]:
+                times = stats[f"{task_type}_task_times"]
                 if times:
-                    stats[f'{task_type}_avg_time'] = sum(times) / len(times)
+                    stats[f"{task_type}_avg_time"] = sum(times) / len(times)
                 else:
-                    stats[f'{task_type}_avg_time'] = 0.0
+                    stats[f"{task_type}_avg_time"] = 0.0
 
             # Add current active tasks
-            stats['active_tasks'] = self.get_active_task_count()
+            stats["active_tasks"] = self.get_active_task_count()
 
             return stats
 

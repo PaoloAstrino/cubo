@@ -1,9 +1,9 @@
 # 🚀 RAG 100GB Full-Local System - Complete Implementation Guide
 
-**Version:** 1.0  
-**Target Hardware:** RTX 4050 6GB VRAM, 32GB RAM  
-**Data Scale:** 100GB raw → 5-10GB compressed semantic layer  
-**Latency Target:** <200ms p50 query response  
+**Version:** 1.0
+**Target Hardware:** RTX 4050 6GB VRAM, 32GB RAM
+**Data Scale:** 100GB raw → 5-10GB compressed semantic layer
+**Latency Target:** <200ms p50 query response
 
 ---
 
@@ -58,9 +58,9 @@ Raw Files (100GB)
 [INDEXING] Hot (HNSW RAM) + Cold (IVF+PQ Disk)
     ↓
 [STORAGE] Parquet Metadata + FAISS Vectors + Original Files
-    
+
 --- QUERY TIME ---
-    
+
 Query Input
     ↓
 [SEMANTIC ROUTER] Classify Query Type
@@ -256,7 +256,7 @@ class FastPassIngestor:
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
         self.metadata = []
-    
+
     def scan_directory(self):
         """Recursively scan and catalog all files"""
         for file_path in self.data_dir.rglob('*'):
@@ -264,7 +264,7 @@ class FastPassIngestor:
                 meta = self.extract_metadata(file_path)
                 self.metadata.append(meta)
         return self.metadata
-    
+
     def extract_metadata(self, file_path):
         """Extract basic metadata without full parsing"""
         stat = file_path.stat()
@@ -279,14 +279,14 @@ class FastPassIngestor:
             'indexed_at': datetime.now(),
             'processing_status': 'fast_pass_complete'
         }
-    
+
     def quick_text_extract(self, file_path):
         """Extract text with minimal processing"""
         ext = file_path.suffix.lower()
-        
+
         if ext == '.txt':
             return file_path.read_text(errors='ignore')[:5000]
-        
+
         elif ext == '.pdf':
             try:
                 import PyPDF2
@@ -298,7 +298,7 @@ class FastPassIngestor:
                     return text[:5000]
             except:
                 return ""
-        
+
         elif ext in ['.docx', '.doc']:
             try:
                 from docx import Document
@@ -307,7 +307,7 @@ class FastPassIngestor:
                 return text[:5000]
             except:
                 return ""
-        
+
         elif ext in ['.xlsx', '.xls', '.csv']:
             try:
                 import pandas as pd
@@ -315,15 +315,15 @@ class FastPassIngestor:
                 return f"Table: {df.columns.tolist()}\nRows: {len(df)}\nSample:\n{df.head(10).to_string()}"[:5000]
             except:
                 return ""
-        
+
         return ""
-    
+
     def build_bm25_index(self):
         """Create Whoosh BM25 index for immediate searching"""
         from whoosh.index import create_in
         from whoosh.fields import Schema, TEXT, ID, DATETIME, NUMERIC
         from whoosh.analysis import StemmingAnalyzer
-        
+
         schema = Schema(
             uuid=ID(stored=True, unique=True),
             path=ID(stored=True),
@@ -333,16 +333,16 @@ class FastPassIngestor:
             size=NUMERIC(stored=True),
             modified_at=DATETIME(stored=True)
         )
-        
+
         idx_dir = self.output_dir / 'bm25_index'
         idx_dir.mkdir(exist_ok=True)
         ix = create_in(str(idx_dir), schema)
-        
+
         writer = ix.writer()
         for meta in self.metadata:
             file_path = Path(meta['path'])
             content = self.quick_text_extract(file_path)
-            
+
             writer.add_document(
                 uuid=meta['uuid'],
                 path=meta['path'],
@@ -352,7 +352,7 @@ class FastPassIngestor:
                 size=meta['size_bytes'],
                 modified_at=meta['modified_at']
             )
-        
+
         writer.commit()
         return ix
 ```
@@ -395,11 +395,11 @@ class DeepIngestor:
         self.metadata = metadata_df
         self.output_dir = Path(output_dir)
         self.chunks = []
-    
+
     def process_document(self, file_path, uuid):
         """Deep text extraction with full parsing"""
         ext = Path(file_path).suffix.lower()
-        
+
         if ext == '.pdf':
             return self._process_pdf(file_path, uuid)
         elif ext in ['.docx', '.doc']:
@@ -412,12 +412,12 @@ class DeepIngestor:
             return self._process_txt(file_path, uuid)
         else:
             return []
-    
+
     def _process_pdf(self, file_path, uuid):
         """PDF with pdfplumber for tables + text"""
         import pdfplumber
         chunks = []
-        
+
         try:
             with pdfplumber.open(file_path) as pdf:
                 for page_num, page in enumerate(pdf.pages):
@@ -431,7 +431,7 @@ class DeepIngestor:
                             'page': page_num,
                             'type': 'text'
                         })
-                    
+
                     # Extract tables
                     tables = page.extract_tables()
                     for table_idx, table in enumerate(tables):
@@ -445,21 +445,21 @@ class DeepIngestor:
                             })
         except Exception as e:
             print(f"Error processing PDF {file_path}: {e}")
-        
+
         return chunks
-    
+
     def _process_docx(self, file_path, uuid):
         """DOCX with python-docx"""
         from docx import Document
         chunks = []
-        
+
         try:
             doc = Document(file_path)
             current_text = ""
-            
+
             for para_idx, para in enumerate(doc.paragraphs):
                 current_text += para.text + "\n"
-                
+
                 # Chunk every 1000 tokens (~750 words)
                 if len(current_text.split()) > 750:
                     chunks.append({
@@ -469,7 +469,7 @@ class DeepIngestor:
                         'type': 'text'
                     })
                     current_text = ""
-            
+
             if current_text:
                 chunks.append({
                     'doc_uuid': uuid,
@@ -479,19 +479,19 @@ class DeepIngestor:
                 })
         except Exception as e:
             print(f"Error processing DOCX {file_path}: {e}")
-        
+
         return chunks
-    
+
     def _process_excel(self, file_path, uuid):
         """Excel with sheet-level granularity"""
         import pandas as pd
         chunks = []
-        
+
         try:
             xls = pd.ExcelFile(file_path)
             for sheet_name in xls.sheet_names:
                 df = pd.read_excel(xls, sheet_name=sheet_name)
-                
+
                 chunks.append({
                     'doc_uuid': uuid,
                     'chunk_id': f"{uuid}_sheet_{sheet_name}",
@@ -507,14 +507,14 @@ class DeepIngestor:
                 })
         except Exception as e:
             print(f"Error processing Excel {file_path}: {e}")
-        
+
         return chunks
-    
+
     def _process_csv(self, file_path, uuid):
         """CSV handling"""
         import pandas as pd
         chunks = []
-        
+
         try:
             df = pd.read_csv(file_path)
             chunks.append({
@@ -530,17 +530,17 @@ class DeepIngestor:
             })
         except Exception as e:
             print(f"Error processing CSV {file_path}: {e}")
-        
+
         return chunks
-    
+
     def _process_txt(self, file_path, uuid):
         """Plain text with chunking"""
         chunks = []
-        
+
         try:
             text = Path(file_path).read_text(errors='ignore')
             words = text.split()
-            
+
             # Chunk every 750 words
             for i in range(0, len(words), 750):
                 chunk_text = " ".join(words[i:i+750])
@@ -552,27 +552,27 @@ class DeepIngestor:
                 })
         except Exception as e:
             print(f"Error processing TXT {file_path}: {e}")
-        
+
         return chunks
-    
+
     def process_all(self, n_workers=4):
         """Parallel processing with multiprocessing"""
         from multiprocessing import Pool
         from tqdm import tqdm
-        
+
         tasks = [(row['path'], row['uuid']) for _, row in self.metadata.iterrows()]
-        
+
         with Pool(n_workers) as pool:
             results = list(tqdm(
                 pool.starmap(self.process_document, tasks),
                 total=len(tasks),
                 desc="Deep Processing"
             ))
-        
+
         # Flatten results
         for chunk_list in results:
             self.chunks.extend(chunk_list)
-        
+
         return self.chunks
 ```
 
@@ -613,7 +613,7 @@ class LocalLLM:
             n_threads=8,
             verbose=False
         )
-    
+
     def generate(self, prompt, max_tokens=512, temperature=0.3):
         """Generate completion"""
         response = self.llm(
@@ -625,7 +625,7 @@ class LocalLLM:
             stop=["</s>", "\n\n\n"]
         )
         return response['choices'][0]['text'].strip()
-    
+
     def summarize(self, text, max_length=200):
         """Summarize text"""
         prompt = f"""<|system|>You are a precise summarization assistant. Create a concise summary capturing key information.<|end|>
@@ -635,9 +635,9 @@ class LocalLLM:
 
 Summary:<|end|>
 <|assistant|>"""
-        
+
         return self.generate(prompt, max_tokens=max_length*2)
-    
+
     def extract_keywords(self, text, n_keywords=10):
         """Extract keywords"""
         prompt = f"""<|system|>You are a keyword extraction assistant. Extract the {n_keywords} most important keywords or key phrases.<|end|>
@@ -647,16 +647,16 @@ Summary:<|end|>
 
 Keywords (comma-separated):<|end|>
 <|assistant|>"""
-        
+
         keywords_str = self.generate(prompt, max_tokens=150)
         keywords = [k.strip() for k in keywords_str.split(',')]
         return keywords[:n_keywords]
-    
+
     def categorize(self, text, categories=None):
         """Assign categories"""
         if categories is None:
             categories = ["Technical", "Business", "Legal", "Financial", "Research", "Administrative", "Other"]
-        
+
         prompt = f"""<|system|>You are a document classification assistant.<|end|>
 <|user|>Classify this document into one or more categories: {', '.join(categories)}
 
@@ -664,7 +664,7 @@ Text: {text[:1500]}
 
 Category (pick 1-2):<|end|>
 <|assistant|>"""
-        
+
         return self.generate(prompt, max_tokens=50)
 ```
 
@@ -675,32 +675,32 @@ class SelfConsistentLLM:
     def __init__(self, llm, n_runs=3):
         self.llm = llm
         self.n_runs = n_runs
-    
+
     def summarize_with_consensus(self, text):
         """Generate multiple summaries and find consensus"""
         summaries = []
-        
+
         for i in range(self.n_runs):
             summary = self.llm.summarize(text)
             summaries.append(summary)
-        
+
         # Use longest summary as base (usually most complete)
         return max(summaries, key=len)
-    
+
     def extract_keywords_with_voting(self, text):
         """Extract keywords with voting mechanism"""
         from collections import Counter
         all_keywords = []
-        
+
         for i in range(self.n_runs):
             keywords = self.llm.extract_keywords(text)
             all_keywords.extend([k.lower() for k in keywords])
-        
+
         # Keep keywords that appear in at least 2/3 runs
         keyword_counts = Counter(all_keywords)
         threshold = self.n_runs * 0.66
         consensus_keywords = [k for k, count in keyword_counts.items() if count >= threshold]
-        
+
         return consensus_keywords[:10]
 ```
 
@@ -710,18 +710,18 @@ class SelfConsistentLLM:
 def process_chunks_with_llm(chunks_df, llm, batch_size=10):
     """Process chunks in batches"""
     from tqdm import tqdm
-    
+
     processed = []
-    
+
     for i in tqdm(range(0, len(chunks_df), batch_size), desc="LLM Processing"):
         batch = chunks_df.iloc[i:i+batch_size]
-        
+
         for _, chunk in batch.iterrows():
             try:
                 summary = llm.summarize(chunk['text'])
                 keywords = llm.extract_keywords(chunk['text'])
                 category = llm.categorize(chunk['text'])
-                
+
                 processed.append({
                     'chunk_id': chunk['chunk_id'],
                     'summary': summary,
@@ -731,7 +731,7 @@ def process_chunks_with_llm(chunks_df, llm, batch_size=10):
             except Exception as e:
                 print(f"Error processing chunk {chunk['chunk_id']}: {e}")
                 continue
-    
+
     return pd.DataFrame(processed)
 
 # Usage
@@ -760,11 +760,11 @@ class EmbeddingGenerator:
     def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2'):
         self.model = SentenceTransformer(model_name)
         self.dimension = self.model.get_sentence_embedding_dimension()
-    
+
     def embed_batch(self, texts, batch_size=32):
         """Generate embeddings in batches"""
         embeddings = []
-        
+
         for i in tqdm(range(0, len(texts), batch_size), desc="Embedding"):
             batch = texts[i:i+batch_size]
             batch_embeddings = self.model.encode(
@@ -774,15 +774,15 @@ class EmbeddingGenerator:
                 normalize_embeddings=True  # Important for cosine similarity
             )
             embeddings.append(batch_embeddings)
-        
+
         return np.vstack(embeddings)
-    
+
     def embed_summaries(self, processed_df):
         """Embed summaries for semantic search"""
         summaries = processed_df['summary'].tolist()
         embeddings = self.embed_batch(summaries)
         return embeddings
-    
+
     def embed_chunks(self, chunks_df):
         """Embed full chunks"""
         texts = chunks_df['text'].tolist()
@@ -825,13 +825,13 @@ class BM25Searcher:
             ["filename", "content"],
             schema=self.ix.schema
         )
-    
+
     def search(self, query_text, limit=500):
         """Search BM25 index"""
         with self.ix.searcher() as searcher:
             query = self.parser.parse(query_text)
             results = searcher.search(query, limit=limit)
-            
+
             return [{
                 'uuid': hit['uuid'],
                 'path': hit['path'],
@@ -859,25 +859,25 @@ class SemanticDeduplicator:
     def __init__(self, similarity_threshold=0.92):
         self.threshold = similarity_threshold
         self.similarity_graph = nx.Graph()
-    
+
     def build_similarity_graph(self, embeddings, chunk_ids):
         """Build graph of similar chunks"""
         print("Computing pairwise similarities...")
-        
+
         # Use batched cosine similarity to avoid memory issues
         n_chunks = len(embeddings)
         batch_size = 1000
-        
+
         for i in range(0, n_chunks, batch_size):
             batch_embeddings = embeddings[i:i+batch_size]
-            
+
             # Compare with all other embeddings
             similarities = cosine_similarity(batch_embeddings, embeddings)
-            
+
             # Find pairs above threshold
             for local_idx, global_idx in enumerate(range(i, min(i+batch_size, n_chunks))):
                 similar_indices = np.where(similarities[local_idx] > self.threshold)[0]
-                
+
                 for sim_idx in similar_indices:
                     if sim_idx != global_idx:  # Skip self-similarity
                         self.similarity_graph.add_edge(
@@ -885,37 +885,37 @@ class SemanticDeduplicator:
                             chunk_ids[sim_idx],
                             weight=float(similarities[local_idx, sim_idx])
                         )
-        
+
         return self.similarity_graph
-    
+
     def find_clusters(self):
         """Find connected components (clusters of similar chunks)"""
         clusters = list(nx.connected_components(self.similarity_graph))
-        
+
         cluster_mapping = {}
         for cluster_id, cluster in enumerate(clusters):
             for chunk_id in cluster:
                 cluster_mapping[chunk_id] = cluster_id
-        
+
         return clusters, cluster_mapping
-    
+
     def select_representatives(self, clusters, chunks_df):
         """Select one representative per cluster (longest/most complete)"""
         representatives = {}
-        
+
         for cluster_id, cluster in enumerate(clusters):
             cluster_chunks = chunks_df[chunks_df['chunk_id'].isin(cluster)]
-            
+
             # Select longest chunk as representative
             rep_idx = cluster_chunks['text'].str.len().idxmax()
             representative = cluster_chunks.loc[rep_idx]
-            
+
             representatives[cluster_id] = {
                 'chunk_id': representative['chunk_id'],
                 'cluster_size': len(cluster),
                 'similar_chunks': list(cluster)
             }
-        
+
         return representatives
 
 # Usage
@@ -959,7 +959,7 @@ from hdbscan import HDBSCAN
 class TableDeduplicator:
     def __init__(self, embedder):
         self.embedder = embedder
-    
+
     def create_table_signature(self, table_metadata, sample_data):
         """Create semantic signature for table"""
         signature_text = f"""
@@ -970,21 +970,21 @@ class TableDeduplicator:
         {sample_data}
         """
         return signature_text
-    
+
     def embed_tables(self, tables_df):
         """Embed all tables"""
         signatures = []
-        
+
         for _, row in tables_df.iterrows():
             signature = self.create_table_signature(
                 row['table_metadata'],
                 row['text'][:1000]
             )
             signatures.append(signature)
-        
+
         embeddings = self.embedder.embed_batch(signatures)
         return embeddings
-    
+
     def cluster_tables(self, table_embeddings, min_cluster_size=2):
         """Cluster similar tables using HDBSCAN"""
         clusterer = HDBSCAN(
@@ -992,20 +992,20 @@ class TableDeduplicator:
             metric='euclidean',
             min_samples=1
         )
-        
+
         cluster_labels = clusterer.fit_predict(table_embeddings)
         return cluster_labels
-    
+
     def create_virtual_tables(self, tables_df, cluster_labels):
         """Create virtual consolidated tables"""
         virtual_tables = {}
-        
+
         for cluster_id in set(cluster_labels):
             if cluster_id == -1:  # Noise points
                 continue
-            
+
             cluster_tables = tables_df[cluster_labels == cluster_id]
-            
+
             virtual_tables[cluster_id] = {
                 'cluster_id': cluster_id,
                 'n_tables': len(cluster_tables),
@@ -1013,18 +1013,18 @@ class TableDeduplicator:
                 'common_columns': self._find_common_columns(cluster_tables),
                 'representative': cluster_tables.iloc[0]['chunk_id']
             }
-        
+
         return virtual_tables
-    
+
     def _find_common_columns(self, cluster_tables):
         """Find columns common across tables in cluster"""
         all_columns = []
         for _, row in cluster_tables.iterrows():
             all_columns.extend(row['table_metadata']['columns'])
-        
+
         from collections import Counter
         column_counts = Counter(all_columns)
-        common = [col for col, count in column_counts.items() 
+        common = [col for col, count in column_counts.items()
                   if count >= len(cluster_tables) * 0.7]
         return common
 
@@ -1060,17 +1060,17 @@ class SemanticScaffold:
     def __init__(self, llm, embedder):
         self.llm = llm
         self.embedder = embedder
-    
+
     def create_scaffold_entry(self, chunk):
         """Create compressed semantic entry for chunk"""
         # Get LLM-generated metadata
         summary = self.llm.summarize(chunk['text'])
         keywords = self.llm.extract_keywords(chunk['text'])
         category = self.llm.categorize(chunk['text'])
-        
+
         # Generate embedding of summary (much smaller than full text)
         summary_embedding = self.embedder.model.encode([summary])[0]
-        
+
         scaffold_entry = {
             'chunk_id': chunk['chunk_id'],
             'doc_uuid': chunk['doc_uuid'],
@@ -1082,34 +1082,34 @@ class SemanticScaffold:
             'compressed_size': len(summary),
             'compression_ratio': len(chunk['text']) / len(summary)
         }
-        
+
         return scaffold_entry
-    
+
     def build_full_scaffold(self, chunks_df, batch_size=100):
         """Build scaffold for entire corpus"""
         scaffold_entries = []
-        
+
         for i in tqdm(range(0, len(chunks_df), batch_size), desc="Building Scaffold"):
             batch = chunks_df.iloc[i:i+batch_size]
-            
+
             for _, chunk in batch.iterrows():
                 entry = self.create_scaffold_entry(chunk)
                 scaffold_entries.append(entry)
-        
+
         return pd.DataFrame(scaffold_entries)
-    
+
     def save_scaffold(self, scaffold_df, output_path):
         """Save scaffold with separate embedding storage"""
         # Extract embeddings
         embeddings = np.array(scaffold_df['summary_embedding'].tolist())
-        
+
         # Save embeddings separately
         np.save(f"{output_path}/scaffold_embeddings.npy", embeddings)
-        
+
         # Save metadata without embeddings
         metadata = scaffold_df.drop('summary_embedding', axis=1)
         metadata.to_parquet(f"{output_path}/scaffold_metadata.parquet")
-        
+
         return embeddings
 
 # Usage
@@ -1142,12 +1142,12 @@ class HotColdVectorStore:
     def __init__(self, dimension=384, hot_ratio=0.2):
         self.dimension = dimension
         self.hot_ratio = hot_ratio
-        
+
         # Hot index (HNSW in RAM)
         self.hot_index = faiss.IndexHNSWFlat(dimension, 32)
         self.hot_index.hnsw.efConstruction = 200
         self.hot_index.hnsw.efSearch = 64
-        
+
         # Cold index (IVF+PQ on disk)
         quantizer = faiss.IndexFlatL2(dimension)
         self.cold_index = faiss.IndexIVFPQ(
@@ -1157,117 +1157,117 @@ class HotColdVectorStore:
             m=64,            # Number of subquantizers
             nbits=8          # Bits per subquantizer
         )
-        
+
         self.hot_ids = []
         self.cold_ids = []
         self.access_counts = {}
-    
+
     def train_cold_index(self, training_vectors):
         """Train IVF+PQ index"""
         print("Training cold index...")
         self.cold_index.train(training_vectors)
         print("Cold index trained")
-    
+
     def add_to_hot(self, vectors, ids):
         """Add vectors to hot index"""
         self.hot_index.add(vectors)
         self.hot_ids.extend(ids)
-    
+
     def add_to_cold(self, vectors, ids):
         """Add vectors to cold index"""
         self.cold_index.add(vectors)
         self.cold_ids.extend(ids)
-    
+
     def split_hot_cold(self, embeddings, chunk_ids, access_history=None):
         """Split embeddings into hot and cold based on access patterns"""
         n_hot = int(len(embeddings) * self.hot_ratio)
-        
+
         if access_history:
             # Sort by access frequency
             sorted_indices = np.argsort([-access_history.get(cid, 0) for cid in chunk_ids])
         else:
             # Random split for initial deployment
             sorted_indices = np.random.permutation(len(embeddings))
-        
+
         hot_indices = sorted_indices[:n_hot]
         cold_indices = sorted_indices[n_hot:]
-        
+
         return hot_indices, cold_indices
-    
+
     def build_indices(self, embeddings, chunk_ids, access_history=None):
         """Build both hot and cold indices"""
         hot_idx, cold_idx = self.split_hot_cold(embeddings, chunk_ids, access_history)
-        
+
         # Add to hot
         hot_vectors = embeddings[hot_idx].astype('float32')
         hot_ids = [chunk_ids[i] for i in hot_idx]
         self.add_to_hot(hot_vectors, hot_ids)
         print(f"Added {len(hot_ids)} vectors to hot index")
-        
+
         # Train and add to cold
         cold_vectors = embeddings[cold_idx].astype('float32')
         cold_ids = [chunk_ids[i] for i in cold_idx]
-        
+
         # Sample for training (use 100k vectors max)
         train_size = min(100000, len(cold_vectors))
         train_vectors = cold_vectors[np.random.choice(len(cold_vectors), train_size, replace=False)]
         self.train_cold_index(train_vectors)
-        
+
         self.add_to_cold(cold_vectors, cold_ids)
         print(f"Added {len(cold_ids)} vectors to cold index")
-    
+
     def search(self, query_vector, k=50):
         """Search both indices and merge results"""
         query_vector = query_vector.reshape(1, -1).astype('float32')
-        
+
         # Search hot index
         k_hot = int(k * 0.7)  # Get 70% from hot
         D_hot, I_hot = self.hot_index.search(query_vector, k_hot)
-        
+
         # Search cold index
         k_cold = k - k_hot
         self.cold_index.nprobe = 32  # Search 32 clusters
         D_cold, I_cold = self.cold_index.search(query_vector, k_cold)
-        
+
         # Merge results
         hot_results = [
             {'chunk_id': self.hot_ids[idx], 'score': float(dist), 'source': 'hot'}
             for idx, dist in zip(I_hot[0], D_hot[0])
             if idx < len(self.hot_ids)
         ]
-        
+
         cold_results = [
             {'chunk_id': self.cold_ids[idx], 'score': float(dist), 'source': 'cold'}
             for idx, dist in zip(I_cold[0], D_cold[0])
             if idx < len(self.cold_ids)
         ]
-        
+
         # Combine and sort by score
         all_results = hot_results + cold_results
         all_results.sort(key=lambda x: x['score'])
-        
+
         return all_results[:k]
-    
+
     def promote_to_hot(self, chunk_id):
         """Move frequently accessed item from cold to hot"""
         # Implementation of LRU promotion logic
         self.access_counts[chunk_id] = self.access_counts.get(chunk_id, 0) + 1
-        
+
         # Promote if access count exceeds threshold
         if self.access_counts[chunk_id] > 10 and chunk_id in self.cold_ids:
             # Find vector in cold index
             idx = self.cold_ids.index(chunk_id)
             # Move to hot (simplified - full implementation would reindex)
             print(f"Promoting {chunk_id} to hot storage")
-    
+
     def save(self, output_path):
         """Save indices to disk"""
         # Save hot index
         faiss.write_index(self.hot_index, f"{output_path}/hot_index.faiss")
-        
+
         # Save cold index
         faiss.write_index(self.cold_index, f"{output_path}/cold_index.faiss")
-        
+
         # Save metadata
         metadata = {
             'hot_ids': self.hot_ids,
@@ -1278,12 +1278,12 @@ class HotColdVectorStore:
         }
         with open(f"{output_path}/index_metadata.pkl", 'wb') as f:
             pickle.dump(metadata, f)
-    
+
     def load(self, output_path):
         """Load indices from disk"""
         self.hot_index = faiss.read_index(f"{output_path}/hot_index.faiss")
         self.cold_index = faiss.read_index(f"{output_path}/cold_index.faiss")
-        
+
         with open(f"{output_path}/index_metadata.pkl", 'rb') as f:
             metadata = pickle.load(f)
             self.hot_ids = metadata['hot_ids']
@@ -1334,7 +1334,7 @@ class QueryType(Enum):
 class SemanticRouter:
     def __init__(self, embedder):
         self.embedder = embedder
-        
+
         # Define query type patterns
         self.patterns = {
             QueryType.FACTUAL: [
@@ -1354,24 +1354,24 @@ class SemanticRouter:
                 r'\brelationship\b', r'\bimpact\b'
             ]
         }
-    
+
     def classify_query(self, query_text):
         """Classify query type"""
         query_lower = query_text.lower()
-        
+
         # Check patterns
         for query_type, patterns in self.patterns.items():
             for pattern in patterns:
                 if re.search(pattern, query_lower):
                     return query_type
-        
+
         # Default to exploratory
         return QueryType.EXPLORATORY
-    
+
     def extract_temporal_filter(self, query_text):
         """Extract date range from query"""
         import dateparser
-        
+
         # Look for date mentions
         date_patterns = [
             r'\b20\d{2}\b',  # Year
@@ -1379,7 +1379,7 @@ class SemanticRouter:
             r'\blast\s+(week|month|year)\b',
             r'\bthis\s+(week|month|year)\b'
         ]
-        
+
         for pattern in date_patterns:
             match = re.search(pattern, query_text.lower())
             if match:
@@ -1387,14 +1387,14 @@ class SemanticRouter:
                 parsed_date = dateparser.parse(date_str)
                 if parsed_date:
                     return parsed_date
-        
+
         return None
-    
+
     def route_query(self, query_text):
         """Route query and return search strategy"""
         query_type = self.classify_query(query_text)
         temporal_filter = self.extract_temporal_filter(query_text)
-        
+
         strategy = {
             'query_type': query_type,
             'temporal_filter': temporal_filter,
@@ -1404,27 +1404,27 @@ class SemanticRouter:
             'use_reranker': False,
             'k_candidates': 500
         }
-        
+
         # Adjust strategy based on query type
         if query_type == QueryType.FACTUAL:
             strategy['bm25_weight'] = 0.6
             strategy['dense_weight'] = 0.4
             strategy['k_candidates'] = 300
-        
+
         elif query_type == QueryType.CONCEPTUAL:
             strategy['bm25_weight'] = 0.2
             strategy['dense_weight'] = 0.8
             strategy['use_reranker'] = True
-        
+
         elif query_type == QueryType.COMPARATIVE:
             strategy['use_reranker'] = True
             strategy['k_candidates'] = 100
-        
+
         elif query_type == QueryType.TEMPORAL:
             strategy['bm25_weight'] = 0.4
             strategy['dense_weight'] = 0.6
             # Temporal filter will be applied
-        
+
         return strategy
 
 # Usage
@@ -1453,7 +1453,7 @@ class HybridRetriever:
         self.vector_store = vector_store
         self.embedder = embedder
         self.reranker = reranker
-    
+
     def retrieve(self, query_text, strategy):
         """Execute hybrid retrieval"""
         # Stage 1: BM25 Sparse Search
@@ -1461,14 +1461,14 @@ class HybridRetriever:
             query_text,
             limit=strategy['k_candidates']
         )
-        
+
         # Stage 2: Dense Vector Search
         query_embedding = self.embedder.model.encode([query_text])[0]
         dense_results = self.vector_store.search(
             query_embedding,
             k=strategy['k_candidates'] // 2
         )
-        
+
         # Stage 3: Merge Results with Weighted Scoring
         merged = self._merge_results(
             bm25_results,
@@ -1476,19 +1476,19 @@ class HybridRetriever:
             bm25_weight=strategy['bm25_weight'],
             dense_weight=strategy['dense_weight']
         )
-        
+
         # Stage 4: Apply Temporal Filter (if applicable)
         if strategy['temporal_filter']:
             merged = self._apply_temporal_filter(merged, strategy['temporal_filter'])
-        
+
         # Stage 5: Reranking (if enabled)
         if strategy['use_reranker'] and self.reranker:
             top_k = merged[:20]  # Rerank top 20
             reranked = self._rerank(query_text, top_k)
             merged = reranked + merged[20:]
-        
+
         return merged[:50]  # Return top 50
-    
+
     def _merge_results(self, bm25_results, dense_results, bm25_weight, dense_weight):
         """Merge BM25 and dense results with weights"""
         # Normalize scores
@@ -1496,15 +1496,15 @@ class HybridRetriever:
             max_bm25 = max(r['score'] for r in bm25_results)
             for r in bm25_results:
                 r['score'] = r['score'] / max_bm25 if max_bm25 > 0 else 0
-        
+
         if dense_results:
             max_dense = max(r['score'] for r in dense_results)
             for r in dense_results:
                 r['score'] = r['score'] / max_dense if max_dense > 0 else 0
-        
+
         # Combine scores
         combined = {}
-        
+
         for result in bm25_results:
             chunk_id = result['uuid']  # BM25 uses 'uuid'
             combined[chunk_id] = {
@@ -1512,7 +1512,7 @@ class HybridRetriever:
                 'score': result['score'] * bm25_weight,
                 'sources': ['bm25']
             }
-        
+
         for result in dense_results:
             chunk_id = result['chunk_id']
             if chunk_id in combined:
@@ -1524,41 +1524,41 @@ class HybridRetriever:
                     'score': result['score'] * dense_weight,
                     'sources': ['dense']
                 }
-        
+
         # Sort by combined score
         merged = sorted(combined.values(), key=lambda x: x['score'], reverse=True)
         return merged
-    
+
     def _apply_temporal_filter(self, results, date_filter):
         """Filter results by date"""
         # Implementation would check document dates
         # Simplified here
         return results
-    
+
     def _rerank(self, query_text, candidates):
         """Rerank using ColBERT or cross-encoder"""
         if not self.reranker:
             return candidates
-        
+
         # Get full text for candidates
         chunk_texts = []
         for c in candidates:
             # Load chunk text from database
             chunk_text = self._load_chunk_text(c['chunk_id'])
             chunk_texts.append(chunk_text)
-        
+
         # Compute reranking scores
         pairs = [[query_text, text] for text in chunk_texts]
         scores = self.reranker.predict(pairs)
-        
+
         # Update scores
         for i, candidate in enumerate(candidates):
             candidate['rerank_score'] = float(scores[i])
-        
+
         # Re-sort by rerank score
         reranked = sorted(candidates, key=lambda x: x['rerank_score'], reverse=True)
         return reranked
-    
+
     def _load_chunk_text(self, chunk_id):
         """Load chunk text from storage"""
         # Implementation would load from parquet/database
@@ -1596,68 +1596,68 @@ class SemanticCache:
         self.embedder = embedder
         self.threshold = similarity_threshold
         self.ttl = timedelta(hours=ttl_hours)
-        
+
         self.cache = {}  # query_embedding -> results
         self.query_embeddings = []
         self.query_keys = []
         self.timestamps = []
-    
+
     def _compute_key(self, query_embedding):
         """Generate cache key from embedding"""
         return hashlib.md5(query_embedding.tobytes()).hexdigest()
-    
+
     def get(self, query_text):
         """Check if similar query exists in cache"""
         query_embedding = self.embedder.model.encode([query_text])[0]
-        
+
         if not self.query_embeddings:
             return None
-        
+
         # Compute similarity with cached queries
         similarities = cosine_similarity(
             query_embedding.reshape(1, -1),
             np.array(self.query_embeddings)
         )[0]
-        
+
         # Find most similar cached query
         max_idx = np.argmax(similarities)
         max_sim = similarities[max_idx]
-        
+
         if max_sim >= self.threshold:
             # Check TTL
             if datetime.now() - self.timestamps[max_idx] < self.ttl:
                 cache_key = self.query_keys[max_idx]
                 print(f"Cache HIT (similarity: {max_sim:.3f})")
                 return self.cache[cache_key]
-        
+
         return None
-    
+
     def set(self, query_text, results):
         """Store query results in cache"""
         query_embedding = self.embedder.model.encode([query_text])[0]
         cache_key = self._compute_key(query_embedding)
-        
+
         self.cache[cache_key] = results
         self.query_embeddings.append(query_embedding)
         self.query_keys.append(cache_key)
         self.timestamps.append(datetime.now())
-        
+
         # Evict old entries (simple LRU)
         self._evict_old()
-    
+
     def _evict_old(self, max_size=1000):
         """Remove old cache entries"""
         if len(self.query_keys) > max_size:
             # Remove oldest
             n_remove = len(self.query_keys) - max_size
-            
+
             for i in range(n_remove):
                 old_key = self.query_keys[0]
                 del self.cache[old_key]
                 self.query_embeddings.pop(0)
                 self.query_keys.pop(0)
                 self.timestamps.pop(0)
-    
+
     def invalidate_all(self):
         """Clear entire cache (call after new ingestion)"""
         self.cache.clear()
@@ -1690,34 +1690,34 @@ class ContextAssembler:
     def __init__(self, chunks_df, dedup_graph):
         self.chunks_df = chunks_df
         self.dedup_graph = dedup_graph
-    
+
     def assemble_context(self, results, max_chunks=5, max_tokens=3000):
         """Assemble context from search results"""
         context_chunks = []
         total_tokens = 0
-        
+
         for result in results:
             if len(context_chunks) >= max_chunks:
                 break
-            
+
             chunk_id = result['chunk_id']
-            
+
             # Load chunk
             chunk = self.chunks_df[self.chunks_df['chunk_id'] == chunk_id].iloc[0]
-            
+
             # Check dedup graph for related chunks
             related = self._get_related_chunks(chunk_id)
-            
+
             # Estimate tokens (rough: 1 token ~= 4 chars)
             chunk_tokens = len(chunk['text']) // 4
-            
+
             if total_tokens + chunk_tokens > max_tokens:
                 # Truncate chunk
                 available_tokens = max_tokens - total_tokens
                 chunk_text = chunk['text'][:available_tokens * 4]
             else:
                 chunk_text = chunk['text']
-            
+
             context_chunks.append({
                 'chunk_id': chunk_id,
                 'text': chunk_text,
@@ -1725,35 +1725,35 @@ class ContextAssembler:
                 'score': result['score'],
                 'related_chunks': related
             })
-            
+
             total_tokens += chunk_tokens
-            
+
             if total_tokens >= max_tokens:
                 break
-        
+
         return context_chunks
-    
+
     def _get_related_chunks(self, chunk_id):
         """Get similar chunks from dedup graph"""
         if chunk_id not in self.dedup_graph:
             return []
-        
+
         neighbors = list(self.dedup_graph[chunk_id].keys())
         return neighbors[:3]  # Return top 3 similar chunks
-    
+
     def format_context(self, context_chunks):
         """Format context for LLM"""
         formatted = []
-        
+
         for i, chunk in enumerate(context_chunks, 1):
             formatted.append(f"[Source {i}] (ID: {chunk['chunk_id']}, Score: {chunk['score']:.3f})")
             formatted.append(chunk['text'])
-            
+
             if chunk['related_chunks']:
                 formatted.append(f"  Related chunks: {', '.join(chunk['related_chunks'][:2])}")
-            
+
             formatted.append("")  # Blank line
-        
+
         return "\n".join(formatted)
 
 # Usage
@@ -1769,24 +1769,24 @@ class ResponseGenerator:
     def __init__(self, llm, assembler):
         self.llm = llm
         self.assembler = assembler
-    
+
     def generate_response(self, query, results):
         """Generate final response with source attribution"""
         # Assemble context
         context_chunks = self.assembler.assemble_context(results)
         formatted_context = self.assembler.format_context(context_chunks)
-        
+
         # Create prompt
         prompt = self._create_prompt(query, formatted_context)
-        
+
         # Generate response
         response = self.llm.generate(prompt, max_tokens=1000)
-        
+
         # Add source attribution
         attributed_response = self._add_attribution(response, context_chunks)
-        
+
         return attributed_response
-    
+
     def _create_prompt(self, query, context):
         """Create prompt for LLM"""
         prompt = f"""<|system|>You are a helpful assistant that answers questions based on provided context. Always cite your sources using [Source N] notation. If the answer is not in the context, say so.<|end|>
@@ -1798,14 +1798,14 @@ Question: {query}
 Answer based on the context above. Cite sources using [Source N] notation.<|end|>
 <|assistant|>"""
         return prompt
-    
+
     def _add_attribution(self, response, context_chunks):
         """Add detailed source attribution"""
         attribution = {
             'response': response,
             'sources': []
         }
-        
+
         for i, chunk in enumerate(context_chunks, 1):
             # Check if source was cited in response
             if f"[Source {i}]" in response or f"Source {i}" in response:
@@ -1816,7 +1816,7 @@ Answer based on the context above. Cite sources using [Source N] notation.<|end|
                     'relevance_score': chunk['score'],
                     'excerpt': chunk['text'][:200] + "..."
                 })
-        
+
         return attribution
 
 # Usage
@@ -1926,13 +1926,13 @@ system:
   data_dir: "/path/to/100GB/data"
   output_dir: "/path/to/output"
   n_workers: 8
-  
+
 # Hardware Constraints
 hardware:
   vram_gb: 6
   ram_gb: 32
   device: "cuda"  # or "cpu"
-  
+
 # LLM Configuration
 llm:
   model_path: "models/Phi-3-mini-4k-instruct-q4.gguf"
@@ -1940,27 +1940,27 @@ llm:
   n_gpu_layers: 35
   temperature: 0.3
   max_tokens: 512
-  
+
 # Embedding Configuration
 embedding:
   model_name: "sentence-transformers/all-MiniLM-L6-v2"
   dimension: 384
   batch_size: 32
   normalize: true
-  
+
 # Deduplication
 deduplication:
   text_similarity_threshold: 0.92
   table_min_cluster_size: 2
   build_graph: true
-  
+
 # Semantic Compression
 compression:
   enable_self_consistency: true
   n_consistency_runs: 3
   summary_max_length: 200
   n_keywords: 10
-  
+
 # Vector Index
 vector_index:
   hot_ratio: 0.2
@@ -1969,12 +1969,12 @@ vector_index:
   hnsw_ef_search: 64
   ivf_nlist: 4096
   pq_m: 64
-  
+
 # BM25 Index
 bm25:
   backend: "whoosh"  # or "elasticsearch"
   analyzer: "stemming"
-  
+
 # Retrieval
 retrieval:
   default_k: 50
@@ -1982,20 +1982,20 @@ retrieval:
   dense_candidates: 250
   use_reranker: false
   reranker_top_k: 20
-  
+
 # Query Routing
 routing:
   enable: true
   factual_bm25_weight: 0.6
   conceptual_dense_weight: 0.8
-  
+
 # Caching
 cache:
   enable: true
   similarity_threshold: 0.95
   ttl_hours: 1
   max_size: 1000
-  
+
 # Response Generation
 generation:
   max_context_chunks: 5
@@ -2012,18 +2012,18 @@ class Config:
     def __init__(self, config_path='config.yaml'):
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
-    
+
     def get(self, path, default=None):
         """Get nested config value"""
         keys = path.split('.')
         value = self.config
-        
+
         for key in keys:
             if isinstance(value, dict) and key in value:
                 value = value[key]
             else:
                 return default
-        
+
         return value
 
 # Usage
@@ -2051,16 +2051,16 @@ def optimize_memory():
 def batch_process_with_memory_management(data, process_fn, batch_size=100):
     """Process data in batches with memory cleanup"""
     results = []
-    
+
     for i in range(0, len(data), batch_size):
         batch = data[i:i+batch_size]
         batch_results = process_fn(batch)
         results.extend(batch_results)
-        
+
         # Clean up every 10 batches
         if i % (batch_size * 10) == 0:
             optimize_memory()
-    
+
     return results
 ```
 
@@ -2074,10 +2074,10 @@ def parallel_process(data, process_fn, n_workers=None):
     """Process data in parallel"""
     if n_workers is None:
         n_workers = cpu_count() - 1
-    
+
     with Pool(n_workers) as pool:
         results = pool.map(process_fn, data)
-    
+
     return results
 
 # Usage for chunking
@@ -2121,7 +2121,7 @@ class PerformanceMonitor:
             'retrieval': [],
             'generation': []
         }
-    
+
     def track_ingestion(self, n_files, n_chunks, duration):
         """Track ingestion performance"""
         self.metrics['ingestion'].append({
@@ -2132,7 +2132,7 @@ class PerformanceMonitor:
             'throughput_files_per_sec': n_files / duration,
             'throughput_chunks_per_sec': n_chunks / duration
         })
-    
+
     def track_retrieval(self, query, n_results, duration, cache_hit=False):
         """Track retrieval performance"""
         self.metrics['retrieval'].append({
@@ -2142,7 +2142,7 @@ class PerformanceMonitor:
             'duration_ms': duration * 1000,
             'cache_hit': cache_hit
         })
-    
+
     def track_generation(self, query, response_length, duration):
         """Track generation performance"""
         self.metrics['generation'].append({
@@ -2152,15 +2152,15 @@ class PerformanceMonitor:
             'duration_seconds': duration,
             'tokens_per_sec': response_length / duration if duration > 0 else 0
         })
-    
+
     def get_summary(self):
         """Get performance summary"""
         summary = {}
-        
+
         if self.metrics['retrieval']:
             durations = [m['duration_ms'] for m in self.metrics['retrieval']]
             cache_hits = sum(1 for m in self.metrics['retrieval'] if m['cache_hit'])
-            
+
             summary['retrieval'] = {
                 'n_queries': len(durations),
                 'p50_ms': np.percentile(durations, 50),
@@ -2168,9 +2168,9 @@ class PerformanceMonitor:
                 'p99_ms': np.percentile(durations, 99),
                 'cache_hit_rate': cache_hits / len(durations) if durations else 0
             }
-        
+
         return summary
-    
+
     def save(self, output_path):
         """Save metrics to file"""
         with open(output_path, 'w') as f:
@@ -2263,23 +2263,23 @@ def setup_directories(base_path):
         'metadata', 'embeddings', 'indices', 'indices/bm25_index',
         'deduplication', 'models', 'cache', 'logs'
     ]
-    
+
     for dir_name in dirs:
         dir_path = Path(base_path) / dir_name
         dir_path.mkdir(parents=True, exist_ok=True)
-    
+
     print(f"✓ Created directory structure at {base_path}")
 
 def download_models():
     """Download required models"""
     from sentence_transformers import SentenceTransformer
-    
+
     # Download embedding model
     print("Downloading embedding model...")
     model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
     model.save('models/minilm-l6-v2')
     print("✓ Embedding model downloaded")
-    
+
     # LLM must be downloaded manually
     print("⚠ Please download LLM manually:")
     print("  wget https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf")
@@ -2294,7 +2294,7 @@ def verify_setup():
         'Embedding model': Path('models/minilm-l6-v2').exists(),
         'Config file': Path('config.yaml').exists()
     }
-    
+
     print("\n=== Setup Verification ===")
     all_pass = True
     for check, status in checks.items():
@@ -2302,12 +2302,12 @@ def verify_setup():
         print(f"{symbol} {check}")
         if not status:
             all_pass = False
-    
+
     if all_pass:
         print("\n✓ System ready for deployment!")
     else:
         print("\n✗ Some components missing. Please complete setup.")
-    
+
     return all_pass
 
 # Run setup
@@ -2337,78 +2337,78 @@ def main():
         ]
     )
     logger = logging.getLogger(__name__)
-    
+
     # Load configuration
     config = Config('config.yaml')
     logger.info("Configuration loaded")
-    
+
     # Phase 1: Fast Pass Ingestion
     logger.info("=== Phase 1: Fast Pass Ingestion ===")
     start_time = time.time()
-    
+
     ingestor = FastPassIngestor(
         config.get('system.data_dir'),
         config.get('system.output_dir')
     )
     metadata = ingestor.scan_directory()
     bm25_index = ingestor.build_bm25_index()
-    
+
     logger.info(f"Fast pass complete: {len(metadata)} files in {time.time()-start_time:.1f}s")
-    
+
     # Phase 2: Deep Processing
     logger.info("=== Phase 2: Deep Processing ===")
     start_time = time.time()
-    
+
     deep = DeepIngestor(pd.DataFrame(metadata), config.get('system.output_dir'))
     chunks = deep.process_all(n_workers=config.get('system.n_workers'))
     chunks_df = pd.DataFrame(chunks)
-    
+
     logger.info(f"Deep processing complete: {len(chunks)} chunks in {time.time()-start_time:.1f}s")
-    
+
     # Phase 3: LLM Processing
     logger.info("=== Phase 3: LLM Processing ===")
     start_time = time.time()
-    
+
     llm = LocalLLM(config.get('llm.model_path'))
     processed_df = process_chunks_with_llm(chunks_df, llm)
-    
+
     logger.info(f"LLM processing complete in {time.time()-start_time:.1f}s")
-    
+
     # Phase 4: Embedding Generation
     logger.info("=== Phase 4: Embedding Generation ===")
     start_time = time.time()
-    
+
     embedder = EmbeddingGenerator(config.get('embedding.model_name'))
     chunk_embeddings = embedder.embed_chunks(chunks_df)
-    
+
     logger.info(f"Embedding complete: {chunk_embeddings.shape} in {time.time()-start_time:.1f}s")
-    
+
     # Phase 5: Deduplication
     logger.info("=== Phase 5: Deduplication ===")
     start_time = time.time()
-    
+
     deduplicator = SemanticDeduplicator(
         similarity_threshold=config.get('deduplication.text_similarity_threshold')
     )
     chunk_ids = chunks_df['chunk_id'].tolist()
     similarity_graph = deduplicator.build_similarity_graph(chunk_embeddings, chunk_ids)
     clusters, cluster_mapping = deduplicator.find_clusters()
-    
+
     logger.info(f"Deduplication complete: {len(clusters)} clusters in {time.time()-start_time:.1f}s")
-    
+
     # Phase 6: Vector Indexing
     logger.info("=== Phase 6: Vector Indexing ===")
     start_time = time.time()
-    
+
     vector_store = HotColdVectorStore(
         dimension=config.get('embedding.dimension'),
         hot_ratio=config.get('vector_index.hot_ratio')
     )
     vector_store.build_indices(chunk_embeddings, chunk_ids)
     vector_store.save(Path(config.get('system.output_dir')) / 'indices')
-    
+
     logger.info(f"Indexing complete in {time.time()-start_time:.1f}s")
-    
+
     # Phase 7: System Ready
     logger.info("=== System Ready for Queries ===")
     logger.info(f"Total documents: {len(metadata)}")
@@ -2429,49 +2429,49 @@ def interactive_query_loop():
     """Interactive CLI for querying the system"""
     # Load components
     config = Config('config.yaml')
-    
+
     # Initialize system
     embedder = EmbeddingGenerator(config.get('embedding.model_name'))
     vector_store = HotColdVectorStore(dimension=config.get('embedding.dimension'))
     vector_store.load(Path(config.get('system.output_dir')) / 'indices')
-    
+
     bm25 = BM25Searcher(Path(config.get('system.output_dir')) / 'indices/bm25_index')
-    
+
     llm = LocalLLM(config.get('llm.model_path'))
-    
+
     router = SemanticRouter(embedder)
     retriever = HybridRetriever(bm25, vector_store, embedder)
     cache = SemanticCache(embedder)
-    
+
     # Load metadata
     chunks_df = pd.read_parquet(Path(config.get('system.output_dir')) / 'metadata/chunks_metadata.parquet')
-    
+
     assembler = ContextAssembler(chunks_df, {})  # Load dedup graph if needed
     generator = ResponseGenerator(llm, assembler)
-    
+
     print("=" * 60)
     print("RAG 100GB System - Interactive Query Interface")
     print("=" * 60)
     print("Type 'exit' to quit, 'stats' for statistics")
     print()
-    
+
     while True:
         query = input("Query> ").strip()
-        
+
         if query.lower() == 'exit':
             break
-        
+
         if query.lower() == 'stats':
             stats = get_system_stats()
             print(f"RAM: {stats['ram_used_gb']:.1f}GB ({stats['ram_percent']:.1f}%)")
             continue
-        
+
         if not query:
             continue
-        
+
         # Process query
         start_time = time.time()
-        
+
         # Check cache
         cached = cache.get(query)
         if cached:
@@ -2482,12 +2482,12 @@ def interactive_query_loop():
             strategy = router.route_query(query)
             results = retriever.retrieve(query, strategy)
             cache.set(query, results)
-        
+
         # Generate response
         response = generator.generate_response(query, results)
-        
+
         duration = time.time() - start_time
-        
+
         # Display results
         print()
         print("Answer:")
@@ -2644,7 +2644,7 @@ hybrid_retriever = HybridRetriever(
 ```python
 # Use more context chunks
 context_chunks = assembler.assemble_context(
-    results, 
+    results,
     max_chunks=10,  # Instead of 5
     max_tokens=6000  # Instead of 3000
 )
@@ -2656,10 +2656,10 @@ def generate_query_variations(query, llm):
     """Generate multiple query variations for better recall"""
     prompt = f"""Generate 3 variations of this query:
     Original: {query}
-    
+
     Variations:
     1."""
-    
+
     variations = llm.generate(prompt, max_tokens=200)
     return [query] + variations.split('\n')[:3]
 
@@ -2702,7 +2702,7 @@ from datetime import datetime, timedelta
 def archive_old_cache(cache_dir, days=7):
     """Archive cache older than N days"""
     cutoff = datetime.now() - timedelta(days=days)
-    
+
     for file in Path(cache_dir).glob('*.pkl'):
         if datetime.fromtimestamp(file.stat().st_mtime) < cutoff:
             archive_path = Path(cache_dir) / 'archive'
@@ -2722,13 +2722,13 @@ import unittest
 class TestEmbedding(unittest.TestCase):
     def setUp(self):
         self.embedder = EmbeddingGenerator()
-    
+
     def test_embedding_dimension(self):
         """Test embedding dimension is correct"""
         texts = ["test sentence"]
         embeddings = self.embedder.embed_batch(texts)
         self.assertEqual(embeddings.shape[1], 384)
-    
+
     def test_embedding_normalization(self):
         """Test embeddings are normalized"""
         texts = ["test sentence"]
@@ -2739,15 +2739,15 @@ class TestEmbedding(unittest.TestCase):
 class TestDeduplication(unittest.TestCase):
     def setUp(self):
         self.deduplicator = SemanticDeduplicator(similarity_threshold=0.92)
-    
+
     def test_identical_chunks_clustered(self):
         """Test identical chunks are in same cluster"""
         embeddings = np.array([[1, 0, 0], [1, 0, 0], [0, 1, 0]])
         chunk_ids = ['chunk1', 'chunk2', 'chunk3']
-        
+
         graph = self.deduplicator.build_similarity_graph(embeddings, chunk_ids)
         clusters, mapping = self.deduplicator.find_clusters()
-        
+
         # chunk1 and chunk2 should be in same cluster
         self.assertEqual(mapping['chunk1'], mapping['chunk2'])
         self.assertNotEqual(mapping['chunk1'], mapping['chunk3'])
@@ -2755,19 +2755,19 @@ class TestDeduplication(unittest.TestCase):
 class TestVectorStore(unittest.TestCase):
     def setUp(self):
         self.store = HotColdVectorStore(dimension=384)
-    
+
     def test_search_returns_results(self):
         """Test vector search returns results"""
         # Create dummy data
         embeddings = np.random.randn(1000, 384).astype('float32')
         chunk_ids = [f'chunk_{i}' for i in range(1000)]
-        
+
         self.store.build_indices(embeddings, chunk_ids)
-        
+
         # Search
         query = np.random.randn(384).astype('float32')
         results = self.store.search(query, k=10)
-        
+
         self.assertEqual(len(results), 10)
 
 # Run tests
@@ -2781,50 +2781,50 @@ if __name__ == '__main__':
 def test_end_to_end_pipeline():
     """Test complete pipeline with small dataset"""
     print("Running end-to-end integration test...")
-    
+
     # 1. Create test data
     test_dir = Path('test_data')
     test_dir.mkdir(exist_ok=True)
-    
+
     (test_dir / 'doc1.txt').write_text("Machine learning is a subset of AI.")
     (test_dir / 'doc2.txt').write_text("Deep learning uses neural networks.")
-    
+
     # 2. Run fast pass
     ingestor = FastPassIngestor(str(test_dir), 'test_output')
     metadata = ingestor.scan_directory()
     assert len(metadata) == 2, "Should find 2 files"
-    
+
     bm25_index = ingestor.build_bm25_index()
-    
+
     # 3. Run deep processing
     deep = DeepIngestor(pd.DataFrame(metadata), 'test_output')
     chunks = deep.process_all(n_workers=1)
     assert len(chunks) > 0, "Should extract chunks"
-    
+
     # 4. Generate embeddings
     embedder = EmbeddingGenerator()
     chunks_df = pd.DataFrame(chunks)
     embeddings = embedder.embed_chunks(chunks_df)
     assert embeddings.shape[1] == 384, "Embeddings should be 384-dim"
-    
+
     # 5. Build index
     vector_store = HotColdVectorStore(dimension=384)
     chunk_ids = chunks_df['chunk_id'].tolist()
     vector_store.build_indices(embeddings, chunk_ids)
-    
+
     # 6. Query
     bm25 = BM25Searcher('test_output/bm25_index')
     retriever = HybridRetriever(bm25, vector_store, embedder)
     router = SemanticRouter(embedder)
-    
+
     query = "What is machine learning?"
     strategy = router.route_query(query)
     results = retriever.retrieve(query, strategy)
-    
+
     assert len(results) > 0, "Should return results"
-    
+
     print("✓ End-to-end test passed!")
-    
+
     # Cleanup
     shutil.rmtree('test_data')
     shutil.rmtree('test_output')
@@ -2839,9 +2839,9 @@ test_end_to_end_pipeline()
 def benchmark_retrieval(retriever, queries, n_runs=10):
     """Benchmark retrieval performance"""
     import time
-    
+
     latencies = []
-    
+
     for query in queries:
         durations = []
         for _ in range(n_runs):
@@ -2849,9 +2849,9 @@ def benchmark_retrieval(retriever, queries, n_runs=10):
             results = retriever.retrieve(query, router.route_query(query))
             duration = time.time() - start
             durations.append(duration * 1000)  # Convert to ms
-        
+
         latencies.extend(durations)
-    
+
     return {
         'mean_ms': np.mean(latencies),
         'p50_ms': np.percentile(latencies, 50),
@@ -2924,32 +2924,32 @@ def query():
     try:
         data = request.get_json()
         query_text = data.get('query')
-        
+
         if not query_text:
             return jsonify({'error': 'Query text required'}), 400
-        
+
         # Process query
         start_time = time.time()
-        
+
         # Check cache
         cached = cache.get(query_text)
         cache_hit = cached is not None
-        
+
         if cached:
             results = cached
         else:
             strategy = router.route_query(query_text)
             results = retriever.retrieve(query_text, strategy)
             cache.set(query_text, results)
-        
+
         # Generate response
         response = generator.generate_response(query_text, results)
-        
+
         duration = time.time() - start_time
-        
+
         # Track metrics
         monitor.track_retrieval(query_text, len(results), duration, cache_hit)
-        
+
         return jsonify({
             'query': query_text,
             'answer': response['response'],
@@ -2960,7 +2960,7 @@ def query():
                 'n_sources': len(response['sources'])
             }
         })
-    
+
     except Exception as e:
         logging.error(f"Query error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -2970,7 +2970,7 @@ def get_stats():
     """Get system statistics"""
     summary = monitor.get_summary()
     sys_stats = get_system_stats()
-    
+
     return jsonify({
         'performance': summary,
         'system': sys_stats,
@@ -2987,15 +2987,15 @@ def search_only():
         data = request.get_json()
         query_text = data.get('query')
         k = data.get('k', 10)
-        
+
         strategy = router.route_query(query_text)
         results = retriever.retrieve(query_text, strategy)
-        
+
         return jsonify({
             'query': query_text,
             'results': results[:k]
         })
-    
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -3100,50 +3100,50 @@ docker-compose down
 ```python
 def incremental_ingestion(new_files_dir, existing_system_path):
     """Add new files to existing system"""
-    
+
     # 1. Load existing indices
     vector_store = HotColdVectorStore(dimension=384)
     vector_store.load(f"{existing_system_path}/indices")
-    
+
     bm25 = BM25Searcher(f"{existing_system_path}/indices/bm25_index")
-    
+
     # 2. Process new files
     ingestor = FastPassIngestor(new_files_dir, existing_system_path)
     new_metadata = ingestor.scan_directory()
-    
+
     # 3. Check for duplicates
     existing_metadata = pd.read_parquet(f"{existing_system_path}/metadata/files_metadata.parquet")
     new_files = [m for m in new_metadata if m['path'] not in existing_metadata['path'].values]
-    
+
     if not new_files:
         print("No new files to add")
         return
-    
+
     # 4. Process new chunks
     deep = DeepIngestor(pd.DataFrame(new_files), existing_system_path)
     new_chunks = deep.process_all()
-    
+
     # 5. Generate embeddings
     embedder = EmbeddingGenerator()
     new_embeddings = embedder.embed_chunks(pd.DataFrame(new_chunks))
-    
+
     # 6. Add to indices
     new_chunk_ids = [c['chunk_id'] for c in new_chunks]
     vector_store.add_to_cold(new_embeddings, new_chunk_ids)
-    
+
     # 7. Update BM25 (requires rebuild or append)
     # Simplified: rebuild entire BM25 index
     # Production: use incremental update if supported
-    
+
     # 8. Save updated system
     vector_store.save(f"{existing_system_path}/indices")
-    
+
     # Append metadata
     updated_metadata = pd.concat([existing_metadata, pd.DataFrame(new_files)])
     updated_metadata.to_parquet(f"{existing_system_path}/metadata/files_metadata.parquet")
-    
+
     print(f"Added {len(new_files)} new files, {len(new_chunks)} new chunks")
-    
+
     # 9. Invalidate cache
     cache.invalidate_all()
 ```
@@ -3153,28 +3153,28 @@ def incremental_ingestion(new_files_dir, existing_system_path):
 ```python
 def optimize_indices(system_path, access_logs_path):
     """Optimize hot/cold split based on access patterns"""
-    
+
     # 1. Load access logs
     with open(access_logs_path) as f:
         access_logs = json.load(f)
-    
+
     # Count accesses per chunk
     access_counts = {}
     for log in access_logs:
         for source in log.get('sources', []):
             chunk_id = source['chunk_id']
             access_counts[chunk_id] = access_counts.get(chunk_id, 0) + 1
-    
+
     # 2. Rebuild indices with new hot/cold split
     vector_store = HotColdVectorStore(dimension=384, hot_ratio=0.2)
-    
+
     embeddings = np.load(f"{system_path}/embeddings/chunk_embeddings.npy")
     chunks_df = pd.read_parquet(f"{system_path}/metadata/chunks_metadata.parquet")
     chunk_ids = chunks_df['chunk_id'].tolist()
-    
+
     vector_store.build_indices(embeddings, chunk_ids, access_history=access_counts)
     vector_store.save(f"{system_path}/indices")
-    
+
     print("Indices optimized based on access patterns")
 ```
 
@@ -3188,16 +3188,16 @@ def backup_system(system_path, backup_dir):
     """Create full system backup"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_path = Path(backup_dir) / f"backup_{timestamp}"
-    
+
     # Copy critical components
     components = ['metadata', 'indices', 'deduplication', 'embeddings']
-    
+
     for component in components:
         src = Path(system_path) / component
         dst = backup_path / component
         if src.exists():
             shutil.copytree(src, dst)
-    
+
     # Create backup manifest
     manifest = {
         'timestamp': timestamp,
@@ -3208,35 +3208,35 @@ def backup_system(system_path, backup_dir):
             for p in [backup_path / c for c in components]
         ) / (1024**3)
     }
-    
+
     with open(backup_path / 'manifest.json', 'w') as f:
         json.dump(manifest, f, indent=2)
-    
+
     print(f"Backup created: {backup_path}")
     print(f"Size: {manifest['size_gb']:.2f} GB")
-    
+
     return backup_path
 
 def restore_system(backup_path, system_path):
     """Restore system from backup"""
     manifest_path = Path(backup_path) / 'manifest.json'
-    
+
     if not manifest_path.exists():
         raise ValueError("Invalid backup: manifest.json not found")
-    
+
     with open(manifest_path) as f:
         manifest = json.load(f)
-    
+
     # Restore components
     for component in manifest['components']:
         src = Path(backup_path) / component
         dst = Path(system_path) / component
-        
+
         if dst.exists():
             shutil.rmtree(dst)
-        
+
         shutil.copytree(src, dst)
-    
+
     print(f"System restored from backup: {backup_path}")
 
 # Usage
@@ -3279,38 +3279,38 @@ def verify_system_performance(system_path):
         'Memory < 28GB': False,
         'Compression > 8x': False
     }
-    
+
     # Load performance logs
     monitor = PerformanceMonitor()
     monitor.metrics = json.load(open(f"{system_path}/logs/metrics.json"))
-    
+
     summary = monitor.get_summary()
-    
+
     # Check targets
     if summary.get('retrieval'):
         checks['Query p50 < 200ms'] = summary['retrieval']['p50_ms'] < 200
         checks['Query p95 < 800ms'] = summary['retrieval']['p95_ms'] < 800
-    
+
     sys_stats = get_system_stats()
     checks['Memory < 28GB'] = sys_stats['ram_used_gb'] < 28
-    
+
     # Check compression
     scaffold_df = pd.read_parquet(f"{system_path}/metadata/scaffold_metadata.parquet")
     avg_compression = scaffold_df['compression_ratio'].mean()
     checks['Compression > 8x'] = avg_compression > 8
-    
+
     # Print results
     print("\n=== Performance Verification ===")
     for check, passed in checks.items():
         symbol = "✓" if passed else "✗"
         print(f"{symbol} {check}")
-    
+
     all_passed = all(checks.values())
     if all_passed:
         print("\n✓ All performance targets met!")
     else:
         print("\n✗ Some targets not met. Review configuration.")
-    
+
     return all_passed
 
 # Run verification
@@ -3327,7 +3327,7 @@ verify_system_performance('output')
 - **Sentence-Transformers**: https://www.sbert.net/
 - **llama.cpp**: https://github.com/ggerganov/llama.cpp
 - **Whoosh**: https://whoosh.readthedocs.io/
-- **RAG Papers**: 
+- **RAG Papers**:
   - "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks" (Lewis et al., 2020)
   - "Dense Passage Retrieval for Open-Domain Question Answering" (Karpukhin et al., 2020)
 
@@ -3441,14 +3441,14 @@ python api.py
 
 **END OF DOCUMENT**
 
-**Total System Complexity**: Production-Ready  
-**Estimated Build Time**: 2-3 days for 100GB corpus  
-**Maintenance Effort**: Low (monthly index optimization recommended)  
+**Total System Complexity**: Production-Ready
+**Estimated Build Time**: 2-3 days for 100GB corpus
+**Maintenance Effort**: Low (monthly index optimization recommended)
 **Scalability**: Up to 500GB with minor adjustments
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2024  
-**Author**: RAG System Design Team  
+**Document Version**: 1.0
+**Last Updated**: 2024
+**Author**: RAG System Design Team
 **License**: MIT

@@ -1,7 +1,8 @@
 """Table-level semantic deduplication helpers."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -44,7 +45,9 @@ class TableDeduplicator:
         signatures = []
         for _, row in tables_df.iterrows():
             metadata = row.get("metadata", {}) if isinstance(row.get("metadata"), dict) else {}
-            sample_rows = row.get("sample_rows", []) if isinstance(row.get("sample_rows"), list) else []
+            sample_rows = (
+                row.get("sample_rows", []) if isinstance(row.get("sample_rows"), list) else []
+            )
             signatures.append(self.create_table_signature(metadata, sample_rows))
         embeddings = self.embedder.encode(signatures, convert_to_numpy=True)
         return embeddings.astype("float32")
@@ -66,10 +69,14 @@ class TableDeduplicator:
                 return np.zeros(data.shape[0], dtype=int)
             model = AgglomerativeClustering(n_clusters=n_clusters)
             return model.fit_predict(data)
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=self.min_cluster_size, min_samples=self.min_samples)
+        clusterer = hdbscan.HDBSCAN(
+            min_cluster_size=self.min_cluster_size, min_samples=self.min_samples
+        )
         return clusterer.fit_predict(data)
 
-    def create_virtual_tables(self, tables_df: pd.DataFrame, cluster_labels: np.ndarray) -> List[Dict[str, Any]]:
+    def create_virtual_tables(
+        self, tables_df: pd.DataFrame, cluster_labels: np.ndarray
+    ) -> List[Dict[str, Any]]:
         if len(cluster_labels) != len(tables_df):
             raise ValueError("Label count mismatch with tables dataframe")
         tables_df = tables_df.reset_index(drop=True)

@@ -41,4 +41,4 @@ cd ..
 REM Start full stack
 echo.
 echo Starting CUBO full stack...
-python scripts\start_fullstack.py
+python scripts\start_fullstack.py %*

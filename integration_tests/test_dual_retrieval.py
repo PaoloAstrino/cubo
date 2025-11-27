@@ -3,19 +3,21 @@
 Simple test script for dual retrieval system (sentence window + auto-merging)
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).parent.parent.resolve()
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from sentence_transformers import SentenceTransformer
-from src.cubo.retrieval.retriever import DocumentRetriever
+
 from src.cubo.config import config
 from src.cubo.ingestion.document_loader import DocumentLoader
-from src.logger import logger
+from src.cubo.retrieval.retriever import DocumentRetriever
+
 
 @pytest.mark.integration
 def test_dual_retrieval():
@@ -31,14 +33,11 @@ def test_dual_retrieval():
     print("✅ Model loaded")
 
     # Force in-memory vector store for integration test to avoid FAISS dimension issues
-    config.set('vector_store_backend', 'inmemory')
+    config.set("vector_store_backend", "inmemory")
     # Initialize retriever with both methods enabled
     print("Initializing dual retriever...")
     retriever = DocumentRetriever(
-        model=model,
-        use_sentence_window=True,
-        use_auto_merging=True,
-        auto_merge_for_complex=True
+        model=model, use_sentence_window=True, use_auto_merging=True, auto_merge_for_complex=True
     )
     print("✅ Dual retriever initialized")
 
@@ -71,12 +70,11 @@ def test_dual_retrieval():
         # Simple queries (should use sentence window)
         "What is the horse's name?",
         "Where does the frog live?",
-
         # Complex queries (should use auto-merging)
         "Why do you think the frog is always jumping around?",
         "What might the horse be dreaming about at the end?",
         "Compare the personalities of the frog and horse",
-        "How does the frog's adventurous nature affect his experiences?"
+        "How does the frog's adventurous nature affect his experiences?",
     ]
 
     print(f"\n🧪 Testing {len(test_queries)} queries...")
@@ -97,48 +95,49 @@ def test_dual_retrieval():
                 # Show sources
                 sources = set()
                 for doc in retrieved_docs:
-                    filename = doc.get('metadata', {}).get('filename', 'Unknown')
+                    filename = doc.get("metadata", {}).get("filename", "Unknown")
                     sources.add(filename)
 
                 print(f"   📄 Sources: {', '.join(sources)}")
 
                 # Show first result preview
                 if retrieved_docs:
-                    first_doc = retrieved_docs[0]['document'][:100]
-                    similarity = retrieved_docs[0].get('similarity', 0)
+                    first_doc = retrieved_docs[0]["document"][:100]
+                    similarity = retrieved_docs[0].get("similarity", 0)
                     print(".3f")
-                    print(f"      \"{first_doc}...\"")
+                    print(f'      "{first_doc}..."')
 
-                results.append({
-                    'query': query,
-                    'success': True,
-                    'results_count': len(retrieved_docs),
-                    'sources': list(sources)
-                })
+                results.append(
+                    {
+                        "query": query,
+                        "success": True,
+                        "results_count": len(retrieved_docs),
+                        "sources": list(sources),
+                    }
+                )
             else:
                 print("   ❌ No results retrieved")
-                results.append({
-                    'query': query,
-                    'success': False,
-                    'results_count': 0,
-                    'sources': []
-                })
+                results.append(
+                    {"query": query, "success": False, "results_count": 0, "sources": []}
+                )
 
         except Exception as e:
             print(f"   ❌ Error: {e}")
-            results.append({
-                'query': query,
-                'success': False,
-                'error': str(e),
-                'results_count': 0,
-                'sources': []
-            })
+            results.append(
+                {
+                    "query": query,
+                    "success": False,
+                    "error": str(e),
+                    "results_count": 0,
+                    "sources": [],
+                }
+            )
 
     # Summary
     print("\n📊 SUMMARY")
     print("-" * 20)
 
-    successful = sum(1 for r in results if r['success'])
+    successful = sum(1 for r in results if r["success"])
     total = len(results)
 
     print(f"Total queries: {total}")
@@ -150,19 +149,33 @@ def test_dual_retrieval():
     print("-" * 30)
 
     for result in results:
-        query = result['query']
-        is_complex = any(word in query.lower() for word in [
-            'why', 'how', 'explain', 'compare', 'analyze',
-            'relationship', 'difference', 'benefits', 'impact'
-        ]) or len(query.split()) > 12
+        query = result["query"]
+        is_complex = (
+            any(
+                word in query.lower()
+                for word in [
+                    "why",
+                    "how",
+                    "explain",
+                    "compare",
+                    "analyze",
+                    "relationship",
+                    "difference",
+                    "benefits",
+                    "impact",
+                ]
+            )
+            or len(query.split()) > 12
+        )
 
         method = "Auto-merging" if is_complex else "Sentence window"
-        status = "✅" if result['success'] else "❌"
+        status = "✅" if result["success"] else "❌"
 
         print(f"{status} {method}: {query[:50]}...")
 
     print("\n🎉 Dual retrieval system test completed!")
     assert successful > 0
+
 
 if __name__ == "__main__":
     success = test_dual_retrieval()

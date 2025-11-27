@@ -1,8 +1,8 @@
 from pathlib import Path
-from src.cubo.retrieval.retriever import FaissHybridRetriever
-from src.cubo.retrieval.bm25_searcher import BM25Searcher
+
 from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from src.cubo.retrieval.bm25_searcher import BM25Searcher
+from src.cubo.retrieval.retriever import FaissHybridRetriever
 
 
 class FakeEmbeddingGenerator:
@@ -12,10 +12,17 @@ class FakeEmbeddingGenerator:
     def encode(self, texts, batch_size=32):
         return [[float(i % 10) for _ in range(self.dim)] for i, _ in enumerate(texts)]
 
+
 def _small_docs():
     docs = []
     for i in range(6):
-        docs.append({'doc_id': f'd{i}', 'text': f'This is document {i} about apples and bananas', 'metadata': {}})
+        docs.append(
+            {
+                "doc_id": f"d{i}",
+                "text": f"This is document {i} about apples and bananas",
+                "metadata": {},
+            }
+        )
     return docs
 
 
@@ -28,7 +35,7 @@ def test_hybrid_with_strategy(tmp_path: Path):
     docs = _small_docs()
     # Build an index with embeddings
     vectors = [[float(i), float(i)] for i in range(len(docs))]
-    ids = [d['doc_id'] for d in docs]
+    ids = [d["doc_id"] for d in docs]
     faiss_manager.build_indexes(vectors, ids)
     faiss_manager.save(path=tmp_path)
 
@@ -43,14 +50,14 @@ def test_hybrid_with_strategy(tmp_path: Path):
             for i, c in enumerate(reversed(candidates)):
                 c2 = c.copy()
                 # provide a heuristic rerank score
-                c2['rerank_score'] = float(len(candidates) - i) / len(candidates)
+                c2["rerank_score"] = float(len(candidates) - i) / len(candidates)
                 out.append(c2)
             return out
 
     reranker = FakeReranker()
     hybrid = FaissHybridRetriever(bm25, faiss_manager, emb, documents=docs, reranker=reranker)
-    strategy = {'bm25_weight': 0.9, 'dense_weight': 0.1, 'k_candidates': 5, 'use_reranker': False}
-    results = hybrid.search('What is apple', top_k=3, strategy=strategy)
+    strategy = {"bm25_weight": 0.9, "dense_weight": 0.1, "k_candidates": 5, "use_reranker": False}
+    results = hybrid.search("What is apple", top_k=3, strategy=strategy)
     assert isinstance(results, list)
     assert len(results) <= 3
 
@@ -58,8 +65,8 @@ def test_hybrid_with_strategy(tmp_path: Path):
     assert not reranker.called
 
     # Now use reranker and assert it's invoked and affects order
-    strategy['use_reranker'] = True
-    reranked_results = hybrid.search('What is apple', top_k=3, strategy=strategy)
+    strategy["use_reranker"] = True
+    reranked_results = hybrid.search("What is apple", top_k=3, strategy=strategy)
     assert reranker.called
     # Because we reversed candidates in FakeReranker, reranked order should differ or have rerank_score
-    assert any('rerank_score' in r for r in reranked_results)
+    assert any("rerank_score" in r for r in reranked_results)

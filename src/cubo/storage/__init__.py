@@ -9,11 +9,11 @@ from . import metadata_manager  # noqa: F401
 
 # Embedding storage backends
 from .embedding_store import (  # noqa: F401
-    EmbeddingStore,
     EmbeddingCache,
+    EmbeddingStore,
     InMemoryEmbeddingStore,
-    ShardedEmbeddingStore,
     MmapEmbeddingStore,
+    ShardedEmbeddingStore,
     create_embedding_store,
 )
 

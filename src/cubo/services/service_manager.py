@@ -39,12 +39,7 @@ class ServiceManager:
         logger.info("ServiceManager initialized")
 
     def execute_async(
-        self,
-        operation_type: str,
-        operation: Callable,
-        *args,
-        with_retry: bool = True,
-        **kwargs
+        self, operation_type: str, operation: Callable, *args, with_retry: bool = True, **kwargs
     ):
         """
         Execute an operation asynchronously with error recovery.
@@ -61,7 +56,7 @@ class ServiceManager:
 
         def wrapped_operation():
             # Bind a trace id for tracing logs associated with this operation
-            tid = kwargs.pop('trace_id', None) or generate_trace_id()
+            tid = kwargs.pop("trace_id", None) or generate_trace_id()
             with trace_context(tid):
                 return self.error_recovery.execute_with_recovery(
                     operation_type, operation, *args, **kwargs
@@ -70,19 +65,14 @@ class ServiceManager:
         if with_retry:
             return self.thread_manager.submit_task_with_retry(
                 wrapped_operation,
-                max_retries=self.error_recovery.recovery_configs
-                .get(operation_type, {}).get('max_retries', 1)
+                max_retries=self.error_recovery.recovery_configs.get(operation_type, {}).get(
+                    "max_retries", 1
+                ),
             )
         else:
             return self.thread_manager.submit_task(wrapped_operation)
 
-    def execute_sync(
-        self,
-        operation_type: str,
-        operation: Callable,
-        *args,
-        **kwargs
-    ) -> Any:
+    def execute_sync(self, operation_type: str, operation: Callable, *args, **kwargs) -> Any:
         """
         Execute an operation synchronously with error recovery.
 
@@ -94,17 +84,15 @@ class ServiceManager:
         Returns:
             Result of the operation
         """
-        return self.error_recovery.execute_with_recovery(
-            operation_type, operation, *args, **kwargs
-        )
+        return self.error_recovery.execute_with_recovery(operation_type, operation, *args, **kwargs)
 
     def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status."""
         return {
-            'threads': self.thread_manager.get_status(),
-            'health': self.health_monitor.get_health_status(),
-            'errors': self.error_recovery.get_health_status(),
-            'timestamp': time.time()
+            "threads": self.thread_manager.get_status(),
+            "health": self.health_monitor.get_health_status(),
+            "errors": self.error_recovery.get_health_status(),
+            "timestamp": time.time(),
         }
 
     def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
@@ -148,60 +136,44 @@ class ServiceManager:
             yield self
         finally:
             # Ensure cleanup happens even if context is exited early
-            if hasattr(self.thread_manager, '_shutdown') and \
-                    not self.thread_manager._shutdown:
+            if hasattr(self.thread_manager, "_shutdown") and not self.thread_manager._shutdown:
                 self.thread_manager.wait_for_all(timeout=timeout or 10.0)
 
     def _register_component_health_checks(self):
         """Register health checks for backend components."""
         # Thread pool health
         self.health_monitor.add_health_check(
-            "thread_pool",
-            self._check_thread_pool_health,
-            interval=30.0
+            "thread_pool", self._check_thread_pool_health, interval=30.0
         )
 
         # Error recovery health
         self.health_monitor.add_health_check(
-            "error_recovery",
-            self._check_error_recovery_health,
-            interval=60.0
+            "error_recovery", self._check_error_recovery_health, interval=60.0
         )
 
     def _check_thread_pool_health(self) -> Dict[str, Any]:
         """Check thread pool health."""
         status = self.thread_manager.get_status()
-        active_tasks = status['active_tasks']
-        max_workers = status['max_workers']
+        active_tasks = status["active_tasks"]
+        max_workers = status["max_workers"]
 
         if active_tasks > max_workers * 0.9:  # Over 90% capacity
             health_status = HealthStatus.WARNING
-            message = (
-                "Thread pool near capacity: "
-                f"{active_tasks}/{max_workers} active"
-            )
+            message = "Thread pool near capacity: " f"{active_tasks}/{max_workers} active"
         elif active_tasks > max_workers * 0.5:  # Over 50% capacity
             health_status = HealthStatus.HEALTHY
-            message = (
-                "Thread pool active: "
-                f"{active_tasks}/{max_workers} active"
-            )
+            message = "Thread pool active: " f"{active_tasks}/{max_workers} active"
         else:
             health_status = HealthStatus.HEALTHY
-            message = (
-                "Thread pool healthy: "
-                f"{active_tasks}/{max_workers} active"
-            )
+            message = "Thread pool healthy: " f"{active_tasks}/{max_workers} active"
 
         return {
-            'status': health_status.value,
-            'message': message,
-            'active_tasks': active_tasks,
-            'max_workers': max_workers,
-            'utilization': (
-                active_tasks / max_workers if max_workers > 0 else 0
-            ),
-            'timestamp': time.time()
+            "status": health_status.value,
+            "message": message,
+            "active_tasks": active_tasks,
+            "max_workers": max_workers,
+            "utilization": (active_tasks / max_workers if max_workers > 0 else 0),
+            "timestamp": time.time(),
         }
 
     def _check_error_recovery_health(self) -> Dict[str, Any]:
@@ -213,18 +185,15 @@ class ServiceManager:
         warning_operations = []
 
         for op_type, status in error_status.items():
-            if not status['healthy']:
-                if status['failure_rate'] > 0.5 or status['recent_failure']:
+            if not status["healthy"]:
+                if status["failure_rate"] > 0.5 or status["recent_failure"]:
                     critical_operations.append(op_type)
                 else:
                     warning_operations.append(op_type)
 
         if critical_operations:
             health_status = HealthStatus.CRITICAL
-            message = (
-                "Critical error rates in: "
-                f"{', '.join(critical_operations)}"
-            )
+            message = "Critical error rates in: " f"{', '.join(critical_operations)}"
         elif warning_operations:
             health_status = HealthStatus.WARNING
             message = f"High error rates in: {', '.join(warning_operations)}"
@@ -233,61 +202,55 @@ class ServiceManager:
             message = "Error recovery system healthy"
 
         return {
-            'status': health_status.value,
-            'message': message,
-            'critical_operations': critical_operations,
-            'warning_operations': warning_operations,
-            'operation_status': error_status,
-            'timestamp': time.time()
+            "status": health_status.value,
+            "message": message,
+            "critical_operations": critical_operations,
+            "warning_operations": warning_operations,
+            "operation_status": error_status,
+            "timestamp": time.time(),
         }
 
-    def _handle_health_alert(
-        self, check_name: str, status: HealthStatus, details: Dict
-    ):
+    def _handle_health_alert(self, check_name: str, status: HealthStatus, details: Dict):
         """Handle health alerts."""
         if status in [HealthStatus.WARNING, HealthStatus.CRITICAL]:
-            logger.warning(f"Health alert - {check_name}: {status.value} - "
-                           f"{details.get('message', '')}")
-        elif status == HealthStatus.HEALTHY:
-            logger.info(
-                f"Health recovered - {check_name}: {details.get('message', '')}"
+            logger.warning(
+                f"Health alert - {check_name}: {status.value} - " f"{details.get('message', '')}"
             )
+        elif status == HealthStatus.HEALTHY:
+            logger.info(f"Health recovered - {check_name}: {details.get('message', '')}")
 
     # Convenience methods for common operations
 
-    def process_document_async(
-        self, filepath: str, processor_func: Callable, *args, **kwargs
-    ):
+    def process_document_async(self, filepath: str, processor_func: Callable, *args, **kwargs):
         """Process a document asynchronously with error recovery."""
-        return self.execute_async(
-            'document_processing', processor_func, filepath, *args, **kwargs
-        )
+        return self.execute_async("document_processing", processor_func, filepath, *args, **kwargs)
 
-    def generate_embedding_async(
-        self, text: str, generator_func: Callable, *args, **kwargs
-    ):
+    def generate_embedding_async(self, text: str, generator_func: Callable, *args, **kwargs):
         """Generate embeddings asynchronously with error recovery."""
-        return self.execute_async(
-            'embedding_generation', generator_func, text, *args, **kwargs
-        )
+        return self.execute_async("embedding_generation", generator_func, text, *args, **kwargs)
 
     def query_database_async(self, query_func: Callable, *args, **kwargs):
         """Query database asynchronously with error recovery."""
-        return self.execute_async(
-            'database_operation', query_func, *args, **kwargs
-        )
+        return self.execute_async("database_operation", query_func, *args, **kwargs)
 
     def generate_response_async(
-        self, query: str, context: str, generator_func: Callable,
-        sources: List[str], *args, **kwargs
+        self,
+        query: str,
+        context: str,
+        generator_func: Callable,
+        sources: List[str],
+        *args,
+        **kwargs,
     ):
         """Generate LLM response asynchronously with error recovery and automatic data saving."""
         import time
+
         start_time = time.time()
 
         # First execute the generation
-        future = self.execute_async('llm_generation', generator_func, query, context,
-                                    *args, **kwargs)
+        future = self.execute_async(
+            "llm_generation", generator_func, query, context, *args, **kwargs
+        )
 
         # Add data saving callback after generation completes
 
@@ -306,8 +269,9 @@ class ServiceManager:
         future.add_done_callback(on_generation_complete)
         return future
 
-    def _save_query_data(self, question: str, answer: str, sources: List[str],
-                         response_time: float):
+    def _save_query_data(
+        self, question: str, answer: str, sources: List[str], response_time: float
+    ):
         """Save query data without evaluation in background thread."""
         try:
 
@@ -318,10 +282,11 @@ class ServiceManager:
                         question=question,
                         answer=answer,
                         contexts=sources,
-                        response_time=response_time
+                        response_time=response_time,
                     )
 
                     from src.cubo.security.security import security_manager
+
                     qlog = security_manager.scrub(question)
                     if success:
                         logger.info(f"Query data saved successfully: {qlog}")
@@ -335,14 +300,13 @@ class ServiceManager:
                     return False
 
             # Execute data saving in background (non-blocking)
-            self.execute_async('data_saving', save_data, with_retry=False)
+            self.execute_async("data_saving", save_data, with_retry=False)
 
         except Exception as e:
             logger.error(f"Failed to schedule data saving: {e}")
 
     def _save_query_data_direct(
-        self, question: str, answer: str, contexts: List[str],
-        response_time: float
+        self, question: str, answer: str, contexts: List[str], response_time: float
     ) -> bool:
         """Save query data directly to database without evaluation."""
         try:
@@ -365,8 +329,12 @@ class ServiceManager:
             return False
 
     def _create_evaluation_data(
-        self, question: str, answer: str, contexts: List[str],
-        response_time: float, context_metadata: List[Dict[str, Any]] = None
+        self,
+        question: str,
+        answer: str,
+        contexts: List[str],
+        response_time: float,
+        context_metadata: List[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Create evaluation data dictionary."""
         import datetime
@@ -374,31 +342,32 @@ class ServiceManager:
         import uuid
 
         return {
-            'timestamp': datetime.datetime.now().isoformat(),
-            'session_id': str(uuid.uuid4())[:8],
-            'question': question,
-            'answer': answer,
-            'response_time': response_time,
-            'contexts': json.dumps(contexts),
-            'context_metadata': json.dumps(context_metadata or []),
-            'model_used': 'llama3.2:latest',
-            'embedding_model': 'embeddinggemma-300m',
-            'retrieval_method': 'sentence_window',
-            'chunking_method': 'sentence_window',
-            'answer_length': len(answer) if answer else 0,
-            'context_count': len(contexts),
-            'total_context_length': sum(len(ctx) for ctx in contexts),
-            'average_context_similarity': 0.0,
-            'answer_confidence': 0.0,
-            'has_answer': bool(answer and not answer.startswith("Error")),
-            'is_fallback_response': bool(answer and "unable to generate" in answer.lower()),
-            'error_occurred': False,
-            'error_message': None
+            "timestamp": datetime.datetime.now().isoformat(),
+            "session_id": str(uuid.uuid4())[:8],
+            "question": question,
+            "answer": answer,
+            "response_time": response_time,
+            "contexts": json.dumps(contexts),
+            "context_metadata": json.dumps(context_metadata or []),
+            "model_used": "llama3.2:latest",
+            "embedding_model": "embeddinggemma-300m",
+            "retrieval_method": "sentence_window",
+            "chunking_method": "sentence_window",
+            "answer_length": len(answer) if answer else 0,
+            "context_count": len(contexts),
+            "total_context_length": sum(len(ctx) for ctx in contexts),
+            "average_context_similarity": 0.0,
+            "answer_confidence": 0.0,
+            "has_answer": bool(answer and not answer.startswith("Error")),
+            "is_fallback_response": bool(answer and "unable to generate" in answer.lower()),
+            "error_occurred": False,
+            "error_message": None,
         }
 
     def _ensure_database_directory(self, db_path: str) -> None:
         """Ensure the database directory exists."""
         import os
+
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
     def _save_to_database(self, db_path: str, evaluation_data: Dict[str, Any]) -> None:
@@ -419,7 +388,8 @@ class ServiceManager:
 
     def _create_evaluation_table(self, conn: sqlite3.Connection) -> None:
         """Create the evaluations table if it doesn't exist."""
-        conn.execute('''
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS evaluations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -459,22 +429,23 @@ class ServiceManager:
                 user_rating INTEGER,
                 user_feedback TEXT
             )
-        ''')
+        """
+        )
 
     def _add_missing_columns(self, conn: sqlite3.Connection) -> None:
         """Add missing columns for backward compatibility."""
         columns_to_add = [
-            'answer_relevance_score REAL',
-            'context_relevance_score REAL',
-            'groundedness_score REAL',
-            'llm_metrics TEXT',
-            'user_rating INTEGER',
-            'user_feedback TEXT'
+            "answer_relevance_score REAL",
+            "context_relevance_score REAL",
+            "groundedness_score REAL",
+            "llm_metrics TEXT",
+            "user_rating INTEGER",
+            "user_feedback TEXT",
         ]
 
         for column_def in columns_to_add:
             try:
-                conn.execute(f'ALTER TABLE evaluations ADD COLUMN {column_def}')
+                conn.execute(f"ALTER TABLE evaluations ADD COLUMN {column_def}")
             except sqlite3.OperationalError:
                 pass  # Column already exists
 
@@ -482,7 +453,8 @@ class ServiceManager:
         self, conn: sqlite3.Connection, evaluation_data: Dict[str, Any]
     ) -> None:
         """Insert evaluation data into the database."""
-        conn.execute('''
+        conn.execute(
+            """
             INSERT INTO evaluations (
                 timestamp, session_id, question, answer, response_time,
                 contexts, context_metadata, model_used, embedding_model,
@@ -493,34 +465,36 @@ class ServiceManager:
                 answer_relevance_score, context_relevance_score, groundedness_score,
                 llm_metrics, user_rating, user_feedback
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            evaluation_data['timestamp'],
-            evaluation_data['session_id'],
-            evaluation_data['question'],
-            evaluation_data['answer'],
-            evaluation_data['response_time'],
-            evaluation_data['contexts'],
-            evaluation_data['context_metadata'],
-            evaluation_data['model_used'],
-            evaluation_data['embedding_model'],
-            evaluation_data['retrieval_method'],
-            evaluation_data['chunking_method'],
-            evaluation_data['answer_length'],
-            evaluation_data['context_count'],
-            evaluation_data['total_context_length'],
-            evaluation_data['average_context_similarity'],
-            evaluation_data['answer_confidence'],
-            evaluation_data['has_answer'],
-            evaluation_data['is_fallback_response'],
-            evaluation_data['error_occurred'],
-            evaluation_data['error_message'],
-            None,  # answer_relevance_score
-            None,  # context_relevance_score
-            None,  # groundedness_score
-            None,  # llm_metrics
-            None,  # user_rating
-            None   # user_feedback
-        ))
+        """,
+            (
+                evaluation_data["timestamp"],
+                evaluation_data["session_id"],
+                evaluation_data["question"],
+                evaluation_data["answer"],
+                evaluation_data["response_time"],
+                evaluation_data["contexts"],
+                evaluation_data["context_metadata"],
+                evaluation_data["model_used"],
+                evaluation_data["embedding_model"],
+                evaluation_data["retrieval_method"],
+                evaluation_data["chunking_method"],
+                evaluation_data["answer_length"],
+                evaluation_data["context_count"],
+                evaluation_data["total_context_length"],
+                evaluation_data["average_context_similarity"],
+                evaluation_data["answer_confidence"],
+                evaluation_data["has_answer"],
+                evaluation_data["is_fallback_response"],
+                evaluation_data["error_occurred"],
+                evaluation_data["error_message"],
+                None,  # answer_relevance_score
+                None,  # context_relevance_score
+                None,  # groundedness_score
+                None,  # llm_metrics
+                None,  # user_rating
+                None,  # user_feedback
+            ),
+        )
 
 
 # Global service manager instance

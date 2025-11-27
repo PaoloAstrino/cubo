@@ -14,7 +14,7 @@ from src.cubo.indexing.publish_lock import acquire_publish_lock
 from src.cubo.storage.metadata_manager import get_metadata_manager
 from src.cubo.utils.logger import logger
 
-POINTER_FILENAME = 'current_index.json'
+POINTER_FILENAME = "current_index.json"
 
 
 def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
@@ -22,24 +22,24 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
     Returns metadata dict read from metadata.json if successful.
     Raises Exception on failure.
     """
-    meta_path = dir_path / 'metadata.json'
+    meta_path = dir_path / "metadata.json"
     if not meta_path.exists():
         raise FileNotFoundError(f"metadata.json missing in {dir_path}")
-    with open(meta_path, encoding='utf-8') as fh:
+    with open(meta_path, encoding="utf-8") as fh:
         metadata = json.load(fh)
 
-    dimension = metadata.get('dimension')
+    dimension = metadata.get("dimension")
     if dimension is None:
-        raise ValueError('Missing dimension in metadata')
+        raise ValueError("Missing dimension in metadata")
 
     # Try to read indexes
-    hot_path = dir_path / 'hot.index'
-    cold_path = dir_path / 'cold.index'
+    hot_path = dir_path / "hot.index"
+    cold_path = dir_path / "cold.index"
     # If they exist, try to read via faiss
     try:
         # If metadata references hot_ids/cold_ids, ensure index files exist and are readable
-        hot_ids = metadata.get('hot_ids', []) or []
-        cold_ids = metadata.get('cold_ids', []) or []
+        hot_ids = metadata.get("hot_ids", []) or []
+        cold_ids = metadata.get("cold_ids", []) or []
 
         if hot_ids and not hot_path.exists():
             raise RuntimeError("metadata claims hot_ids but hot.index is missing")
@@ -56,6 +56,7 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
     # We can attempt to load into a local FAISSIndexManager and sample a search
     try:
         from src.cubo.indexing.faiss_index import FAISSIndexManager
+
         manager = FAISSIndexManager(dimension=dimension, index_dir=dir_path)
         manager.load()
         # Run a minimal sanity check if any index has entries
@@ -73,19 +74,27 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
         if (ntotal_hot + ntotal_cold) > 0:
             # Construct a simple zero vector to attempt a search and ensure query path works
             import numpy as _np
-            sample_vec = _np.zeros((manager.dimension,), dtype='float32')
+
+            sample_vec = _np.zeros((manager.dimension,), dtype="float32")
             # search top 1
             results = manager.search(sample_vec.tolist(), k=1)
             # If metadata claims presence (ids) but search returns empty, fail
             if (ntotal_hot + ntotal_cold) > 0 and len(results) == 0:
-                raise RuntimeError('Index loaded but sanity search returned zero results')
+                raise RuntimeError("Index loaded but sanity search returned zero results")
     except Exception as exc:
         raise RuntimeError(f"Failed to load indexes into FAISSIndexManager: {exc}")
 
     return metadata
 
 
-def publish_version(version_dir: Path, index_root: Path, verify: bool = True, version_id: Optional[str] = None, telemetry_hook: Optional[callable] = None, rollback_on_db_failure: bool = True) -> Path:
+def publish_version(
+    version_dir: Path,
+    index_root: Path,
+    verify: bool = True,
+    version_id: Optional[str] = None,
+    telemetry_hook: Optional[callable] = None,
+    rollback_on_db_failure: bool = True,
+) -> Path:
     """Publish a FAISS version directory by verifying artifacts, flipping a pointer file and recording DB entry.
     Returns the published directory path.
     """
@@ -102,7 +111,7 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         if verify:
             metadata = _verify_index_dir(version_dir)
         else:
-            with open(version_dir / 'metadata.json', encoding='utf-8') as fh:
+            with open(version_dir / "metadata.json", encoding="utf-8") as fh:
                 metadata = json.load(fh)
 
         # Form the published path: keep version_dir as-is; pointer file references it
@@ -113,25 +122,25 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         previous_pointer_payload = None
         if pointer_final.exists():
             try:
-                with open(pointer_final, encoding='utf-8') as pfh:
+                with open(pointer_final, encoding="utf-8") as pfh:
                     previous_pointer_payload = json.load(pfh)
             except Exception:
                 previous_pointer_payload = None
 
         # Write pointer tmp + os.replace
-        pointer_tmp = index_root / (POINTER_FILENAME + '.tmp')
+        pointer_tmp = index_root / (POINTER_FILENAME + ".tmp")
 
     pointer_payload = {
-        'index_dir': str(published_dir),
-        'timestamp': int(time.time()),
+        "index_dir": str(published_dir),
+        "timestamp": int(time.time()),
     }
     if version_id:
-        pointer_payload['version_id'] = version_id
+        pointer_payload["version_id"] = version_id
     else:
-        pointer_payload['version_id'] = f"faiss_{int(time.time())}"
+        pointer_payload["version_id"] = f"faiss_{int(time.time())}"
 
     # Write pointer to tmp and fsync
-    with open(pointer_tmp, 'w', encoding='utf-8') as fh:
+    with open(pointer_tmp, "w", encoding="utf-8") as fh:
         json.dump(pointer_payload, fh)
         fh.flush()
         os.fsync(fh.fileno())
@@ -148,28 +157,33 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
             logger.warning(f"Failed to replace pointer file on attempt {attempt}: {exc}")
             if attempt == max_attempts:
                 # Move pointer tmp to a failed marker to avoid leaking temp file
-                failed_path = index_root / (POINTER_FILENAME + f'.failed.{int(time.time())}')
+                failed_path = index_root / (POINTER_FILENAME + f".failed.{int(time.time())}")
                 os.replace(str(pointer_tmp), str(failed_path))
                 raise
             # Backoff so readers can release any file handles; use a capped exponential backoff
-            time.sleep(min(1.0, 0.05 * (2 ** attempt)))
+            time.sleep(min(1.0, 0.05 * (2**attempt)))
         except OSError as exc:
             # Some systems may report OSError for similar conditions; treat like PermissionError
-            logger.warning(f"Failed to replace pointer file on attempt {attempt} with OSError: {exc}")
+            logger.warning(
+                f"Failed to replace pointer file on attempt {attempt} with OSError: {exc}"
+            )
             if attempt == max_attempts:
-                failed_path = index_root / (POINTER_FILENAME + f'.failed.{int(time.time())}')
+                failed_path = index_root / (POINTER_FILENAME + f".failed.{int(time.time())}")
                 os.replace(str(pointer_tmp), str(failed_path))
                 raise
-            time.sleep(min(1.0, 0.05 * (2 ** attempt)))
+            time.sleep(min(1.0, 0.05 * (2**attempt)))
     logger.info(f"Published pointer file to {pointer_final}")
 
     # Record in DB
     try:
         manager = get_metadata_manager()
-        manager.record_index_version(pointer_payload['version_id'], str(published_dir))
+        manager.record_index_version(pointer_payload["version_id"], str(published_dir))
         if telemetry_hook:
             try:
-                telemetry_hook('db_recorded', {'version_id': pointer_payload['version_id'], 'index_dir': str(published_dir)})
+                telemetry_hook(
+                    "db_recorded",
+                    {"version_id": pointer_payload["version_id"], "index_dir": str(published_dir)},
+                )
             except Exception:
                 pass
     except Exception as exc:
@@ -178,8 +192,8 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
         if rollback_on_db_failure:
             try:
                 if previous_pointer_payload is not None:
-                    tmp_prev = index_root / (POINTER_FILENAME + '.rollback.tmp')
-                    with open(tmp_prev, 'w', encoding='utf-8') as rfh:
+                    tmp_prev = index_root / (POINTER_FILENAME + ".rollback.tmp")
+                    with open(tmp_prev, "w", encoding="utf-8") as rfh:
                         json.dump(previous_pointer_payload, rfh)
                         rfh.flush()
                         os.fsync(rfh.fileno())
@@ -187,7 +201,10 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
                     logger.warning(f"Rolled back pointer file to previous version: {pointer_final}")
                     if telemetry_hook:
                         try:
-                            telemetry_hook('rolled_back', {'index_dir': previous_pointer_payload.get('index_dir')})
+                            telemetry_hook(
+                                "rolled_back",
+                                {"index_dir": previous_pointer_payload.get("index_dir")},
+                            )
                         except Exception:
                             pass
                 else:
@@ -195,10 +212,14 @@ def publish_version(version_dir: Path, index_root: Path, verify: bool = True, ve
                     try:
                         if pointer_final.exists():
                             pointer_final.unlink()
-                            logger.warning(f"Removed pointer file after DB failure: {pointer_final}")
+                            logger.warning(
+                                f"Removed pointer file after DB failure: {pointer_final}"
+                            )
                             if telemetry_hook:
                                 try:
-                                    telemetry_hook('pointer_removed', {'index_root': str(index_root)})
+                                    telemetry_hook(
+                                        "pointer_removed", {"index_root": str(index_root)}
+                                    )
                                 except Exception:
                                     pass
                     except Exception as exc2:
@@ -214,9 +235,9 @@ def get_current_index_dir(index_root: Path) -> Optional[Path]:
     pointer = Path(index_root) / POINTER_FILENAME
     if not pointer.exists():
         return None
-    with open(pointer, encoding='utf-8') as fh:
+    with open(pointer, encoding="utf-8") as fh:
         payload = json.load(fh)
-    return Path(payload.get('index_dir')) if payload.get('index_dir') else None
+    return Path(payload.get("index_dir")) if payload.get("index_dir") else None
 
 
 def rollback_to_previous(index_root: Path, telemetry_hook: Optional[callable] = None) -> bool:
@@ -242,8 +263,8 @@ def rollback_to_previous(index_root: Path, telemetry_hook: Optional[callable] = 
     # Determine rollback target: if pointer currently points to the latest recorded version, pick the previous.
     current_pointer_dir = None
     try:
-        with open(pointer_final, encoding='utf-8') as pfh:
-            current_pointer_dir = json.load(pfh).get('index_dir')
+        with open(pointer_final, encoding="utf-8") as pfh:
+            current_pointer_dir = json.load(pfh).get("index_dir")
     except Exception:
         current_pointer_dir = None
 
@@ -254,18 +275,22 @@ def rollback_to_previous(index_root: Path, telemetry_hook: Optional[callable] = 
         return False
 
     # If current pointer equals versions[0], choose versions[1], otherwise choose versions[0]
-    if current_pointer_dir and os.path.samefile(current_pointer_dir, versions[0]['index_dir']) if os.path.exists(current_pointer_dir) else current_pointer_dir == versions[0]['index_dir']:
+    if (
+        current_pointer_dir and os.path.samefile(current_pointer_dir, versions[0]["index_dir"])
+        if os.path.exists(current_pointer_dir)
+        else current_pointer_dir == versions[0]["index_dir"]
+    ):
         prev = versions[1]
     else:
         prev = versions[0]
     prev_payload = {
-        'index_dir': str(prev['index_dir']),
-        'timestamp': int(time.time()),
-        'version_id': prev['id']
+        "index_dir": str(prev["index_dir"]),
+        "timestamp": int(time.time()),
+        "version_id": prev["id"],
     }
-    tmp_prev = index_root / (POINTER_FILENAME + '.rollback.tmp')
+    tmp_prev = index_root / (POINTER_FILENAME + ".rollback.tmp")
     try:
-        with open(tmp_prev, 'w', encoding='utf-8') as fh:
+        with open(tmp_prev, "w", encoding="utf-8") as fh:
             json.dump(prev_payload, fh)
             fh.flush()
             os.fsync(fh.fileno())
@@ -273,7 +298,9 @@ def rollback_to_previous(index_root: Path, telemetry_hook: Optional[callable] = 
         logger.info(f"Rolled back pointer file to previous version: {prev['index_dir']}")
         if telemetry_hook:
             try:
-                telemetry_hook('rolled_back', {'index_dir': prev['index_dir'], 'version_id': prev['id']})
+                telemetry_hook(
+                    "rolled_back", {"index_dir": prev["index_dir"], "version_id": prev["id"]}
+                )
             except Exception:
                 pass
         return True
@@ -289,7 +316,7 @@ def cleanup(index_root: Path, keep_last_n: int = 3):
     index_root = Path(index_root)
     if not index_root.exists():
         return
-    candidates = [p for p in index_root.iterdir() if p.is_dir() and p.name.startswith('faiss_v')]
+    candidates = [p for p in index_root.iterdir() if p.is_dir() and p.name.startswith("faiss_v")]
     # Sort by mtime to preserve latest
     candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     to_remove = candidates[keep_last_n:]
@@ -297,6 +324,7 @@ def cleanup(index_root: Path, keep_last_n: int = 3):
         try:
             # Safety: only remove directories with prefix faiss_v*
             import shutil
+
             shutil.rmtree(dr)
             logger.info(f"Removed old FAISS version dir: {dr}")
         except Exception as exc:

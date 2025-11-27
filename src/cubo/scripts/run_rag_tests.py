@@ -25,20 +25,19 @@ from src.cubo.security.security import security_manager
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('test_results.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("test_results.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
 try:
     import ollama
+
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
     logger.warning("Ollama client not available, LLM-based evaluations will be disabled")
+
 
 class RAGTester:
     """Comprehensive RAG testing framework."""
@@ -55,7 +54,9 @@ class RAGTester:
             logger.info("AdvancedEvaluator initialized with Ollama client for LLM-based metrics")
         else:
             self.evaluator = AdvancedEvaluator()
-            logger.info("AdvancedEvaluator initialized without LLM client (LLM-based metrics disabled)")
+            logger.info(
+                "AdvancedEvaluator initialized without LLM client (LLM-based metrics disabled)"
+            )
 
         # Initialize CUBO system
         self.cubo_app = None
@@ -66,13 +67,9 @@ class RAGTester:
                 "test_run_timestamp": time.time(),
                 "total_questions": 0,
                 "questions_by_difficulty": {},
-                "success_rate": 0.0
+                "success_rate": 0.0,
             },
-            "results": {
-                "easy": [],
-                "medium": [],
-                "hard": []
-            }
+            "results": {"easy": [], "medium": [], "hard": []},
         }
 
     def _initialize_cubo_system(self):
@@ -101,8 +98,8 @@ class RAGTester:
             # Extract text content from chunk dictionaries
             document_texts = []
             for chunk in documents:
-                if isinstance(chunk, dict) and 'text' in chunk:
-                    document_texts.append(chunk['text'])
+                if isinstance(chunk, dict) and "text" in chunk:
+                    document_texts.append(chunk["text"])
                 elif isinstance(chunk, str):
                     document_texts.append(chunk)
                 else:
@@ -124,10 +121,10 @@ class RAGTester:
     def load_questions(self) -> Dict[str, List[str]]:
         """Load questions from JSON file."""
         try:
-            with open(self.questions_file, encoding='utf-8') as f:
+            with open(self.questions_file, encoding="utf-8") as f:
                 data = json.load(f)
             logger.info(f"Loaded {data['metadata']['total_questions']} questions")
-            return data['questions']
+            return data["questions"]
         except Exception as e:
             logger.error(f"Failed to load questions: {e}")
             return {"easy": [], "medium": [], "hard": []}
@@ -146,14 +143,18 @@ class RAGTester:
             contexts = self.cubo_app.retriever.retrieve_top_documents(question)
 
             # Generate actual response using CUBO
-            context_texts = [ctx.get('document', '') if isinstance(ctx, dict) else str(ctx) for ctx in contexts]
+            context_texts = [
+                ctx.get("document", "") if isinstance(ctx, dict) else str(ctx) for ctx in contexts
+            ]
             context_text = "\n".join(context_texts)
             response = self.cubo_app.generator.generate_response(question, context_text)
 
             processing_time = time.time() - start_time
 
             # Evaluate the response using AdvancedEvaluator from metrics.py
-            evaluation_results = asyncio.run(self.evaluate_response(question, response, context_texts, processing_time))
+            evaluation_results = asyncio.run(
+                self.evaluate_response(question, response, context_texts, processing_time)
+            )
 
             result = {
                 "question": question,
@@ -163,7 +164,7 @@ class RAGTester:
                 "processing_time": processing_time,
                 "evaluation": evaluation_results,
                 "success": True,  # Based on evaluation scores
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
         except Exception as e:
@@ -175,32 +176,31 @@ class RAGTester:
                 "error": str(e),
                 "processing_time": processing_time,
                 "success": False,
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
         return result
 
-    async def evaluate_response(self, question: str, answer: str, contexts: List[str], response_time: float) -> Dict[str, Any]:
+    async def evaluate_response(
+        self, question: str, answer: str, contexts: List[str], response_time: float
+    ) -> Dict[str, Any]:
         """Evaluate the RAG response using advanced metrics."""
         try:
             # Run comprehensive evaluation
             evaluation = await self.evaluator.evaluate_comprehensive(
-                question=question,
-                answer=answer,
-                contexts=contexts,
-                response_time=response_time
+                question=question, answer=answer, contexts=contexts, response_time=response_time
             )
 
             # Extract key metrics for summary
             key_metrics = {
-                'answer_relevance': evaluation.get('answer_relevance', 0),
-                'context_relevance': evaluation.get('context_relevance', 0),
-                'groundedness': evaluation.get('groundedness_score', 0),
-                'answer_quality': evaluation.get('answer_quality', {}),
-                'context_utilization': evaluation.get('context_utilization', {}),
-                'response_efficiency': evaluation.get('response_efficiency', {}),
-                'information_completeness': evaluation.get('information_completeness', {}),
-                'llm_metrics': evaluation.get('llm_metrics', {})
+                "answer_relevance": evaluation.get("answer_relevance", 0),
+                "context_relevance": evaluation.get("context_relevance", 0),
+                "groundedness": evaluation.get("groundedness_score", 0),
+                "answer_quality": evaluation.get("answer_quality", {}),
+                "context_utilization": evaluation.get("context_utilization", {}),
+                "response_efficiency": evaluation.get("response_efficiency", {}),
+                "information_completeness": evaluation.get("information_completeness", {}),
+                "llm_metrics": evaluation.get("llm_metrics", {}),
             }
 
             return key_metrics
@@ -208,10 +208,10 @@ class RAGTester:
         except Exception as e:
             logger.error(f"Evaluation failed: {e}")
             return {
-                'error': str(e),
-                'answer_relevance': 0,
-                'context_relevance': 0,
-                'groundedness': 0
+                "error": str(e),
+                "answer_relevance": 0,
+                "context_relevance": 0,
+                "groundedness": 0,
             }
 
     def run_difficulty_tests(self, difficulty: str, limit: int = None) -> List[Dict[str, Any]]:
@@ -230,8 +230,9 @@ class RAGTester:
 
         return results
 
-    def run_all_tests(self, easy_limit: int = None, medium_limit: int = None,
-                     hard_limit: int = None) -> Dict[str, Any]:
+    def run_all_tests(
+        self, easy_limit: int = None, medium_limit: int = None, hard_limit: int = None
+    ) -> Dict[str, Any]:
         """Run comprehensive test suite."""
         logger.info("Starting comprehensive RAG testing")
 
@@ -249,11 +250,7 @@ class RAGTester:
     def calculate_statistics(self):
         """Calculate test statistics including evaluation metrics."""
         all_results = []
-        evaluation_metrics = {
-            'answer_relevance': [],
-            'context_relevance': [],
-            'groundedness': []
-        }
+        evaluation_metrics = {"answer_relevance": [], "context_relevance": [], "groundedness": []}
 
         for difficulty in ["easy", "medium", "hard"]:
             results = self.results["results"][difficulty]
@@ -272,19 +269,29 @@ class RAGTester:
             for r in results:
                 if "evaluation" in r and r["evaluation"]:
                     eval_data = r["evaluation"]
-                    if 'answer_relevance' in eval_data and eval_data['answer_relevance'] is not None:
-                        relevance_scores.append(eval_data['answer_relevance'])
-                        evaluation_metrics['answer_relevance'].append(eval_data['answer_relevance'])
-                    if 'context_relevance' in eval_data and eval_data['context_relevance'] is not None:
-                        context_scores.append(eval_data['context_relevance'])
-                        evaluation_metrics['context_relevance'].append(eval_data['context_relevance'])
-                    if 'groundedness' in eval_data and eval_data['groundedness'] is not None:
-                        groundedness_scores.append(eval_data['groundedness'])
-                        evaluation_metrics['groundedness'].append(eval_data['groundedness'])
+                    if (
+                        "answer_relevance" in eval_data
+                        and eval_data["answer_relevance"] is not None
+                    ):
+                        relevance_scores.append(eval_data["answer_relevance"])
+                        evaluation_metrics["answer_relevance"].append(eval_data["answer_relevance"])
+                    if (
+                        "context_relevance" in eval_data
+                        and eval_data["context_relevance"] is not None
+                    ):
+                        context_scores.append(eval_data["context_relevance"])
+                        evaluation_metrics["context_relevance"].append(
+                            eval_data["context_relevance"]
+                        )
+                    if "groundedness" in eval_data and eval_data["groundedness"] is not None:
+                        groundedness_scores.append(eval_data["groundedness"])
+                        evaluation_metrics["groundedness"].append(eval_data["groundedness"])
 
             avg_relevance = sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0
             avg_context = sum(context_scores) / len(context_scores) if context_scores else 0
-            avg_groundedness = sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
+            avg_groundedness = (
+                sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
+            )
 
             self.results["metadata"]["questions_by_difficulty"][difficulty] = {
                 "total": total,
@@ -293,7 +300,7 @@ class RAGTester:
                 "avg_processing_time": avg_time,
                 "avg_answer_relevance": avg_relevance,
                 "avg_context_relevance": avg_context,
-                "avg_groundedness": avg_groundedness
+                "avg_groundedness": avg_groundedness,
             }
 
         # Overall stats
@@ -309,18 +316,20 @@ class RAGTester:
             else:
                 overall_metrics[f"avg_{metric_name}"] = 0
 
-        self.results["metadata"].update({
-            "total_questions": total_questions,
-            "successful_questions": successful_questions,
-            "success_rate": overall_success_rate,
-            "total_processing_time": sum(r.get("processing_time", 0) for r in all_results),
-            **overall_metrics
-        })
+        self.results["metadata"].update(
+            {
+                "total_questions": total_questions,
+                "successful_questions": successful_questions,
+                "success_rate": overall_success_rate,
+                "total_processing_time": sum(r.get("processing_time", 0) for r in all_results),
+                **overall_metrics,
+            }
+        )
 
     def save_results(self, output_file: str = "test_results.json"):
         """Save test results to JSON file."""
         try:
-            with open(output_file, 'w', encoding='utf-8') as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(self.results, f, indent=2, ensure_ascii=False)
             logger.info(f"Results saved to {output_file}")
         except Exception as e:
@@ -330,20 +339,20 @@ class RAGTester:
         """Print test summary with evaluation metrics."""
         meta = self.results["metadata"]
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("CUBO RAG TESTING SUMMARY")
-        print("="*60)
+        print("=" * 60)
 
         print(f"Total Questions Tested: {meta['total_questions']}")
         print(".1f")
         print(".2f")
 
         # Print overall evaluation metrics
-        if 'avg_answer_relevance' in meta and meta['avg_answer_relevance'] > 0:
+        if "avg_answer_relevance" in meta and meta["avg_answer_relevance"] > 0:
             print(".3f")
-        if 'avg_context_relevance' in meta and meta['avg_context_relevance'] > 0:
+        if "avg_context_relevance" in meta and meta["avg_context_relevance"] > 0:
             print(".3f")
-        if 'avg_groundedness' in meta and meta['avg_groundedness'] > 0:
+        if "avg_groundedness" in meta and meta["avg_groundedness"] > 0:
             print(".3f")
 
         print("\nBy Difficulty:")
@@ -352,11 +361,11 @@ class RAGTester:
             print(f"    Questions: {stats['total']}")
             print(".1f")
             print(".2f")
-            if 'avg_answer_relevance' in stats and stats['avg_answer_relevance'] > 0:
+            if "avg_answer_relevance" in stats and stats["avg_answer_relevance"] > 0:
                 print(".3f")
-            if 'avg_context_relevance' in stats and stats['avg_context_relevance'] > 0:
+            if "avg_context_relevance" in stats and stats["avg_context_relevance"] > 0:
                 print(".3f")
-            if 'avg_groundedness' in stats and stats['avg_groundedness'] > 0:
+            if "avg_groundedness" in stats and stats["avg_groundedness"] > 0:
                 print(".3f")
 
         print("\nDetailed results saved to test_results.json")
@@ -365,18 +374,16 @@ class RAGTester:
 def main():
     """Main testing function."""
     parser = argparse.ArgumentParser(description="CUBO RAG Testing Framework")
-    parser.add_argument("--questions", default="test_questions.json",
-                       help="Path to questions JSON file")
-    parser.add_argument("--data-folder", default="data",
-                       help="Path to data folder containing documents")
-    parser.add_argument("--easy-limit", type=int,
-                       help="Limit number of easy questions")
-    parser.add_argument("--medium-limit", type=int,
-                       help="Limit number of medium questions")
-    parser.add_argument("--hard-limit", type=int,
-                       help="Limit number of hard questions")
-    parser.add_argument("--output", default="test_results.json",
-                       help="Output file for results")
+    parser.add_argument(
+        "--questions", default="test_questions.json", help="Path to questions JSON file"
+    )
+    parser.add_argument(
+        "--data-folder", default="data", help="Path to data folder containing documents"
+    )
+    parser.add_argument("--easy-limit", type=int, help="Limit number of easy questions")
+    parser.add_argument("--medium-limit", type=int, help="Limit number of medium questions")
+    parser.add_argument("--hard-limit", type=int, help="Limit number of hard questions")
+    parser.add_argument("--output", default="test_results.json", help="Output file for results")
 
     args = parser.parse_args()
 
@@ -385,9 +392,7 @@ def main():
 
     # Run tests
     results = tester.run_all_tests(
-        easy_limit=args.easy_limit,
-        medium_limit=args.medium_limit,
-        hard_limit=args.hard_limit
+        easy_limit=args.easy_limit, medium_limit=args.medium_limit, hard_limit=args.hard_limit
     )
 
     # Save and display results

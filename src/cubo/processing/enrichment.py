@@ -4,6 +4,7 @@ with summaries, keywords, and categories. The module avoids importing the full L
 implementation at runtime when only type checking is used, to keep tests and lightweight
 scripts from pulling in heavy dependencies like Ollama.
 """
+
 import re
 from typing import TYPE_CHECKING, Dict, List
 
@@ -11,6 +12,7 @@ from src.cubo.utils.logger import logger
 
 if TYPE_CHECKING:
     from src.cubo.processing.generator import ResponseGenerator
+
 
 class ChunkEnricher:
     """
@@ -37,7 +39,7 @@ class ChunkEnricher:
                 summary = self._generate_summary(chunk)
             except Exception as e:
                 logger.warning(f"Failed to generate summary for chunk: {e}")
-                summary = ''
+                summary = ""
 
             try:
                 keywords = self._generate_keywords(chunk)
@@ -49,7 +51,7 @@ class ChunkEnricher:
                 category = self._generate_category(chunk)
             except Exception as e:
                 logger.warning(f"Failed to generate category for chunk: {e}")
-                category = 'general'
+                category = "general"
 
             try:
                 consistency_score = self._check_self_consistency(chunk, summary)
@@ -57,13 +59,17 @@ class ChunkEnricher:
                 logger.warning(f"Failed consistency check for chunk: {e}")
                 consistency_score = 0.0
 
-            enriched_chunks.append({
-                'text': chunk,
-                'summary': summary or '',
-                'keywords': keywords or [],
-                'category': category or 'general',
-                'consistency_score': float(consistency_score) if consistency_score is not None else 0.0,
-            })
+            enriched_chunks.append(
+                {
+                    "text": chunk,
+                    "summary": summary or "",
+                    "keywords": keywords or [],
+                    "category": category or "general",
+                    "consistency_score": (
+                        float(consistency_score) if consistency_score is not None else 0.0
+                    ),
+                }
+            )
         return enriched_chunks
 
     def _generate_summary(self, chunk: str) -> str:
@@ -73,7 +79,7 @@ class ChunkEnricher:
         """
         prompt = f"Summarize the following text in one sentence:\n\n{chunk}"
         result = self.llm_provider.generate_response(prompt, "")
-        return (result or '').strip()
+        return (result or "").strip()
 
     def _generate_keywords(self, chunk: str) -> List[str]:
         """Extracts keywords from a single chunk.
@@ -85,7 +91,7 @@ class ChunkEnricher:
             f"Extract the top 5 most important keywords from the following text. "
             f"Return them as a comma-separated list:\n\n{chunk}"
         )
-        keywords_str = self.llm_provider.generate_response(prompt, "") or ''
+        keywords_str = self.llm_provider.generate_response(prompt, "") or ""
 
         # Normalize separators (comma, semicolon, pipe, newline)
         parts = re.split(r"[;,\n|]+", keywords_str)
@@ -104,11 +110,9 @@ class ChunkEnricher:
 
         Returns a single normalized category name (lowercased) or 'general' on failure.
         """
-        prompt = (
-            f"Assign a single category to the following text (e.g., 'Technology', 'Finance', 'Health'):\n\n{chunk}"
-        )
-        result = self.llm_provider.generate_response(prompt, "") or 'general'
-        return (result.strip() or 'general')
+        prompt = f"Assign a single category to the following text (e.g., 'Technology', 'Finance', 'Health'):\n\n{chunk}"
+        result = self.llm_provider.generate_response(prompt, "") or "general"
+        return result.strip() or "general"
 
     def _check_self_consistency(self, chunk: str, summary: str) -> float:
         """
@@ -122,7 +126,9 @@ class ChunkEnricher:
             resp = self.llm_provider.generate_response(prompt, "")
             score = float(resp)
         except (ValueError, TypeError) as e:
-            logger.debug(f"Consistency score parsing error: {e}, raw: {resp if 'resp' in locals() else 'N/A'}")
+            logger.debug(
+                f"Consistency score parsing error: {e}, raw: {resp if 'resp' in locals() else 'N/A'}"
+            )
             score = 0.0
 
         # Clamp the score to [0.0, 5.0]

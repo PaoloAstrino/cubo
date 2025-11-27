@@ -1,9 +1,11 @@
 """
 Tests for ServiceManager.
 """
+
 import unittest
-from unittest.mock import MagicMock
+
 from src.cubo.services.service_manager import ServiceManager, get_service_manager
+
 
 class TestServiceManager(unittest.TestCase):
     def setUp(self):

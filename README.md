@@ -447,8 +447,16 @@ export CUBO_LAPTOP_MODE=1  # Force enable
 export CUBO_LAPTOP_MODE=0  # Force disable
 
 # CLI flags
-python -m src.main --laptop-mode      # Force enable
-python -m src.main --no-laptop-mode   # Force disable
+python start_api_server.py --mode laptop      # Force enable laptop-optimized mode
+python start_api_server.py --mode default     # Force disable laptop-optimized mode
+
+# Full stack start script
+python scripts/start_fullstack.py --mode laptop --config-path configs/config_local.json
+You can add `--force-kill` to attempt to terminate any processes already listening on the chosen ports:
+
+```powershell
+python scripts/start_fullstack.py --mode laptop --config-path configs/config_local.json --force-kill
+```
 ```
 
 See [docs/LAPTOP_MODE.md](docs/LAPTOP_MODE.md) for full configuration options.

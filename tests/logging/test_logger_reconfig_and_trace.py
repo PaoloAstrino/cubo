@@ -1,10 +1,9 @@
 import json
 import time
-from pathlib import Path
-import pytest
+
 from src.cubo.config import config
-from src.cubo.utils.logger import logger_instance
 from src.cubo.services.service_manager import ServiceManager
+from src.cubo.utils.logger import logger_instance
 
 
 def test_logger_reconfig_json_and_trace(tmp_path):
@@ -30,8 +29,9 @@ def test_logger_reconfig_json_and_trace(tmp_path):
     svc = ServiceManager(max_workers=1)
 
     def op():
-        from src.cubo.utils.logging_context import get_current_trace_id
         from src.cubo.utils.logger import logger as inlogger
+        from src.cubo.utils.logging_context import get_current_trace_id
+
         inlogger.info("background op")
         return get_current_trace_id()
 
@@ -43,7 +43,7 @@ def test_logger_reconfig_json_and_trace(tmp_path):
     time.sleep(0.05)
 
     # Read the logged lines
-    with open(log_file, "r", encoding="utf-8") as f:
+    with open(log_file, encoding="utf-8") as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
     assert lines, "Log file should contain at least one line"

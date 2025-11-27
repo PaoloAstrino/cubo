@@ -1,6 +1,7 @@
 """
 BM25 store plugin interface.
 """
+
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
@@ -24,7 +25,9 @@ class BM25Store(ABC):
         """Search for the query and return top_k results."""
 
     @abstractmethod
-    def compute_score(self, query_terms: List[str], doc_id: str, doc_text: Optional[str] = None) -> float:
+    def compute_score(
+        self, query_terms: List[str], doc_id: str, doc_text: Optional[str] = None
+    ) -> float:
         """Compute BM25 score for a doc given query terms."""
 
     @abstractmethod

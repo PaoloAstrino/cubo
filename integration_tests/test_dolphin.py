@@ -6,15 +6,16 @@ Demonstrates enhanced document processing capabilities
 
 import os
 import sys
-import pytest
 from pathlib import Path
+
+import pytest
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.cubo.config import config
 from src.cubo.ingestion.enhanced_document_processor import EnhancedDocumentProcessor
-from src.cubo.utils.logger import logger
+
 
 def test_dolphin_integration():
     """Test the Dolphin integration with sample documents."""
@@ -76,6 +77,7 @@ def test_dolphin_integration():
 
     assert True
 
+
 def test_download_dolphin(monkeypatch):
     """Test downloading the Dolphin model."""
 
@@ -83,14 +85,15 @@ def test_download_dolphin(monkeypatch):
     print("This will download ~400MB. Continue? (y/N): ", end="")
 
     # Avoid prompting stdin during pytest runs; if environment variable is not set, skip the download
-    if os.environ.get('RUN_DOLPHIN_DOWNLOAD_TEST', 'false').lower() != 'true':
+    if os.environ.get("RUN_DOLPHIN_DOWNLOAD_TEST", "false").lower() != "true":
         pytest.skip("Dolphin download test skipped (set RUN_DOLPHIN_DOWNLOAD_TEST=true to enable)")
-    response = 'y'
+    response = "y"
 
     # Run download script
     os.system("python download_dolphin.py --download --test")
 
     return True
+
 
 if __name__ == "__main__":
     import argparse

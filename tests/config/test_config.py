@@ -1,8 +1,9 @@
-import pytest
+import json
 import os
 import tempfile
-import json
+
 from src.cubo.config import Config
+
 
 def test_config_load_defaults():
     """Test loading default config when no file exists."""
@@ -12,16 +13,18 @@ def test_config_load_defaults():
         assert config.get("model_path") == "./models/embeddinggemma-300m"
         assert config.get("llm_model") == "llama3.2:latest"
 
+
 def test_config_load_from_file():
     """Test loading config from existing file."""
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = os.path.join(temp_dir, "config.json")
         test_data = {"model_path": "/custom/path", "top_k": 5}
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             json.dump(test_data, f)
         config = Config(config_path)
         assert config.get("model_path") == "/custom/path"
         assert config.get("top_k") == 5
+
 
 def test_config_set_and_save():
     """Test setting values and saving config."""
@@ -33,6 +36,7 @@ def test_config_set_and_save():
         # Reload and check
         config2 = Config(config_path)
         assert config2.get("new_key") == "new_value"
+
 
 def test_config_all():
     """Test getting all config values."""

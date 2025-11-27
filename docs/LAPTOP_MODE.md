@@ -89,7 +89,7 @@ Documents and metadata are stored in SQLite instead of in-memory dicts:
 faiss_store/
 ├── documents.db      # SQLite with WAL mode
 ├── hot.faiss        # Hot FAISS index
-├── cold.faiss       # Cold FAISS index  
+├── cold.faiss       # Cold FAISS index
 └── embeddings/      # Sharded numpy files (laptop mode)
     ├── embedding_index.json
     ├── embeddings_shard_0000.npy
@@ -109,7 +109,7 @@ Embeddings are stored in numpy shards instead of memory:
 ```python
 # Config options
 vector_store.persist_embeddings = "npy_sharded"
-vector_store.embedding_dtype = "float16"  
+vector_store.embedding_dtype = "float16"
 vector_store.shard_size = 1000
 ```
 
@@ -164,6 +164,16 @@ config.apply_laptop_mode(force=True)
 
 # Check if applied
 print(config.is_laptop_mode())  # True
+```
+
+### Revert to Default Mode
+
+```python
+from src.cubo.config import config
+
+# Revert to default configuration and clear laptop optimizations
+config.apply_default_mode(force=True)
+print(config.is_laptop_mode())  # False
 ```
 
 ### Monitor Cache Performance
@@ -248,3 +258,21 @@ config.set('deduplication.max_candidates', 500)
 - [Processing Guide](PROCESSING.md) - Document processing pipeline
 - [Resource Optimization Plan](resource_optimization_plan.md) - Original analysis
 - [Config Reference](../config.json) - All configuration options
+
+## CLI and Script Options
+
+Start the API server in a given mode using the new `--mode` flag:
+
+```bash
+# Start API server in laptop mode (sets CUBO_LAPTOP_MODE=1)
+python start_api_server.py --mode laptop
+
+# Start full stack in laptop mode and pass a specific config file
+python scripts/start_fullstack.py --mode laptop --config-path configs/config_local.json
+```
+
+You can also pass `--dry-run` to `start_api_server.py` to print the effective env vars and exit (useful when writing scripts or CI checks):
+
+```bash
+python start_api_server.py --mode laptop --config configs/config_local.json --dry-run
+```

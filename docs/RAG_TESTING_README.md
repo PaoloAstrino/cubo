@@ -256,7 +256,7 @@ Coming soon:
 - `scripts/benchmark_runner.py` - Sweep datasets, configs, ablations
 - `scripts/plot_results.py` - Generate comparison plots
 - Ablation configs (hot/cold on/off, reranker on/off, BM25 weights)
- 
+
 #### Using `scripts/benchmark_runner.py` (Phase II)
 
 The new `benchmark_runner.py` automates dataset/config/ablation sweeps and produces per-run JSON plus a `summary.csv` suitable for plotting. It integrates `test_ingestion_throughput.py` to include ingestion metrics in each run when requested.

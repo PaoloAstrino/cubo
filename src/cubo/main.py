@@ -80,7 +80,9 @@ class CUBOApp:
             model_path = config.get("model_path")
             if not os.path.exists(model_path):
                 logger.warning(f"Model path '{model_path}' not found.")
-                new_path = input("Enter the correct path to the embedding model (or press Enter to skip): ")
+                new_path = input(
+                    "Enter the correct path to the embedding model (or press Enter to skip): "
+                )
                 if new_path:
                     config.set("model_path", new_path)
                     config.save()
@@ -134,7 +136,9 @@ class CUBOApp:
                 self._display_available_models(available_models)
                 self._handle_model_selection(available_models)
             else:
-                logger.warning("No Ollama models found. Please install and pull models using 'ollama pull <model_name>'")
+                logger.warning(
+                    "No Ollama models found. Please install and pull models using 'ollama pull <model_name>'"
+                )
                 logger.warning("You can change the selected model later in config.json")
         except Exception as e:
             logger.error(f"Error checking Ollama models: {e}")
@@ -186,7 +190,7 @@ class CUBOApp:
         """Handle optional configuration tweaks."""
         try:
             tweak = input("Do you want to tweak configuration? (y/n): ").lower()
-            if tweak == 'y':
+            if tweak == "y":
                 self._display_current_config()
                 self._handle_config_change()
         except Exception as e:
@@ -211,9 +215,10 @@ class CUBOApp:
         """Get list of available Ollama models."""
         try:
             import subprocess
-            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=10)
+
+            result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')
+                lines = result.stdout.strip().split("\n")
                 if len(lines) > 1:  # Skip header
                     models = []
                     for line in lines[1:]:
@@ -263,8 +268,9 @@ class CUBOApp:
 
     def _get_data_folder_input(self) -> str:
         """Get and validate data folder input from user."""
-        data_folder_input = input(f"Enter path to data folder "
-                                  f"(default: {config.get('data_folder')}): ") or config.get("data_folder")
+        data_folder_input = input(
+            f"Enter path to data folder " f"(default: {config.get('data_folder')}): "
+        ) or config.get("data_folder")
         data_folder_input = security_manager.sanitize_input(data_folder_input)
         try:
             return Utils.sanitize_path(data_folder_input, os.getcwd())
@@ -290,10 +296,15 @@ class CUBOApp:
 
     def _get_supported_files(self, data_folder: str) -> list:
         """Get list of supported files in the data folder."""
-        files = [f for f in os.listdir(data_folder)
-                 if any(f.endswith(ext) for ext in config.get("supported_extensions"))]
+        files = [
+            f
+            for f in os.listdir(data_folder)
+            if any(f.endswith(ext) for ext in config.get("supported_extensions"))
+        ]
         if not files:
-            logger.error(f"No supported files {config.get('supported_extensions')} found in the specified folder.")
+            logger.error(
+                f"No supported files {config.get('supported_extensions')} found in the specified folder."
+            )
         return files
 
     def _prompt_file_selection(self, files: list) -> str:
@@ -320,7 +331,9 @@ class CUBOApp:
             start = time.time()
             file_path = os.path.join(data_folder, selected_file)
             documents = self.doc_loader.load_single_document(file_path)
-            logger.info(f"Document loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds.")
+            logger.info(
+                f"Document loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds."
+            )
             return documents
         except Exception as e:
             logger.error(f"Unexpected error loading document: {e}")
@@ -353,7 +366,7 @@ class CUBOApp:
     def _get_user_query(self) -> str:
         """Get query input from user."""
         query = input("\nEnter your query: ")
-        if query.lower() == 'exit':
+        if query.lower() == "exit":
             logger.info("Exiting conversation.")
             return None
         return query
@@ -366,8 +379,9 @@ class CUBOApp:
         response = self.generator.generate_response(query, context)
 
         # Audit log the query
-        security_manager.audit_log("query_processed",
-                                   details={"query_hash": security_manager.hash_sensitive_data(query)})
+        security_manager.audit_log(
+            "query_processed", details={"query_hash": security_manager.hash_sensitive_data(query)}
+        )
 
         # Display results
         self._display_query_results(top_docs, response, query)
@@ -414,7 +428,9 @@ class CUBOApp:
         logger.info("Loading and chunking all documents...")
         start = time.time()
         documents = self.doc_loader.load_documents_from_folder(data_folder)
-        logger.info(f"Documents loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds.")
+        logger.info(
+            f"Documents loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds."
+        )
         return documents
 
     def _add_documents_to_db(self, documents: list):
@@ -426,7 +442,7 @@ class CUBOApp:
         """Load and chunk all documents from a folder and return count of chunks.
         This does not add them to the vector DB; call build_index to persist to store.
         """
-        folder = data_folder or config.get('data_folder')
+        folder = data_folder or config.get("data_folder")
         if not self.doc_loader:
             # Ensure doc loader available even if components not fully initialized
             self.doc_loader = DocumentLoader()
@@ -440,9 +456,9 @@ class CUBOApp:
         # Ensure components are set (model, retriever, generator)
         if not self.model or not self.retriever or not self.generator:
             if not self.initialize_components():
-                raise RuntimeError('Failed to initialize model and components for index building')
+                raise RuntimeError("Failed to initialize model and components for index building")
 
-        folder = data_folder or config.get('data_folder')
+        folder = data_folder or config.get("data_folder")
         documents = self._load_all_documents(folder)
         if not documents:
             return 0
@@ -466,6 +482,7 @@ class CUBOApp:
     def _display_command_line_results(self, query: str, top_docs: list, response: str):
         """Display query results in command line format."""
         from src.cubo.security.security import security_manager
+
         logger.info(f"Query: {security_manager.scrub(query)}")
         logger.info("Retrieved Documents:")
         for i, doc in enumerate(top_docs, 1):
@@ -487,33 +504,41 @@ class CUBOApp:
 
     def _parse_command_line_arguments(self):
         """Parse command line arguments."""
-        parser = argparse.ArgumentParser(description="CUBO - AI Document Assistant using embedding model and Llama LLM.")
-        parser.add_argument('--version', '-v', action='store_true', help="Show version and exit.")
-        parser.add_argument('--data_folder', help="Path to the folder containing documents.")
-        parser.add_argument('--query', help="The query to process.")
-        
+        parser = argparse.ArgumentParser(
+            description="CUBO - AI Document Assistant using embedding model and Llama LLM."
+        )
+        parser.add_argument("--version", "-v", action="store_true", help="Show version and exit.")
+        parser.add_argument("--data_folder", help="Path to the folder containing documents.")
+        parser.add_argument("--query", help="The query to process.")
+
         # Laptop mode options
         laptop_group = parser.add_mutually_exclusive_group()
-        laptop_group.add_argument('--laptop-mode', action='store_true', 
-                                  help="Force enable laptop mode (reduced resource usage).")
-        laptop_group.add_argument('--no-laptop-mode', action='store_true',
-                                  help="Disable laptop mode (use full resources).")
-        
+        laptop_group.add_argument(
+            "--laptop-mode",
+            action="store_true",
+            help="Force enable laptop mode (reduced resource usage).",
+        )
+        laptop_group.add_argument(
+            "--no-laptop-mode",
+            action="store_true",
+            help="Disable laptop mode (use full resources).",
+        )
+
         return parser.parse_args()
 
     def _run_application_mode(self, args):
         """Run the appropriate application mode based on arguments."""
-        if getattr(args, 'version', False):
+        if getattr(args, "version", False):
             print(f"CUBO version {self._get_version()}")
             return
-        
+
         # Handle laptop mode flags (overrides auto-detection)
-        if getattr(args, 'laptop_mode', False):
+        if getattr(args, "laptop_mode", False):
             config.apply_laptop_mode(force=True)
             logger.info("Laptop mode enabled via --laptop-mode flag.")
-        elif getattr(args, 'no_laptop_mode', False):
+        elif getattr(args, "no_laptop_mode", False):
             # Disable laptop mode by resetting relevant settings
-            config.set('laptop_mode', False)
+            config.set("laptop_mode", False)
             logger.info("Laptop mode disabled via --no-laptop-mode flag.")
         if args.data_folder and args.query:
             self.command_line_mode(args)
@@ -525,6 +550,7 @@ class CUBOApp:
         duration = time.time() - start_time
         metrics.record_time("main_execution", duration)
         import traceback
+
         traceback.print_exc()
         input("Press Enter to exit...")  # Keep terminal open for debugging
 
@@ -536,5 +562,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"An error occurred: {e}")
         import traceback
+
         traceback.print_exc()
         input("Press Enter to exit...")  # Keep terminal open for debugging

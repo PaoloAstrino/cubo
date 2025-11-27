@@ -1,4 +1,5 @@
 """Run the CUBO API server with uvicorn."""
+
 import sys
 from pathlib import Path
 
@@ -12,13 +13,10 @@ from src.cubo.utils.logger import logger
 
 
 def run_server(
-    host: str = "0.0.0.0",
-    port: int = 8000,
-    reload: bool = False,
-    log_level: str = "info"
+    host: str = "0.0.0.0", port: int = 8000, reload: bool = False, log_level: str = "info"
 ):
     """Run the FastAPI server with uvicorn.
-    
+
     Args:
         host: Host to bind to
         port: Port to bind to
@@ -36,7 +34,7 @@ def run_server(
         log_level=log_level,
         access_log=True,
         loop="asyncio",  # Explicitly use asyncio loop
-        use_colors=True
+        use_colors=True,
     )
     server = uvicorn.Server(config)
 
@@ -48,8 +46,6 @@ def run_server(
     except Exception as e:
         logger.error(f"Server error: {e}", exc_info=True)
         raise
-
-
 
 
 def main():
@@ -64,11 +60,12 @@ def main():
 
     args = parser.parse_args()
 
+    # Uvicorn expects lower-case log levels (e.g. 'debug', 'info') - normalize
     run_server(
         host=args.host,
         port=args.port,
         reload=args.reload,
-        log_level=args.log_level
+        log_level=args.log_level.lower() if isinstance(args.log_level, str) else args.log_level,
     )
 
 

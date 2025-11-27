@@ -16,8 +16,15 @@ import { Empty } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { query, type QueryResponse } from "@/lib/api"
+import { query, getDocuments, getReadiness, getTrace } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+
+interface QueryResponse {
+  answer: string;
+  sources: Array<{ text: string; metadata?: any }>;
+  trace_id: string;
+  query_scrubbed: boolean;
+}
 
 interface Message {
   id: string
@@ -38,6 +45,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
   const [hasDocuments, setHasDocuments] = React.useState<boolean | null>(null)
+  const [isReady, setIsReady] = React.useState<boolean>(false)
   const { toast } = useToast()
   const scrollAreaRef = React.useRef<HTMLDivElement>(null)
 
@@ -45,12 +53,10 @@ export default function ChatPage() {
   React.useEffect(() => {
     const checkDocuments = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/documents')
-        if (!res.ok) throw new Error('Failed to fetch documents')
-        const data = await res.json()
+        const data = await getDocuments()
         const docsExist = Array.isArray(data) && data.length > 0
         setHasDocuments(docsExist)
-        
+
         if (!docsExist) {
           setMessages([{
             id: "1",
@@ -64,6 +70,35 @@ export default function ChatPage() {
       }
     }
     checkDocuments()
+  }, [])
+
+  // Poll readiness (retriever/generator) so we don't query until the RAG system is ready
+  React.useEffect(() => {
+    let mounted = true
+    let pollInterval: any
+    const startPolling = async () => {
+      try {
+        const r = await getReadiness()
+        if (!mounted) return
+        const ready = r.components && r.components.retriever && r.components.generator
+        setIsReady(Boolean(ready))
+        if (!ready) {
+          // Poll every 2 seconds until ready
+          pollInterval = setInterval(async () => {
+            const rr = await getReadiness()
+            const ready2 = rr.components && rr.components.retriever && rr.components.generator
+            setIsReady(Boolean(ready2))
+            if (ready2 && pollInterval) {
+              clearInterval(pollInterval)
+            }
+          }, 2000)
+        }
+      } catch (e) {
+        // Ignore errors - we'll try again
+      }
+    }
+    startPolling()
+    return () => { mounted = false; if (pollInterval) clearInterval(pollInterval) }
   }, [])
 
   // Auto-scroll to bottom when new messages arrive
@@ -143,6 +178,16 @@ export default function ChatPage() {
     }
   }
 
+  const handleViewTrace = async (traceId: string) => {
+    try {
+      const res = await getTrace(traceId)
+      alert(JSON.stringify(res, null, 2))
+    } catch (err) {
+      console.error('Failed to fetch trace:', err)
+      toast({ title: 'Trace fetch error', description: 'Unable to fetch trace details', variant: 'destructive' })
+    }
+  }
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       <Card className="flex-1 flex flex-col border-0 shadow-none overflow-hidden">
@@ -188,6 +233,11 @@ export default function ChatPage() {
                         {message.sources.length} sources • {message.trace_id && `trace: ${message.trace_id.slice(0, 8)}`}
                       </div>
                     )}
+                    {message.trace_id && (
+                      <div className="mt-1">
+                        <button className="text-xs text-muted-foreground underline" onClick={() => handleViewTrace(message.trace_id!)}>View trace</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -212,7 +262,7 @@ export default function ChatPage() {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={hasDocuments === false ? "Upload documents first..." : "Ask a question about your documents..."}
               aria-label="Ask a question about your documents"
-              disabled={isLoading || hasDocuments === false}
+              disabled={isLoading || hasDocuments === false || !isReady}
               className="flex-1"
             />
             <Button type="submit" disabled={isLoading || !inputValue.trim() || hasDocuments === false}>

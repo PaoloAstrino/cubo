@@ -1,6 +1,7 @@
 """
 Debug the postprocessing step to see what's happening to the chunks
 """
+
 import sys
 from pathlib import Path
 
@@ -26,23 +27,19 @@ query_embedding = retriever._generate_query_embedding(query)
 
 # Query raw results from vector store (before postprocessing)
 raw_results = retriever.collection.query(
-    query_embeddings=[query_embedding],
-    n_results=5,
-    include=['documents', 'metadatas', 'distances']
+    query_embeddings=[query_embedding], n_results=5, include=["documents", "metadatas", "distances"]
 )
 
 print("=" * 80)
 print("RAW VECTOR STORE RESULTS (before postprocessing)")
 print("=" * 80)
-for i, (doc, metadata, distance) in enumerate(zip(
-    raw_results['documents'][0],
-    raw_results['metadatas'][0],
-    raw_results['distances'][0]
-), 1):
+for i, (doc, metadata, distance) in enumerate(
+    zip(raw_results["documents"][0], raw_results["metadatas"][0], raw_results["distances"][0]), 1
+):
     similarity = 1 - distance
-    filename = metadata.get('filename', 'Unknown')
-    sentence_idx = metadata.get('sentence_index', -1)
-    window = metadata.get('window', '')[:200]
+    filename = metadata.get("filename", "Unknown")
+    sentence_idx = metadata.get("sentence_index", -1)
+    window = metadata.get("window", "")[:200]
 
     print(f"\n{i}. {filename} (sentence {sentence_idx}, similarity: {similarity:.4f})")
     print(f"   Matched sentence: {doc[:150]}...")
@@ -55,23 +52,17 @@ print("=" * 80)
 
 candidates = []
 for doc, metadata, distance in zip(
-    raw_results['documents'][0],
-    raw_results['metadatas'][0],
-    raw_results['distances'][0]
+    raw_results["documents"][0], raw_results["metadatas"][0], raw_results["distances"][0]
 ):
-    candidates.append({
-        "document": doc,
-        "metadata": metadata,
-        "similarity": 1 - distance
-    })
+    candidates.append({"document": doc, "metadata": metadata, "similarity": 1 - distance})
 
 # Apply postprocessing
 processed = retriever._apply_window_postprocessing(candidates)
 
 for i, result in enumerate(processed, 1):
-    filename = result['metadata'].get('filename', 'Unknown')
-    similarity = result.get('similarity', 0)
-    doc_preview = result.get('document', '')[:200]
+    filename = result["metadata"].get("filename", "Unknown")
+    similarity = result.get("similarity", 0)
+    doc_preview = result.get("document", "")[:200]
 
     print(f"\n{i}. {filename} (similarity: {similarity:.4f})")
     print(f"   Content: {doc_preview}...")
