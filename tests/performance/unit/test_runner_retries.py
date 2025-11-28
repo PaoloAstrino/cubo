@@ -2,7 +2,7 @@ import os
 import stat
 import sys
 
-from scripts.benchmark_runner import BenchmarkRunner
+from benchmarks.runner import BenchmarkRunner
 
 
 def test_run_with_retries_success(tmp_path):

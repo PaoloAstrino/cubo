@@ -95,9 +95,9 @@ class FastPassIngestor:
             bm25_tmp = self.output_dir / "bm25_stats.json.tmp"
             bm25_path = self.output_dir / "bm25_stats.json"
 
-                # Save stats for the chosen BM25 backend; stores written by Python
-                # BM25 implementation write a JSON stats file.
-                bm25.save_stats(str(bm25_tmp))
+            # Save stats for the chosen BM25 backend; stores written by Python
+            # BM25 implementation write a JSON stats file.
+            bm25.save_stats(str(bm25_tmp))
             os.replace(str(bm25_tmp), str(bm25_path))
             # record ingestion run in metadata db
             try:

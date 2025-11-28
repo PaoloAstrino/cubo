@@ -337,3 +337,176 @@ class SemanticCache:
         except Exception as exc:
             logger.warning("Failed to build FAISS index for semantic cache: %s", exc)
             self._index = None
+
+
+class RetrievalCacheService:
+    """
+    Unified caching service for retrieval operations.
+
+    Consolidates both simple query caching (for testing) and semantic caching
+    (for production) into a single service interface.
+    """
+
+    def __init__(
+        self,
+        cache_dir: str = "./cache",
+        semantic_cache_enabled: bool = False,
+        semantic_cache_ttl: int = 600,
+        semantic_cache_threshold: float = 0.93,
+        semantic_cache_max_entries: int = 512,
+    ):
+        """
+        Initialize the caching service.
+
+        Args:
+            cache_dir: Directory for cache files
+            semantic_cache_enabled: Whether to enable semantic caching
+            semantic_cache_ttl: TTL for semantic cache entries
+            semantic_cache_threshold: Similarity threshold for semantic cache
+            semantic_cache_max_entries: Maximum entries in semantic cache
+        """
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Simple query cache (for testing and fast exact matches)
+        self.query_cache: Dict[Tuple[str, int], List[Dict[str, Any]]] = {}
+        self.query_cache_file = self.cache_dir / "query_cache.json"
+
+        # Semantic cache (for production similarity matching)
+        self.semantic_cache: Optional[SemanticCache] = None
+        if semantic_cache_enabled:
+            semantic_cache_path = self.cache_dir / "semantic_cache.json"
+            self.semantic_cache = SemanticCache(
+                ttl_seconds=semantic_cache_ttl,
+                similarity_threshold=semantic_cache_threshold,
+                max_entries=semantic_cache_max_entries,
+                cache_path=str(semantic_cache_path),
+            )
+
+        # Load existing query cache
+        self._load_query_cache()
+
+    def _load_query_cache(self) -> None:
+        """Load simple query cache from disk."""
+        if not self.query_cache_file.exists():
+            return
+
+        try:
+            with self.query_cache_file.open("r", encoding="utf-8") as f:
+                loaded_cache = json.load(f)
+
+            # Convert string keys back to tuples
+            self.query_cache = {}
+            for key_str, value in loaded_cache.items():
+                if key_str.startswith("(") and key_str.endswith(")"):
+                    parts = key_str[1:-1].split(", ")
+                    if len(parts) == 2:
+                        key = (parts[0].strip("'\""), int(parts[1]))
+                        self.query_cache[key] = value
+        except Exception as exc:
+            logger.warning("Failed to load query cache: %s", exc)
+            self.query_cache = {}
+
+    def save_query_cache(self) -> None:
+        """Save simple query cache to disk."""
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            serializable_cache = {str(k): v for k, v in self.query_cache.items()}
+            with self.query_cache_file.open("w", encoding="utf-8") as f:
+                json.dump(serializable_cache, f)
+        except Exception as exc:
+            logger.warning("Failed to save query cache: %s", exc)
+
+    def lookup_query(
+        self,
+        query: str,
+        top_k: int,
+        query_embedding: Optional[List[float]] = None,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Look up cached results for a query.
+
+        First checks semantic cache (if enabled), then falls back to exact match cache.
+
+        Args:
+            query: The query string
+            top_k: Number of results requested
+            query_embedding: Optional query embedding for semantic lookup
+
+        Returns:
+            Cached results if found, None otherwise
+        """
+        # Try semantic cache first
+        if self.semantic_cache and query_embedding:
+            cached = self.semantic_cache.lookup(query_embedding, n_results=top_k)
+            if cached:
+                logger.info("Semantic cache hit for query")
+                return cached
+
+        # Fall back to exact match cache
+        cache_key = (query, top_k)
+        if cache_key in self.query_cache:
+            logger.info("Query cache hit for exact query match")
+            return self.query_cache[cache_key]
+
+        return None
+
+    def cache_results(
+        self,
+        query: str,
+        top_k: int,
+        results: List[Dict[str, Any]],
+        query_embedding: Optional[List[float]] = None,
+    ) -> None:
+        """
+        Cache retrieval results.
+
+        Args:
+            query: The query string
+            top_k: Number of results
+            results: Results to cache
+            query_embedding: Optional query embedding for semantic caching
+        """
+        if not results:
+            return
+
+        # Add to semantic cache if enabled
+        if self.semantic_cache and query_embedding:
+            self.semantic_cache.add(query, query_embedding, results)
+
+        # Also add to simple query cache
+        cache_key = (query, top_k)
+        self.query_cache[cache_key] = results
+
+    def clear(self) -> None:
+        """Clear all caches."""
+        self.query_cache.clear()
+        if self.semantic_cache:
+            self.semantic_cache.clear()
+
+        # Remove cache files
+        try:
+            if self.query_cache_file.exists():
+                os.remove(self.query_cache_file)
+        except OSError:
+            pass
+
+    def invalidate_for_documents(self, filenames: List[str]) -> None:
+        """
+        Invalidate cache entries related to specific documents.
+
+        Note: This is a simple implementation that clears the entire cache.
+        A more sophisticated version could track which queries relate to which documents.
+
+        Args:
+            filenames: List of document filenames that were modified
+        """
+        # For now, clear entire cache when documents change
+        # Future: implement more granular invalidation
+        if filenames:
+            logger.info("Invalidating cache for %d documents", len(filenames))
+            self.clear()
+
+
+# Type alias for cache key tuples
+from typing import Tuple

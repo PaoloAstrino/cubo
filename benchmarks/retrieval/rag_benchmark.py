@@ -13,7 +13,9 @@ import time
 from typing import Any, Dict, List
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add parent directory to path for imports
+# benchmarks/scripts/run_rag_tests.py -> benchmarks/scripts -> benchmarks -> root -> src
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import argparse
 import subprocess
@@ -22,9 +24,10 @@ import random
 
 from tqdm import tqdm
 
-from src.cubo.evaluation.metrics import AdvancedEvaluator, GroundTruthLoader, IRMetricsEvaluator
-from src.cubo.evaluation.perf_utils import log_hardware_metadata, sample_latency, sample_memory
+from benchmarks.utils.metrics import AdvancedEvaluator, GroundTruthLoader, IRMetricsEvaluator
+from benchmarks.utils.hardware import log_hardware_metadata, sample_latency, sample_memory
 from src.cubo.main import CUBOApp
+from benchmarks.utils.ragas_evaluator import get_ragas_evaluator
 
 try:
     import pandas as pd
@@ -98,6 +101,14 @@ class RAGTester:
 
         # Initialize IR metrics evaluator
         self.ir_evaluator = IRMetricsEvaluator()
+
+        # Initialize RAGAS evaluator (if available)
+        # Use GLM model as requested
+        self.ragas_evaluator = get_ragas_evaluator(llm_model="glm-4")
+        if self.ragas_evaluator:
+            logger.info("RAGAS Evaluator initialized (metrics: comprehensiveness, diversity, empowerment)")
+        else:
+            logger.warning("RAGAS Evaluator not available (skipping comprehensiveness metrics)")
 
         # Indexing and retrieval flags
         self.skip_index = skip_index
@@ -363,6 +374,32 @@ class RAGTester:
                 self.evaluate_response(question, response, context_texts, processing_time)
             )
 
+            # Evaluate using RAGAS if available
+            ragas_metrics = {}
+            if self.ragas_evaluator:
+                try:
+                    # Use ground truth if available for this specific question
+                    gt = None
+                    if self.ground_truth and question_id and question_id in self.ground_truth:
+                        # Ground truth might be a list of answers or single string
+                        gt_data = self.ground_truth[question_id]
+                        if isinstance(gt_data, list):
+                            gt = gt_data[0]
+                        elif isinstance(gt_data, str):
+                            gt = gt_data
+                        elif isinstance(gt_data, dict) and "text" in gt_data:
+                            gt = gt_data["text"]
+
+                    ragas_metrics = asyncio.run(self.ragas_evaluator.evaluate_single(
+                        question=question,
+                        answer=response,
+                        contexts=context_texts,
+                        ground_truth=gt
+                    ))
+                except Exception as e:
+                    logger.error(f"RAGAS evaluation failed: {e}")
+                    ragas_metrics = {"error": str(e)}
+
             result = {
                 "question": question,
                 "question_id": question_id,
@@ -375,6 +412,7 @@ class RAGTester:
                 "processing_time": processing_time,
                 "memory": memory_metrics,
                 "ir_metrics": ir_metrics,
+                "ragas_metrics": ragas_metrics,
                 "evaluation": evaluation_results,
                 "success": True,
                 "timestamp": time.time(),
@@ -742,11 +780,12 @@ class RAGTester:
         """Calculate test statistics including evaluation and IR metrics."""
         all_results = []
         evaluation_metrics = {"answer_relevance": [], "context_relevance": [], "groundedness": []}
-        ir_metrics_aggregated = {}
-
         for difficulty in ["easy", "medium", "hard"]:
             results = self.results["results"][difficulty]
             all_results.extend(results)
+
+            # Initialize ragas_metrics_agg for current difficulty
+            ragas_metrics_agg_difficulty = {"comprehensiveness": [], "diversity": [], "empowerment": [], "overall": []}
 
             # Difficulty-specific stats
             total = len(results)
@@ -780,6 +819,11 @@ class RAGTester:
             for key, scores in ir_stats.items():
                 avg_ir_metrics[f"avg_{key}"] = sum(scores) / len(scores) if scores else 0
 
+            # Add RAGAS metrics to stats
+            avg_ragas_metrics = {}
+            for key, values in ragas_metrics_agg_difficulty.items():
+                avg_ragas_metrics[f"avg_ragas_{key}"] = sum(values) / len(values) if values else 0
+
             # Collect evaluation metrics (for full RAG mode)
             relevance_scores = []
             context_scores = []
@@ -806,11 +850,24 @@ class RAGTester:
                         groundedness_scores.append(eval_data["groundedness"])
                         evaluation_metrics["groundedness"].append(eval_data["groundedness"])
 
+            # Collect RAGAS metrics
+            for r in results:
+                if "ragas_metrics" in r and r["ragas_metrics"] and "error" not in r["ragas_metrics"]:
+                    rm = r["ragas_metrics"]
+                    for key in ["comprehensiveness", "diversity", "empowerment", "overall"]:
+                        if key in rm:
+                            ragas_metrics_agg_difficulty[key].append(rm[key])
+                            # overall_ragas_metrics_agg[key].append(rm[key]) # Uncomment if overall stats needed
+            
             avg_relevance = sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0
             avg_context = sum(context_scores) / len(context_scores) if context_scores else 0
             avg_groundedness = (
                 sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
             )
+
+            avg_ragas_metrics = {}
+            for key, values in ragas_metrics_agg_difficulty.items():
+                avg_ragas_metrics[f"avg_ragas_{key}"] = sum(values) / len(values) if values else 0
 
             self.results["metadata"]["questions_by_difficulty"][difficulty] = {
                 "total": total,
@@ -822,6 +879,7 @@ class RAGTester:
                 "avg_context_relevance": avg_context,
                 "avg_groundedness": avg_groundedness,
                 **avg_ir_metrics,
+                **avg_ragas_metrics,
             }
 
         # Overall stats

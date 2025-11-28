@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from scripts.run_rag_tests import RAGTester
+from benchmarks.retrieval.rag_benchmark import RAGTester
 
 
 def _has_retrieval_deps():

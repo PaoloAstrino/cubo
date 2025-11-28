@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Any, Dict
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.cubo.evaluation.perf_utils import log_hardware_metadata, sample_memory
+from benchmarks.utils.hardware import log_hardware_metadata, sample_memory
 from src.cubo.main import CUBOApp
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

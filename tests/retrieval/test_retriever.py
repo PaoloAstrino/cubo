@@ -158,7 +158,7 @@ def test_retrieve_uses_router_strategy(mock_model, temp_db_path):
 
     captured = {}
 
-    def fake_retrieve_sentence_window(q, top_k, strategy=None):
+    def fake_retrieve_sentence_window(query, top_k, strategy=None, trace_id=None, **kwargs):
         captured["strategy"] = strategy
         return []
 

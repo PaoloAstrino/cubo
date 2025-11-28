@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from scripts import benchmark_runner as br
-from scripts.benchmark_runner import BenchmarkRunner
+from benchmarks import runner as br
+from benchmarks.runner import BenchmarkRunner
 
 
 def write_dummy_run(

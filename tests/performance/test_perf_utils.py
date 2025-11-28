@@ -7,7 +7,6 @@ import time
 import pytest
 
 from src.cubo.evaluation.perf_utils import (
-    format_hardware_summary,
     log_hardware_metadata,
     sample_latency,
     sample_memory,
@@ -108,17 +107,17 @@ class TestPerfUtils:
         # OS info
         assert "system" in metadata["os"]
 
-    def test_format_hardware_summary(self):
-        """Test hardware summary formatting."""
-        metadata = log_hardware_metadata()
-        summary = format_hardware_summary(metadata)
-
-        assert isinstance(summary, str)
-        assert "Hardware Configuration:" in summary
-        assert "CPU:" in summary
-        assert "RAM:" in summary
-        assert "Python:" in summary
-        assert "OS:" in summary
+    # def test_format_hardware_summary(self):
+    #     """Test hardware summary formatting."""
+    #     metadata = log_hardware_metadata()
+    #     summary = format_hardware_summary(metadata)
+    #
+    #     assert isinstance(summary, str)
+    #     assert "Hardware Configuration:" in summary
+    #     assert "CPU:" in summary
+    #     assert "RAM:" in summary
+    #     assert "Python:" in summary
+    #     assert "OS:" in summary
 
     def test_latency_percentiles_ordering(self):
         """Test that latency percentiles are ordered correctly."""

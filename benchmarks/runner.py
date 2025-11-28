@@ -189,7 +189,7 @@ class BenchmarkRunner:
                 )
                 ingest_cmd = [
                     sys.executable,
-                    "scripts/test_ingestion_throughput.py",
+                    "benchmarks/ingestion/throughput.py",
                     "--data-folder",
                     ds.get("path"),
                     "--output",
@@ -229,7 +229,7 @@ class BenchmarkRunner:
             ground_truth = ds.get("ground_truth", None)
             test_cmd = [
                 sys.executable,
-                "scripts/run_rag_tests.py",
+                "benchmarks/retrieval/rag_benchmark.py",
                 "--questions",
                 questions_path,
                 "--data-folder",

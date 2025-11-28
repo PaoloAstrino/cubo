@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.benchmark_runner import BenchmarkRunner
+from benchmarks.runner import BenchmarkRunner
 
 
 def create_sample_dataset(tmpdir: str):

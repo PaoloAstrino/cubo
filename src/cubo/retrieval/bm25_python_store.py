@@ -39,8 +39,15 @@ class BM25PythonStore(BM25Store):
     K1 = BM25_K1  # Term frequency saturation parameter
     B = BM25_B  # Document length normalization parameter
 
-    def __init__(self):
-        """Initialize empty BM25 index."""
+    def __init__(self, index_dir: Optional[str] = None, **kwargs):
+        """Initialize empty BM25 index.
+
+        Args:
+            index_dir: Optional directory for persisting index stats.
+                       Currently stored for reference but not auto-loaded.
+            **kwargs: Additional arguments (ignored for forward compatibility).
+        """
+        self.index_dir = index_dir
         self.docs = []
         self.doc_lengths = {}
         self.avg_doc_length = 0.0

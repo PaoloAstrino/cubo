@@ -130,7 +130,7 @@ models/
 temp/
 faiss_index/
 whoosh_index/
-evaluation/
+
 cache/
 
 # Large binaries

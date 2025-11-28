@@ -9,7 +9,9 @@ The orchestrator follows the Facade pattern - it provides a unified interface
 while delegating to specialized components.
 """
 
-from typing import Any, Dict, List, Optional, Set
+import json
+import os
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import numpy as np
 
@@ -373,12 +375,92 @@ class DeduplicationManager:
         cluster_lookup: Optional[Dict[str, int]] = None,
         representatives: Optional[Dict[int, Dict[str, Any]]] = None,
         canonical_lookup: Optional[Dict[str, str]] = None,
+        map_path: Optional[str] = None,
     ):
         self.enabled = enabled
         self.cluster_lookup = cluster_lookup or {}
         self.representatives = representatives or {}
         self.canonical_lookup = canonical_lookup or {}
         self._map_loaded = bool(cluster_lookup)
+        self._map_path = map_path
+
+        # Load from file if path provided and no lookup given
+        if map_path and not cluster_lookup and enabled:
+            self._load_dedup_map(map_path)
+
+    @classmethod
+    def from_config(cls, config: Any) -> "DeduplicationManager":
+        """
+        Create DeduplicationManager from application config.
+
+        Args:
+            config: Configuration object with deduplication settings
+
+        Returns:
+            Configured DeduplicationManager instance
+        """
+        enabled = bool(config.get("deduplication.enabled", False))
+        map_path = config.get("deduplication.map_path")
+        return cls(enabled=enabled, map_path=map_path)
+
+    def _load_dedup_map(self, map_path: str) -> None:
+        """
+        Load deduplication map from file.
+
+        Args:
+            map_path: Path to the deduplication map JSON file
+        """
+        if not map_path or not os.path.exists(map_path):
+            logger.info("Dedup map not found at %s; disabling deduplication", map_path)
+            self.enabled = False
+            return
+
+        try:
+            with open(map_path, encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to load dedup map %s: %s", map_path, exc)
+            self.enabled = False
+            return
+
+        self._parse_dedup_payload(payload)
+        self._map_loaded = True
+        logger.info(
+            "Loaded dedup map with %s clusters (%s representatives)",
+            len(self.cluster_lookup),
+            len(self.representatives),
+        )
+
+    def _parse_dedup_payload(self, payload: Dict[str, Any]) -> None:
+        """
+        Parse the deduplication map payload.
+
+        Args:
+            payload: Loaded JSON payload from dedup map file
+        """
+        canonical_map = payload.get("canonical_map", {}) or {}
+        clusters = payload.get("clusters", {}) or {}
+        representatives = payload.get("representatives", {}) or {}
+
+        self.canonical_lookup = {str(k): str(v) for k, v in canonical_map.items()}
+
+        self.cluster_lookup.clear()
+        for cluster_id, members in clusters.items():
+            if not isinstance(members, list):
+                continue
+            for member in members:
+                self.cluster_lookup[str(member)] = int(cluster_id)
+
+        self.representatives.clear()
+        for cluster_id, rep in representatives.items():
+            chunk_id = rep.get("chunk_id")
+            if not chunk_id:
+                continue
+            cid = int(cluster_id)
+            self.representatives[cid] = {
+                "chunk_id": str(chunk_id),
+                "score": rep.get("score", 0.0),
+            }
 
     @property
     def is_ready(self) -> bool:
@@ -388,14 +470,15 @@ class DeduplicationManager:
     def deduplicate(
         self,
         results: List[Dict],
-        chunk_id_extractor: callable,
+        chunk_id_extractor: Optional[Callable[[Dict], Optional[str]]] = None,
     ) -> List[Dict]:
         """
         Deduplicate retrieval results.
 
         Args:
             results: List of result dictionaries
-            chunk_id_extractor: Function to extract chunk ID from result
+            chunk_id_extractor: Function to extract chunk ID from result.
+                               If None, uses default extraction.
 
         Returns:
             Deduplicated results
@@ -403,10 +486,31 @@ class DeduplicationManager:
         if not results:
             return []
 
+        if chunk_id_extractor is None:
+            chunk_id_extractor = self.extract_chunk_id
+
         if not self.is_ready:
             return self._dedup_by_content(results)
 
         return self._dedup_by_cluster(results, chunk_id_extractor)
+
+    @staticmethod
+    def extract_chunk_id(result: Dict) -> Optional[str]:
+        """
+        Extract chunk ID from a result dictionary.
+
+        Args:
+            result: Result dictionary
+
+        Returns:
+            Chunk ID string or None
+        """
+        metadata = result.get("metadata") or {}
+        for key in ("chunk_id", "id", "document_id"):
+            value = metadata.get(key)
+            if value:
+                return str(value)
+        return None
 
     def _dedup_by_content(self, results: List[Dict]) -> List[Dict]:
         """Simple content-based deduplication."""
@@ -425,7 +529,7 @@ class DeduplicationManager:
     def _dedup_by_cluster(
         self,
         results: List[Dict],
-        chunk_id_extractor: callable,
+        chunk_id_extractor: Callable[[Dict], Optional[str]],
     ) -> List[Dict]:
         """Cluster-based deduplication using pre-computed maps."""
         seen: Set[Any] = set()
@@ -433,7 +537,7 @@ class DeduplicationManager:
 
         for result in results:
             chunk_id = chunk_id_extractor(result)
-            cluster_id = self.cluster_lookup.get(chunk_id)
+            cluster_id = self.cluster_lookup.get(chunk_id) if chunk_id else None
             key: Any = cluster_id if cluster_id is not None else chunk_id or result.get("document")
 
             if key in seen:
