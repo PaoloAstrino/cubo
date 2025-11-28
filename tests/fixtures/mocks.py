@@ -137,46 +137,4 @@ class MockLLMClient:
         return f"Answer to '{query}' based on context"
 
 
-class MockWhooshIndex:
-    """Mock Whoosh index wrapper for testing."""
-
-    def __init__(self, index_dir: str):
-        """Initialize mock Whoosh index.
-
-        Args:
-            index_dir: Index directory path (not actually used).
-        """
-        self.index_dir = index_dir
-        self.documents: List[Dict[str, Any]] = []
-
-    def index_documents(self, docs: List[Dict[str, Any]]):
-        """Add documents to the mock index.
-
-        Args:
-            docs: List of documents to index.
-        """
-        self.documents.extend(docs)
-
-    def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """Search the mock index.
-
-        Args:
-            query: Search query.
-            top_k: Number of results to return.
-
-        Returns:
-            List of matching documents.
-        """
-        # Simple mock: return documents containing query terms
-        query_terms = query.lower().split()
-        results = []
-
-        for doc in self.documents:
-            text = doc.get("text", "").lower()
-            score = sum(term in text for term in query_terms)
-            if score > 0:
-                results.append({**doc, "score": score / len(query_terms)})
-
-        # Sort by score and return top-k
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
+# MockWhooshIndex removed: Whoosh backend no longer used

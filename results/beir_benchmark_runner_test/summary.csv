@@ -1,0 +1,5 @@
+run_id,dataset,retrieval_config,ablation,mode,timestamp,success,avg_recall_at_k_10,avg_ndcg_at_k_10,avg_retrieval_latency_p50_ms,avg_answer_relevance,ingestion_minutes_per_gb,ingestion_attempts,test_attempts,error_message
+beir__hybrid_default__none__1764323662,beir,hybrid_default,none,retrieval-only,1764323662.0746164,0,0,0,0,0,,,,
+beir__bm25_only__none__1764323662,beir,bm25_only,none,retrieval-only,1764323662.0766408,0,0,0,0,0,,,,
+beir__hybrid_default__none__1764323679,beir,hybrid_default,none,retrieval-only,1764323679.6504242,0,0,0,0,0,,,,
+beir__bm25_only__none__1764323679,beir,bm25_only,none,retrieval-only,1764323679.6524293,0,0,0,0,0,,,,

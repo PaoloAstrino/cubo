@@ -25,9 +25,4 @@ def test_searcher_uses_backend_arg():
 def test_searcher_delegates_to_default_store():
     # Default backend should be Whoosh when available, otherwise Python
     bs = BM25Searcher()
-    try:
-        from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
-
-        assert isinstance(bs._store, BM25WhooshStore)
-    except Exception:
-        assert isinstance(bs._store, BM25PythonStore)
+    assert isinstance(bs._store, BM25PythonStore)

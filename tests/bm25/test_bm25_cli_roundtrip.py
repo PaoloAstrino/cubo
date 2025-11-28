@@ -5,10 +5,7 @@ import pytest
 
 from src.cubo.retrieval.bm25_python_store import BM25PythonStore
 
-pytest.importorskip("whoosh")
 
-
-@pytest.mark.requires_whoosh
 def test_bm25_cli_roundtrip(tmp_path: Path):
     # Create sample chunks JSONL
     chunks_path = tmp_path / "chunks.jsonl"
@@ -21,16 +18,16 @@ def test_bm25_cli_roundtrip(tmp_path: Path):
         for r in docs:
             f.write(json.dumps(r) + "\n")
 
-    out_dir = tmp_path / "whoosh"
+    out_dir = tmp_path / "bm25"
     out_dir.mkdir()
     from src.cubo.retrieval.bm25_migration import (
-        convert_json_stats_to_whoosh,
-        export_whoosh_to_json,
+        convert_json_stats_to_bm25,
+        export_bm25_to_json,
     )
 
-    convert_json_stats_to_whoosh(str(tmp_path / "bm25_stats.json"), str(chunks_path), str(out_dir))
+    convert_json_stats_to_bm25(str(tmp_path / "bm25_stats.json"), str(chunks_path), str(out_dir))
     out_chunks = tmp_path / "roundtrip_chunks.jsonl"
-    export_whoosh_to_json(str(out_dir), str(out_chunks))
+    export_bm25_to_json(str(out_dir), str(out_chunks))
 
     # Compare parity of top-k with Python store
     py_store = BM25PythonStore()
@@ -38,13 +35,13 @@ def test_bm25_cli_roundtrip(tmp_path: Path):
     prdocs = [{"doc_id": (r["filename"] + f"_{r['chunk_index']}"), "text": r["text"]} for r in docs]
     py_store.index_documents(prdocs)
 
-    from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
-
-    whoosh_store = BM25WhooshStore(index_dir=str(out_dir))
-
     q = "apples"
     py_res = py_store.search(q, top_k=3)
-    who_res = whoosh_store.search(q, top_k=3)
-
-    assert py_res and who_res
-    assert py_res[0]["doc_id"] == who_res[0]["doc_id"]
+    # Validate by reading exported chunks and indexing in Python store again
+    py_store2 = BM25PythonStore()
+    with open(out_chunks, encoding="utf-8") as f:
+        exported = [json.loads(l) for l in f]
+    py_store2.index_documents([{"doc_id": d["doc_id"], "text": d["text"]} for d in exported])
+    out_res = py_store2.search(q, top_k=3)
+    assert py_res and out_res
+    assert py_res[0]["doc_id"] == out_res[0]["doc_id"]

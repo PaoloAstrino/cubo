@@ -283,23 +283,27 @@ class MetadataManager:
             conn.commit()
 
     def get_latest_index_version(self) -> Optional[Dict[str, Any]]:
-        cur = self.conn.cursor()
-        cur.execute(
-            """SELECT id, index_dir, created_at FROM index_versions ORDER BY created_at DESC LIMIT 1"""
-        )
-        row = cur.fetchone()
+        # Use a short-lived connection here to avoid cross-thread 'check_same_thread' errors
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT id, index_dir, created_at FROM index_versions ORDER BY created_at DESC LIMIT 1"""
+            )
+            row = cur.fetchone()
         if not row:
             return None
         return {"id": row[0], "index_dir": row[1], "created_at": row[2]}
 
     def list_index_versions(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        cur = self.conn.cursor()
-        sql = "SELECT id, index_dir, created_at FROM index_versions ORDER BY created_at DESC"
-        if limit is not None:
-            cur.execute(sql + " LIMIT ?", (limit,))
-        else:
-            cur.execute(sql)
-        rows = cur.fetchall()
+        # Use a short-lived connection for list operations (safer for threaded tests on Windows)
+        with sqlite3.connect(str(self.db_path)) as conn:
+            cur = conn.cursor()
+            sql = "SELECT id, index_dir, created_at FROM index_versions ORDER BY created_at DESC"
+            if limit is not None:
+                cur.execute(sql + " LIMIT ?", (limit,))
+            else:
+                cur.execute(sql)
+            rows = cur.fetchall()
         return [{"id": r[0], "index_dir": r[1], "created_at": r[2]} for r in rows]
 
     def get_ingestion_run(self, run_id: str) -> Optional[Dict[str, Any]]:

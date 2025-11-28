@@ -94,20 +94,10 @@ class FastPassIngestor:
             bm25.index_documents(docs)
             bm25_tmp = self.output_dir / "bm25_stats.json.tmp"
             bm25_path = self.output_dir / "bm25_stats.json"
-            # Save stats for the specific backend; Python store will write JSON
-            bm25.save_stats(str(bm25_tmp))
-            # If backend is Whoosh but users want JSON stats preserved for compatibility, write JSON using Python store
-            if backend == "whoosh" and config.get("bm25.preserve_bm25_stats_json", False):
-                try:
-                    from src.cubo.retrieval.bm25_python_store import BM25PythonStore
 
-                    py_store = BM25PythonStore()
-                    py_store.index_documents(docs)
-                    py_store.save_stats(str(bm25_tmp))
-                except Exception:
-                    logger.warning(
-                        "Failed to generate JSON BM25 stats from Python store while using Whoosh backend"
-                    )
+                # Save stats for the chosen BM25 backend; stores written by Python
+                # BM25 implementation write a JSON stats file.
+                bm25.save_stats(str(bm25_tmp))
             os.replace(str(bm25_tmp), str(bm25_path))
             # record ingestion run in metadata db
             try:

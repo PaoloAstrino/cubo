@@ -225,7 +225,10 @@ class Config:
             # Vector store - NEW memory-mapped mode
             "vector_store": {
                 "embedding_storage": "mmap",  # NEW: Memory-mapped embeddings
-                "embedding_dtype": "float32",  # Standard precision for mmap
+                # Backwards-compatible key name expected by tests & other code
+                "persist_embeddings": "npy_sharded",
+                # Use float16 to save memory on laptop mode
+                "embedding_dtype": "float16",
                 "embedding_cache_size": 512,
             },
             # FAISS index optimizations

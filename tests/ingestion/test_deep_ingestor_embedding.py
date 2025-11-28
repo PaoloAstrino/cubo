@@ -40,6 +40,8 @@ def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):
             return [[float(len(t.split()))] * 64 for t in texts]
 
         mock_model.encode.side_effect = mock_encode
+        # Ensure the model reports an embedding dimension (used by FAISS)
+        mock_model.get_sentence_embedding_dimension.return_value = 64
 
         # Use retriever with mock model (FAISS backend)
         retriever = DocumentRetriever(model=mock_model)

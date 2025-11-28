@@ -94,6 +94,43 @@ class DocumentRetriever:
         self._initialize_tiered_retrieval()
         self._log_initialization_status()
 
+    def close(self) -> None:
+        """Close the retriever and release any underlying resources such as
+        vector store executors and caches.
+
+        This should be used in production and tests to deterministically free
+        resources instead of relying on destructors or garbage collection.
+        """
+        # Save any cache to disk
+        try:
+            self._save_cache()
+        except Exception:
+            pass
+
+        # Close or reset the collection
+        try:
+            close_fn = getattr(self.collection, "close", None)
+            if callable(close_fn):
+                close_fn()
+            else:
+                reset_fn = getattr(self.collection, "reset", None)
+                if callable(reset_fn):
+                    reset_fn()
+        except Exception:
+            pass
+
+        # Mark closed flag to prevent further operations
+        try:
+            self._closed = True
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def _set_basic_attributes(
         self,
         model: SentenceTransformer,
@@ -157,10 +194,7 @@ class DocumentRetriever:
         else:
             # Fallback for tests without a model - use common dimension
             model_dimension = 384  # Standard dimension for many sentence transformers
-            logger.warning("No model available, using default dimension 384 for in-memory fallback")
-            # Skip vector store creation and go directly to fallback
-            self.collection = InMemoryCollection()
-            return
+            logger.warning("No model available, using default dimension 384 for vector store initialization")
 
         try:
             try:
@@ -549,7 +583,7 @@ class DocumentRetriever:
             return False
 
     def retrieve_top_documents(
-        self, query: str, top_k: int = 6, trace_id: Optional[str] = None
+        self, query: str, top_k: int = 6, trace_id: Optional[str] = None, **kwargs
     ) -> List[Dict]:
         """
         Retrieve top-k most relevant document chunks using hybrid retrieval.
@@ -567,6 +601,13 @@ class DocumentRetriever:
             RetrievalError: If retrieval operation fails
         """
         try:
+            # Backwards compatibility: some callers may pass 'k' instead of 'top_k'
+            if kwargs and "k" in kwargs:
+                try:
+                    top_k = int(kwargs.get("k"))
+                except Exception:
+                    logger.warning("Invalid 'k' kwarg provided to retrieve_top_documents; ignoring")
+
             if trace_id:
                 try:
                     trace_collector.record(

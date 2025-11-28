@@ -12,11 +12,5 @@ py.index_documents(docs)
 end = time.time()
 print("Python BM25 index time secs:", end - start)
 
-try:
-    whoosh = get_bm25_store("whoosh", index_dir="./whoosh_bench2")
-    start = time.time()
-    whoosh.index_documents(docs)
-    end = time.time()
-    print("Whoosh BM25 index time secs:", end - start)
-except Exception as e:
-    print("Whoosh benchmarking skipped:", e)
+# Whoosh-specific benchmarking removed; please benchmark other backends by
+# replacing the backend string above.

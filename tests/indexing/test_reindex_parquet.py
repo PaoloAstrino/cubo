@@ -62,3 +62,7 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
     retr = DocumentRetriever(model=None)
     coll = retr.collection
     assert coll.count() == len(df)
+    # Close retriever explicitly to release DB handles and background threads
+    close_fn = getattr(retr, "close", None)
+    if callable(close_fn):
+        close_fn()

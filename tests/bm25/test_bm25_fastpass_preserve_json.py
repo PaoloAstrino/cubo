@@ -35,3 +35,4 @@ def test_fastpass_python_preserve_json(tmp_path: Path, monkeypatch):
     # check that JSON exists
     assert os.path.exists(result["chunks_jsonl"])
     assert os.path.exists(result["bm25_stats"])
+

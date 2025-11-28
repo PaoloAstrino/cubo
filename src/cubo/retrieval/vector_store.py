@@ -13,6 +13,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -83,19 +84,60 @@ class DocumentCache:
 
 # Module-level executor for async operations (lazy initialized)
 _promotion_executor: Optional[ThreadPoolExecutor] = None
+_promotion_executor_users: int = 0
 _promotion_lock = threading.Lock()
 
 
 def _get_promotion_executor() -> ThreadPoolExecutor:
     """Get or create the shared ThreadPoolExecutor for async promotions."""
-    global _promotion_executor
-    if _promotion_executor is None:
-        with _promotion_lock:
-            if _promotion_executor is None:
-                _promotion_executor = ThreadPoolExecutor(
-                    max_workers=1, thread_name_prefix="faiss_promote"
-                )
-    return _promotion_executor
+    # For backward compatibility, create executor if missing but do not change the
+    # active-user reference counter (increment is intentionally not performed here).
+    return start_promotion_executor(increment=False)
+
+
+def start_promotion_executor(increment: bool = True) -> ThreadPoolExecutor:
+    """Ensure a module-level promotion executor is running and return it.
+
+    If ``increment`` is true, this call registers another user of the executor
+    that must be balanced by a call to ``stop_promotion_executor`` to allow
+    complete shutdown.
+    """
+    global _promotion_executor, _promotion_executor_users
+    with _promotion_lock:
+        if _promotion_executor is None:
+            _promotion_executor = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="faiss_promote"
+            )
+        if increment:
+            _promotion_executor_users += 1
+        return _promotion_executor
+
+
+def stop_promotion_executor(force: bool = False) -> None:
+    """Unregister a user of the promotion executor and shutdown if no users remain.
+
+    If ``force`` is True, shutdown immediately regardless of active users.
+    """
+    global _promotion_executor, _promotion_executor_users
+    with _promotion_lock:
+        if force:
+            try:
+                if _promotion_executor is not None:
+                    _promotion_executor.shutdown(wait=False)
+            finally:
+                _promotion_executor = None
+                _promotion_executor_users = 0
+            return
+
+        if _promotion_executor_users > 0:
+            _promotion_executor_users -= 1
+        if _promotion_executor_users <= 0 and _promotion_executor is not None:
+            try:
+                _promotion_executor.shutdown(wait=False)
+            except Exception:
+                pass
+            _promotion_executor = None
+            _promotion_executor_users = 0
 
 
 class VectorStore:
@@ -223,6 +265,10 @@ class FaissStore(VectorStore):
         self._pending_promotions: Set[str] = set()
         self._promotion_lock = threading.Lock()
         self._promotion_in_progress = False
+        # Register as an active user of the module-level executor so that
+        # background threads are present while the instance exists.
+        start_promotion_executor(increment=True)
+        self._closed = False
 
         # LRU cache for fast access to frequently-queried documents
         cache_size = int(config.get("document_cache_size", 1000))
@@ -529,6 +575,7 @@ class FaissStore(VectorStore):
             # Start async promotion if there are pending items
             if self._pending_promotions:
                 self._promotion_in_progress = True
+                # Ensure executor is present but do not increment user counter
                 executor = _get_promotion_executor()
                 executor.submit(self._run_async_promotion)
 
@@ -632,10 +679,32 @@ class FaissStore(VectorStore):
         )
         self._index.hot_fraction = self.hot_fraction
 
-        # Clear SQLite database
-        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            conn.execute("DELETE FROM documents")
-            conn.commit()
+        # Clear SQLite database; ensure index dir exists and attempt retry in case of transient locks
+        try:
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+        # Ensure DB tables exist (init will create the documents table if missing)
+        try:
+            self._init_document_db()
+        except Exception:
+            pass
+
+        max_attempts = 5
+        for attempt in range(1, max_attempts + 1):
+            try:
+                with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                    conn.execute("DELETE FROM documents")
+                    conn.commit()
+                break
+            except sqlite3.OperationalError as e:
+                # If the table doesn't exist, nothing to clear - exit gracefully
+                if "no such table" in str(e).lower():
+                    break
+                if attempt == max_attempts:
+                    raise
+                time.sleep(0.05 * attempt)
 
         # Clear caches
         self._doc_cache.clear()
@@ -649,6 +718,9 @@ class FaissStore(VectorStore):
                 os.remove(str(emb_path))
             except Exception:
                 pass
+
+        # Note: we do not shutdown the module-level executor here; use close()
+        # to properly unregister and shutdown when an instance is destroyed.
 
     def delete(self, ids=None) -> None:
         """Delete entries from the FAISS store."""
@@ -679,6 +751,37 @@ class FaissStore(VectorStore):
                 self.reset()
         else:
             self.reset()
+
+    def close(self, persist: bool = False) -> None:
+        """Shutdown resources used by this FaissStore instance.
+
+        This will unregister the instance from the module-level promotion
+        executor, and optionally persist the index files.
+        """
+        if getattr(self, "_closed", False):
+            return
+        try:
+            if persist:
+                try:
+                    self._index.save()
+                except Exception:
+                    pass
+            # Clear caches
+            self._doc_cache.clear()
+            self._embeddings.clear()
+            self._access_counts.clear()
+            # Release index references so GC can collect them
+            try:
+                self._index = None  # type: ignore
+            except Exception:
+                pass
+        finally:
+            # Unregister from the module-level executor and potentially shut it down
+            try:
+                stop_promotion_executor()
+            except Exception:
+                pass
+            self._closed = True
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Return document cache statistics for monitoring."""

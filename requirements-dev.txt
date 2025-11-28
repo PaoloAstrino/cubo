@@ -19,7 +19,6 @@ pyinstaller  # For building executables
 
 # Optional dependencies
 onnxruntime  # Optional: ONNX runtime for embedding functions
-whoosh  # Optional Whoosh backend for BM25
 PySide6>=6.5.0  # For desktop GUI development
 reportlab>=4.0
 rouge-score  # For evaluating summaries

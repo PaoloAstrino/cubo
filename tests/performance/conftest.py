@@ -1,3 +1,23 @@
+import importlib
+import pytest
+from typing import Optional
+
+
+def pytest_ignore_collect(path, config) -> Optional[bool]:
+    """Ignore collecting performance tests when optional evaluation module missing.
+
+    Using pytest_ignore_collect prevents PyTest from importing module-level code in performance
+    tests, avoiding ModuleNotFoundError when optional packages are not installed.
+    """
+    # Only inspect files under 'tests/performance'
+    if "tests{}performance".format(("/")) in str(path).replace("\\", "/"):
+        try:
+            spec = importlib.util.find_spec("src.cubo.evaluation")
+        except Exception:
+            spec = None
+        if spec is None:
+            return True
+    return None
 import os
 from pathlib import Path
 

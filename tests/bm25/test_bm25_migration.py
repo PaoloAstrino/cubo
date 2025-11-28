@@ -3,21 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.retrieval.bm25_migration import convert_json_stats_to_whoosh
+from src.cubo.retrieval.bm25_migration import convert_json_stats_to_bm25
 from src.cubo.retrieval.bm25_python_store import BM25PythonStore
 
-try:
 
-    from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
-
-    WHOOSH_AVAILABLE = True
-except Exception:
-    WHOOSH_AVAILABLE = False
-
-
-@pytest.mark.requires_whoosh
-@pytest.mark.skipif(not WHOOSH_AVAILABLE, reason="Whoosh not installed")
-def test_json_to_whoosh_parity(tmp_path: Path):
+def test_json_to_bm25_parity(tmp_path: Path):
     # Create sample chunks JSONL
     chunks_path = tmp_path / "chunks.jsonl"
     docs = [
@@ -30,8 +20,8 @@ def test_json_to_whoosh_parity(tmp_path: Path):
             f.write(json.dumps(r) + "\n")
 
     # Convert to Whoosh
-    out_dir = str(tmp_path / "whoosh")
-    convert_json_stats_to_whoosh(str(tmp_path / "bm25_stats.json"), str(chunks_path), out_dir)
+    out_dir = str(tmp_path / "bm25")
+    convert_json_stats_to_bm25(str(tmp_path / "bm25_stats.json"), str(chunks_path), out_dir)
 
     # Compare parity of top-k with Python store
     py_store = BM25PythonStore()
@@ -39,12 +29,17 @@ def test_json_to_whoosh_parity(tmp_path: Path):
     prdocs = [{"doc_id": (r["filename"] + f"_{r['chunk_index']}"), "text": r["text"]} for r in docs]
     py_store.index_documents(prdocs)
 
-    whoosh_store = BM25WhooshStore(index_dir=out_dir)
+    # Use the Python store to validate parity
+    py_store2 = BM25PythonStore()
+    # Load docs from the output directory's chunks file
+    with open(Path(out_dir) / "chunks.jsonl", encoding="utf-8") as f:
+        out_docs = [json.loads(l) for l in f]
+    py_store2.index_documents([{"doc_id": d["doc_id"], "text": d["text"]} for d in out_docs])
 
     q = "apples"
     py_res = py_store.search(q, top_k=3)
-    who_res = whoosh_store.search(q, top_k=3)
 
     # Ensure at least the top doc id matches
-    if py_res and who_res:
-        assert py_res[0]["doc_id"] == who_res[0]["doc_id"]
+    out_res = py_store2.search(q, top_k=3)
+    if py_res and out_res:
+        assert py_res[0]["doc_id"] == out_res[0]["doc_id"]

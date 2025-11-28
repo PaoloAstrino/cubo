@@ -45,6 +45,9 @@ def test_add_documents_empty(mock_model, temp_db_path):
     retriever = DocumentRetriever(mock_model)
     retriever.add_documents([])  # Should not crash
     assert retriever.collection.count() == 0
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
 
 
 def test_add_documents_success(mock_model, temp_db_path):
@@ -57,6 +60,9 @@ def test_add_documents_success(mock_model, temp_db_path):
     docs = ["Test document 1", "Test document 2"]
     retriever.add_documents(docs)
     assert retriever.collection.count() == 2
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
 
 
 def test_retrieve_empty_query(mock_model, temp_db_path):
@@ -68,6 +74,9 @@ def test_retrieve_empty_query(mock_model, temp_db_path):
     retriever = DocumentRetriever(mock_model)
     result = retriever.retrieve_top_documents("")
     assert result == []
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
 
 
 def test_retrieve_no_documents(mock_model, temp_db_path):
@@ -79,6 +88,9 @@ def test_retrieve_no_documents(mock_model, temp_db_path):
     retriever = DocumentRetriever(mock_model)
     result = retriever.retrieve_top_documents("test query")
     assert result == []
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
 
 
 def test_retrieve_success(mock_model, temp_db_path):
@@ -95,6 +107,9 @@ def test_retrieve_success(mock_model, temp_db_path):
     result = retriever.retrieve_top_documents("test query")
     # Should return results (at least the document we added)
     assert len(result) >= 0
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
 
 
 def test_cache_persistence(mock_model, temp_db_path):
@@ -113,6 +128,12 @@ def test_cache_persistence(mock_model, temp_db_path):
     # Load new instance and check cache
     retriever2 = DocumentRetriever(mock_model)
     assert ("test", 3) in retriever2.query_cache
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
+    close_fn2 = getattr(retriever2, "close", None)
+    if callable(close_fn2):
+        close_fn2()
 
 
 def test_retrieve_uses_router_strategy(mock_model, temp_db_path):
@@ -143,6 +164,9 @@ def test_retrieve_uses_router_strategy(mock_model, temp_db_path):
 
     retriever._retrieve_sentence_window = fake_retrieve_sentence_window
     res = retriever.retrieve_top_documents("Test query", top_k=5)
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
     assert "strategy" in captured
     assert captured["strategy"]["k_candidates"] == 123
 
@@ -155,6 +179,9 @@ def test_reranker_initialization_with_crossencoder(mock_model, temp_db_path):
     retriever = DocumentRetriever(mock_model)
     # Default behavior may not initialize a reranker if dependencies aren't present. Ensure attribute exists
     assert hasattr(retriever, "reranker")
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
 
     # Patch config to use cross-encoder model and reinitialize
     with patch.object(
@@ -199,3 +226,25 @@ def test_apply_reranking_called_when_enabled(mock_model, temp_db_path):
         candidates, top_k=2, query="test", use_reranker=True
     )
     assert fake.called is True
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
+
+
+def test_retrieve_top_documents_accepts_k_kwarg(mock_model, temp_db_path):
+    """Ensure retrieve_top_documents accepts 'k' kwarg as backwards compatibility."""
+    config.set("vector_store_path", temp_db_path)
+    config.set("collection_name", "test_retrieve_accepts_k_kwarg")
+    config.set("vector_store_backend", "faiss")
+    config.set("index_dimension", 768)
+    retriever = DocumentRetriever(mock_model)
+    docs = ["Doc one", "Doc two", "Doc three"]
+    retriever.add_documents(docs)
+    try:
+        # Call with deprecated 'k' kwarg and ensure no TypeError is raised and function returns list
+        res = retriever.retrieve_top_documents("test query", k=2)
+        assert isinstance(res, list)
+    finally:
+        close_fn = getattr(retriever, "close", None)
+        if callable(close_fn):
+            close_fn()

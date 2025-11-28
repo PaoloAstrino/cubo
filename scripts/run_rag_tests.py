@@ -16,6 +16,8 @@ from typing import Any, Dict, List
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
+import subprocess
+from src.cubo.config import config
 import random
 
 from tqdm import tqdm
@@ -61,6 +63,10 @@ class RAGTester:
         data_folder: str = "data",
         ground_truth_file: str = None,
         mode: str = "full",
+        skip_index: bool = False,
+        index_batch_size: int = 32,
+        index_sample_size: int | None = None,
+        index_commit_size: int = 4096,
     ):
         """Initialize the tester with question data and CUBO system."""
         self.questions_file = questions_file
@@ -92,6 +98,14 @@ class RAGTester:
 
         # Initialize IR metrics evaluator
         self.ir_evaluator = IRMetricsEvaluator()
+
+        # Indexing and retrieval flags
+        self.skip_index = skip_index
+        self.index_batch_size = index_batch_size
+        self.index_sample_size = index_sample_size
+        self.index_commit_size = index_commit_size
+        # Auto-populate DB from corpus: when skip_index is True and collection lacks doc rows
+        self.auto_populate_db = False
 
         # Initialize CUBO system (skip for ingestion-only mode)
         self.cubo_app = None
@@ -125,7 +139,11 @@ class RAGTester:
 
             # Skip the setup wizard - assume system is already configured
             if not self.cubo_app.initialize_components():
-                logger.error("Failed to initialize CUBO components")
+                # If initialization fails (most likely due to model path missing), provide a helpful hint
+                logger.error(
+                    "Failed to initialize CUBO components (model or dependencies likely missing). "
+                    "If you have a prebuilt index and wish to skip indexing, ensure the embedding model is available at the configured model_path and the retriever collection is populated."
+                )
                 return
 
             # Load all documents from data folder
@@ -172,6 +190,58 @@ class RAGTester:
                 else:
                     logger.warning(f"Skipping invalid chunk format: {type(chunk)}")
 
+            # If skip_index flag is set, verify that retriever is already populated.
+            # If not, abort to avoid unexpectedly reindexing the entire corpus.
+            if getattr(self, "skip_index", False):
+                try:
+                    logger.info("skip_index=True: verifying existing retriever index has documents...")
+                    test_ctxs = None
+                    try:
+                        # Use the documented kwarg name 'top_k' (not 'k') to avoid TypeErrors
+                        test_ctxs = self.cubo_app.retriever.retrieve_top_documents("test", top_k=1)
+                    except Exception as e:
+                        # Some retrievers may require valid content or raise exceptions; treat as failure
+                        logger.warning(f"retriever.retrieve_top_documents failed during verification: {e}")
+                        test_ctxs = None
+                    if not test_ctxs:
+                        logger.error("skip_index is True but retriever appears to be empty. Aborting tests to avoid reindexing.")
+                        # Optionally, auto-populate DB from corpus if enabled and corpus is present
+                        try:
+                            beir_corpus = os.path.join(self.data_folder, "corpus.jsonl")
+                            if getattr(self, "auto_populate_db", False) and os.path.exists(beir_corpus):
+                                logger.info("Auto-populate enabled and BEIR corpus found; attempting to populate documents DB from corpus...")
+                                index_dir = config.get("vector_store_path", "./faiss_index")
+                                cmd = [
+                                    sys.executable,
+                                    "scripts/populate_documents_db_from_beir.py",
+                                    "--index-dir",
+                                    index_dir,
+                                    "--corpus",
+                                    beir_corpus,
+                                    "--commit-size",
+                                    str(getattr(self, "index_commit_size", 4096)),
+                                ]
+                                logger.info(f"Running populate script: {' '.join(cmd)}")
+                                subprocess.run(cmd, check=True)
+                                # Re-check retriever after running population script
+                                try:
+                                    test_ctxs = self.cubo_app.retriever.retrieve_top_documents(
+                                        "test", top_k=1
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"retriever.retrieve_top_documents still failing after populate: {e}")
+                            if not test_ctxs:
+                                raise RuntimeError(
+                                    "skip_index set but retriever returned no documents. Run ingestion or remove --skip-index to reindex."
+                                )
+                        except subprocess.CalledProcessError as se:
+                            logger.error(f"Auto-populate script failed: {se}")
+                            raise RuntimeError("Auto populate failed")
+                    logger.info("Retriever verified: found existing documents; skipping indexing as requested.")
+                except Exception:
+                    # Re-raise so initialization stops and we don't proceed unintentionally
+                    raise
+
             # Index using batch ingestion if collection supports adding meta/ids
             if (
                 isinstance(documents, list)
@@ -199,7 +269,8 @@ class RAGTester:
             logger.info("CUBO system ready for testing!")
 
         except Exception as e:
-            logger.error(f"Failed to initialize CUBO system: {e}")
+            # Log full exception details for easier debugging when initialization fails
+            logger.error(f"Failed to initialize CUBO system: {e}", exc_info=True)
             self.cubo_app = None
 
     def load_questions(self) -> Dict[str, Any]:
@@ -932,6 +1003,19 @@ def main():
         default=4096,
         help="Number of documents to commit per vector store.add() call (avoids frequent FAISS re-train warnings)",
     )
+    parser.add_argument(
+        "--auto-populate-db",
+        dest="auto_populate_db",
+        action="store_true",
+        default=None,
+        help="If --skip-index and the vector store exists but documents DB is empty, automatically populate DB from BEIR corpus.jsonl",
+    )
+    parser.add_argument(
+        "--no-auto-populate-db",
+        dest="auto_populate_db",
+        action="store_false",
+        help="If supplied, do not auto-populate DB when --skip-index is used",
+    )
 
     args = parser.parse_args()
 
@@ -940,7 +1024,14 @@ def main():
 
     # Initialize tester with data folder
     tester = RAGTester(
-        args.questions, args.data_folder, ground_truth_file=args.ground_truth, mode=args.mode
+        args.questions,
+        args.data_folder,
+        ground_truth_file=args.ground_truth,
+        mode=args.mode,
+        skip_index=args.skip_index,
+        index_batch_size=args.index_batch_size,
+        index_sample_size=args.index_sample_size,
+        index_commit_size=args.index_commit_size,
     )
 
     # Set indexing options
@@ -950,6 +1041,11 @@ def main():
     tester.skip_index = args.skip_index
     tester.save_processed_corpus = args.save_processed_corpus
     tester.index_commit_size = args.index_commit_size
+    # Default behavior: auto-populate if skip-index, unless user used --no-auto-populate-db
+    if args.auto_populate_db is None:
+        tester.auto_populate_db = bool(args.skip_index)
+    else:
+        tester.auto_populate_db = bool(args.auto_populate_db)
 
     # Run tests
     results = tester.run_all_tests(

@@ -17,12 +17,6 @@ for i in range(100):
 end = time.time()
 print("Python BM25 avg ms:", (end - start) / 100 * 1000)
 
-# Test whoosh store if available
-whoosh = get_bm25_store("whoosh", index_dir="./whoosh_bench")
-if whoosh:
-    whoosh.index_documents(docs)
-    start = time.time()
-    for i in range(100):
-        whoosh.search(q, top_k=10)
-    end = time.time()
-    print("Whoosh BM25 avg ms:", (end - start) / 100 * 1000)
+# Additional alternative backends can be benchmarked by replacing the backend
+# name above. Whoosh backend has been removed; this benchmark focuses on the
+# Python BM25 implementation.

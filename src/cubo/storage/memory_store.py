@@ -126,3 +126,11 @@ class InMemoryCollection:
     def reset(self):
         """Clear all documents from the collection."""
         self._docs.clear()
+
+    def close(self):
+        """Close the in-memory collection. Provided for API parity with FaissStore.
+
+        This is a no-op for the in-memory implementation but allows callers to
+        use a uniform close() API across different backends.
+        """
+        self.reset()

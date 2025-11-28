@@ -176,35 +176,32 @@ python scripts/ingestion_service.py --interval 10
 
 The ingestion service uses the SQLite `metadata_db` to track run status.
 
-### BM25 Backend & Migration (Whoosh)
+### BM25 Backend & Migration (Python)
 
-We provide a plugin interface for BM25 that supports multiple backends. By default the Python backend is used, but you can switch to Whoosh for a more performant indexing and querying experience.
+We provide a plugin interface for BM25 that supports multiple backends. By default the Python backend is used for indexing and querying. There are helper utilities to convert and export BM25 indexing data as JSON for compatibility with other tooling.
 
 Configuration example (in `config.json`):
 
 ```json
    "bm25": {
-      "backend": "whoosh",
-      "whoosh_index_dir": "./whoosh_index",
+      "backend": "python",
       "preserve_bm25_stats_json": true
    }
 ```
 
-Migration CLI tools are provided to convert existing NDJSON/JSONL chunks into Whoosh indexes and to export back to JSON:
+Migration helpers are provided to convert NDJSON/JSONL chunks into a simple BM25 representation and to export it back to JSON:
 
-Convert chunks to Whoosh:
+Convert chunks to a BM25 representation:
 ```pwsh
-python scripts/convert_bm25_stats_to_whoosh.py --chunks data/fastpass/chunks.jsonl --whoosh-dir data/whoosh_index
+python -c "from src.cubo.retrieval.bm25_migration import convert_json_stats_to_bm25; convert_json_stats_to_bm25('data/bm25_stats.json', 'data/fastpass/chunks.jsonl', 'data/bm25_dir')"
 ```
 
-Export a Whoosh index to JSON lines for compatibility:
+Export a BM25 representation to JSON lines for compatibility:
 ```pwsh
-python scripts/export_whoosh_to_bm25_json.py --whoosh-dir data/whoosh_index --out-chunks data/fastpass/chunks_from_whoosh.jsonl
+python -c "from src.cubo.retrieval.bm25_migration import export_bm25_to_json; export_bm25_to_json('data/bm25_dir', 'data/fastpass/chunks_from_bm25.jsonl')"
 ```
 
-Note: The `FastPassIngestor` now takes `bm25.backend` from `config.json` and will attempt to build the configured backend during fast-pass ingestion; if you prefer to keep JSON stats (compatibility), set `bm25.preserve_bm25_stats_json` to true.
-
-When the Whoosh backend is enabled and `preserve_bm25_stats_json` is true, the ingestion path will also generate a JSON bm25_stats file to preserve compatibility with downstream tools.
+Note: The `FastPassIngestor` takes `bm25.backend` from `config.json` and will attempt to build the configured backend during fast-pass ingestion; if you prefer to keep JSON stats (compatibility), set `bm25.preserve_bm25_stats_json` to true.
 
 
 ### Semantic Query Router
@@ -311,7 +308,7 @@ Testing markers & CI notes
 
 - Use `pytest` markers to control environment-specific tests:
    - `requires_faiss`: Mark tests that require FAISS (dense retrieval) – CI will run these on a Linux runner with `faiss-cpu` installed.
-   - `requires_whoosh`: Mark Whoosh-dependent tests (BM25 Whoosh backend). These tests are automatically skipped when Whoosh is not present locally via `tests/conftest.py`.
+   - `requires_whoosh` (deprecated): This marker used to identify Whoosh-dependent tests. Whoosh backend has been removed, and Python BM25 backend is the default.
    - `integration` / `e2e`: Longer-running tests that exercise higher-level system behavior and are suitable for dedicated CI runners.
 
 - The CI pipeline has a `faiss_e2e` job that runs FAISS-dependent end-to-end tests (including a concurrent publisher/reader stress test) on `ubuntu-latest` with `faiss-cpu` installed.

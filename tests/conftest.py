@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import os
 
 ROOT = Path(__file__).parent.parent.resolve()
 if str(ROOT) not in sys.path:
@@ -19,12 +20,16 @@ except Exception:
     _FAISS_PRESENT = False
 
 
-# Optional: Determine if Whoosh is present; plugin tests that require Whoosh can be skipped when not present.
-try:
+# Whoosh (deprecated) is no longer used; remove detection logic
 
-    _WHOOSH_PRESENT = True
+
+# Optional: Determine if the evaluation package is present; performance tests rely on
+# the `src.cubo.evaluation` modules which may be optional in lightweight dev setups.
+try:
+    import src.cubo.evaluation  # noqa: F401
+    _EVALUATION_PRESENT = True
 except Exception:
-    _WHOOSH_PRESENT = False
+    _EVALUATION_PRESENT = False
 
 
 def pytest_collection_modifyitems(config, items):
@@ -35,13 +40,26 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "requires_faiss" in item.keywords:
                 item.add_marker(skip_faiss)
-    if not _WHOOSH_PRESENT:
-        skip_whoosh = pytest.mark.skip(
-            reason="Whoosh is not installed; skipping Whoosh-dependent tests"
+    # Whoosh support removed; no skip handling needed
+    if not _EVALUATION_PRESENT:
+        skip_eval = pytest.mark.skip(
+            reason="Evaluation package is not installed; skipping performance tests"
         )
         for item in items:
-            if "requires_whoosh" in item.keywords:
-                item.add_marker(skip_whoosh)
+            # Mark any test that is under tests/performance/ as skipped
+            if os.path.join("tests", "performance") in str(item.fspath):
+                item.add_marker(skip_eval)
+
+
+def pytest_runtest_teardown(item, nextitem):
+    """Force a garbage collection cycle after each test to ensure objects with
+    __del__ methods (e.g., DocumentRetriever) are finalized and file handles are
+    released. This is a lightweight precaution for Windows where file locks can
+    prevent cleanup of temporary directories.
+    """
+    import gc
+
+    gc.collect()
 
 
 @pytest.fixture
@@ -161,17 +179,7 @@ def mock_llm_client(monkeypatch):
     yield _DeterministicGenerator()
 
 
-@pytest.fixture(scope="function")
-def tmp_whoosh_index(tmp_path):
-    """Create a temporary Whoosh index for testing.
-
-    Returns the path to a temporary Whoosh index directory.
-    Tests can use this to avoid relying on the global whoosh_index/ directory.
-    """
-    index_dir = tmp_path / "whoosh_index"
-    index_dir.mkdir(parents=True, exist_ok=True)
-    yield str(index_dir)
-    # Cleanup happens automatically via tmp_path
+# tmp_whoosh_index fixture removed (Whoosh support removed)
 
 
 @pytest.fixture(scope="function")

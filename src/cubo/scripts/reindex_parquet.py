@@ -52,12 +52,6 @@ def main():
     if args.model_path:
         config.set("model_path", args.model_path)
 
-    generator = EmbeddingGenerator(batch_size=args.batch_size)
-    # We need the model for the retriever constructor, but retriever uses it for query encoding.
-    # Here we use generator for document encoding.
-    # Retriever constructor expects a model instance.
-    retriever = DocumentRetriever(generator.model)
-
     # Optionally wipe FAISS index directory (completely delete and recreate the folder)
     if args.wipe_db:
         index_path = config.get("vector_store_path", "./faiss_index")
@@ -68,6 +62,13 @@ def main():
             logger.info(f"Wiped FAISS index folder {index_path}")
         except Exception as e:
             logger.warning(f"Wipe failed or path not found {index_path}: {e}")
+
+    # Initialize the embedding generator (model is required for DocumentRetriever)
+    generator = EmbeddingGenerator(batch_size=args.batch_size)
+    # We need the model for the retriever constructor, but retriever uses it for query encoding.
+    # Here we use generator for document encoding.
+    # Retriever constructor expects a model instance.
+    retriever = DocumentRetriever(generator.model)
 
     if args.replace_collection:
         reset_fn = getattr(retriever.collection, "reset", None)
@@ -85,6 +86,10 @@ def main():
     logger.info(f"Adding {len(chunk_ids)} chunks to collection {args.collection}")
     retriever._add_chunks_to_collection(embeddings, texts, metadatas, chunk_ids, "reindex")
     logger.info(f"Inserted {len(chunk_ids)} items into collection {args.collection}")
+    # Close the retriever to release resources (threadpool, DB handles)
+    close_fn = getattr(retriever, "close", None)
+    if callable(close_fn):
+        close_fn()
 
 
 if __name__ == "__main__":

@@ -48,6 +48,8 @@ class BenchmarkRunner:
         retry_backoff: float = 2.0,
         skip_existing: bool = False,
         force: bool = False,
+        skip_index: bool = False,
+        auto_populate_db: bool = False,
     ):
         self.datasets = datasets
         self.retrieval_configs = retrieval_configs
@@ -61,6 +63,8 @@ class BenchmarkRunner:
         self.retry_backoff = float(retry_backoff)
         self.skip_existing = bool(skip_existing)
         self.force = bool(force)
+        self.skip_index = bool(skip_index)
+        self.auto_populate_db = bool(auto_populate_db)
 
     def _save_json_results(
         self, run_dir: Path, results: Dict[str, Any], filename: str = "run_results.json"
@@ -85,7 +89,13 @@ class BenchmarkRunner:
         config.update(config_updates)  # Config.update merges nested dicts
 
     def _run_with_retries(
-        self, cmd: List[str], cwd: str = None, max_retries: int = 3, backoff: float = 2.0
+        self,
+        cmd: List[str],
+        cwd: str = None,
+        max_retries: int = 3,
+        backoff: float = 2.0,
+        stdout_path: str | None = None,
+        stderr_path: str | None = None,
     ):
         """Run a subprocess command with retries and linear backoff.
 
@@ -97,8 +107,20 @@ class BenchmarkRunner:
         for attempt in range(1, int(max_retries) + 1):
             attempts = attempt
             try:
-                logger.info(f"Running command (attempt {attempt}/{max_retries}): {' '.join(cmd)}")
-                subprocess.run(cmd, cwd=cwd, check=True)
+                logger.info(
+                    f"Running command (attempt {attempt}/{max_retries}): {' '.join(cmd)}"
+                )
+                if stdout_path or stderr_path:
+                    # Ensure dir exists
+                    pstdout = open(stdout_path, 'a', encoding='utf-8') if stdout_path else subprocess.DEVNULL
+                    pstderr = open(stderr_path, 'a', encoding='utf-8') if stderr_path else subprocess.DEVNULL
+                    subprocess.run(cmd, cwd=cwd, check=True, stdout=pstdout, stderr=pstderr)
+                    if stdout_path:
+                        pstdout.close()
+                    if stderr_path:
+                        pstderr.close()
+                else:
+                    subprocess.run(cmd, cwd=cwd, check=True)
                 return True, attempts, None
             except subprocess.CalledProcessError as e:
                 last_error = str(e)
@@ -175,7 +197,12 @@ class BenchmarkRunner:
                     "--fast-pass",
                 ]
                 succeeded, attempts, err = self._run_with_retries(
-                    ingest_cmd, cwd=None, max_retries=self.max_retries, backoff=self.retry_backoff
+                    ingest_cmd,
+                    cwd=None,
+                    max_retries=self.max_retries,
+                    backoff=self.retry_backoff,
+                    stdout_path=str(run_dir / 'ingest_stdout.log'),
+                    stderr_path=str(run_dir / 'ingest_stderr.log'),
                 )
                 if succeeded:
                     try:
@@ -214,6 +241,10 @@ class BenchmarkRunner:
                 "--output",
                 str(run_dir / "test_results.json"),
             ]
+            if self.skip_index:
+                test_cmd.append("--skip-index")
+                if getattr(self, "auto_populate_db", False):
+                    test_cmd.append("--auto-populate-db")
             if ground_truth:
                 test_cmd += ["--ground-truth", ground_truth]
             if ds.get("easy_limit"):
@@ -223,23 +254,28 @@ class BenchmarkRunner:
             if ds.get("hard_limit"):
                 test_cmd += ["--hard-limit", str(ds.get("hard_limit"))]
 
-                succeeded, attempts, err = self._run_with_retries(
-                    test_cmd, cwd=None, max_retries=self.max_retries, backoff=self.retry_backoff
-                )
-                if succeeded:
-                    try:
-                        with open(run_dir / "test_results.json", encoding="utf-8") as f:
-                            run_results = json.load(f)
-                    except Exception as ex:
-                        logger.error(f"Failed to load test_results.json: {ex}")
-                        run_results = {
-                            "success": False,
-                            "error": "result_file_missing",
-                            "attempts": attempts,
-                        }
-                else:
-                    logger.error(f"Test run failed after {attempts} attempts: {err}")
-                    run_results = {"success": False, "error": str(err), "attempts": attempts}
+            succeeded, attempts, err = self._run_with_retries(
+                test_cmd,
+                cwd=None,
+                max_retries=self.max_retries,
+                backoff=self.retry_backoff,
+                stdout_path=str(run_dir / 'test_stdout.log'),
+                stderr_path=str(run_dir / 'test_stderr.log'),
+            )
+            if succeeded:
+                try:
+                    with open(run_dir / "test_results.json", encoding="utf-8") as f:
+                        run_results = json.load(f)
+                except Exception as ex:
+                    logger.error(f"Failed to load test_results.json: {ex}")
+                    run_results = {
+                        "success": False,
+                        "error": "result_file_missing",
+                        "attempts": attempts,
+                    }
+            else:
+                logger.error(f"Test run failed after {attempts} attempts: {err}")
+                run_results = {"success": False, "error": str(err), "attempts": attempts}
 
             # Ensure run_results is a dict even if the run failed early
             if run_results is None:
@@ -378,6 +414,30 @@ def main():
     parser.add_argument(
         "--force", action="store_true", help="Remove existing run directory and force re-run"
     )
+    parser.add_argument(
+        "--skip-index",
+        action="store_true",
+        help="Pass --skip-index to run_rag_tests.py to avoid reindexing during test subprocesses",
+    )
+    parser.add_argument(
+        "--skip-ingest",
+        action="store_true",
+        help="Do not run ingestion subprocess before retrieval tests (assume vector store is already populated)",
+    )
+
+    parser.add_argument(
+        "--auto-populate-db",
+        dest="auto_populate_db",
+        action="store_true",
+        default=None,
+        help="Automatically populate documents.db from BEIR corpus when --skip-index is used and DB is empty. Default is to auto-populate when --skip-index is used unless set with --no-auto-populate-db",
+    )
+    parser.add_argument(
+        "--no-auto-populate-db",
+        dest="auto_populate_db",
+        action="store_false",
+        help="Disable auto-population of documents.db when --skip-index is used",
+    )
 
     parser.add_argument(
         "--questions",
@@ -406,13 +466,20 @@ def main():
         retry_backoff=args.retry_backoff,
         skip_existing=args.skip_existing,
         force=args.force,
+        skip_index=args.skip_index,
+        auto_populate_db=args.auto_populate_db,
     )
+    # Default auto-populate behavior: if not explicitly set, enable when skip-index is used
+    if args.auto_populate_db is None:
+        runner.auto_populate_db = bool(args.skip_index)
+    else:
+        runner.auto_populate_db = bool(args.auto_populate_db)
     # If a global questions file provided, assign to each dataset if absent
     if args.questions:
         for ds in datasets:
             if "questions" not in ds:
                 ds["questions"] = args.questions
-    runner.run(run_ingest_first=True)
+    runner.run(run_ingest_first=not args.skip_ingest)
 
 
 if __name__ == "__main__":

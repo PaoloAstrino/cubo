@@ -1,18 +1,10 @@
 import pytest
 
-try:
 
-    WHOOSH_AVAILABLE = True
-except Exception:
-    WHOOSH_AVAILABLE = False
+def test_bm25_python_store_basic(tmp_path):
+    from src.cubo.retrieval.bm25_python_store import BM25PythonStore
 
-
-@pytest.mark.requires_whoosh
-@pytest.mark.skipif(not WHOOSH_AVAILABLE, reason="Whoosh not installed")
-def test_whoosh_store_basic(tmp_path):
-    from src.cubo.retrieval.bm25_whoosh_store import BM25WhooshStore
-
-    st = BM25WhooshStore(index_dir=str(tmp_path))
+    st = BM25PythonStore()
     docs = [
         {"doc_id": "a", "text": "apples and bananas"},
         {"doc_id": "b", "text": "cars and bikes"},
