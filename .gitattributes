@@ -25,6 +25,5 @@
 *.docx binary
 *.xlsx binary
 
-# Lock files - treat as binary to avoid merge conflicts
-package-lock.json binary
+# Lock files - treat as binary to avoid merge conflicts (we standardize on pnpm)
 pnpm-lock.yaml binary
