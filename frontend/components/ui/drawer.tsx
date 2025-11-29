@@ -1,73 +1,3 @@
-"use client"
-
-import * as React from 'react'
-import { Sheet, SheetTrigger, SheetPortal, SheetOverlay, SheetContent, SheetClose, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from './sheet'
-
-import { cn } from '@/lib/utils'
-
-// Simple Drawer wrapper implemented on top of Radix Sheet (Dialog primitive)
-const Drawer = ({ shouldScaleBackground = true, children, ...props }: React.PropsWithChildren<React.ComponentProps<typeof Sheet>> & { shouldScaleBackground?: boolean }) => (
-  <Sheet {...props}>{children}</Sheet>
-)
-Drawer.displayName = 'Drawer'
-
-const DrawerTrigger = SheetTrigger
-const DrawerPortal = SheetPortal
-const DrawerOverlay = SheetOverlay
-const DrawerClose = SheetClose
-const DrawerContent = SheetContent
-const DrawerHeader = SheetHeader
-const DrawerFooter = SheetFooter
-const DrawerTitle = SheetTitle
-const DrawerDescription = SheetDescription
-
-export {
-  Drawer,
-  DrawerPortal,
-  DrawerOverlay,
-  DrawerTrigger,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerFooter,
-  DrawerTitle,
-  DrawerDescription,
-}
-"use client"
-
-import * as React from 'react'
-import { Sheet, SheetTrigger, SheetPortal, SheetOverlay, SheetContent, SheetClose, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from './sheet'
-
-import { cn } from '@/lib/utils'
-
-// Simple Drawer wrapper implemented on top of Radix Sheet (Dialog primitive)
-const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof Sheet>) => (
-  <Sheet {...props} />
-)
-Drawer.displayName = 'Drawer'
-
-const DrawerTrigger = SheetTrigger
-const DrawerPortal = SheetPortal
-const DrawerOverlay = SheetOverlay
-const DrawerClose = SheetClose
-const DrawerContent = SheetContent
-const DrawerHeader = SheetHeader
-const DrawerFooter = SheetFooter
-const DrawerTitle = SheetTitle
-const DrawerDescription = SheetDescription
-
-export {
-  Drawer,
-  DrawerPortal,
-  DrawerOverlay,
-  DrawerTrigger,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerFooter,
-  DrawerTitle,
-  DrawerDescription,
-}
 'use client'
 
 import * as React from 'react'
@@ -87,10 +17,12 @@ const Drawer = ({
 Drawer.displayName = 'Drawer'
 
 const DrawerTrigger = DrawerPrimitive.Trigger
+DrawerTrigger.displayName = 'DrawerTrigger'
 
 const DrawerPortal = DrawerPrimitive.Portal
 
 const DrawerClose = DrawerPrimitive.Close
+DrawerClose.displayName = 'DrawerClose'
 
 const DrawerOverlay = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Overlay>,
@@ -102,7 +34,7 @@ const DrawerOverlay = React.forwardRef<
     {...props}
   />
 ))
-DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
+DrawerOverlay.displayName = 'DrawerOverlay'
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
@@ -160,7 +92,7 @@ const DrawerTitle = React.forwardRef<
     {...props}
   />
 ))
-DrawerTitle.displayName = DrawerPrimitive.Title.displayName
+DrawerTitle.displayName = 'DrawerTitle'
 
 const DrawerDescription = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Description>,
@@ -172,7 +104,7 @@ const DrawerDescription = React.forwardRef<
     {...props}
   />
 ))
-DrawerDescription.displayName = DrawerPrimitive.Description.displayName
+DrawerDescription.displayName = 'DrawerDescription'
 
 export {
   Drawer,

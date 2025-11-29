@@ -1,4 +1,6 @@
-import { Calendar, Home, Inbox, Search, Settings, Upload, MessageSquare } from "lucide-react"
+import Link from "next/link"
+import { Home, Settings, Upload, MessageSquare } from "lucide-react"
+import { CuboLogo } from "@/components/cubo-logo"
 
 import {
     Sidebar,
@@ -9,6 +11,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarHeader,
 } from "@/components/ui/sidebar"
 
 // Menu items.
@@ -38,18 +41,24 @@ const items = [
 export function AppSidebar() {
     return (
         <Sidebar>
+            <SidebarHeader className="border-b px-4 py-3">
+                <Link href="/" className="flex items-center gap-3 group">
+                    <CuboLogo size={32} className="transition-transform group-hover:scale-105" />
+                    <span className="text-lg font-bold tracking-tight">CUBO</span>
+                </Link>
+            </SidebarHeader>
             <SidebarContent>
                 <SidebarGroup>
-                    <SidebarGroupLabel className="text-lg font-bold h-12">Cubo App</SidebarGroupLabel>
+                    <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground">Navigation</SidebarGroupLabel>
                     <SidebarGroupContent>
                         <SidebarMenu>
                             {items.map((item) => (
                                 <SidebarMenuItem key={item.title}>
                                     <SidebarMenuButton asChild size="lg">
-                                        <a href={item.url} className="text-md font-medium">
+                                        <Link href={item.url} className="text-md font-medium">
                                             <item.icon className="w-6 h-6" />
                                             <span>{item.title}</span>
-                                        </a>
+                                        </Link>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                             ))}

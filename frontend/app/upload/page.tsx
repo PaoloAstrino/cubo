@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import { uploadFile, ingestDocuments, buildIndex, getDocuments } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
@@ -129,8 +130,16 @@ export default function UploadPage() {
                 <CardContent>
                     <ScrollArea className="h-[500px] pr-4">
                         {isLoading ? (
-                            <div className="flex items-center justify-center h-32 text-muted-foreground">
-                                Loading...
+                            <div className="space-y-2">
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                    <div key={i} className="flex items-center gap-3 p-3 border rounded-lg">
+                                        <Skeleton className="h-10 w-10 rounded-lg" />
+                                        <div className="flex-1">
+                                            <Skeleton className="h-5 w-48" />
+                                            <Skeleton className="h-3 w-32 mt-1" />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         ) : documents.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground border-2 border-dashed rounded-lg">
