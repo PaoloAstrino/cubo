@@ -155,6 +155,8 @@ class QueryRequest(BaseModel):
     retrieval_strategy: str = Field(
         "hybrid", description="Retrieval strategy: 'hybrid', 'dense', or 'sparse'"
     )
+    # Collection filtering
+    collection_id: Optional[str] = Field(None, description="Filter results to specific collection")
 
 
 class QueryResponse(BaseModel):
@@ -219,6 +221,37 @@ class DocumentResponse(BaseModel):
     name: str
     size: str
     uploadDate: str
+
+
+# Collection Models
+class CollectionCreate(BaseModel):
+    """Request model for creating a collection."""
+
+    name: str = Field(..., min_length=1, max_length=100, description="Collection name")
+    color: str = Field("#2563eb", description="Hex color for visual representation")
+
+
+class CollectionResponse(BaseModel):
+    """Response model for a collection."""
+
+    id: str
+    name: str
+    color: str
+    created_at: str
+    document_count: int
+
+
+class AddDocumentsToCollectionRequest(BaseModel):
+    """Request model for adding documents to a collection."""
+
+    document_ids: List[str] = Field(..., description="List of document IDs to add")
+
+
+class AddDocumentsResponse(BaseModel):
+    """Response model for adding documents."""
+
+    added_count: int
+    already_in_collection: int
 
 
 # API Endpoints
@@ -424,6 +457,183 @@ async def list_documents(request: Request = None):
         except Exception as e:
             logger.error(f"List documents failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
+
+
+# =========================================================================
+# Collection Endpoints
+# =========================================================================
+
+
+@app.get("/api/collections", response_model=List[CollectionResponse])
+async def list_collections(request: Request = None):
+    """List all document collections with their document counts."""
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        try:
+            if not cubo_app or not cubo_app.vector_store:
+                return []
+            
+            collections = cubo_app.vector_store.list_collections()
+            return [CollectionResponse(**c) for c in collections]
+        except Exception as e:
+            logger.error(f"List collections failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to list collections: {str(e)}")
+
+
+@app.post("/api/collections", response_model=CollectionResponse)
+async def create_collection(collection_data: CollectionCreate, request: Request = None):
+    """Create a new document collection."""
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        try:
+            if not cubo_app or not cubo_app.vector_store:
+                raise HTTPException(status_code=503, detail="CUBO app not initialized")
+            
+            collection = cubo_app.vector_store.create_collection(
+                name=collection_data.name,
+                color=collection_data.color
+            )
+            logger.info(f"Created collection: {collection['name']}")
+            return CollectionResponse(**collection)
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        except Exception as e:
+            logger.error(f"Create collection failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to create collection: {str(e)}")
+
+
+@app.get("/api/collections/{collection_id}", response_model=CollectionResponse)
+async def get_collection(collection_id: str, request: Request = None):
+    """Get a specific collection by ID."""
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        try:
+            if not cubo_app or not cubo_app.vector_store:
+                raise HTTPException(status_code=503, detail="CUBO app not initialized")
+            
+            collection = cubo_app.vector_store.get_collection(collection_id)
+            if not collection:
+                raise HTTPException(status_code=404, detail="Collection not found")
+            
+            return CollectionResponse(**collection)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Get collection failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to get collection: {str(e)}")
+
+
+@app.delete("/api/collections/{collection_id}")
+async def delete_collection(collection_id: str, request: Request = None):
+    """Delete a collection (documents remain in store, just unlinked)."""
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        try:
+            if not cubo_app or not cubo_app.vector_store:
+                raise HTTPException(status_code=503, detail="CUBO app not initialized")
+            
+            deleted = cubo_app.vector_store.delete_collection(collection_id)
+            if not deleted:
+                raise HTTPException(status_code=404, detail="Collection not found")
+            
+            logger.info(f"Deleted collection: {collection_id}")
+            return {"status": "deleted", "collection_id": collection_id}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Delete collection failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to delete collection: {str(e)}")
+
+
+@app.post("/api/collections/{collection_id}/documents", response_model=AddDocumentsResponse)
+async def add_documents_to_collection(
+    collection_id: str, request_data: AddDocumentsToCollectionRequest, request: Request = None
+):
+    """Add documents to a collection by their IDs."""
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        try:
+            if not cubo_app or not cubo_app.vector_store:
+                raise HTTPException(status_code=503, detail="CUBO app not initialized")
+            
+            # Check collection exists
+            collection = cubo_app.vector_store.get_collection(collection_id)
+            if not collection:
+                raise HTTPException(status_code=404, detail="Collection not found")
+            
+            result = cubo_app.vector_store.add_documents_to_collection(
+                collection_id, request_data.document_ids
+            )
+            logger.info(f"Added {result['added_count']} documents to collection {collection_id}")
+            return AddDocumentsResponse(**result)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Add documents to collection failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to add documents: {str(e)}")
+
+
+@app.delete("/api/collections/{collection_id}/documents")
+async def remove_documents_from_collection(
+    collection_id: str, request_data: AddDocumentsToCollectionRequest, request: Request = None
+):
+    """Remove documents from a collection."""
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        try:
+            if not cubo_app or not cubo_app.vector_store:
+                raise HTTPException(status_code=503, detail="CUBO app not initialized")
+            
+            # Check collection exists
+            collection = cubo_app.vector_store.get_collection(collection_id)
+            if not collection:
+                raise HTTPException(status_code=404, detail="Collection not found")
+            
+            removed_count = cubo_app.vector_store.remove_documents_from_collection(
+                collection_id, request_data.document_ids
+            )
+            logger.info(f"Removed {removed_count} documents from collection {collection_id}")
+            return {"removed_count": removed_count}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Remove documents from collection failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to remove documents: {str(e)}")
+
+
+@app.get("/api/collections/{collection_id}/documents")
+async def get_collection_documents(collection_id: str, request: Request = None):
+    """Get all document IDs in a collection."""
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+
+    with trace_context(trace_id):
+        try:
+            if not cubo_app or not cubo_app.vector_store:
+                raise HTTPException(status_code=503, detail="CUBO app not initialized")
+            
+            # Check collection exists
+            collection = cubo_app.vector_store.get_collection(collection_id)
+            if not collection:
+                raise HTTPException(status_code=404, detail="Collection not found")
+            
+            doc_ids = cubo_app.vector_store.get_collection_documents(collection_id)
+            return {"collection_id": collection_id, "document_ids": doc_ids, "count": len(doc_ids)}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Get collection documents failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to get documents: {str(e)}")
+
+
+# =========================================================================
+# End Collection Endpoints
+# =========================================================================
 
 
 @app.post("/api/ingest", response_model=IngestResponse)
@@ -658,10 +868,28 @@ async def query(request_data: QueryRequest, request: Request = None):
                     detail="Vector index empty. Please run /api/build-index to initialize the index before querying.",
                 )
 
+            # Build where filter for collection if specified
+            where_filter = None
+            if request_data.collection_id and cubo_app.vector_store:
+                filenames = cubo_app.vector_store.get_document_filenames_in_collection(
+                    request_data.collection_id
+                )
+                if filenames:
+                    where_filter = {"filename": {"$in": filenames}}
+                    logger.info(f"Filtering query to collection {request_data.collection_id} ({len(filenames)} files)")
+                else:
+                    logger.warning(f"Collection {request_data.collection_id} has no documents")
+
             # Retrieve documents using the correct method
-            retrieved_docs = cubo_app.retriever.retrieve_top_documents(
-                query=request_data.query, top_k=request_data.top_k, trace_id=trace_id
-            )
+            retrieve_kwargs = {
+                "query": request_data.query,
+                "top_k": request_data.top_k,
+                "trace_id": trace_id
+            }
+            if where_filter:
+                retrieve_kwargs["where"] = where_filter
+            
+            retrieved_docs = cubo_app.retriever.retrieve_top_documents(**retrieve_kwargs)
 
             logger.info(f"Retrieved {len(retrieved_docs)} documents")
 

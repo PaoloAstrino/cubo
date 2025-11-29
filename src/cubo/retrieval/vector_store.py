@@ -293,7 +293,7 @@ class FaissStore(VectorStore):
         self._promotion_in_progress = False
 
     def _init_document_db(self) -> None:
-        """Initialize SQLite database for document storage."""
+        """Initialize SQLite database for document storage and collections."""
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             conn.execute(
                 """
@@ -305,6 +305,34 @@ class FaissStore(VectorStore):
             """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_id ON documents(id)")
+            
+            # Collections table for organizing documents into containers
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS collections (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    color TEXT DEFAULT '#2563eb'
+                )
+            """
+            )
+            
+            # Junction table linking documents to collections
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS collection_documents (
+                    collection_id TEXT NOT NULL,
+                    document_id TEXT NOT NULL,
+                    added_at TEXT NOT NULL,
+                    PRIMARY KEY (collection_id, document_id),
+                    FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+                )
+            """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_coll_doc_coll ON collection_documents(collection_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_coll_doc_doc ON collection_documents(document_id)")
             conn.commit()
 
     def _load_embeddings_from_disk(self) -> None:
@@ -669,6 +697,236 @@ class FaissStore(VectorStore):
         """Load index from disk."""
         self._index.load(path)
         self._load_embeddings_from_disk()
+
+    # =========================================================================
+    # Collection Management Methods
+    # =========================================================================
+
+    def create_collection(self, name: str, color: str = "#2563eb") -> Dict[str, Any]:
+        """Create a new document collection.
+        
+        Args:
+            name: Unique name for the collection
+            color: Hex color for visual representation (default: brand blue)
+            
+        Returns:
+            Dict with collection id, name, color, and created_at
+            
+        Raises:
+            ValueError: If collection name already exists
+        """
+        import uuid
+        from datetime import datetime
+        
+        collection_id = str(uuid.uuid4())
+        created_at = datetime.utcnow().isoformat()
+        
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO collections (id, name, created_at, color) VALUES (?, ?, ?, ?)",
+                    (collection_id, name, created_at, color)
+                )
+                conn.commit()
+            except sqlite3.IntegrityError:
+                raise ValueError(f"Collection '{name}' already exists")
+        
+        return {
+            "id": collection_id,
+            "name": name,
+            "color": color,
+            "created_at": created_at,
+            "document_count": 0
+        }
+
+    def list_collections(self) -> List[Dict[str, Any]]:
+        """List all collections with document counts.
+        
+        Returns:
+            List of collection dicts with id, name, color, created_at, document_count
+        """
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT c.id, c.name, c.color, c.created_at,
+                       COUNT(cd.document_id) as document_count
+                FROM collections c
+                LEFT JOIN collection_documents cd ON c.id = cd.collection_id
+                GROUP BY c.id
+                ORDER BY c.created_at DESC
+                """
+            ).fetchall()
+            
+        return [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "color": row["color"],
+                "created_at": row["created_at"],
+                "document_count": row["document_count"]
+            }
+            for row in rows
+        ]
+
+    def get_collection(self, collection_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific collection by ID.
+        
+        Args:
+            collection_id: The collection's unique ID
+            
+        Returns:
+            Collection dict or None if not found
+        """
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT c.id, c.name, c.color, c.created_at,
+                       COUNT(cd.document_id) as document_count
+                FROM collections c
+                LEFT JOIN collection_documents cd ON c.id = cd.collection_id
+                WHERE c.id = ?
+                GROUP BY c.id
+                """,
+                (collection_id,)
+            ).fetchone()
+            
+        if row:
+            return {
+                "id": row["id"],
+                "name": row["name"],
+                "color": row["color"],
+                "created_at": row["created_at"],
+                "document_count": row["document_count"]
+            }
+        return None
+
+    def delete_collection(self, collection_id: str) -> bool:
+        """Delete a collection (documents remain in store, just unlinked).
+        
+        Args:
+            collection_id: The collection's unique ID
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            # Delete from junction table first (foreign key cascade would do this too)
+            conn.execute(
+                "DELETE FROM collection_documents WHERE collection_id = ?",
+                (collection_id,)
+            )
+            cursor = conn.execute(
+                "DELETE FROM collections WHERE id = ?",
+                (collection_id,)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def add_documents_to_collection(
+        self, collection_id: str, document_ids: List[str]
+    ) -> Dict[str, Any]:
+        """Add documents to a collection.
+        
+        Args:
+            collection_id: The collection's unique ID
+            document_ids: List of document IDs to add
+            
+        Returns:
+            Dict with added_count and already_in_collection count
+        """
+        from datetime import datetime
+        
+        added_at = datetime.utcnow().isoformat()
+        added_count = 0
+        already_exists = 0
+        
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            for doc_id in document_ids:
+                try:
+                    conn.execute(
+                        "INSERT INTO collection_documents (collection_id, document_id, added_at) VALUES (?, ?, ?)",
+                        (collection_id, doc_id, added_at)
+                    )
+                    added_count += 1
+                except sqlite3.IntegrityError:
+                    already_exists += 1
+            conn.commit()
+        
+        return {"added_count": added_count, "already_in_collection": already_exists}
+
+    def remove_documents_from_collection(
+        self, collection_id: str, document_ids: List[str]
+    ) -> int:
+        """Remove documents from a collection.
+        
+        Args:
+            collection_id: The collection's unique ID
+            document_ids: List of document IDs to remove
+            
+        Returns:
+            Number of documents removed
+        """
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            placeholders = ",".join("?" * len(document_ids))
+            cursor = conn.execute(
+                f"DELETE FROM collection_documents WHERE collection_id = ? AND document_id IN ({placeholders})",
+                [collection_id] + list(document_ids)
+            )
+            conn.commit()
+            return cursor.rowcount
+
+    def get_collection_documents(self, collection_id: str) -> List[str]:
+        """Get all document IDs in a collection.
+        
+        Args:
+            collection_id: The collection's unique ID
+            
+        Returns:
+            List of document IDs
+        """
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            rows = conn.execute(
+                "SELECT document_id FROM collection_documents WHERE collection_id = ? ORDER BY added_at DESC",
+                (collection_id,)
+            ).fetchall()
+        return [row[0] for row in rows]
+
+    def get_document_filenames_in_collection(self, collection_id: str) -> List[str]:
+        """Get all filenames of documents in a collection (for query filtering).
+        
+        Args:
+            collection_id: The collection's unique ID
+            
+        Returns:
+            List of unique filenames
+        """
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT d.metadata
+                FROM documents d
+                JOIN collection_documents cd ON d.id = cd.document_id
+                WHERE cd.collection_id = ?
+                """,
+                (collection_id,)
+            ).fetchall()
+        
+        filenames = set()
+        for row in rows:
+            try:
+                metadata = json.loads(row[0])
+                if "filename" in metadata:
+                    filenames.add(metadata["filename"])
+            except (json.JSONDecodeError, KeyError):
+                pass
+        
+        return list(filenames)
+
+    # =========================================================================
+    # End Collection Management Methods
+    # =========================================================================
 
     def reset(self) -> None:
         """Reset the store, clearing all data."""

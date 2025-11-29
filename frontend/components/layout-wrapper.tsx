@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -14,6 +15,14 @@ import {
     BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 
+function SidebarWithSuspense() {
+    return (
+        <Suspense fallback={<div className="w-64 border-r bg-background" />}>
+            <AppSidebar />
+        </Suspense>
+    )
+}
+
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
     const isLandingPage = pathname === "/"
@@ -24,7 +33,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
     return (
         <SidebarProvider>
-            <AppSidebar />
+            <SidebarWithSuspense />
             <SidebarInset>
                 <ConnectionStatus />
                 <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">

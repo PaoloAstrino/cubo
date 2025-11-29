@@ -8,6 +8,99 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json();
 }
 
+// =========================================================================
+// Collection Types
+// =========================================================================
+
+export interface Collection {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  document_count: number;
+}
+
+export interface CreateCollectionParams {
+  name: string;
+  color?: string;
+}
+
+export interface AddDocumentsResult {
+  added_count: number;
+  already_in_collection: number;
+}
+
+// =========================================================================
+// Collection API Methods
+// =========================================================================
+
+export async function getCollections(): Promise<Collection[]> {
+  const response = await fetch(`${API_BASE_URL}/api/collections`);
+  return handleResponse<Collection[]>(response);
+}
+
+export async function createCollection(params: CreateCollectionParams): Promise<Collection> {
+  const response = await fetch(`${API_BASE_URL}/api/collections`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  });
+  return handleResponse<Collection>(response);
+}
+
+export async function getCollection(collectionId: string): Promise<Collection> {
+  const response = await fetch(`${API_BASE_URL}/api/collections/${collectionId}`);
+  return handleResponse<Collection>(response);
+}
+
+export async function deleteCollection(collectionId: string): Promise<{ status: string; collection_id: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/collections/${collectionId}`, {
+    method: 'DELETE',
+  });
+  return handleResponse<{ status: string; collection_id: string }>(response);
+}
+
+export async function addDocumentsToCollection(
+  collectionId: string,
+  documentIds: string[]
+): Promise<AddDocumentsResult> {
+  const response = await fetch(`${API_BASE_URL}/api/collections/${collectionId}/documents`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ document_ids: documentIds }),
+  });
+  return handleResponse<AddDocumentsResult>(response);
+}
+
+export async function removeDocumentsFromCollection(
+  collectionId: string,
+  documentIds: string[]
+): Promise<{ removed_count: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/collections/${collectionId}/documents`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ document_ids: documentIds }),
+  });
+  return handleResponse<{ removed_count: number }>(response);
+}
+
+export async function getCollectionDocuments(
+  collectionId: string
+): Promise<{ collection_id: string; document_ids: string[]; count: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/collections/${collectionId}/documents`);
+  return handleResponse<{ collection_id: string; document_ids: string[]; count: number }>(response);
+}
+
+// =========================================================================
+// File Upload & Documents
+// =========================================================================
+
 export async function uploadFile(file: File): Promise<{ filename: string; size: number; message: string }> {
   const formData = new FormData();
   formData.append('file', file);
@@ -48,19 +141,25 @@ export async function query(params: {
   query: string;
   top_k?: number;
   use_reranker?: boolean;
+  collection_id?: string;
 }): Promise<{
   answer: string;
   sources: Array<{ content: string; score: number; metadata: Record<string, unknown> }>;
   trace_id: string;
   query_scrubbed: boolean;
 }> {
-  const { query: queryText, top_k = 5, use_reranker = true } = params;
+  const { query: queryText, top_k = 5, use_reranker = true, collection_id } = params;
   const response = await fetch(`${API_BASE_URL}/api/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query: queryText, top_k, use_reranker }),
+    body: JSON.stringify({ 
+      query: queryText, 
+      top_k, 
+      use_reranker,
+      ...(collection_id && { collection_id })
+    }),
   });
   
   return handleResponse<{
