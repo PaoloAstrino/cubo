@@ -10,18 +10,20 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { CuboLogo } from "@/components/cubo-logo"
 
-import { Empty } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { query, getDocuments, getReadiness, getTrace } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { SourcesList } from "@/components/sources-list"
+import { type Source } from "@/components/source-card"
 
 interface QueryResponse {
   answer: string;
-  sources: Array<{ text: string; metadata?: any }>;
+  sources: Source[];
   trace_id: string;
   query_scrubbed: boolean;
 }
@@ -75,7 +77,7 @@ export default function ChatPage() {
   // Poll readiness (retriever/generator) so we don't query until the RAG system is ready
   React.useEffect(() => {
     let mounted = true
-    let pollInterval: any
+    let pollInterval: ReturnType<typeof setInterval> | undefined
     const startPolling = async () => {
       try {
         const r = await getReadiness()
@@ -93,7 +95,7 @@ export default function ChatPage() {
             }
           }, 2000)
         }
-      } catch (e) {
+      } catch {
         // Ignore errors - we'll try again
       }
     }
@@ -208,9 +210,15 @@ export default function ChatPage() {
                     message.role === "user" ? "flex-row-reverse" : "flex-row"
                   )}
                 >
-                  <Avatar className="size-8 shrink-0">
-                    <AvatarFallback>{message.role === "user" ? "ME" : "AI"}</AvatarFallback>
-                  </Avatar>
+                  {message.role === "user" ? (
+                    <Avatar className="size-8 shrink-0">
+                      <AvatarFallback>ME</AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <div className="size-8 shrink-0 rounded-full overflow-hidden">
+                      <CuboLogo size={32} />
+                    </div>
+                  )}
                   <div
                     className={cn(
                       "flex flex-col gap-1 min-w-0 max-w-[80%]",
@@ -229,9 +237,7 @@ export default function ChatPage() {
                       {message.content}
                     </div>
                     {message.sources && message.sources.length > 0 && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {message.sources.length} sources • {message.trace_id && `trace: ${message.trace_id.slice(0, 8)}`}
-                      </div>
+                      <SourcesList sources={message.sources} />
                     )}
                     {message.trace_id && (
                       <div className="mt-1">
@@ -243,9 +249,9 @@ export default function ChatPage() {
               ))}
               {isLoading && (
                 <div className="flex gap-4">
-                  <Avatar className="size-8 shrink-0">
-                    <AvatarFallback>AI</AvatarFallback>
-                  </Avatar>
+                  <div className="size-8 shrink-0 rounded-full overflow-hidden">
+                    <CuboLogo size={32} />
+                  </div>
                   <div className="flex flex-col gap-1">
                     <Skeleton className="h-4 w-48" />
                     <Skeleton className="h-4 w-64" />
