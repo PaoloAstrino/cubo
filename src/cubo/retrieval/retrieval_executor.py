@@ -148,8 +148,13 @@ class RetrievalExecutor:
 
             updated_metadata = metadata.copy()
             updated_metadata["score_breakdown"] = score_breakdown
-
+            
+            # Add document ID to metadata for IR metrics
             doc_id = ids[i] if i < len(ids) else None
+            if doc_id:
+                updated_metadata["id"] = doc_id
+                updated_metadata["doc_id"] = doc_id
+
             candidates.append({
                 "id": doc_id,
                 "document": doc,

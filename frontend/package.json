@@ -1,5 +1,6 @@
 {
-  "name": "my-v0-project",
+  "name": "cubo-frontend",
+  "author": "Paolo <paoloastrino01@gmail.com>",
   "version": "0.1.0",
   "private": true,
   "scripts": {

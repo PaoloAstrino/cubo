@@ -24,6 +24,65 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+class CacheMetricsTracker:
+    """Track semantic cache hit/miss rates for benchmarking."""
+    
+    def __init__(self):
+        self.hits = 0
+        self.misses = 0
+        self.hit_latencies = []  # ms
+        self.miss_latencies = []  # ms
+    
+    def record_hit(self, latency_ms: float = 0.0):
+        """Record a cache hit."""
+        self.hits += 1
+        if latency_ms > 0:
+            self.hit_latencies.append(latency_ms)
+    
+    def record_miss(self, latency_ms: float = 0.0):
+        """Record a cache miss."""
+        self.misses += 1
+        if latency_ms > 0:
+            self.miss_latencies.append(latency_ms)
+    
+    def get_hit_rate(self) -> float:
+        """Get cache hit rate (0.0 to 1.0)."""
+        total = self.hits + self.misses
+        return self.hits / total if total > 0 else 0.0
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get comprehensive cache statistics."""
+        total = self.hits + self.misses
+        avg_hit_latency = sum(self.hit_latencies) / len(self.hit_latencies) if self.hit_latencies else 0.0
+        avg_miss_latency = sum(self.miss_latencies) / len(self.miss_latencies) if self.miss_latencies else 0.0
+        
+        return {
+            "total_queries": total,
+            "hits": self.hits,
+            "misses": self.misses,
+            "hit_rate": self.get_hit_rate(),
+            "hit_rate_percent": self.get_hit_rate() * 100,
+            "avg_hit_latency_ms": avg_hit_latency,
+            "avg_miss_latency_ms": avg_miss_latency,
+            "latency_savings_ms": avg_miss_latency - avg_hit_latency if avg_miss_latency > avg_hit_latency else 0.0,
+        }
+    
+    def reset(self):
+        """Reset all counters."""
+        self.hits = 0
+        self.misses = 0
+        self.hit_latencies = []
+        self.miss_latencies = []
+
+
+# Global cache tracker instance for instrumentation
+_cache_tracker = CacheMetricsTracker()
+
+def get_cache_tracker() -> CacheMetricsTracker:
+    """Get the global cache metrics tracker."""
+    return _cache_tracker
+
+
 class GroundTruthLoader:
     """Helper to load ground truth data for evaluation."""
 
@@ -62,7 +121,7 @@ class IRMetricsEvaluator:
         k_values: List[int] = [5, 10, 20]
     ) -> Dict[str, Any]:
         """
-        Calculate Recall@K and NDCG@K for a single query.
+        Calculate Recall@K, NDCG@K, and MRR for a single query.
         """
         if not ground_truth or question_id not in ground_truth:
             return {}
@@ -92,6 +151,14 @@ class IRMetricsEvaluator:
             
             ndcg = dcg / idcg if idcg > 0 else 0.0
             metrics[f"ndcg_at_k_{k}"] = ndcg
+
+        # MRR (Mean Reciprocal Rank)
+        mrr = 0.0
+        for i, doc_id in enumerate(retrieved_ids):
+            if doc_id in relevant_docs:
+                mrr = 1.0 / (i + 1)
+                break
+        metrics["mrr"] = mrr
 
         return metrics
 

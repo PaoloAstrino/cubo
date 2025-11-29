@@ -78,6 +78,13 @@ class SemanticCache:
         self._hnsw_m = hnsw_m
         self._index = None
         self._dimension: Optional[int] = None
+        
+        # Metrics tracking for benchmarking
+        self._hits = 0
+        self._misses = 0
+        self._hit_latencies: List[float] = []
+        self._miss_latencies: List[float] = []
+        
         if self.cache_path:
             self._load_from_disk()
         if self._use_index:
@@ -88,6 +95,33 @@ class SemanticCache:
                     "FAISS is not available; falling back to linear scan for SemanticCache"
                 )
                 self._use_index = False
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get cache performance metrics for benchmarking."""
+        total = self._hits + self._misses
+        hit_rate = self._hits / total if total > 0 else 0.0
+        avg_hit_latency = sum(self._hit_latencies) / len(self._hit_latencies) if self._hit_latencies else 0.0
+        avg_miss_latency = sum(self._miss_latencies) / len(self._miss_latencies) if self._miss_latencies else 0.0
+        
+        return {
+            "total_queries": total,
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": hit_rate,
+            "hit_rate_percent": hit_rate * 100,
+            "avg_hit_latency_ms": avg_hit_latency,
+            "avg_miss_latency_ms": avg_miss_latency,
+            "latency_savings_ms": avg_miss_latency - avg_hit_latency if avg_miss_latency > avg_hit_latency else 0.0,
+            "entries_count": len(self._entries),
+            "max_entries": self.max_entries,
+        }
+
+    def reset_metrics(self) -> None:
+        """Reset performance metrics."""
+        self._hits = 0
+        self._misses = 0
+        self._hit_latencies = []
+        self._miss_latencies = []
 
     def _load_from_disk(self) -> None:
         if not self.cache_path or not self.cache_path.exists():
@@ -246,7 +280,13 @@ class SemanticCache:
         Returns:
             Cached results list if match found, None otherwise.
         """
+        import time as _time
+        start_time = _time.perf_counter() * 1000  # ms
+        
         if not query_embedding or not self._entries:
+            elapsed = _time.perf_counter() * 1000 - start_time
+            self._misses += 1
+            self._miss_latencies.append(elapsed)
             return None
 
         self._evict_expired()
@@ -258,11 +298,19 @@ class SemanticCache:
             best_match = self._linear_scan_lookup(q_vec)
 
         if best_match is None:
+            elapsed = _time.perf_counter() * 1000 - start_time
+            self._misses += 1
+            self._miss_latencies.append(elapsed)
             return None
 
         # Update access tracking
         score, entry = best_match
         self._update_entry_access(entry)
+        
+        # Record hit metrics
+        elapsed = _time.perf_counter() * 1000 - start_time
+        self._hits += 1
+        self._hit_latencies.append(elapsed)
 
         logger.debug(
             "SemanticCache hit: %s score=%.3f last_access=%d", entry.query, score, entry.last_access
@@ -506,6 +554,41 @@ class RetrievalCacheService:
         if filenames:
             logger.info("Invalidating cache for %d documents", len(filenames))
             self.clear()
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """
+        Get combined cache metrics for benchmarking.
+        
+        Returns:
+            Dictionary with cache statistics including hit rate, latencies,
+            and cache state information.
+        """
+        metrics: Dict[str, Any] = {
+            "query_cache_entries": len(self.query_cache),
+            "semantic_cache_enabled": self.semantic_cache is not None,
+        }
+        
+        if self.semantic_cache:
+            semantic_metrics = self.semantic_cache.get_metrics()
+            metrics.update({
+                "semantic_" + k: v for k, v in semantic_metrics.items()
+            })
+        else:
+            # Provide defaults for non-semantic cache
+            metrics.update({
+                "semantic_total_queries": 0,
+                "semantic_hits": 0,
+                "semantic_misses": 0,
+                "semantic_hit_rate": 0.0,
+                "semantic_hit_rate_percent": 0.0,
+            })
+        
+        return metrics
+
+    def reset_metrics(self) -> None:
+        """Reset performance metrics for a fresh benchmark run."""
+        if self.semantic_cache:
+            self.semantic_cache.reset_metrics()
 
 
 # Type alias for cache key tuples

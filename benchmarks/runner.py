@@ -339,8 +339,16 @@ class BenchmarkRunner:
                 "avg_answer_relevance": combined_results["results"]
                 .get("metadata", {})
                 .get("avg_answer_relevance", 0),
+                    "avg_mrr": combined_results["results"].get("metadata", {}).get("avg_mrr", 0),
                 "ingestion_minutes_per_gb": ingestion_minutes_per_gb,
             }
+            # Add mean semantic cache hit rate for this run into summary row when available
+            try:
+                avg_cache_rate = combined_results["results"].get("metadata", {}).get("avg_semantic_hit_rate_percent")
+                if avg_cache_rate is not None:
+                    row["avg_semantic_hit_rate_percent"] = avg_cache_rate
+            except Exception:
+                pass
             # Append attempts and error message if present
             row["ingestion_attempts"] = (
                 combined_results["metadata"].get("attempts", {}).get("ingestion_attempts")

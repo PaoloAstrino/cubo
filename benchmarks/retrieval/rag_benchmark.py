@@ -310,6 +310,15 @@ class RAGTester:
 
         start_time = time.time()
 
+        # MRR (Mean Reciprocal Rank) - reciprocal rank of first relevant doc
+        mrr = 0.0
+        relevant_docs = ground_truth.get(question_id, [])
+        for i, doc_id in enumerate(retrieved_ids):
+            if doc_id in relevant_docs:
+                mrr = 1.0 / (i + 1)
+                break
+        metrics["mrr"] = mrr
+
         try:
             if not self.cubo_app:
                 raise Exception("CUBO system not initialized")
@@ -320,11 +329,23 @@ class RAGTester:
             )
             contexts = self.cubo_app.retriever.retrieve_top_documents(question)
 
+            # Record cache metrics if cache service is available
+            cache_metrics = {}
+            try:
+                cache_metrics = self.cubo_app.retriever.cache_service.get_metrics()
+            except Exception:
+                cache_metrics = {}
+
             # Extract document IDs for IR metrics
             retrieved_ids = []
             for ctx in contexts:
                 if isinstance(ctx, dict):
+                    # Try direct keys first, then check metadata dict
                     doc_id = ctx.get("id") or ctx.get("doc_id") or ctx.get("chunk_id")
+                    if not doc_id and "metadata" in ctx:
+                        meta = ctx["metadata"]
+                        if isinstance(meta, dict):
+                            doc_id = meta.get("id") or meta.get("doc_id") or meta.get("chunk_id")
                     if doc_id:
                         retrieved_ids.append(str(doc_id))
 
@@ -346,6 +367,7 @@ class RAGTester:
                     "retrieved_ids": retrieved_ids,
                     "contexts": contexts,
                     "retrieval_latency": retrieval_metrics,
+                    "cache_metrics": cache_metrics,
                     "ir_metrics": ir_metrics,
                     "processing_time": processing_time,
                     "success": True,
@@ -732,7 +754,12 @@ class RAGTester:
             questions = questions[:limit]
 
         logger.info(f"Running {len(questions)} {difficulty} tests")
-
+        # Reset cache metrics for this difficulty set (to measure hit/miss rates across this set)
+        try:
+            if self.cubo_app and hasattr(self.cubo_app.retriever, "cache_service") and self.cubo_app.retriever.cache_service:
+                self.cubo_app.retriever.cache_service.reset_metrics()
+        except Exception:
+            pass
         results = []
         with tqdm(total=len(questions), desc=f"Testing {difficulty}", unit="question") as pbar:
             for i, question in enumerate(questions, 1):
@@ -802,22 +829,51 @@ class RAGTester:
                 sum(retrieval_latencies) / len(retrieval_latencies) if retrieval_latencies else 0
             )
 
-            # Collect IR metrics
+            # Collect IR metrics (including MRR)
             ir_stats = {}
+            mrr_scores = []
+            cache_stats = {}
             for r in results:
                 if "ir_metrics" in r and r["ir_metrics"]:
+                    # Collect MRR separately (it's a single value, not nested)
+                    if "mrr" in r["ir_metrics"]:
+                        mrr_scores.append(r["ir_metrics"]["mrr"])
+                    
                     for metric_name, values in r["ir_metrics"].items():
+                        if metric_name == "mrr":
+                            continue  # Already handled above
                         if isinstance(values, dict):
                             for k, score in values.items():
                                 key = f"{metric_name}_{k}"
                                 if key not in ir_stats:
                                     ir_stats[key] = []
                                 ir_stats[key].append(score)
+                        elif isinstance(values, (int, float)):
+                            # Handle flat metrics like recall_at_k_10
+                            if metric_name not in ir_stats:
+                                ir_stats[metric_name] = []
+                            ir_stats[metric_name].append(values)
 
             # Average IR metrics
             avg_ir_metrics = {}
             for key, scores in ir_stats.items():
                 avg_ir_metrics[f"avg_{key}"] = sum(scores) / len(scores) if scores else 0
+            
+            # Add MRR average
+            avg_ir_metrics["avg_mrr"] = sum(mrr_scores) / len(mrr_scores) if mrr_scores else 0
+
+            # Collect cache metrics
+            cache_agg = {}
+            for r in results:
+                if "cache_metrics" in r and r["cache_metrics"]:
+                    for ck, cv in r["cache_metrics"].items():
+                        if isinstance(cv, (int, float)):
+                            cache_agg.setdefault(ck, []).append(cv)
+
+            # Compute average cache metrics (if any)
+            avg_cache_metrics = {}
+            for ck, values in cache_agg.items():
+                avg_cache_metrics[f"avg_{ck}"] = sum(values) / len(values) if values else 0
 
             # Add RAGAS metrics to stats
             avg_ragas_metrics = {}
@@ -879,6 +935,7 @@ class RAGTester:
                 "avg_context_relevance": avg_context,
                 "avg_groundedness": avg_groundedness,
                 **avg_ir_metrics,
+                **avg_cache_metrics,
                 **avg_ragas_metrics,
             }
 
@@ -897,6 +954,7 @@ class RAGTester:
 
         # Overall IR metrics
         overall_ir_metrics = {}
+        overall_mrr_scores = []
         for r in all_results:
             if "ir_metrics" in r and r["ir_metrics"]:
                 for metric_name, values in r["ir_metrics"].items():
@@ -906,9 +964,24 @@ class RAGTester:
                             if key not in overall_ir_metrics:
                                 overall_ir_metrics[key] = []
                             overall_ir_metrics[key].append(score)
+                    elif metric_name == "mrr" and isinstance(values, (int, float)):
+                        overall_mrr_scores.append(values)
 
         for key, scores in overall_ir_metrics.items():
             overall_metrics[f"avg_{key}"] = sum(scores) / len(scores) if scores else 0
+        # Add overall MRR average
+        overall_metrics["avg_mrr"] = sum(overall_mrr_scores) / len(overall_mrr_scores) if overall_mrr_scores else 0
+
+        # Overall cache metrics
+        overall_cache_agg = {}
+        for r in all_results:
+            if "cache_metrics" in r and r["cache_metrics"]:
+                for ck, cv in r["cache_metrics"].items():
+                    if isinstance(cv, (int, float)):
+                        overall_cache_agg.setdefault(ck, []).append(cv)
+
+        for ck, values in overall_cache_agg.items():
+            overall_metrics[f"avg_{ck}"] = sum(values) / len(values) if values else 0
 
         self.results["metadata"].update(
             {
@@ -951,6 +1024,14 @@ class RAGTester:
             if key.startswith("avg_ndcg_at_k"):
                 k = key.split("_")[-1]
                 print(f"  nDCG@{k}: {value:.3f}")
+        if "avg_mrr" in meta:
+            print(f"  MRR: {meta['avg_mrr']:.3f}")
+
+        # Print overall cache metrics if available
+        if "avg_semantic_hit_rate_percent" in meta:
+            print(f"  Avg Semantic Cache Hit Rate: {meta['avg_semantic_hit_rate_percent']:.1f}%")
+        if "avg_semantic_hits" in meta:
+            print(f"  Avg Semantic Cache Hits: {meta['avg_semantic_hits']:.1f}")
 
         # Print overall evaluation metrics (full RAG mode)
         if meta.get("mode") == "full":
@@ -986,6 +1067,10 @@ class RAGTester:
                     print(f"    Answer Relevance: {stats['avg_answer_relevance']:.3f}")
                 if "avg_groundedness" in stats and stats["avg_groundedness"] > 0:
                     print(f"    Groundedness: {stats['avg_groundedness']:.3f}")
+
+            # Show cache metrics per difficulty
+            if "avg_semantic_hit_rate_percent" in stats:
+                print(f"    Semantic Cache Hit Rate: {stats['avg_semantic_hit_rate_percent']:.1f}%")
 
         # Hardware summary
         if "hardware" in meta:

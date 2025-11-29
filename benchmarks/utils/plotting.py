@@ -227,6 +227,32 @@ def plot_compression_ratio_vs_recall(df, runs, outdir: Path):
     plt.close()
 
 
+def plot_cache_hit_rate_vs_size(df, runs, outdir: Path):
+    plt.figure(figsize=(8, 5))
+    sizes = []
+    hit_rates = []
+    labels = []
+    for r in runs:
+        size = extract_dataset_size(r)
+        try:
+            hit_rate = r["results"]["metadata"].get("avg_semantic_hit_rate_percent")
+        except Exception:
+            hit_rate = None
+        if size is not None and hit_rate is not None:
+            sizes.append(size)
+            hit_rates.append(hit_rate)
+            labels.append(r["metadata"].get("retrieval_config", {}).get("name", "config"))
+    if not sizes:
+        print("No cache hit rate data available for plotting")
+        return
+    sns.scatterplot(x=sizes, y=hit_rates, hue=labels)
+    plt.xlabel("Dataset Size (GB)")
+    plt.ylabel("Semantic Cache Hit Rate (%)")
+    plt.title("Semantic Cache Hit Rate vs Dataset Size")
+    plt.savefig(outdir / "cache_hit_rate_vs_size.png", bbox_inches="tight")
+    plt.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Plot benchmark results")
     parser.add_argument(
@@ -256,6 +282,7 @@ def main():
     plot_memory_vs_size(df, runs, outdir)
     plot_ingestion_time(df, runs, outdir)
     plot_compression_ratio_vs_recall(df, runs, outdir)
+    plot_cache_hit_rate_vs_size(df, runs, outdir)
 
     print("Plots saved to", outdir)
 
