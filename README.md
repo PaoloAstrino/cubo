@@ -1,5 +1,7 @@
 # CUBO - AI Document Assistant v1.2.0
 
+🌍 **English** | **[Italiano](README.it.md)** | **[中文](README.zh.md)**
+
 [![CI/CD](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml)
 [![E2E Tests](https://github.com/your-username/cubo/actions/workflows/e2e.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/e2e.yml)
 
@@ -10,6 +12,7 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - **🌐 Web API & Frontend**: FastAPI backend with Next.js frontend for web-based document management
 - **🔍 Request Tracing**: Trace ID propagation across all API requests for debugging and monitoring
 - **🔒 Query Scrubbing**: Automatic query sanitization in logs for privacy protection
+- **🇪🇺 GDPR Compliance**: Document deletion, audit log export, and citation tracking for EU compliance
 - **🧪 E2E Testing**: Automated end-to-end smoke tests with CI/CD integration
 - **📊 Structured Logging**: JSON-formatted logs with trace ID indexing for easy searching
 - **🚀 Full Stack**: Complete integration from upload → ingest → index → query

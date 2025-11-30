@@ -22,7 +22,7 @@ Examples of unacceptable behavior include:
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project maintainers at `cubo@paoloastrino.com`. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project maintainers at `paoloastrino01@gmail.com`. All complaints will be reviewed and investigated promptly and fairly.
 
 Project maintainers are obligated to:
 - Take appropriate and reasonable action in response to any violation of this Code of Conduct.

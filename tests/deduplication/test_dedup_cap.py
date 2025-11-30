@@ -141,7 +141,7 @@ class TestDeduplicatorConfigIntegration(unittest.TestCase):
         from cubo.deduplication.deduplicator import Deduplicator
 
         # Mock config to return max_candidates
-        with patch("src.cubo.deduplication.deduplicator.config") as mock_config:
+        with patch("cubo.deduplication.deduplicator.config") as mock_config:
             mock_config.get.return_value = {"max_candidates": 200}
 
             dedup = Deduplicator()
@@ -154,7 +154,7 @@ class TestDeduplicatorConfigIntegration(unittest.TestCase):
 
         from cubo.deduplication.deduplicator import Deduplicator
 
-        with patch("src.cubo.deduplication.deduplicator.config") as mock_config:
+        with patch("cubo.deduplication.deduplicator.config") as mock_config:
             mock_config.get.return_value = {"max_candidates": 200}
 
             # Explicit value should override

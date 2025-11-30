@@ -24,7 +24,7 @@ except Exception:
 
 
 # Optional: Determine if the evaluation package is present; performance tests rely on
-# the `src.cubo.evaluation` modules which may be optional in lightweight dev setups.
+# the `cubo.evaluation` modules which may be optional in lightweight dev setups.
 try:
     import cubo.evaluation  # noqa: F401
     _EVALUATION_PRESENT = True

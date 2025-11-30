@@ -55,7 +55,7 @@ def test_end_to_end_dedup_and_index_flow(tmp_path: Path, monkeypatch):
     cmd = [
         str(Path(os.sys.executable)),
         "-m",
-        "src.cubo.scripts.deduplicate",
+        "cubo.scripts.deduplicate",
         "--input-parquet",
         str(parquet_path),
         "--embeddings",
@@ -122,7 +122,7 @@ def test_end_to_end_faiss_build_and_retrieval(tmp_path: Path):
     cmd = [
         str(Path(os.sys.executable)),
         "-m",
-        "src.cubo.scripts.deduplicate",
+        "cubo.scripts.deduplicate",
         "--input-parquet",
         str(parquet_path),
         "--embeddings",
@@ -195,7 +195,7 @@ def test_cli_build_faiss_and_retrieve(tmp_path: Path):
     cmd = [
         str(Path(os.sys.executable)),
         "-m",
-        "src.cubo.scripts.build_faiss_index",
+        "cubo.scripts.build_faiss_index",
         "--parquet",
         str(parquet_path),
         "--index-dir",

@@ -12,7 +12,7 @@ def pytest_ignore_collect(path, config) -> Optional[bool]:
     # Only inspect files under 'tests/performance'
     if "tests{}performance".format(("/")) in str(path).replace("\\", "/"):
         try:
-            spec = importlib.util.find_spec("src.cubo.evaluation")
+            spec = importlib.util.find_spec("cubo.evaluation")
         except Exception:
             spec = None
         if spec is None:

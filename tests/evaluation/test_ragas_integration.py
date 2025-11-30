@@ -26,9 +26,9 @@ def setup_mocks():
         "ragas", "ragas.metrics", 
         "langchain", "langchain_community",
         "benchmarks.utils.ragas_evaluator",
-        "src.cubo.main",
-        "src.cubo.evaluation.metrics", 
-        "src.cubo.evaluation.perf_utils"
+        "cubo.main",
+        "cubo.evaluation.metrics", 
+        "cubo.evaluation.perf_utils"
     ]
     
     for mod_name in modules_to_mock:
@@ -43,8 +43,8 @@ def setup_mocks():
     sys.modules["langchain"] = MagicMock()
     sys.modules["langchain_community"] = MagicMock()
     sys.modules["benchmarks.utils.ragas_evaluator"] = MagicMock()
-    sys.modules["src.cubo.main"] = MagicMock()
-    sys.modules["src.cubo.evaluation.metrics"] = MagicMock()
+    sys.modules["cubo.main"] = MagicMock()
+    sys.modules["cubo.evaluation.metrics"] = MagicMock()
     
     mock_perf_utils = MagicMock()
     mock_perf_utils.log_hardware_metadata.return_value = {
@@ -53,7 +53,7 @@ def setup_mocks():
     }
     mock_perf_utils.sample_latency.return_value = {"p50_ms": 10.0}
     mock_perf_utils.sample_memory.return_value = {"ram_peak_gb": 1.0}
-    sys.modules["src.cubo.evaluation.perf_utils"] = mock_perf_utils
+    sys.modules["cubo.evaluation.perf_utils"] = mock_perf_utils
     
     yield
     

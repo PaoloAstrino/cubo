@@ -281,7 +281,7 @@ class TestTieredIndexManagerProperties:
         manager = TieredIndexManager()
 
         # Access should trigger lazy load
-        with patch("src.cubo.indexing.faiss_index.FAISSIndexManager") as MockFAISS:
+        with patch("cubo.indexing.faiss_index.FAISSIndexManager") as MockFAISS:
             MockFAISS.return_value = MagicMock()
             _ = manager.faiss_manager
             # Just verify we accessed the property without error
@@ -292,7 +292,7 @@ class TestTieredIndexManagerProperties:
         manager = TieredIndexManager()
 
         # Access should trigger lazy load
-        with patch("src.cubo.retrieval.bm25_store_factory.get_bm25_store") as mock_get:
+        with patch("cubo.retrieval.bm25_store_factory.get_bm25_store") as mock_get:
             mock_store = MagicMock()
             mock_get.return_value = mock_store
             _ = manager.bm25_store

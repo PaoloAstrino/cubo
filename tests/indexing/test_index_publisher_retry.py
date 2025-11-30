@@ -33,7 +33,7 @@ def test_publish_retries_on_replace(tmp_path):
             with open(dst, "w", encoding="utf-8") as fh_dst:
                 fh_dst.write(fh_src.read())
 
-    with patch("src.cubo.indexing.index_publisher.os.replace", new=fake_replace):
+    with patch("cubo.indexing.index_publisher.os.replace", new=fake_replace):
         # Should not raise
         published = publish_version(version_dir, index_root, verify=False)
         assert published == version_dir

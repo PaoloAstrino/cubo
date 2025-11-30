@@ -29,7 +29,7 @@ class TestLazyModelManager(unittest.TestCase):
         if self.manager:
             self.manager.force_unload()
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_lazy_loading_on_first_access(self, mock_transformer):
         """Test that model loads only on first access."""
         # Mock the model
@@ -49,7 +49,7 @@ class TestLazyModelManager(unittest.TestCase):
         # SentenceTransformer should have been called once
         mock_transformer.assert_called_once()
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_model_reuse_without_reload(self, mock_transformer):
         """Test that model is reused without reloading."""
         mock_model = MagicMock()
@@ -67,7 +67,7 @@ class TestLazyModelManager(unittest.TestCase):
         # SentenceTransformer should only be called once
         self.assertEqual(mock_transformer.call_count, 1)
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_auto_unload_after_timeout(self, mock_transformer):
         """Test that model auto-unloads after idle timeout."""
         mock_model = MagicMock()
@@ -83,7 +83,7 @@ class TestLazyModelManager(unittest.TestCase):
         # Should be unloaded
         self.assertFalse(self.manager.is_loaded())
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_timeout_reset_on_access(self, mock_transformer):
         """Test that timeout resets on each access."""
         mock_model = MagicMock()
@@ -104,7 +104,7 @@ class TestLazyModelManager(unittest.TestCase):
         # Should still be loaded (total wait was 3s but timer reset)
         self.assertTrue(self.manager.is_loaded())
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_force_unload(self, mock_transformer):
         """Test force_unload immediately unloads model."""
         mock_model = MagicMock()
@@ -120,7 +120,7 @@ class TestLazyModelManager(unittest.TestCase):
         # Should be immediately unloaded
         self.assertFalse(self.manager.is_loaded())
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_thread_safety(self, mock_transformer):
         """Test that concurrent access is thread-safe."""
         mock_model = MagicMock()
@@ -150,7 +150,7 @@ class TestLazyModelManager(unittest.TestCase):
         # Model should only be loaded once despite concurrent access
         self.assertEqual(mock_transformer.call_count, 1)
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_stats_reporting(self, mock_transformer):
         """Test that stats are correctly reported."""
         mock_model = MagicMock()
@@ -171,8 +171,8 @@ class TestLazyModelManager(unittest.TestCase):
         self.assertGreaterEqual(stats["estimated_memory_mb"], 0)
         self.assertIn("time_since_last_access", stats)
 
-    @patch("src.cubo.embeddings.lazy_model_manager.torch")
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.torch")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_gpu_fallback_to_cpu(self, mock_transformer, mock_torch):
         """Test fallback from GPU to CPU on failure."""
         # Simulate GPU available but loading fails
@@ -193,7 +193,7 @@ class TestLazyModelManager(unittest.TestCase):
         # Device should be CPU after fallback
         self.assertEqual(manager.device, "cpu")
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_disabled_timeout_keeps_model(self, mock_transformer):
         """Test that timeout=0 disables auto-unload."""
         mock_model = MagicMock()
@@ -216,7 +216,7 @@ class TestLazyModelManager(unittest.TestCase):
 class TestLazyModelManagerIntegration(unittest.TestCase):
     """Integration tests for LazyModelManager."""
 
-    @patch("src.cubo.embeddings.lazy_model_manager.SentenceTransformer")
+    @patch("cubo.embeddings.lazy_model_manager.SentenceTransformer")
     def test_singleton_pattern(self, mock_transformer):
         """Test that get_lazy_model_manager returns singleton."""
         mock_model = MagicMock()

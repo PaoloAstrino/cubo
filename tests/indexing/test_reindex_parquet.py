@@ -30,7 +30,7 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
     import runpy
 
     # Run reindex script in-process with model patched
-    with patch("src.cubo.embeddings.model_loader.model_manager.get_model") as mock_get_model:
+    with patch("cubo.embeddings.model_loader.model_manager.get_model") as mock_get_model:
         mock_model = MagicMock()
         mock_model.get_sentence_embedding_dimension.return_value = 64
 

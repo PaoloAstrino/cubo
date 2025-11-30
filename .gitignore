@@ -97,6 +97,31 @@ venv.bak/
 # Spyder project settings
 .spyderproject
 .spyproject
+# Temporary files
+temp_*.jsonl
+
+# Root config (keep only cubo/config.json)
+/config.json
+
+# Generated benchmark data
+bench_data/
+bench_full_data/
+bench_output/
+bench_full_output/
+
+# Generated FAISS indices (regeneratable)
+data/faiss/
+
+# Debug files
+debug_output/
+debug_*.py
+debug_*.json
+*_error.txt
+test_failures.txt
+test_output.*
+full_output.txt
+full_test_output.txt
+dummy_*.json
 
 # Rope project settings
 .ropeproject
@@ -175,3 +200,5 @@ debug_output
 
 
 paper
+
+come_spaccare_il_digitale.txt

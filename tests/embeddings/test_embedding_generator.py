@@ -9,10 +9,10 @@ def test_embedding_generator_uses_threading():
     fake_model = MagicMock()
 
     with patch(
-        "src.cubo.embeddings.embedding_generator.get_model_inference_threading",
+        "cubo.embeddings.embedding_generator.get_model_inference_threading",
         return_value=fake_threading,
     ):
-        with patch("src.cubo.embeddings.embedding_generator.model_manager") as mock_manager:
+        with patch("cubo.embeddings.embedding_generator.model_manager") as mock_manager:
             mock_manager.get_model.return_value = fake_model
             generator = EmbeddingGenerator(batch_size=16)
             embeddings = generator.encode(["hello world"])
@@ -27,10 +27,10 @@ def test_embedding_generator_embed_summaries_and_chunks():
     fake_threading.generate_embeddings_threaded.return_value = [[0.2, 0.3]]
     fake_model = MagicMock()
     with patch(
-        "src.cubo.embeddings.embedding_generator.get_model_inference_threading",
+        "cubo.embeddings.embedding_generator.get_model_inference_threading",
         return_value=fake_threading,
     ):
-        with patch("src.cubo.embeddings.embedding_generator.model_manager") as mock_manager:
+        with patch("cubo.embeddings.embedding_generator.model_manager") as mock_manager:
             mock_manager.get_model.return_value = fake_model
             generator = EmbeddingGenerator(batch_size=8)
             # Test embed_chunks with plain list

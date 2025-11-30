@@ -1,6 +1,10 @@
 """FastAPI server for CUBO RAG system."""
 
+import csv
 import datetime
+import hashlib
+import io
+import json
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,8 +14,9 @@ from typing import Any, Dict, List, Optional
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from cubo.config import config
@@ -159,13 +164,44 @@ class QueryRequest(BaseModel):
     collection_id: Optional[str] = Field(None, description="Filter results to specific collection")
 
 
+class Citation(BaseModel):
+    """Citation model for GDPR-compliant source tracking."""
+
+    source_file: str = Field(..., description="Original document filename")
+    page: Optional[int] = Field(None, description="Page number if available")
+    chunk_id: str = Field(..., description="Unique chunk identifier")
+    chunk_index: int = Field(..., description="Position of chunk in source document")
+    text_snippet: str = Field(..., description="Snippet of the cited text (max 200 chars)")
+    relevance_score: float = Field(..., description="Relevance score 0-1")
+
+
+class SourceWithCitation(BaseModel):
+    """Source document with citation metadata."""
+
+    content: str = Field(..., description="Chunk content (truncated)")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    score: float = Field(..., description="Relevance score")
+    citation: Citation = Field(..., description="Formatted citation")
+
+
 class QueryResponse(BaseModel):
     """Query response model."""
 
     answer: str
     sources: List[Dict[str, Any]]
+    citations: List[Citation] = Field(default_factory=list, description="Formatted citations for GDPR compliance")
     trace_id: str
     query_scrubbed: bool
+
+
+class DeleteDocumentResponse(BaseModel):
+    """Response model for document deletion."""
+
+    doc_id: str
+    deleted: bool
+    chunks_removed: int
+    trace_id: str
+    message: str
 
 
 class UploadResponse(BaseModel):
@@ -913,14 +949,30 @@ async def query(request_data: QueryRequest, request: Request = None):
                 )
 
             # Format sources - handle both 'document' and 'content' keys
-            sources = [
-                {
-                    "content": doc.get("document", doc.get("content", ""))[:500],
-                    "metadata": doc.get("metadata", {}),
-                    "score": doc.get("similarity", doc.get("score", 0.0)),
-                }
-                for doc in retrieved_docs
-            ]
+            sources = []
+            citations = []
+            for idx, doc in enumerate(retrieved_docs):
+                metadata = doc.get("metadata", {})
+                content = doc.get("document", doc.get("content", ""))
+                score = doc.get("similarity", doc.get("score", 0.0))
+                
+                # Build source entry
+                sources.append({
+                    "content": content[:500],
+                    "metadata": metadata,
+                    "score": score,
+                })
+                
+                # Build citation for GDPR compliance
+                chunk_id = metadata.get("chunk_id", metadata.get("id", f"chunk_{idx}"))
+                citations.append(Citation(
+                    source_file=metadata.get("filename", metadata.get("source", "unknown")),
+                    page=metadata.get("page", metadata.get("page_number")),
+                    chunk_id=str(chunk_id),
+                    chunk_index=metadata.get("chunk_index", idx),
+                    text_snippet=content[:200] if content else "",
+                    relevance_score=round(float(score), 4) if score else 0.0,
+                ))
 
             logger.info(
                 "Query processed successfully",
@@ -934,7 +986,11 @@ async def query(request_data: QueryRequest, request: Request = None):
                 pass
 
             return QueryResponse(
-                answer=answer, sources=sources, trace_id=trace_id, query_scrubbed=query_scrubbed
+                answer=answer, 
+                sources=sources, 
+                citations=citations,
+                trace_id=trace_id, 
+                query_scrubbed=query_scrubbed
             )
 
         except HTTPException:
@@ -965,3 +1021,231 @@ async def get_trace(trace_id: str):
     if events is None:
         raise HTTPException(status_code=404, detail="Trace not found")
     return {"trace_id": trace_id, "events": events}
+
+
+@app.delete("/api/documents/{doc_id}", response_model=DeleteDocumentResponse)
+async def delete_document(doc_id: str, request: Request):
+    """Delete a document and its chunks from the index.
+    
+    GDPR-compliant document deletion endpoint. Removes document chunks
+    from FAISS index and metadata from SQLite store. Logs deletion for audit.
+    
+    Args:
+        doc_id: Document ID or filename to delete.
+        request: FastAPI request object.
+    
+    Returns:
+        DeleteDocumentResponse: Deletion status and chunk count.
+    
+    Raises:
+        HTTPException: 503 if CUBO app not initialized, 404 if doc not found.
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    
+    with trace_context(trace_id):
+        if not cubo_app:
+            raise HTTPException(status_code=503, detail="CUBO app not initialized")
+        
+        logger.info(f"Document deletion requested", extra={"doc_id": doc_id, "trace_id": trace_id})
+        
+        try:
+            # Record deletion request in trace for GDPR audit
+            trace_collector.record(
+                trace_id, "api", "document.delete.requested", {"doc_id": doc_id}
+            )
+            
+            chunks_removed = 0
+            deleted = False
+            
+            # Try to delete from vector store
+            if hasattr(cubo_app, "vector_store") and cubo_app.vector_store:
+                try:
+                    # Try delete by document ID/filename
+                    cubo_app.vector_store.delete(ids=[doc_id])
+                    deleted = True
+                    chunks_removed += 1
+                except Exception as e:
+                    logger.warning(f"Vector store delete failed: {e}")
+            
+            # Try to delete from retriever's document store
+            if hasattr(cubo_app, "retriever") and cubo_app.retriever:
+                try:
+                    if hasattr(cubo_app.retriever, "remove_document"):
+                        result = cubo_app.retriever.remove_document(doc_id)
+                        if result:
+                            deleted = True
+                except Exception as e:
+                    logger.warning(f"Retriever remove_document failed: {e}")
+            
+            # Log deletion for GDPR audit trail
+            trace_collector.record(
+                trace_id, "api", "document.delete.completed", 
+                {"doc_id": doc_id, "deleted": deleted, "chunks_removed": chunks_removed}
+            )
+            
+            # Write to audit log
+            audit_entry = {
+                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "action": "document_delete",
+                "trace_id": trace_id,
+                "doc_id": doc_id,
+                "success": deleted,
+                "chunks_removed": chunks_removed
+            }
+            logger.info("GDPR Audit: Document deletion", extra=audit_entry)
+            
+            if not deleted:
+                raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+            
+            return DeleteDocumentResponse(
+                doc_id=doc_id,
+                deleted=deleted,
+                chunks_removed=chunks_removed,
+                trace_id=trace_id,
+                message=f"Document {doc_id} deleted successfully"
+            )
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Document deletion failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}")
+
+
+@app.get("/api/export-audit")
+async def export_audit(
+    request: Request,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    format: str = Query("csv", description="Export format: csv or json")
+):
+    """Export GDPR audit log as CSV or JSON.
+    
+    Parses JSONL log files to extract query traces with sources for compliance audits.
+    
+    Args:
+        start_date: Filter from this date (inclusive).
+        end_date: Filter to this date (inclusive).
+        format: Output format - 'csv' or 'json'.
+    
+    Returns:
+        StreamingResponse: CSV or JSON file with audit entries.
+    
+    Example:
+        GET /api/export-audit?start_date=2024-11-01&format=csv
+    """
+    trace_id = request.headers.get("x-trace-id") or generate_trace_id()
+    
+    with trace_context(trace_id):
+        logger.info("GDPR audit export requested", extra={
+            "start_date": start_date, 
+            "end_date": end_date,
+            "format": format,
+            "trace_id": trace_id
+        })
+        
+        try:
+            # Parse dates if provided
+            start_dt = None
+            end_dt = None
+            if start_date:
+                try:
+                    start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+            if end_date:
+                try:
+                    end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d")
+                    end_dt = end_dt.replace(hour=23, minute=59, second=59)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+            
+            # Read JSONL log files
+            log_dir = Path(config.get("log_dir", "./logs"))
+            audit_entries = []
+            
+            # Look for JSONL logs
+            jsonl_files = list(log_dir.glob("*.jsonl*"))
+            for log_file in jsonl_files:
+                try:
+                    with open(log_file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                entry = json.loads(line)
+                                
+                                # Extract timestamp
+                                ts_str = entry.get("asctime", "")
+                                if not ts_str:
+                                    continue
+                                
+                                try:
+                                    ts = datetime.datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
+                                except ValueError:
+                                    continue
+                                
+                                # Apply date filters
+                                if start_dt and ts < start_dt:
+                                    continue
+                                if end_dt and ts > end_dt:
+                                    continue
+                                
+                                # Extract relevant info for audit
+                                trace = entry.get("trace_id", "")
+                                message = entry.get("message", "")
+                                
+                                # Hash query for privacy (GDPR)
+                                query_text = ""
+                                sources_info = ""
+                                
+                                # Try to extract query from structured message
+                                if isinstance(message, str) and "query" in message.lower():
+                                    # Hash any query text found
+                                    query_hash = hashlib.sha256(message.encode()).hexdigest()[:16]
+                                    query_text = f"[hashed:{query_hash}]"
+                                
+                                audit_entries.append({
+                                    "timestamp": ts.isoformat(),
+                                    "trace_id": trace,
+                                    "query_hash": query_text,
+                                    "level": entry.get("levelname", "INFO"),
+                                    "component": entry.get("name", "unknown"),
+                                    "action": message[:200] if isinstance(message, str) else str(message)[:200]
+                                })
+                                
+                            except json.JSONDecodeError:
+                                continue
+                except Exception as e:
+                    logger.warning(f"Failed to read log file {log_file}: {e}")
+            
+            # Sort by timestamp
+            audit_entries.sort(key=lambda x: x["timestamp"])
+            
+            if format.lower() == "json":
+                # Return JSON
+                content = json.dumps({"audit_entries": audit_entries, "count": len(audit_entries)}, indent=2)
+                return StreamingResponse(
+                    io.BytesIO(content.encode("utf-8")),
+                    media_type="application/json",
+                    headers={"Content-Disposition": f"attachment; filename=cubo_audit_{datetime.date.today().isoformat()}.json"}
+                )
+            else:
+                # Return CSV
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=["timestamp", "trace_id", "query_hash", "level", "component", "action"])
+                writer.writeheader()
+                writer.writerows(audit_entries)
+                
+                return StreamingResponse(
+                    io.BytesIO(output.getvalue().encode("utf-8")),
+                    media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename=cubo_audit_{datetime.date.today().isoformat()}.csv"}
+                )
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Audit export failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
