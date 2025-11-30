@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.cubo.processing.enrichment import ChunkEnricher
-from src.cubo.processing.scaffold import create_scaffolds_from_parquet
-from src.cubo.storage.metadata_manager import get_metadata_manager
+from cubo.processing.enrichment import ChunkEnricher
+from cubo.processing.scaffold import create_scaffolds_from_parquet
+from cubo.storage.metadata_manager import get_metadata_manager
 
 
 class FakeLLM:

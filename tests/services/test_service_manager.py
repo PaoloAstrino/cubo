@@ -4,7 +4,7 @@ Tests for ServiceManager.
 
 import unittest
 
-from src.cubo.services.service_manager import ServiceManager, get_service_manager
+from cubo.services.service_manager import ServiceManager, get_service_manager
 
 
 class TestServiceManager(unittest.TestCase):

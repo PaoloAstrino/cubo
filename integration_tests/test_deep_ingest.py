@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.cubo.ingestion.deep_ingestor import build_deep_index
+from cubo.ingestion.deep_ingestor import build_deep_index
 
 
 def test_deep_ingest_parquet_and_chunk_id_stability(tmp_path):

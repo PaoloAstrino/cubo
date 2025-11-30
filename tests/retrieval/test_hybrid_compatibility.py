@@ -6,7 +6,7 @@ def test_hybrid_retriever_deprecation_warning():
     # Importing the old module should raise a DeprecationWarning
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        from src.cubo.retrieval.hybrid_retriever import HybridRetriever  # noqa: F401
+        from cubo.retrieval.hybrid_retriever import HybridRetriever  # noqa: F401
 
         assert any(
             issubclass(x.category, DeprecationWarning) for x in w
@@ -40,8 +40,8 @@ def test_hybrid_retriever_consistency():
     ]
 
     # Import both classes
-    from src.cubo.retrieval.hybrid_retriever import HybridRetriever as ShimHybrid
-    from src.cubo.retrieval.retriever import FaissHybridRetriever
+    from cubo.retrieval.hybrid_retriever import HybridRetriever as ShimHybrid
+    from cubo.retrieval.retriever import FaissHybridRetriever
 
     # Instantiate both with fake components
     bm25 = FakeBM25()

@@ -4,7 +4,7 @@ Tests for MetadataManager.
 
 import unittest
 
-from src.cubo.storage.metadata_manager import MetadataManager
+from cubo.storage.metadata_manager import MetadataManager
 
 
 class TestMetadataManager(unittest.TestCase):

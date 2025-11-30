@@ -1,4 +1,4 @@
-from src.cubo.routing.query_router import QueryRouter, QueryType
+from cubo.routing.query_router import QueryRouter, QueryType
 
 
 def test_classify_basic_cases():

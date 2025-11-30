@@ -3,7 +3,7 @@ Unit tests for IR metrics (Recall@K, nDCG@K, Precision@K, MRR).
 Copied from the original test_ir_metrics.py.
 """
 
-from src.cubo.evaluation.metrics import IRMetricsEvaluator
+from cubo.evaluation.metrics import IRMetricsEvaluator
 
 
 class TestIRMetrics:

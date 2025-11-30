@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from cubo.ingestion.deep_ingestor import DeepIngestor
 
 
 def _write_csv(path: Path, rows: int) -> None:

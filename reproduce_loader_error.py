@@ -1,6 +1,6 @@
 import logging
 
-from src.cubo.ingestion.document_loader import DocumentLoader
+from cubo.ingestion.document_loader import DocumentLoader
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)

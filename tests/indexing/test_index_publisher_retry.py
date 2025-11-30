@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from src.cubo.indexing.index_publisher import POINTER_FILENAME, publish_version
+from cubo.indexing.index_publisher import POINTER_FILENAME, publish_version
 
 
 def create_dummy_index(tmp_path: Path):

@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.config import config
-from src.cubo.ingestion.fast_pass_ingestor import FastPassIngestor
+from cubo.config import config
+from cubo.ingestion.fast_pass_ingestor import FastPassIngestor
 
 
 def test_fastpass_python_preserve_json(tmp_path: Path, monkeypatch):

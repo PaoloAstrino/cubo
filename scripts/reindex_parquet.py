@@ -8,7 +8,7 @@ from pathlib import Path
 # Ensure `src` is on the path so imports resolve when the script is executed directly
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from src.cubo.scripts.reindex_parquet import main
+from cubo.scripts.reindex_parquet import main
 
 if __name__ == "__main__":
     main()

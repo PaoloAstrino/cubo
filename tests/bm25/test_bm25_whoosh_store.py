@@ -2,7 +2,7 @@ import pytest
 
 
 def test_bm25_python_store_basic(tmp_path):
-    from src.cubo.retrieval.bm25_python_store import BM25PythonStore
+    from cubo.retrieval.bm25_python_store import BM25PythonStore
 
     st = BM25PythonStore()
     docs = [

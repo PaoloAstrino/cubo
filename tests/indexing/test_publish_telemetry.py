@@ -15,7 +15,7 @@ def test_publish_telemetry(tmp_path: Path):
     v1, _, _ = create_and_publish_faiss_index(index_root, "faiss_v1", n_vectors=8, dim=2)
     v2, _, _ = create_and_publish_faiss_index(index_root, "faiss_v2", n_vectors=8, dim=2)
 
-    from src.cubo.indexing.index_publisher import publish_version
+    from cubo.indexing.index_publisher import publish_version
 
     events = []
 

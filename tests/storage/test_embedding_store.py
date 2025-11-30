@@ -15,7 +15,7 @@ class TestEmbeddingCache(unittest.TestCase):
 
     def test_basic_put_get(self):
         """Test basic put and get operations."""
-        from src.cubo.storage.embedding_store import EmbeddingCache
+        from cubo.storage.embedding_store import EmbeddingCache
 
         cache = EmbeddingCache(max_size=10)
         emb = np.array([1.0, 2.0, 3.0], dtype=np.float32)
@@ -28,7 +28,7 @@ class TestEmbeddingCache(unittest.TestCase):
 
     def test_lru_eviction(self):
         """Test that LRU eviction works correctly."""
-        from src.cubo.storage.embedding_store import EmbeddingCache
+        from cubo.storage.embedding_store import EmbeddingCache
 
         cache = EmbeddingCache(max_size=3)
 
@@ -51,7 +51,7 @@ class TestEmbeddingCache(unittest.TestCase):
 
     def test_cache_stats(self):
         """Test cache statistics tracking."""
-        from src.cubo.storage.embedding_store import EmbeddingCache
+        from cubo.storage.embedding_store import EmbeddingCache
 
         cache = EmbeddingCache(max_size=10)
         cache.put("doc1", np.array([1.0]))
@@ -66,7 +66,7 @@ class TestEmbeddingCache(unittest.TestCase):
 
     def test_batch_operations(self):
         """Test batch get and put."""
-        from src.cubo.storage.embedding_store import EmbeddingCache
+        from cubo.storage.embedding_store import EmbeddingCache
 
         cache = EmbeddingCache(max_size=10)
 
@@ -83,7 +83,7 @@ class TestEmbeddingCache(unittest.TestCase):
 
     def test_cache_always_truthy(self):
         """Test that cache is always truthy (even when empty)."""
-        from src.cubo.storage.embedding_store import EmbeddingCache
+        from cubo.storage.embedding_store import EmbeddingCache
 
         cache = EmbeddingCache(max_size=10)
         self.assertTrue(bool(cache))  # Empty but truthy
@@ -94,7 +94,7 @@ class TestInMemoryEmbeddingStore(unittest.TestCase):
 
     def test_basic_operations(self):
         """Test basic add, get, delete operations."""
-        from src.cubo.storage.embedding_store import InMemoryEmbeddingStore
+        from cubo.storage.embedding_store import InMemoryEmbeddingStore
 
         store = InMemoryEmbeddingStore()
         emb = [1.0, 2.0, 3.0]
@@ -112,7 +112,7 @@ class TestInMemoryEmbeddingStore(unittest.TestCase):
 
     def test_batch_operations(self):
         """Test batch add and get."""
-        from src.cubo.storage.embedding_store import InMemoryEmbeddingStore
+        from cubo.storage.embedding_store import InMemoryEmbeddingStore
 
         store = InMemoryEmbeddingStore()
         embeddings = {f"doc{i}": [float(i)] * 3 for i in range(5)}
@@ -125,7 +125,7 @@ class TestInMemoryEmbeddingStore(unittest.TestCase):
 
     def test_dtype_float16(self):
         """Test float16 dtype for memory savings."""
-        from src.cubo.storage.embedding_store import InMemoryEmbeddingStore
+        from cubo.storage.embedding_store import InMemoryEmbeddingStore
 
         store = InMemoryEmbeddingStore(dtype="float16")
         emb = [1.0, 2.0, 3.0]
@@ -137,7 +137,7 @@ class TestInMemoryEmbeddingStore(unittest.TestCase):
 
     def test_iteration(self):
         """Test keys and items iteration."""
-        from src.cubo.storage.embedding_store import InMemoryEmbeddingStore
+        from cubo.storage.embedding_store import InMemoryEmbeddingStore
 
         store = InMemoryEmbeddingStore()
         for i in range(3):
@@ -168,7 +168,7 @@ class TestShardedEmbeddingStore(unittest.TestCase):
 
     def test_basic_operations(self):
         """Test basic add, get, delete with disk persistence."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(
             storage_dir=Path(self.temp_dir), shard_size=5, dtype="float32"
@@ -185,7 +185,7 @@ class TestShardedEmbeddingStore(unittest.TestCase):
 
     def test_persistence_across_instances(self):
         """Test that data persists when store is reopened."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         # Create and add data
         store1 = ShardedEmbeddingStore(storage_dir=Path(self.temp_dir), shard_size=5)
@@ -202,7 +202,7 @@ class TestShardedEmbeddingStore(unittest.TestCase):
 
     def test_sharding(self):
         """Test that embeddings are properly sharded."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(storage_dir=Path(self.temp_dir), shard_size=3)
 
@@ -218,7 +218,7 @@ class TestShardedEmbeddingStore(unittest.TestCase):
 
     def test_batch_operations(self):
         """Test batch add and get for efficiency."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(storage_dir=Path(self.temp_dir), shard_size=10)
 
@@ -232,7 +232,7 @@ class TestShardedEmbeddingStore(unittest.TestCase):
 
     def test_float16_dtype(self):
         """Test float16 storage for memory savings."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(
             storage_dir=Path(self.temp_dir), shard_size=10, dtype="float16"
@@ -245,7 +245,7 @@ class TestShardedEmbeddingStore(unittest.TestCase):
 
     def test_delete_and_compact(self):
         """Test deletion and compaction."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(storage_dir=Path(self.temp_dir), shard_size=5)
 
@@ -265,7 +265,7 @@ class TestShardedEmbeddingStore(unittest.TestCase):
 
     def test_cache_stats(self):
         """Test that cache stats are available."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(
             storage_dir=Path(self.temp_dir), shard_size=5, cache_size=100, enable_cache=True
@@ -292,21 +292,21 @@ class TestCreateEmbeddingStore(unittest.TestCase):
 
     def test_create_memory_store(self):
         """Test creating in-memory store."""
-        from src.cubo.storage.embedding_store import InMemoryEmbeddingStore, create_embedding_store
+        from cubo.storage.embedding_store import InMemoryEmbeddingStore, create_embedding_store
 
         store = create_embedding_store(mode="memory")
         self.assertIsInstance(store, InMemoryEmbeddingStore)
 
     def test_create_sharded_store(self):
         """Test creating sharded store."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore, create_embedding_store
+        from cubo.storage.embedding_store import ShardedEmbeddingStore, create_embedding_store
 
         store = create_embedding_store(mode="npy_sharded", storage_dir=Path(self.temp_dir))
         self.assertIsInstance(store, ShardedEmbeddingStore)
 
     def test_create_mmap_store(self):
         """Test creating mmap store."""
-        from src.cubo.storage.embedding_store import MmapEmbeddingStore, create_embedding_store
+        from cubo.storage.embedding_store import MmapEmbeddingStore, create_embedding_store
 
         store = create_embedding_store(mode="mmap", storage_dir=Path(self.temp_dir), dimension=128)
         self.assertIsInstance(store, MmapEmbeddingStore)
@@ -314,7 +314,7 @@ class TestCreateEmbeddingStore(unittest.TestCase):
 
     def test_invalid_mode_raises(self):
         """Test that invalid mode raises ValueError."""
-        from src.cubo.storage.embedding_store import create_embedding_store
+        from cubo.storage.embedding_store import create_embedding_store
 
         with self.assertRaises(ValueError):
             create_embedding_store(mode="invalid")
@@ -336,7 +336,7 @@ class TestMmapEmbeddingStore(unittest.TestCase):
 
     def test_basic_operations(self):
         """Test basic mmap store operations."""
-        from src.cubo.storage.embedding_store import MmapEmbeddingStore
+        from cubo.storage.embedding_store import MmapEmbeddingStore
 
         store = MmapEmbeddingStore(
             storage_path=Path(self.temp_dir) / "embeddings.mmap", dimension=4, max_embeddings=100
@@ -352,7 +352,7 @@ class TestMmapEmbeddingStore(unittest.TestCase):
 
     def test_persistence(self):
         """Test that mmap persists across instances."""
-        from src.cubo.storage.embedding_store import MmapEmbeddingStore
+        from cubo.storage.embedding_store import MmapEmbeddingStore
 
         path = Path(self.temp_dir) / "embeddings.mmap"
 
@@ -367,7 +367,7 @@ class TestMmapEmbeddingStore(unittest.TestCase):
 
     def test_slot_reuse(self):
         """Test that deleted slots are reused."""
-        from src.cubo.storage.embedding_store import MmapEmbeddingStore
+        from cubo.storage.embedding_store import MmapEmbeddingStore
 
         store = MmapEmbeddingStore(
             storage_path=Path(self.temp_dir) / "embeddings.mmap", dimension=2, max_embeddings=5
@@ -399,7 +399,7 @@ class TestThreadSafety(unittest.TestCase):
 
     def test_concurrent_writes(self):
         """Test concurrent writes to sharded store."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(storage_dir=Path(self.temp_dir), shard_size=10)
 
@@ -419,7 +419,7 @@ class TestThreadSafety(unittest.TestCase):
 
     def test_concurrent_reads(self):
         """Test concurrent reads from sharded store."""
-        from src.cubo.storage.embedding_store import ShardedEmbeddingStore
+        from cubo.storage.embedding_store import ShardedEmbeddingStore
 
         store = ShardedEmbeddingStore(storage_dir=Path(self.temp_dir), shard_size=10)
 

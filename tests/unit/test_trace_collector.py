@@ -1,6 +1,6 @@
 import time
 
-from src.cubo.utils.trace_collector import TraceCollector
+from cubo.utils.trace_collector import TraceCollector
 
 
 def test_trace_collector_basic():

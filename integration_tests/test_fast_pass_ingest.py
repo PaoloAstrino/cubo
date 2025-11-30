@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.cubo.ingestion.fast_pass_ingestor import build_bm25_index
+from cubo.ingestion.fast_pass_ingestor import build_bm25_index
 
 
 @pytest.fixture(scope="module")
@@ -28,7 +28,7 @@ def test_fast_pass_ingest_sample_data(fast_pass_result):
 
 
 def test_bm25_searcher_returns_results(fast_pass_result):
-    from src.cubo.retrieval.bm25_searcher import BM25Searcher
+    from cubo.retrieval.bm25_searcher import BM25Searcher
 
     result = fast_pass_result
     searcher = BM25Searcher(result["chunks_jsonl"], result["bm25_stats"])

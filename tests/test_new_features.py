@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.cubo.config import config
-from src.cubo.processing.generator import ResponseGenerator
+from cubo.config import config
+from cubo.processing.generator import ResponseGenerator
 
 
 def test_llm_config_system_prompt():

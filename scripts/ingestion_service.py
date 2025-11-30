@@ -8,9 +8,9 @@ import time
 from pathlib import Path as _Path
 
 sys.path.insert(0, str(_Path(__file__).parent.parent))
-from src.cubo.ingestion.ingestion_manager import IngestionManager
-from src.cubo.storage.metadata_manager import get_metadata_manager
-from src.cubo.utils.logger import logger
+from cubo.ingestion.ingestion_manager import IngestionManager
+from cubo.storage.metadata_manager import get_metadata_manager
+from cubo.utils.logger import logger
 
 
 def main(poll_interval: int = 10):

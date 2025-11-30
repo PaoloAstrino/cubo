@@ -1,4 +1,4 @@
-from src.cubo.retrieval.router import QueryType, SemanticRouter
+from cubo.retrieval.router import QueryType, SemanticRouter
 
 
 def test_router_classify_basic_queries():

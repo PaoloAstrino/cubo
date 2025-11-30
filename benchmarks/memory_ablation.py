@@ -108,7 +108,7 @@ class MemoryAblationBenchmark:
         }
         
         try:
-            from src.cubo.config import config
+            from cubo.config import config
             
             # Apply configuration
             for key, value in config_updates.items():
@@ -125,7 +125,7 @@ class MemoryAblationBenchmark:
             # Import and initialize CUBO
             start_time = time.time()
             
-            from src.cubo.main import CUBOApp
+            from cubo.main import CUBOApp
             cubo = CUBOApp()
             
             init_time = time.time()

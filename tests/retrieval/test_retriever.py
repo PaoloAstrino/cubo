@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sentence_transformers import SentenceTransformer
 
-from src.cubo.config import config
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.config import config
+from cubo.retrieval.retriever import DocumentRetriever
 
 
 @pytest.fixture
@@ -193,7 +193,7 @@ def test_reranker_initialization_with_crossencoder(mock_model, temp_db_path):
     ):
         retriever2 = DocumentRetriever(mock_model)
         assert hasattr(retriever2, "reranker")
-        from src.cubo.rerank.reranker import CrossEncoderReranker, LocalReranker
+        from cubo.rerank.reranker import CrossEncoderReranker, LocalReranker
 
         assert isinstance(retriever2.reranker, (CrossEncoderReranker, LocalReranker, type(None)))
 

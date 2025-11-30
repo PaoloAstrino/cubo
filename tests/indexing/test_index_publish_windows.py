@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.indexing.index_publisher import get_current_index_dir, publish_version
-from src.cubo.storage.metadata_manager import get_metadata_manager
+from cubo.indexing.faiss_index import FAISSIndexManager
+from cubo.indexing.index_publisher import get_current_index_dir, publish_version
+from cubo.storage.metadata_manager import get_metadata_manager
 
 
 def _fake_embeddings(count: int, dimension: int = 2):

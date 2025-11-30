@@ -4,7 +4,7 @@ Tests for Deduplicator.
 
 import unittest
 
-from src.cubo.deduplication.deduplicator import Deduplicator
+from cubo.deduplication.deduplicator import Deduplicator
 
 
 class TestDeduplicator(unittest.TestCase):

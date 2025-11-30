@@ -1,5 +1,5 @@
-from src.cubo.config import config
-from src.cubo.routing.query_router import QueryRouter, RetrievalStrategy
+from cubo.config import config
+from cubo.routing.query_router import QueryRouter, RetrievalStrategy
 
 
 def test_compute_strategy_matches_config():

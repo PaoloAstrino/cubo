@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from src.cubo.config import config
-from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from cubo.config import config
+from cubo.ingestion.deep_ingestor import DeepIngestor
 
 
 def test_reindex_parquet_with_wipe(tmp_path: Path):
@@ -57,7 +57,7 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
             sys.argv = old_argv
 
     # Verify collection count
-    from src.cubo.retrieval.retriever import DocumentRetriever
+    from cubo.retrieval.retriever import DocumentRetriever
 
     retr = DocumentRetriever(model=None)
     coll = retr.collection

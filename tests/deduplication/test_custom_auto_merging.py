@@ -4,7 +4,7 @@ Tests for HierarchicalChunker in CustomAutoMerging.
 
 import unittest
 
-from src.cubo.deduplication.custom_auto_merging import HierarchicalChunker
+from cubo.deduplication.custom_auto_merging import HierarchicalChunker
 
 
 class TestHierarchicalChunker(unittest.TestCase):

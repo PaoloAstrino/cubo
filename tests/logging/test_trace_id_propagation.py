@@ -1,9 +1,9 @@
 import json
 import time
 
-from src.cubo.config import config
-from src.cubo.services.service_manager import ServiceManager
-from src.cubo.utils.logger import logger_instance
+from cubo.config import config
+from cubo.services.service_manager import ServiceManager
+from cubo.utils.logger import logger_instance
 
 
 def test_trace_id_propagation(tmp_path):
@@ -24,7 +24,7 @@ def test_trace_id_propagation(tmp_path):
 
     def op(filepath):
         # Simple operation that logs something
-        from src.cubo.utils.logger import logger as inlogger
+        from cubo.utils.logger import logger as inlogger
 
         inlogger.info("op started", extra={"file": filepath})
         return True

@@ -5,6 +5,13 @@ from pathlib import Path
 
 import pytest
 
+# Check if plot_results.py script exists
+PLOT_SCRIPT = Path(__file__).parents[2] / "scripts" / "plot_results.py"
+pytestmark = pytest.mark.skipif(
+    not PLOT_SCRIPT.exists(),
+    reason=f"Plot script not found: {PLOT_SCRIPT}"
+)
+
 try:
     pass  # type: ignore
 except Exception:

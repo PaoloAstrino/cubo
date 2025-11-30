@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 def test_trace_full_pipeline(client: TestClient, cubo_app, mini_data):
     """Integration test: run ingest -> build-index -> query and assert traces."""
-    from src.cubo.server import api as server_api
+    from cubo.server import api as server_api
 
     # Use lightweight cubo_app fixture for server
     server_api.cubo_app = cubo_app

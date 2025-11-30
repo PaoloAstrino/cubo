@@ -1,5 +1,8 @@
 """
 Integration tests for RAGAS metrics in RAGTester.
+
+NOTE: This test is marked as slow because importing ragas/langchain takes 30+ seconds.
+Run with: pytest -m "not slow" to skip, or pytest -m slow to run only slow tests.
 """
 
 import sys
@@ -7,57 +10,75 @@ import os
 from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 
-# Add project root to path to import from benchmarks
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Mark entire module as slow
+pytestmark = pytest.mark.slow
 
 
-@pytest.fixture(autouse=True)
-def mock_heavy_modules(monkeypatch):
-    """Mock heavy dependencies for this test module only.
+@pytest.fixture(scope="module")
+def setup_mocks():
+    """Set up mocks for heavy modules - only runs when test is actually executed."""
+    # Add project root to path
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
     
-    Uses monkeypatch to ensure cleanup after test completion,
-    preventing pollution of sys.modules for other tests.
-    """
-    # Save original modules if they exist
-    original_modules = {}
-    for mod_name in ["src.cubo.main", "src.cubo.evaluation.metrics", "src.cubo.evaluation.perf_utils"]:
+    # Save original modules
+    saved_modules = {}
+    modules_to_mock = [
+        "ragas", "ragas.metrics", 
+        "langchain", "langchain_community",
+        "benchmarks.utils.ragas_evaluator",
+        "src.cubo.main",
+        "src.cubo.evaluation.metrics", 
+        "src.cubo.evaluation.perf_utils"
+    ]
+    
+    for mod_name in modules_to_mock:
         if mod_name in sys.modules:
-            original_modules[mod_name] = sys.modules[mod_name]
+            saved_modules[mod_name] = sys.modules[mod_name]
     
-    # Create mocks
-    mock_main = MagicMock()
-    mock_metrics = MagicMock()
+    # Install mocks
+    _mock_ragas = MagicMock()
+    _mock_ragas.RAGAS_AVAILABLE = True
+    sys.modules["ragas"] = _mock_ragas
+    sys.modules["ragas.metrics"] = MagicMock()
+    sys.modules["langchain"] = MagicMock()
+    sys.modules["langchain_community"] = MagicMock()
+    sys.modules["benchmarks.utils.ragas_evaluator"] = MagicMock()
+    sys.modules["src.cubo.main"] = MagicMock()
+    sys.modules["src.cubo.evaluation.metrics"] = MagicMock()
+    
     mock_perf_utils = MagicMock()
-    
-    # Configure perf_utils mock to return dict for hardware metadata
     mock_perf_utils.log_hardware_metadata.return_value = {
         "cpu": {"model": "Test CPU"},
         "ram": {"total_gb": 16.0}
     }
     mock_perf_utils.sample_latency.return_value = {"p50_ms": 10.0}
     mock_perf_utils.sample_memory.return_value = {"ram_peak_gb": 1.0}
-    
-    # Install mocks using monkeypatch for automatic cleanup
-    monkeypatch.setitem(sys.modules, "src.cubo.main", mock_main)
-    monkeypatch.setitem(sys.modules, "src.cubo.evaluation.metrics", mock_metrics)
-    monkeypatch.setitem(sys.modules, "src.cubo.evaluation.perf_utils", mock_perf_utils)
+    sys.modules["src.cubo.evaluation.perf_utils"] = mock_perf_utils
     
     yield
     
-    # Restore original modules (monkeypatch handles this, but be explicit)
-    for mod_name, original in original_modules.items():
-        sys.modules[mod_name] = original
+    # Restore original modules
+    for mod_name in modules_to_mock:
+        if mod_name in saved_modules:
+            sys.modules[mod_name] = saved_modules[mod_name]
+        elif mod_name in sys.modules:
+            del sys.modules[mod_name]
 
 
-try:
-    from benchmarks.retrieval.rag_benchmark import RAGTester
-except ImportError:
-    RAGTester = None
+@pytest.fixture
+def rag_tester_class(setup_mocks):
+    """Import RAGTester after mocks are set up."""
+    try:
+        from benchmarks.retrieval.rag_benchmark import RAGTester
+        return RAGTester
+    except ImportError:
+        pytest.skip("RAGTester not available")
 
 
-@pytest.mark.skipif(RAGTester is None, reason="RAGTester not available")
-def test_ragas_integration_in_rag_tester():
+def test_ragas_integration_in_rag_tester(rag_tester_class, setup_mocks):
     """Test that RAGTester correctly calls RAGASEvaluator and aggregates metrics."""
+    
+    RAGTester = rag_tester_class
     
     # Mock RAGASEvaluator
     mock_ragas_evaluator = AsyncMock()

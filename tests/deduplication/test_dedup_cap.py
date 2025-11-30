@@ -8,21 +8,21 @@ class TestDeduplicatorCandidateCap(unittest.TestCase):
 
     def test_no_cap_by_default(self):
         """Test that cap is None by default (unlimited)."""
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         dedup = Deduplicator()
         self.assertIsNone(dedup.max_candidates)
 
     def test_explicit_cap(self):
         """Test setting cap explicitly."""
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         dedup = Deduplicator(max_candidates=100)
         self.assertEqual(dedup.max_candidates, 100)
 
     def test_small_dataset_not_affected(self):
         """Test that small datasets work normally with cap."""
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         dedup = Deduplicator(threshold=0.5, max_candidates=1000)
 
@@ -43,7 +43,7 @@ class TestDeduplicatorCandidateCap(unittest.TestCase):
 
     def test_cap_limits_pairs(self):
         """Test that cap actually limits candidate pairs."""
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         # Create many similar documents that would generate many pairs
         dedup = Deduplicator(threshold=0.3, max_candidates=5)
@@ -63,7 +63,7 @@ class TestDeduplicatorCandidateCap(unittest.TestCase):
 
     def test_get_stats(self):
         """Test get_stats returns expected fields."""
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         dedup = Deduplicator(max_candidates=100)
 
@@ -84,7 +84,7 @@ class TestDeduplicatorCandidateCap(unittest.TestCase):
 
     def test_duplicate_detection_with_cap(self):
         """Test that duplicates are still found with reasonable cap."""
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         dedup = Deduplicator(threshold=0.5, max_candidates=50)
 
@@ -106,7 +106,7 @@ class TestDeduplicatorCandidateCap(unittest.TestCase):
 
     def test_prioritizes_high_match_docs(self):
         """Test that cap prioritizes docs with more potential matches."""
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         dedup = Deduplicator(threshold=0.4, max_candidates=3)
 
@@ -138,7 +138,7 @@ class TestDeduplicatorConfigIntegration(unittest.TestCase):
         """Test that Deduplicator reads max_candidates from config."""
         from unittest.mock import patch
 
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         # Mock config to return max_candidates
         with patch("src.cubo.deduplication.deduplicator.config") as mock_config:
@@ -152,7 +152,7 @@ class TestDeduplicatorConfigIntegration(unittest.TestCase):
         """Test that explicit max_candidates overrides config."""
         from unittest.mock import patch
 
-        from src.cubo.deduplication.deduplicator import Deduplicator
+        from cubo.deduplication.deduplicator import Deduplicator
 
         with patch("src.cubo.deduplication.deduplicator.config") as mock_config:
             mock_config.get.return_value = {"max_candidates": 200}

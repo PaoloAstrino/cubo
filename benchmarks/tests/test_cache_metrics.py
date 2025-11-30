@@ -3,7 +3,7 @@ import sys
 sys.path.insert(0, os.getcwd())
 import numpy as np
 from benchmarks.retrieval.rag_benchmark import GroundTruthLoader
-from src.cubo.retrieval.cache import SemanticCache
+from cubo.retrieval.cache import SemanticCache
 
 
 def test_semantic_cache_metrics_hit_and_miss():

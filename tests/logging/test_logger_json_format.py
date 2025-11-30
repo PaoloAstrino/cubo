@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from src.cubo.config import config
-from src.cubo.utils.logger import logger, logger_instance
+from cubo.config import config
+from cubo.utils.logger import logger, logger_instance
 
 
 def test_json_log_format(tmp_path):

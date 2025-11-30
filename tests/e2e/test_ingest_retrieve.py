@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.retrieval.bm25_searcher import BM25Searcher
+from cubo.retrieval.bm25_searcher import BM25Searcher
 
 
 @pytest.mark.e2e

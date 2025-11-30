@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.cubo.deduplication.table_deduplicator import TableDeduplicator
+from cubo.deduplication.table_deduplicator import TableDeduplicator
 
 
 class FakeEmbedder:
@@ -34,7 +34,7 @@ def test_table_deduplicator_clusters_and_virtual_tables():
     )
 
     # Force sklearn fallback for deterministic clustering within unit tests (avoid HDBSCAN stochastic behavior)
-    import src.cubo.deduplication.table_deduplicator as tdd
+    import cubo.deduplication.table_deduplicator as tdd
 
     tdd.hdbscan = None
     tdd.umap = None

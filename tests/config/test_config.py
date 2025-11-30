@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 
-from src.cubo.config import Config
+from cubo.config import Config
 
 
 def test_config_load_defaults():

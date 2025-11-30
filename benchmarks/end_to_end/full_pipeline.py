@@ -21,7 +21,7 @@ import requests
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.cubo.utils.logger import logger
+from cubo.utils.logger import logger
 
 API_BASE_URL = "http://localhost:8000"
 TEST_DOCUMENT_PATH = project_root / "data" / "frog_story.txt"

@@ -11,7 +11,7 @@ pytestmark = pytest.mark.requires_faiss
 
 
 def _reader_task(index_root: Path, iterations: int = 400, delay: float = 0.01):
-    from src.cubo.indexing.faiss_index import FAISSIndexManager
+    from cubo.indexing.faiss_index import FAISSIndexManager
 
     mgr = FAISSIndexManager(dimension=2, index_root=index_root)
     errors = []
@@ -72,7 +72,7 @@ def test_publish_stress_concurrency(tmp_path: Path, tmp_metadata_db):
     ), f"Too many reader errors during stress test: {total_reader_errors}"
 
     # Ensure pointer points to the last published directory
-    from src.cubo.indexing.index_publisher import get_current_index_dir
+    from cubo.indexing.index_publisher import get_current_index_dir
 
     last_published = get_current_index_dir(index_root)
     assert last_published is not None, "No pointer present after publishing"

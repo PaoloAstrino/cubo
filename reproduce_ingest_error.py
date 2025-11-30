@@ -1,6 +1,6 @@
 import logging
 
-from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from cubo.ingestion.deep_ingestor import DeepIngestor
 
 # Setup logging to see everything
 logging.basicConfig(level=logging.DEBUG)

@@ -1,9 +1,9 @@
 import json
 import time
 
-from src.cubo.config import config
-from src.cubo.services.service_manager import ServiceManager
-from src.cubo.utils.logger import logger_instance
+from cubo.config import config
+from cubo.services.service_manager import ServiceManager
+from cubo.utils.logger import logger_instance
 
 
 def test_logger_reconfig_json_and_trace(tmp_path):
@@ -29,8 +29,8 @@ def test_logger_reconfig_json_and_trace(tmp_path):
     svc = ServiceManager(max_workers=1)
 
     def op():
-        from src.cubo.utils.logger import logger as inlogger
-        from src.cubo.utils.logging_context import get_current_trace_id
+        from cubo.utils.logger import logger as inlogger
+        from cubo.utils.logging_context import get_current_trace_id
 
         inlogger.info("background op")
         return get_current_trace_id()

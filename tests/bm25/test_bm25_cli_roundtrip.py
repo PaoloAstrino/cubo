@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.retrieval.bm25_python_store import BM25PythonStore
+from cubo.retrieval.bm25_python_store import BM25PythonStore
 
 
 def test_bm25_cli_roundtrip(tmp_path: Path):
@@ -20,7 +20,7 @@ def test_bm25_cli_roundtrip(tmp_path: Path):
 
     out_dir = tmp_path / "bm25"
     out_dir.mkdir()
-    from src.cubo.retrieval.bm25_migration import (
+    from cubo.retrieval.bm25_migration import (
         convert_json_stats_to_bm25,
         export_bm25_to_json,
     )

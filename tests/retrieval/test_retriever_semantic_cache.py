@@ -1,5 +1,5 @@
-from src.cubo.retrieval.cache import SemanticCache
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.retrieval.cache import SemanticCache
+from cubo.retrieval.retriever import DocumentRetriever
 
 
 def test_retriever_uses_semantic_cache():

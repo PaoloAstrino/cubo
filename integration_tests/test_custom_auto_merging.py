@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import pytest
 
-from src.cubo.deduplication.custom_auto_merging import AutoMergingRetriever
-from src.cubo.utils.logger import logger
+from cubo.deduplication.custom_auto_merging import AutoMergingRetriever
+from cubo.utils.logger import logger
 
 
 def test_custom_auto_merging():
@@ -33,7 +33,7 @@ def test_custom_auto_merging():
 
         model = DummyModel()
         # Ensure FAISS uses dimension 2 for the auto-merging vector store
-        from src.cubo.config import config as _cfg
+        from cubo.config import config as _cfg
 
         _cfg.set("auto_merge_index_dimension", 2)
         logger.info("Dummy model set for testing")

@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.retrieval.bm25_migration import convert_json_stats_to_bm25
-from src.cubo.retrieval.bm25_python_store import BM25PythonStore
+from cubo.retrieval.bm25_migration import convert_json_stats_to_bm25
+from cubo.retrieval.bm25_python_store import BM25PythonStore
 
 
 def test_json_to_bm25_parity(tmp_path: Path):

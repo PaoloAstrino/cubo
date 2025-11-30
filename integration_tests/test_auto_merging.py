@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from llama_index.core import Document
 
-from src.cubo.config import config
-from src.cubo.deduplication.custom_auto_merging import AutoMergingRetriever
+from cubo.config import config
+from cubo.deduplication.custom_auto_merging import AutoMergingRetriever
 
 
 class DummyModel:

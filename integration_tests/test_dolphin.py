@@ -13,8 +13,8 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.cubo.config import config
-from src.cubo.ingestion.enhanced_document_processor import EnhancedDocumentProcessor
+from cubo.config import config
+from cubo.ingestion.enhanced_document_processor import EnhancedDocumentProcessor
 
 
 def test_dolphin_integration():

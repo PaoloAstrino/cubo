@@ -26,7 +26,7 @@ except Exception:
 # Optional: Determine if the evaluation package is present; performance tests rely on
 # the `src.cubo.evaluation` modules which may be optional in lightweight dev setups.
 try:
-    import src.cubo.evaluation  # noqa: F401
+    import cubo.evaluation  # noqa: F401
     _EVALUATION_PRESENT = True
 except Exception:
     _EVALUATION_PRESENT = False
@@ -74,7 +74,7 @@ def tmp_metadata_db(tmp_path, monkeypatch):
     conn.close()
 
     # Monkeypatch the in-memory MetadataManager to use this db by creating a fresh manager
-    from src.cubo.storage import metadata_manager
+    from cubo.storage import metadata_manager
 
     # Reset module-level manager instance if present
     metadata_manager._manager = None
@@ -105,7 +105,7 @@ def fast_pass_result(mini_data, tmp_path_factory):
 
     Returns the `result` portion of the ingestion manager's return value.
     """
-    from src.cubo.ingestion.ingestion_manager import IngestionManager
+    from cubo.ingestion.ingestion_manager import IngestionManager
 
     manager = IngestionManager()
     output_dir = tmp_path_factory.mktemp("fast_pass_output")
@@ -124,12 +124,12 @@ def cubo_app():
 
     The fixture initializes a light CUBOApp instance and monkeypatches the generator to a deterministic one.
     """
-    from src.cubo.main import CUBOApp
+    from cubo.main import CUBOApp
 
     app = CUBOApp()
     # Try to set a real DocumentLoader, otherwise use a mock
     try:
-        from src.cubo.ingestion.document_loader import DocumentLoader
+        from cubo.ingestion.document_loader import DocumentLoader
 
         app.doc_loader = DocumentLoader()
     except Exception:
@@ -147,7 +147,7 @@ def cubo_app():
         from sentence_transformers import SentenceTransformer
 
         dummy_model = MagicMock(spec=SentenceTransformer)
-        from src.cubo.retrieval.retriever import DocumentRetriever
+        from cubo.retrieval.retriever import DocumentRetriever
 
         app.retriever = DocumentRetriever(dummy_model)
     except Exception:
@@ -169,7 +169,7 @@ def mock_llm_client(monkeypatch):
 
     # Try to monkeypatch the factory used to create the generator
     try:
-        import src.cubo.processing.generator as gen_mod
+        import cubo.processing.generator as gen_mod
 
         monkeypatch.setattr(gen_mod, "create_response_generator", lambda: _DeterministicGenerator())
     except Exception:

@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.cubo.config import config
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.config import config
+from cubo.retrieval.retriever import DocumentRetriever
 
 
 def _make_sample_df(tmpdir: Path):
@@ -84,7 +84,7 @@ def test_end_to_end_dedup_and_index_flow(tmp_path: Path, monkeypatch):
     assert found_pair, f"c1 and c2 should have been clustered together: clusters={clusters}"
 
     # Now validate _filter_to_representatives from build_faiss_index returns canonical rows only
-    from src.cubo.scripts.build_faiss_index import _filter_to_representatives
+    from cubo.scripts.build_faiss_index import _filter_to_representatives
 
     compact_df = _filter_to_representatives(
         pd.read_parquet(parquet_path), "chunk_id", str(map_path)
@@ -139,7 +139,7 @@ def test_end_to_end_faiss_build_and_retrieval(tmp_path: Path):
     assert proc.returncode == 0, f"deduplicate failed: {proc.stderr}"
 
     # Filter to representative rows
-    from src.cubo.scripts.build_faiss_index import _filter_to_representatives
+    from cubo.scripts.build_faiss_index import _filter_to_representatives
 
     filtered_df = _filter_to_representatives(
         pd.read_parquet(parquet_path), "chunk_id", str(map_path)
@@ -153,7 +153,7 @@ def test_end_to_end_faiss_build_and_retrieval(tmp_path: Path):
     filtered_embeddings = [emb[id_to_idx[i]].tolist() for i in filtered_ids]
 
     # Build FAISS index manager and save
-    from src.cubo.indexing.faiss_index import FAISSIndexManager
+    from cubo.indexing.faiss_index import FAISSIndexManager
 
     out_dir = tmpdir / "faiss_index"
     manager = FAISSIndexManager(
@@ -218,7 +218,7 @@ def test_cli_build_faiss_and_retrieve(tmp_path: Path):
     assert ids_saved, "No ids saved into FAISS metadata"
 
     # Load and run a sample query to ensure index works
-    from src.cubo.indexing.faiss_index import FAISSIndexManager
+    from cubo.indexing.faiss_index import FAISSIndexManager
 
     manager = FAISSIndexManager(dimension=payload.get("dimension", 3), index_dir=out_dir)
     manager.load(path=out_dir)

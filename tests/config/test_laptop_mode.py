@@ -10,7 +10,7 @@ class TestLaptopModeDetection(unittest.TestCase):
 
     def test_detect_system_resources_with_psutil(self):
         """Test resource detection when psutil is available."""
-        from src.cubo.config import _detect_system_resources
+        from cubo.config import _detect_system_resources
 
         # Mock psutil
         mock_virtual_memory = MagicMock()
@@ -35,7 +35,7 @@ class TestLaptopModeDetection(unittest.TestCase):
 
     def test_detect_system_resources_fallback(self):
         """Test resource detection falls back when psutil is unavailable."""
-        from src.cubo.config import _detect_system_resources
+        from cubo.config import _detect_system_resources
 
         ram, cores = _detect_system_resources()
 
@@ -47,7 +47,7 @@ class TestLaptopModeDetection(unittest.TestCase):
 
     def test_should_enable_laptop_mode_threshold(self):
         """Test laptop mode is enabled on low-resource systems."""
-        from src.cubo.config import _detect_system_resources, _should_enable_laptop_mode
+        from cubo.config import _detect_system_resources, _should_enable_laptop_mode
 
         # Clear any existing env var override
         env_backup = os.environ.pop("CUBO_LAPTOP_MODE", None)
@@ -69,7 +69,7 @@ class TestLaptopModeDetection(unittest.TestCase):
 
     def test_env_var_forces_laptop_mode_on(self):
         """Test CUBO_LAPTOP_MODE=1 forces laptop mode on."""
-        from src.cubo.config import _should_enable_laptop_mode
+        from cubo.config import _should_enable_laptop_mode
 
         with patch.dict(os.environ, {"CUBO_LAPTOP_MODE": "1"}):
             result = _should_enable_laptop_mode()
@@ -77,7 +77,7 @@ class TestLaptopModeDetection(unittest.TestCase):
 
     def test_env_var_forces_laptop_mode_off(self):
         """Test CUBO_LAPTOP_MODE=0 forces laptop mode off."""
-        from src.cubo.config import _should_enable_laptop_mode
+        from cubo.config import _should_enable_laptop_mode
 
         with patch.dict(os.environ, {"CUBO_LAPTOP_MODE": "0"}):
             result = _should_enable_laptop_mode()
@@ -89,7 +89,7 @@ class TestLaptopModeConfig(unittest.TestCase):
 
     def test_get_laptop_mode_config_structure(self):
         """Test laptop mode config has expected structure."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         laptop_config = Config.get_laptop_mode_config()
 
@@ -116,7 +116,7 @@ class TestLaptopModeConfig(unittest.TestCase):
 
     def test_apply_laptop_mode(self):
         """Test apply_laptop_mode updates config correctly."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         config = Config()
 
@@ -133,7 +133,7 @@ class TestLaptopModeConfig(unittest.TestCase):
 
     def test_is_laptop_mode(self):
         """Test is_laptop_mode returns correct state."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         config = Config()
 
@@ -151,7 +151,7 @@ class TestLaptopModeConfig(unittest.TestCase):
 
     def test_apply_default_mode_reverts(self):
         """Test apply_default_mode reverts laptop-specific changes."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         cfg = Config()
         cfg.apply_laptop_mode(force=True)
@@ -168,7 +168,7 @@ class TestLaptopModeEnhancements(unittest.TestCase):
 
     def test_document_cache_size_reduced(self):
         """Test laptop mode reduces document cache size."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         laptop_config = Config.get_laptop_mode_config()
 
@@ -176,7 +176,7 @@ class TestLaptopModeEnhancements(unittest.TestCase):
 
     def test_semantic_cache_enabled(self):
         """Test laptop mode enables semantic cache as reranker replacement."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         laptop_config = Config.get_laptop_mode_config()
 
@@ -185,7 +185,7 @@ class TestLaptopModeEnhancements(unittest.TestCase):
 
     def test_vector_index_reduced_complexity(self):
         """Test laptop mode uses lower FAISS index complexity."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         laptop_config = Config.get_laptop_mode_config()
 
@@ -195,7 +195,7 @@ class TestLaptopModeEnhancements(unittest.TestCase):
 
     def test_embedding_persistence_enabled(self):
         """Test laptop mode enables on-disk embedding persistence."""
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         laptop_config = Config.get_laptop_mode_config()
 
@@ -212,13 +212,13 @@ class TestGlobalConfigAutoDetection(unittest.TestCase):
 
     def test_global_config_exists(self):
         """Test global config instance is created."""
-        from src.cubo.config import config
+        from cubo.config import config
 
         self.assertIsNotNone(config)
 
     def test_laptop_mode_applied_flag_exists(self):
         """Test _laptop_mode_applied flag is set at module level."""
-        from src.cubo import config as config_module
+        from cubo import config as config_module
 
         self.assertTrue(hasattr(config_module, "_laptop_mode_applied"))
         self.assertIsInstance(config_module._laptop_mode_applied, bool)
@@ -228,7 +228,7 @@ class TestGlobalConfigAutoDetection(unittest.TestCase):
         import json
         import tempfile
 
-        from src.cubo.config import Config
+        from cubo.config import Config
 
         # Create a temporary config file with a distinctive value
         with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as tmp:

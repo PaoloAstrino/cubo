@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from src.cubo.utils.error_recovery import ErrorRecoveryManager, RecoveryStrategy
+from cubo.utils.error_recovery import ErrorRecoveryManager, RecoveryStrategy
 
 
 class TestErrorRecoveryManager:

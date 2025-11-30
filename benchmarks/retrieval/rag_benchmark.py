@@ -19,14 +19,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import argparse
 import subprocess
-from src.cubo.config import config
+from cubo.config import config
 import random
 
 from tqdm import tqdm
 
 from benchmarks.utils.metrics import AdvancedEvaluator, GroundTruthLoader, IRMetricsEvaluator
 from benchmarks.utils.hardware import log_hardware_metadata, sample_latency, sample_memory
-from src.cubo.main import CUBOApp
+from cubo.main import CUBOApp
 from benchmarks.utils.ragas_evaluator import get_ragas_evaluator
 
 try:

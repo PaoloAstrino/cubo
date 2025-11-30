@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from src.cubo.retrieval.cache import SemanticCache
+from cubo.retrieval.cache import SemanticCache
 
 
 def make_vec(x):

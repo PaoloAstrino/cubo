@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from src.cubo.retrieval.bm25_searcher import BM25Searcher
+from cubo.retrieval.bm25_searcher import BM25Searcher
 
 
 def test_searcher_loads_chunks(tmp_path: Path):

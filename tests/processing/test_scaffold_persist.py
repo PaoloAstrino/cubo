@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.cubo.config import config
-from src.cubo.processing.enrichment import ChunkEnricher
-from src.cubo.processing.scaffold import ScaffoldGenerator, save_scaffold_run
-from src.cubo.storage.metadata_manager import get_metadata_manager
+from cubo.config import config
+from cubo.processing.enrichment import ChunkEnricher
+from cubo.processing.scaffold import ScaffoldGenerator, save_scaffold_run
+from cubo.storage.metadata_manager import get_metadata_manager
 
 
 class FakeLLM:

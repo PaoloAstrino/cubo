@@ -13,9 +13,9 @@ def test_rollback_with_external_pointer(tmp_path: Path, tmp_metadata_db):
     index_root = tmp_path / "indexes"
     index_root.mkdir(parents=True)
 
-    from src.cubo.indexing import index_publisher as ip
-    from src.cubo.storage import metadata_manager as mm
-    from src.cubo.storage.metadata_manager import MetadataManager
+    from cubo.indexing import index_publisher as ip
+    from cubo.storage import metadata_manager as mm
+    from cubo.storage.metadata_manager import MetadataManager
 
     mm._manager = MetadataManager(db_path=tmp_metadata_db)
     ip.get_metadata_manager = lambda: mm._manager
@@ -36,7 +36,7 @@ def test_rollback_with_external_pointer(tmp_path: Path, tmp_metadata_db):
     with open(pointer_file, "w", encoding="utf-8") as fh:
         json.dump(payload_v3, fh)
 
-    from src.cubo.indexing.index_publisher import get_current_index_dir, rollback_to_previous
+    from cubo.indexing.index_publisher import get_current_index_dir, rollback_to_previous
 
     ok = rollback_to_previous(index_root)
     assert ok is True

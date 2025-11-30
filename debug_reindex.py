@@ -1,9 +1,9 @@
 import runpy, sys, sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from src.cubo.config import config
+from cubo.config import config
 import tempfile
-from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from cubo.ingestion.deep_ingestor import DeepIngestor
 
 p = Path(tempfile.mkdtemp())
 path = p / 'faiss'
@@ -35,7 +35,7 @@ with patch('src.cubo.embeddings.model_loader.model_manager.get_model') as mock_g
     finally:
         sys.argv = old_argv
 
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.retrieval.retriever import DocumentRetriever
 retr = DocumentRetriever(model=None)
 print('retrieval db path:', retr.collection._db_path)
 conn = sqlite3.connect(str(retr.collection._db_path))

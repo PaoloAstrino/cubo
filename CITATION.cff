@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "CUBO: A Modular RAG System for Local Document Intelligence"
+version: 1.2.0
+date-released: 2024-11-30
+url: "https://github.com/PaoloAstrino/cubo"
+repository-code: "https://github.com/PaoloAstrino/cubo"
+license: MIT
+authors:
+  - family-names: Astrino
+    given-names: Paolo
+    email: paolo@example.com
+keywords:
+  - retrieval-augmented-generation
+  - RAG
+  - semantic-search
+  - document-qa
+  - local-llm
+  - privacy-preserving
+  - hybrid-retrieval
+  - sentence-transformers
+  - faiss
+abstract: >-
+  CUBO is a production-ready Retrieval-Augmented Generation (RAG) system designed for 
+  local, privacy-preserving document intelligence. It features hybrid retrieval (BM25 + 
+  dense embeddings), reranking with ColBERT, sentence window chunking, and advanced 
+  ingestion pipelines for PDFs, CSVs, and Excel files. The system is optimized for 
+  consumer-grade hardware (32GB RAM, RTX 4050) and supports both desktop GUI and web 
+  API interfaces.

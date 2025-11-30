@@ -5,7 +5,7 @@ import pytest
 
 # Skip all tests in this module if validate_schema doesn't exist
 try:
-    from src.cubo.evaluation.validate_schema import validate_benchmark_output
+    from cubo.evaluation.validate_schema import validate_benchmark_output
 except ImportError:
     pytest.skip("validate_schema module not available", allow_module_level=True)
 

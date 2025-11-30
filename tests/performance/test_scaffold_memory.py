@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 
-from src.cubo.processing.scaffold import ScaffoldGenerator
+from cubo.processing.scaffold import ScaffoldGenerator
 
 
 class TestScaffoldPerformance(unittest.TestCase):
@@ -329,7 +329,7 @@ class TestEnrichmentPerformance(unittest.TestCase):
         """Test that enrichment handles LLM failures gracefully without performance degradation."""
         import time
 
-        from src.cubo.processing.enrichment import ChunkEnricher
+        from cubo.processing.enrichment import ChunkEnricher
 
         # Mock LLM that fails 50% of the time
         mock_llm = MagicMock()

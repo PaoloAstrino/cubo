@@ -8,8 +8,8 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "test": "node --no-deprecation node_modules/jest/bin/jest.js",
+    "test:watch": "node --no-deprecation node_modules/jest/bin/jest.js --watch"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

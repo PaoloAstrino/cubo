@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from src.cubo.processing.clustering import SemanticClusterer
+from cubo.processing.clustering import SemanticClusterer
 
 
 class TestMiniBatchKMeans:

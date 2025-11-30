@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.cubo.ingestion.deep_ingestor import DeepIngestor
+from cubo.ingestion.deep_ingestor import DeepIngestor
 
 
 class TestStreamingSaves:

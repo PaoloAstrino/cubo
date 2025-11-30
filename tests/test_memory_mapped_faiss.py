@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.cubo.config import config
+from cubo.config import config
 
 
 class TestMemoryMappedStorage(unittest.TestCase):

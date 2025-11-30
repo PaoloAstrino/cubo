@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("faiss")
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.indexing.index_publisher import get_current_index_dir, publish_version
+from cubo.indexing.faiss_index import FAISSIndexManager
+from cubo.indexing.index_publisher import get_current_index_dir, publish_version
 
 
 def create_and_publish(index_root: Path, vname: str, vectors, ids):

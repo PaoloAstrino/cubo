@@ -14,9 +14,9 @@ if str(ROOT) not in sys.path:
 
 from sentence_transformers import SentenceTransformer
 
-from src.cubo.config import config
-from src.cubo.ingestion.document_loader import DocumentLoader
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.config import config
+from cubo.ingestion.document_loader import DocumentLoader
+from cubo.retrieval.retriever import DocumentRetriever
 
 
 @pytest.mark.integration

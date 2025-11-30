@@ -9,7 +9,7 @@ import nltk
 from rouge_score import rouge_scorer
 from sklearn.metrics import f1_score
 
-from src.cubo.processing.enrichment import ChunkEnricher
+from cubo.processing.enrichment import ChunkEnricher
 
 
 class TestChunkEnricher(unittest.TestCase):

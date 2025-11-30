@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.cubo.utils.logger import logger
+from cubo.utils.logger import logger
 
 
 def parse_args():
@@ -47,7 +47,7 @@ def main():
 
     # Lazy import to avoid heavy dependencies if running in lightweight environments
     try:
-        from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+        from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
         logger.info("Using EmbeddingGenerator")
         gen = EmbeddingGenerator(batch_size=args.batch_size)

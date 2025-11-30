@@ -26,7 +26,7 @@ from tqdm import tqdm
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.cubo.utils.logger import logger
+from cubo.utils.logger import logger
 
 
 # ANSI color codes for terminal output

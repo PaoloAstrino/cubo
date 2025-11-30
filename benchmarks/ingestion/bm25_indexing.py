@@ -1,6 +1,6 @@
 import time
 
-from src.cubo.retrieval.bm25_store_factory import get_bm25_store
+from cubo.retrieval.bm25_store_factory import get_bm25_store
 
 N = 5000
 texts = [f"document {i} apples bananas cars and {i}" for i in range(N)]

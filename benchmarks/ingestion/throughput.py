@@ -17,7 +17,7 @@ from typing import Any, Dict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from benchmarks.utils.hardware import log_hardware_metadata, sample_memory
-from src.cubo.main import CUBOApp
+from cubo.main import CUBOApp
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)

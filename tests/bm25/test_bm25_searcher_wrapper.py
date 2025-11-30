@@ -1,5 +1,5 @@
-from src.cubo.retrieval.bm25_python_store import BM25PythonStore
-from src.cubo.retrieval.bm25_searcher import BM25Searcher
+from cubo.retrieval.bm25_python_store import BM25PythonStore
+from cubo.retrieval.bm25_searcher import BM25Searcher
 
 
 def test_searcher_explicit_python_backend():

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.cubo.retrieval.vector_store import FaissStore
+from cubo.retrieval.vector_store import FaissStore
 
 
 def test_faiss_store_add_and_promote(tmp_path: Path):

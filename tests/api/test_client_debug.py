@@ -6,7 +6,7 @@ application endpoints without needing a separately-running server.
 
 from fastapi.testclient import TestClient
 
-from src.cubo.server.api import app
+from cubo.server.api import app
 
 
 def test_testclient_health_root():

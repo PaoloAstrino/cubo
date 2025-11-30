@@ -2,7 +2,7 @@ import threading
 import time
 from pathlib import Path
 
-from src.cubo.indexing.faiss_index import FAISSIndexManager
+from cubo.indexing.faiss_index import FAISSIndexManager
 
 
 def _fake_embeddings(count: int, dimension: int = 2):

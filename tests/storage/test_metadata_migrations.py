@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from src.cubo.storage.metadata_manager import MetadataManager
+from cubo.storage.metadata_manager import MetadataManager
 
 
 def test_migrate_scaffold_mappings_add_run_id(tmp_path: Path):

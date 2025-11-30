@@ -4,7 +4,7 @@ Tests for ThreadManager.
 
 import unittest
 
-from src.cubo.workers.thread_manager import ThreadManager
+from cubo.workers.thread_manager import ThreadManager
 
 
 class TestThreadManager(unittest.TestCase):

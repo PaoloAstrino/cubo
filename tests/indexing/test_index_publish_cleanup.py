@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
 
-from src.cubo.indexing.index_publisher import cleanup
+from cubo.indexing.index_publisher import cleanup
 
 
 def test_cleanup_retention(tmp_path: Path):

@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from src.cubo.server.api import app
-from src.cubo.utils.trace_collector import trace_collector
+from cubo.server.api import app
+from cubo.utils.trace_collector import trace_collector
 
 
 def test_trace_not_found():

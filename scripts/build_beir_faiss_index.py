@@ -19,10 +19,10 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.cubo.config import config
-from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.utils.logger import logger
+from cubo.config import config
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
+from cubo.indexing.faiss_index import FAISSIndexManager
+from cubo.utils.logger import logger
 
 
 def parse_args():

@@ -3,8 +3,8 @@ import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.indexing.index_publisher import publish_version
+from cubo.indexing.faiss_index import FAISSIndexManager
+from cubo.indexing.index_publisher import publish_version
 
 
 def make_vectors(n: int, dim: int = 2, base: float = 0.0):

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.cubo.embeddings.lazy_model_manager import LazyModelManager, get_lazy_model_manager
+from cubo.embeddings.lazy_model_manager import LazyModelManager, get_lazy_model_manager
 
 
 class TestLazyModelManager(unittest.TestCase):

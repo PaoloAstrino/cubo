@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from src.cubo.deduplication.semantic_deduplicator import HybridDeduplicator
+from cubo.deduplication.semantic_deduplicator import HybridDeduplicator
 
 
 def test_semantic_dedup_run_creates_canonical_map(tmp_path):

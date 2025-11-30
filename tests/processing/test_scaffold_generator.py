@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 
-from src.cubo.processing.scaffold import ScaffoldGenerator
+from cubo.processing.scaffold import ScaffoldGenerator
 
 
 class TestScaffoldGenerator(unittest.TestCase):

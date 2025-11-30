@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.cubo.server.api import app
+from cubo.server.api import app
 
 
 @pytest.fixture

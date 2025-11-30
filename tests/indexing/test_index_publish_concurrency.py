@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("faiss")
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.indexing.index_publisher import get_current_index_dir, publish_version
+from cubo.indexing.faiss_index import FAISSIndexManager
+from cubo.indexing.index_publisher import get_current_index_dir, publish_version
 
 
 def worker_publish(root: Path, vdir: Path, dim: int = 2):

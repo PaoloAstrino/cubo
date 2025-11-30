@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from src.cubo.indexing.tiered_index_manager import (
+from cubo.indexing.tiered_index_manager import (
     IndexHealthChecker,
     IndexSnapshot,
     IndexState,
@@ -27,7 +27,7 @@ from src.cubo.indexing.tiered_index_manager import (
 def reset_singleton():
     """Reset TieredIndexManager singleton before each test."""
     TieredIndexManager._instance = None
-    import src.cubo.indexing.tiered_index_manager as tim_module
+    import cubo.indexing.tiered_index_manager as tim_module
 
     tim_module._tiered_index_manager = None
     yield

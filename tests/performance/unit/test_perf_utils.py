@@ -3,7 +3,7 @@ Unit tests for perf utilities.
 Copied from original test_perf_utils.py.
 """
 
-from src.cubo.evaluation.perf_utils import sample_latency, sample_memory
+from cubo.evaluation.perf_utils import sample_latency, sample_memory
 
 
 def test_sample_latency_simple():

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from src.cubo.ingestion.ingestion_manager import IngestionManager
-from src.cubo.storage.metadata_manager import get_metadata_manager
+from cubo.ingestion.ingestion_manager import IngestionManager
+from cubo.storage.metadata_manager import get_metadata_manager
 
 
 def test_start_fast_pass_creates_run(tmp_path: Path):

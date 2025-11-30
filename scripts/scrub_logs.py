@@ -9,7 +9,7 @@ import json
 import re
 from pathlib import Path
 
-from src.cubo.security.security import security_manager
+from cubo.security.security import security_manager
 
 
 def scrub_line_json(line: str) -> str:

@@ -1,5 +1,5 @@
-from src.cubo.config import config
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.config import config
+from cubo.retrieval.retriever import DocumentRetriever
 
 
 def test_chunk_ids_use_file_hash_when_config_enabled():

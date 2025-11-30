@@ -1,7 +1,7 @@
-from src.cubo.config import config
-from src.cubo.main import CUBOApp
-from src.cubo.security.security import security_manager
-from src.cubo.utils.logger import logger_instance
+from cubo.config import config
+from cubo.main import CUBOApp
+from cubo.security.security import security_manager
+from cubo.utils.logger import logger_instance
 
 
 def test_query_scrubbed_in_logs(tmp_path):
@@ -16,7 +16,7 @@ def test_query_scrubbed_in_logs(tmp_path):
     logger_instance.shutdown()
     logger_instance._setup_logging()
     # Ensure module-level loggers referencing the previous logger are updated
-    from src.cubo import main as cubomain
+    from cubo import main as cubomain
 
     cubomain.logger = logger_instance.get_logger()
 

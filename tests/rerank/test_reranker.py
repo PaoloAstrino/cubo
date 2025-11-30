@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.cubo.rerank.reranker import CrossEncoderReranker
+from cubo.rerank.reranker import CrossEncoderReranker
 
 
 def test_crossencoder_reranker_scores_and_sorts():

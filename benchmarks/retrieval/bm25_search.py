@@ -1,6 +1,6 @@
 import time
 
-from src.cubo.retrieval.bm25_store_factory import get_bm25_store
+from cubo.retrieval.bm25_store_factory import get_bm25_store
 
 # Prepare a sample dataset
 N = 1000

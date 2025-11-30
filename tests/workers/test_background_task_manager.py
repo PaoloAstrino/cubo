@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-from src.cubo.workers.background_task_manager import (
+from cubo.workers.background_task_manager import (
     BackgroundTask,
     BackgroundTaskManager,
     TaskProgress,

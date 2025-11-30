@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.storage.duckdb_metadata_store import (
+from cubo.storage.duckdb_metadata_store import (
     DocumentMetadata,
     DocumentStatus,
     DuckDBMetadataStore,
@@ -24,7 +24,7 @@ from src.cubo.storage.duckdb_metadata_store import (
 def reset_singleton():
     """Reset DuckDBMetadataStore singleton before each test."""
     DuckDBMetadataStore._instance = None
-    import src.cubo.storage.duckdb_metadata_store as store_module
+    import cubo.storage.duckdb_metadata_store as store_module
 
     store_module._metadata_store = None
     yield

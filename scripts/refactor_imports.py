@@ -1,5 +1,5 @@
 """
-Script to refactor all 'from src.cubo' imports to 'from cubo' for proper packaging.
+Script to refactor all 'from cubo' imports to 'from cubo' for proper packaging.
 This allows the package to work both in development and when installed via pip.
 """
 

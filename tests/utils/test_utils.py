@@ -3,7 +3,7 @@ import tempfile
 
 import pytest
 
-from src.cubo.utils.utils import Utils
+from cubo.utils.utils import Utils
 
 
 def test_sanitize_path_valid():

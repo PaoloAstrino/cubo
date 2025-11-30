@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.cubo.retrieval.vector_store import FaissStore
+from cubo.retrieval.vector_store import FaissStore
 
 
 @pytest.fixture

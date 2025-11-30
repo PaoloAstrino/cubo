@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.cubo.config import Config
-from src.cubo.ingestion.ocr_processor import OCRProcessor
+from cubo.config import Config
+from cubo.ingestion.ocr_processor import OCRProcessor
 
 
 @pytest.fixture

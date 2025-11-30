@@ -4,7 +4,7 @@ Tests for WindowReplacementPostProcessor.
 
 import unittest
 
-from src.cubo.processing.postprocessor import WindowReplacementPostProcessor
+from cubo.processing.postprocessor import WindowReplacementPostProcessor
 
 
 class TestWindowReplacementPostProcessor(unittest.TestCase):

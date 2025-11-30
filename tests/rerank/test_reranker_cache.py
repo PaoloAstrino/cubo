@@ -11,7 +11,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_basic_query_cache(self):
         """Test basic query result caching."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache(max_query_results=10)
 
@@ -23,7 +23,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_query_cache_miss(self):
         """Test query cache miss for different candidates."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache(max_query_results=10)
 
@@ -36,7 +36,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_query_cache_order_independent(self):
         """Test that candidate ID order doesn't affect cache key."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache(max_query_results=10)
 
@@ -49,7 +49,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_lru_eviction_query_cache(self):
         """Test LRU eviction in query cache."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache(max_query_results=3)
 
@@ -69,7 +69,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_embedding_cache(self):
         """Test document embedding caching."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache(max_embeddings=100)
 
@@ -81,7 +81,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_embedding_batch_operations(self):
         """Test batch embedding operations."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache(max_embeddings=100)
 
@@ -98,7 +98,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_query_embedding_cache(self):
         """Test query embedding caching."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache()
 
@@ -110,7 +110,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_cache_stats(self):
         """Test cache statistics tracking."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache()
 
@@ -131,7 +131,7 @@ class TestRerankerCache(unittest.TestCase):
 
     def test_clear_cache(self):
         """Test clearing all caches."""
-        from src.cubo.rerank.reranker import RerankerCache
+        from cubo.rerank.reranker import RerankerCache
 
         cache = RerankerCache()
 
@@ -151,7 +151,7 @@ class TestLocalRerankerWithCache(unittest.TestCase):
 
     def test_rerank_uses_cache(self):
         """Test that repeated rerank calls use cache."""
-        from src.cubo.rerank.reranker import LocalReranker, RerankerCache
+        from cubo.rerank.reranker import LocalReranker, RerankerCache
 
         # Mock model
         mock_model = MagicMock()
@@ -180,7 +180,7 @@ class TestLocalRerankerWithCache(unittest.TestCase):
 
     def test_rerank_cache_disabled(self):
         """Test reranking when cache is disabled."""
-        from src.cubo.rerank.reranker import LocalReranker, RerankerCache
+        from cubo.rerank.reranker import LocalReranker, RerankerCache
 
         mock_model = MagicMock()
         mock_model.encode = MagicMock(return_value=np.array([1.0, 0.0]))
@@ -203,7 +203,7 @@ class TestLocalRerankerWithCache(unittest.TestCase):
 
     def test_embedding_cache_during_scoring(self):
         """Test that document embeddings are cached during scoring."""
-        from src.cubo.rerank.reranker import LocalReranker, RerankerCache
+        from cubo.rerank.reranker import LocalReranker, RerankerCache
 
         mock_model = MagicMock()
         mock_model.encode = MagicMock(return_value=np.array([1.0, 0.0, 0.0]))
@@ -223,7 +223,7 @@ class TestLocalRerankerWithCache(unittest.TestCase):
 
     def test_get_cache_stats(self):
         """Test getting cache statistics from reranker."""
-        from src.cubo.rerank.reranker import LocalReranker, RerankerCache
+        from cubo.rerank.reranker import LocalReranker, RerankerCache
 
         cache = RerankerCache()
         reranker = LocalReranker(None, cache=cache)
@@ -235,7 +235,7 @@ class TestLocalRerankerWithCache(unittest.TestCase):
 
     def test_clear_cache(self):
         """Test clearing cache from reranker."""
-        from src.cubo.rerank.reranker import LocalReranker, RerankerCache
+        from cubo.rerank.reranker import LocalReranker, RerankerCache
 
         cache = RerankerCache()
         cache.put_embedding("doc1", np.array([1.0]))
@@ -251,7 +251,7 @@ class TestGlobalRerankerCache(unittest.TestCase):
 
     def test_get_reranker_cache_singleton(self):
         """Test that get_reranker_cache returns singleton."""
-        from src.cubo.rerank.reranker import get_reranker_cache
+        from cubo.rerank.reranker import get_reranker_cache
 
         cache1 = get_reranker_cache()
         cache2 = get_reranker_cache()
@@ -260,7 +260,7 @@ class TestGlobalRerankerCache(unittest.TestCase):
 
     def test_global_cache_configured_from_config(self):
         """Test that global cache respects config settings."""
-        from src.cubo.rerank.reranker import get_reranker_cache
+        from cubo.rerank.reranker import get_reranker_cache
 
         cache = get_reranker_cache()
 
@@ -274,7 +274,7 @@ class TestCandidateIdExtraction(unittest.TestCase):
 
     def test_extract_ids_from_metadata(self):
         """Test extracting IDs from metadata.chunk_id."""
-        from src.cubo.rerank.reranker import LocalReranker
+        from cubo.rerank.reranker import LocalReranker
 
         reranker = LocalReranker(None)
 
@@ -288,7 +288,7 @@ class TestCandidateIdExtraction(unittest.TestCase):
 
     def test_extract_ids_from_id_field(self):
         """Test extracting IDs from id field."""
-        from src.cubo.rerank.reranker import LocalReranker
+        from cubo.rerank.reranker import LocalReranker
 
         reranker = LocalReranker(None)
 
@@ -302,7 +302,7 @@ class TestCandidateIdExtraction(unittest.TestCase):
 
     def test_extract_ids_fallback_to_index(self):
         """Test falling back to index when no ID available."""
-        from src.cubo.rerank.reranker import LocalReranker
+        from cubo.rerank.reranker import LocalReranker
 
         reranker = LocalReranker(None)
 

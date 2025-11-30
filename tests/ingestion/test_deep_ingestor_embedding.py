@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 
-from src.cubo.config import config
-from src.cubo.ingestion.deep_ingestor import DeepIngestor
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.config import config
+from cubo.ingestion.deep_ingestor import DeepIngestor
+from cubo.retrieval.retriever import DocumentRetriever
 
 
 def test_deep_chunks_can_be_embedded_and_inserted(tmp_path: Path):

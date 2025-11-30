@@ -4,7 +4,7 @@ Tests for HealthMonitor.
 
 import unittest
 
-from src.cubo.monitoring.health_monitor import HealthMonitor
+from cubo.monitoring.health_monitor import HealthMonitor
 
 
 class TestHealthMonitor(unittest.TestCase):

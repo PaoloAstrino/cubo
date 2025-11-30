@@ -1,5 +1,5 @@
-from src.cubo.config import config
-from src.cubo.retrieval.retriever import DocumentRetriever
+from cubo.config import config
+from cubo.retrieval.retriever import DocumentRetriever
 from unittest.mock import MagicMock
 import tempfile, sqlite3
 from pathlib import Path

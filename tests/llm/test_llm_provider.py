@@ -1,5 +1,5 @@
-from src.cubo.config import config
-from src.cubo.processing.generator import ResponseGenerator, create_response_generator
+from cubo.config import config
+from cubo.processing.generator import ResponseGenerator, create_response_generator
 
 
 def test_create_response_generator_default():

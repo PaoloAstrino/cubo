@@ -4,7 +4,7 @@ Tests for MemoryStore.
 
 import unittest
 
-from src.cubo.storage.memory_store import InMemoryCollection
+from cubo.storage.memory_store import InMemoryCollection
 
 
 class TestMemoryStore(unittest.TestCase):

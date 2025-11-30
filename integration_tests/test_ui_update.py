@@ -14,7 +14,7 @@ def test_ui_update():
     """Test if UI updates work properly."""
     from PySide6.QtWidgets import QApplication
 
-    from src.cubo.gui.components import QueryWidget
+    from cubo.gui.components import QueryWidget
 
     app = QApplication.instance()
     if app is None:

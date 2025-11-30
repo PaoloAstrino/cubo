@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from src.cubo.embeddings.embedding_generator import EmbeddingGenerator
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 
 def test_embedding_generator_uses_threading():

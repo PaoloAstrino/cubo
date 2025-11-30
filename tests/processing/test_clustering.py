@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.cubo.processing.clustering import SemanticClusterer
+from cubo.processing.clustering import SemanticClusterer
 
 
 def test_semantic_clusterer_basic():

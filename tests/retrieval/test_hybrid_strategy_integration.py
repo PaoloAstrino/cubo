@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from src.cubo.indexing.faiss_index import FAISSIndexManager
-from src.cubo.retrieval.bm25_searcher import BM25Searcher
-from src.cubo.retrieval.retriever import FaissHybridRetriever
+from cubo.indexing.faiss_index import FAISSIndexManager
+from cubo.retrieval.bm25_searcher import BM25Searcher
+from cubo.retrieval.retriever import FaissHybridRetriever
 
 
 class FakeEmbeddingGenerator:

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.cubo.indexing.index_publisher import get_current_index_dir, publish_version
+from cubo.indexing.index_publisher import get_current_index_dir, publish_version
 
 
 def test_publish_metadata_hot_ids_claim_but_missing_index(tmp_path: Path):

@@ -17,8 +17,8 @@ def test_publish_reader_safety(tmp_path: Path, monkeypatch):
     # Publish v1
     v1, _, _ = create_and_publish_faiss_index(index_root, "faiss_v1", n_vectors=16, dim=2)
 
-    from src.cubo.indexing.faiss_index import FAISSIndexManager
-    from src.cubo.indexing.index_publisher import get_current_index_dir
+    from cubo.indexing.faiss_index import FAISSIndexManager
+    from cubo.indexing.index_publisher import get_current_index_dir
 
     reader = FAISSIndexManager(dimension=2, index_root=index_root)
     reader.load()

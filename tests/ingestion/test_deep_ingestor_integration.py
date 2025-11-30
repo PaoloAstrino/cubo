@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.cubo.ingestion.deep_ingestor import DeepIngestor
-from src.cubo.ingestion.fast_pass_ingestor import FastPassIngestor
+from cubo.ingestion.deep_ingestor import DeepIngestor
+from cubo.ingestion.fast_pass_ingestor import FastPassIngestor
 
 
 def test_fast_then_deep_compatibility(tmp_path: Path):
