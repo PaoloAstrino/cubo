@@ -19,7 +19,7 @@ jobs:
           python-version: "3.11"
       
       - name: Install linting tools
-        run: pip install ruff black isort bandit
+        run: pip install -r requirements-lint.txt
       
       - name: Run Ruff
         run: ruff check cubo/ --select=E9,F63,F7,F82
@@ -55,7 +55,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt -r requirements-dev.txt
-          pip install faiss-cpu  # FAISS for Ubuntu
       
       - name: Run all tests with coverage
         run: |
@@ -148,9 +147,7 @@ jobs:
           python-version: "3.11"
       
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install faiss-cpu
+        run: pip install -r requirements.txt -r requirements-dev.txt
       
       - name: Run dedup tests
         run: |
