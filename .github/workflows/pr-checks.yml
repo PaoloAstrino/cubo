@@ -1,0 +1,114 @@
+name: PR Checks (Fast)
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-lint-${{ hashFiles('**/requirements-dev.txt') }}
+      
+      - name: Install linting tools
+        run: |
+          pip install ruff black isort mypy bandit
+      
+      - name: Run Ruff
+        run: ruff check cubo/ --select=E9,F63,F7,F82
+      
+      - name: Run Black
+        run: black --check cubo/
+      
+      - name: Run isort
+        run: isort --check-only cubo/
+      
+      - name: Bandit Security Scan (High severity only)
+        run: bandit -r cubo/ -ll -q
+        continue-on-error: true
+
+  unit-tests:
+    name: Unit Tests (Fast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+      
+      - name: Run fast unit tests
+        run: |
+          pytest tests/ \
+            -m "not slow and not integration" \
+            --maxfail=5 \
+            --tb=short \
+            -q
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+  import-check:
+    name: Import & Smoke Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install core dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Test core imports
+        run: |
+          python -c "
+          from cubo.config import config
+          from cubo.ingestion.document_loader import DocumentLoader
+          from cubo.retrieval.retriever import DocumentRetriever
+          print('✓ Core imports successful')
+          "
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+  pr-summary:
+    name: PR Check Summary
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests, import-check]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.lint.result }}" = "failure" ] || \
+             [ "${{ needs.unit-tests.result }}" = "failure" ] || \
+             [ "${{ needs.import-check.result }}" = "failure" ]; then
+            echo "❌ PR checks failed"
+            exit 1
+          else
+            echo "✅ All PR checks passed"
+          fi

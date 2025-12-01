@@ -1,0 +1,248 @@
+name: Main Branch Validation (Full)
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  # Linting (same as PR checks for consistency)
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install linting tools
+        run: pip install ruff black isort bandit
+      
+      - name: Run Ruff
+        run: ruff check cubo/ --select=E9,F63,F7,F82
+      
+      - name: Run Black
+        run: black --check cubo/
+      
+      - name: Run isort
+        run: isort --check-only cubo/
+      
+      - name: Bandit Security Scan
+        run: bandit -r cubo/ -ll -q
+        continue-on-error: true
+
+  # Full test suite
+  tests-ubuntu:
+    name: Full Tests (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install faiss-cpu  # FAISS for Ubuntu
+      
+      - name: Run all tests with coverage
+        run: |
+          pytest tests/ \
+            -v \
+            --cov=cubo \
+            --cov-report=xml \
+            --cov-report=term \
+            --tb=short
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+
+  tests-windows:
+    name: Full Tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+      
+      - name: Run core tests (Windows)
+        run: |
+          pytest tests/ -v --tb=short -m "not requires_faiss"
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+  integration-tests:
+    name: Integration & E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install playwright
+          playwright install chromium --with-deps
+      
+      - name: Create test data
+        run: |
+          mkdir -p data
+          echo "Test document for integration testing." > data/test_doc.txt
+      
+      - name: Run integration tests
+        run: pytest integration_tests/ -v
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      
+      - name: Run E2E tests
+        run: pytest tests/e2e/ -v
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failures
+          path: |
+            logs/
+            data/
+          retention-days: 7
+
+  deduplication-tests:
+    name: Deduplication Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install faiss-cpu
+      
+      - name: Run dedup tests
+        run: |
+          pytest tests/deduplication/ \
+            -k "deduplicator or end_to_end" \
+            -v
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          CI: true
+
+  performance-benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      
+      - name: Run performance tests
+        run: pytest tests/performance/ -v --tb=short
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmarks
+          path: results/
+          retention-days: 30
+
+  security-scan:
+    name: Security Scan (Full)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install security tools
+        run: pip install bandit safety
+      
+      - name: Run Bandit (full scan)
+        run: |
+          bandit -r cubo/ -f json -o bandit-report.json
+          python -c "
+          import json
+          with open('bandit-report.json') as f:
+              report = json.load(f)
+          high = [i for i in report.get('results', []) if i.get('issue_severity') == 'HIGH']
+          if high:
+              print(f'⚠️ Found {len(high)} high-severity issues')
+              for issue in high[:3]:
+                  print(f\"  - {issue.get('test_name')}: {issue.get('issue_text')[:80]}\")
+          else:
+              print('✓ No high-severity security issues')
+          "
+        continue-on-error: true
+      
+      - name: Run Safety check
+        run: safety check --json || true
+
+  validation-summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [lint, tests-ubuntu, tests-windows, integration-tests, deduplication-tests, performance-benchmarks, security-scan]
+    if: always()
+    steps:
+      - name: Check all results
+        run: |
+          echo "## Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Lint: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Ubuntu Tests: ${{ needs.tests-ubuntu.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Windows Tests: ${{ needs.tests-windows.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Dedup Tests: ${{ needs.deduplication-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance: ${{ needs.performance-benchmarks.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.lint.result }}" = "failure" ] || \
+             [ "${{ needs.tests-ubuntu.result }}" = "failure" ] || \
+             [ "${{ needs.tests-windows.result }}" = "failure" ]; then
+            echo "❌ Critical tests failed"
+            exit 1
+          else
+            echo "✅ All critical validations passed"
+          fi
