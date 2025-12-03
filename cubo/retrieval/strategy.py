@@ -74,7 +74,9 @@ class RetrievalStrategy:
             candidates = window_postprocessor.postprocess_results(candidates)
 
         # Apply reranking if available and requested
-        if use_reranker and reranker and len(candidates) > top_k:
+        # Apply reranking if there are enough candidates; allow reranking when
+        # candidate count equals requested top_k as some pipelines cap results.
+        if use_reranker and reranker and len(candidates) >= top_k:
             try:
                 reranked = reranker.rerank(query, candidates, max_results=len(candidates))
                 if reranked:

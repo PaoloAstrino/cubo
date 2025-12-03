@@ -134,8 +134,16 @@ class DocumentStore:
             existing_docs = self.collection.get(where={"file_hash": file_hash})
             if existing_docs.get("ids"):
                 logger.info(f"Document {filename} with same content already exists in database")
-                # Still add to current session tracking
-                self.current_documents.add(filename)
+                # Find the existing filename stored in DB and add that to the current session
+                metas = existing_docs.get("metadatas", [])
+                if metas and isinstance(metas[0], list) and len(metas[0]) > 0:
+                    db_meta = metas[0][0]
+                    db_filename = db_meta.get("filename")
+                    if db_filename:
+                        self.current_documents.add(db_filename)
+                else:
+                    # Fallback: add the filename requested
+                    self.current_documents.add(filename)
                 return True
         except Exception as e:
             logger.warning(f"Error checking for duplicate: {e}")
@@ -148,7 +156,9 @@ class DocumentStore:
         Args:
             filepath: Path to the document
 
-        Raises:
+                            # Instead of skipping addition on duplicates, continue and create unique chunk_id so
+                            # that tests adding documents for current session get stable, isolated entries.
+                            # However keep the bookkeeping so that current_sessions includes the DB filename
             DocumentAlreadyExistsError: If document already exists
         """
         filename = self.get_filename_from_path(filepath)
@@ -428,6 +438,7 @@ class DocumentStore:
         fake_path: str,
         content: str,
         trace_id: Optional[str] = None,
+        metadata: Optional[Dict] = None,
     ) -> bool:
         """
         Add a test document directly with content.
@@ -452,20 +463,37 @@ class DocumentStore:
             existing_docs = self.collection.get(where={"file_hash": file_hash})
             if existing_docs.get("ids"):
                 logger.info(f"Document {filename} with same content already exists")
-                self.current_documents.add(filename)
-                return False
+                # Add the DB-stored filename to current session tracking so
+                # where filters like {'filename': {'$in': [...]}} will match.
+                metas = existing_docs.get("metadatas", [])
+                if metas and isinstance(metas[0], list) and len(metas[0]) > 0:
+                    db_meta = metas[0][0]
+                    db_filename = db_meta.get("filename")
+                    if db_filename:
+                        self.current_documents.add(db_filename)
+                else:
+                    # Fallback: add the filename requested
+                    self.current_documents.add(filename)
+                # Continue to add a unique copy of the document for session-only isolation
         except Exception:
             pass
 
         embeddings = self.generate_embeddings([content], filename)
-        chunk_ids = [f"{filename}_chunk_0"]
-        metadatas = [{
+        # Use unique chunk id suffix to avoid replacing existing DB entries if duplicate
+        import uuid
+        uid = uuid.uuid4().hex
+        chunk_ids = [f"{filename}_chunk_0_{uid}"]
+        base_metadata = {
             "filename": filename,
             "file_hash": file_hash,
             "filepath": fake_path,
             "chunk_index": 0,
             "total_chunks": 1,
-        }]
+        }
+        # Merge optional caller-provided metadata into the chunk-level metadata
+        if metadata and isinstance(metadata, dict):
+            base_metadata.update(metadata)
+        metadatas = [base_metadata]
 
         self.add_chunks(
             embeddings=embeddings,

@@ -22,6 +22,10 @@ from typing import Any, Dict, List, Optional, Set
 from cubo.config import config
 from cubo.utils.trace_collector import trace_collector
 
+# Promotion throttling constants to prevent RAM spikes
+MIN_REBUILD_INTERVAL_SECONDS = 60  # Minimum time between index rebuilds
+MAX_PROMOTIONS_PER_REBUILD = 50    # Maximum docs to promote per rebuild cycle
+
 
 class DocumentCache:
     """Thread-safe LRU cache for document content and metadata.
@@ -291,6 +295,7 @@ class FaissStore(VectorStore):
         self._pending_promotions: Set[str] = set()
         self._promotion_lock = threading.Lock()
         self._promotion_in_progress = False
+        self._last_rebuild_time: float = 0.0  # For throttling
 
     def _init_document_db(self) -> None:
         """Initialize SQLite database for document storage and collections."""
@@ -501,13 +506,20 @@ class FaissStore(VectorStore):
                 did, content, metadata_json = row
                 meta = json.loads(metadata_json)
 
-                # Apply where filter if provided
+                # Apply where filter if provided. Supports simple equality and
+                # a minimal subset of operators such as $in for membership.
                 if where and isinstance(where, dict):
                     match = True
                     for key, val in where.items():
-                        if meta.get(key) != val:
-                            match = False
-                            break
+                        if isinstance(val, dict) and "$in" in val:
+                            # membership operator
+                            if meta.get(key) not in val["$in"]:
+                                match = False
+                                break
+                        else:
+                            if meta.get(key) != val:
+                                match = False
+                                break
                     if not match:
                         continue
 
@@ -578,6 +590,27 @@ class FaissStore(VectorStore):
             except Exception:
                 pass
 
+        # Apply where filter at the result level too (if provided by caller).
+        if where and isinstance(where, dict):
+            filtered_docs, filtered_metas, filtered_dists, filtered_ids = [], [], [], []
+            for doc, meta, dist, did in zip(docs, metas, dists, ids_list):
+                match = True
+                for key, val in where.items():
+                    if isinstance(val, dict) and "$in" in val:
+                        if meta.get(key) not in val["$in"]:
+                            match = False
+                            break
+                    else:
+                        if meta.get(key) != val:
+                            match = False
+                            break
+                if match:
+                    filtered_docs.append(doc)
+                    filtered_metas.append(meta)
+                    filtered_dists.append(dist)
+                    filtered_ids.append(did)
+            docs, metas, dists, ids_list = filtered_docs, filtered_metas, filtered_dists, filtered_ids
+
         return {"documents": [docs], "metadatas": [metas], "distances": [dists], "ids": [ids_list]}
 
     def _queue_promotions(self, doc_ids: List[str]) -> None:
@@ -611,20 +644,31 @@ class FaissStore(VectorStore):
         """Background worker that processes pending promotions.
 
         This runs in a separate thread and batches all pending promotions
-        into a single index rebuild for efficiency.
+        into a single index rebuild for efficiency. Throttling prevents
+        excessive rebuilds from causing RAM spikes.
         """
         try:
             while True:
-                # Grab current batch of pending promotions
+                # Check minimum interval between rebuilds
+                now = time.time()
+                elapsed = now - self._last_rebuild_time
+                if elapsed < MIN_REBUILD_INTERVAL_SECONDS:
+                    wait_time = MIN_REBUILD_INTERVAL_SECONDS - elapsed
+                    time.sleep(wait_time)
+
+                # Grab current batch of pending promotions (limited)
                 with self._promotion_lock:
                     if not self._pending_promotions:
                         self._promotion_in_progress = False
                         return
-                    batch = list(self._pending_promotions)
-                    self._pending_promotions.clear()
+                    batch = list(self._pending_promotions)[:MAX_PROMOTIONS_PER_REBUILD]
+                    # Remove processed items from pending set
+                    for doc_id in batch:
+                        self._pending_promotions.discard(doc_id)
 
                 # Perform the actual promotion (may take time)
                 self._promote_batch_to_hot(batch)
+                self._last_rebuild_time = time.time()
 
         except Exception as e:
             # Log but don't crash - promotions are best-effort

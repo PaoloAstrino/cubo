@@ -74,6 +74,9 @@ dependencies = [
     "scikit-learn>=1.3.0",  # For semantic clustering in scaffolds
     "pytesseract>=0.3.10",  # For OCR (offline scanned PDF processing)
     "pdf2image>=1.16.3",  # For converting PDF pages to images for OCR
+    "nltk>=3.8.1",  # For multilingual stemming (SnowballStemmer)
+    "langdetect>=1.0.9",  # For automatic language detection
+    "markdown-it-py>=3.0.0",  # For markdown structure parsing
 ]
 
 [project.optional-dependencies]

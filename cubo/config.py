@@ -137,7 +137,15 @@ class Config:
             },
             "document_cache_size": 1000,  # LRU cache for document content
             "routing": {"enable": True, "factual_bm25_weight": 0.6, "conceptual_dense_weight": 0.8},
-            "vector_index": {"hot_ratio": 0.2, "promote_threshold": 10, "nlist": 4096, "pq_m": 64},
+            "vector_index": {
+                "hot_ratio": 0.1,
+                "promote_threshold": 50,
+                "nlist": 1024,
+                "pq_m": 64,
+                "hnsw_m": 12,
+                "hnsw_ef": 64,
+                "normalize": True,
+            },
             "deduplication": {
                 "enabled": True,
                 "method": "hybrid",
@@ -237,6 +245,9 @@ class Config:
                 "promote_threshold": 100,  # Higher threshold for promotions
                 "nlist": 512,  # Smaller clustering
                 "pq_m": 32,  # Product quantization
+                "hnsw_m": 8,  # Smaller graph for laptop
+                "hnsw_ef": 32,  # Faster search
+                "normalize": True,
             },
             # Deduplication limits
             "deduplication": {"max_candidates": 200},

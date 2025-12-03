@@ -62,6 +62,12 @@ def parse_args():
         help="HNSW M parameter",
     )
     parser.add_argument(
+        "--normalize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Normalize embeddings to unit vectors (default: True)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Don't save the index",
@@ -185,14 +191,19 @@ def main():
     
     logger.info(f"Generated {len(embeddings)} embeddings with dimension {dimension}")
     
+    # Get model path for metadata
+    model_path = getattr(generator, 'model_path', None) or config.get('model_path')
+    
     # Build FAISS index
-    logger.info("Building FAISS index...")
+    logger.info(f"Building FAISS index (normalize={args.normalize})...")
     manager = FAISSIndexManager(
         dimension=dimension,
         index_dir=index_dir,
         nlist=args.nlist,
         hnsw_m=args.hnsw_m,
         hot_fraction=args.hot_fraction,
+        normalize=args.normalize,
+        model_path=model_path,
     )
     manager.build_indexes(embeddings, doc_ids)
     

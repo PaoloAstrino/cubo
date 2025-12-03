@@ -16,6 +16,11 @@ class EmbeddingGenerator:
         self.batch_size = batch_size or config.get("embedding_batch_size", 32)
         self._threading = inference_threading or get_model_inference_threading()
 
+    @property
+    def model_path(self) -> Optional[str]:
+        """Return the model path used by the underlying model manager."""
+        return getattr(model_manager, "_model_path", None) or config.get("model_path")
+
     def encode(self, texts: List[str], batch_size: Optional[int] = None) -> List[List[float]]:
         """Generate embeddings for a list of texts."""
         if not texts:

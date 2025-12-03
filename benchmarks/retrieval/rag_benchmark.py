@@ -70,6 +70,8 @@ class RAGTester:
         index_batch_size: int = 32,
         index_sample_size: int | None = None,
         index_commit_size: int = 4096,
+        hot_fraction: float = None,
+        shuffle_docs: bool = True,
     ):
         """Initialize the tester with question data and CUBO system."""
         self.questions_file = questions_file
@@ -117,6 +119,8 @@ class RAGTester:
         self.index_commit_size = index_commit_size
         # Auto-populate DB from corpus: when skip_index is True and collection lacks doc rows
         self.auto_populate_db = False
+        self.hot_fraction = hot_fraction
+        self.shuffle_docs = shuffle_docs
 
         # Initialize CUBO system (skip for ingestion-only mode)
         self.cubo_app = None
@@ -146,6 +150,12 @@ class RAGTester:
         """Initialize the CUBO RAG system for testing."""
         try:
             logger.info("Initializing CUBO system for testing...")
+            
+            # Apply hot_fraction override if provided
+            if self.hot_fraction is not None:
+                logger.info(f"Overriding hot_fraction to {self.hot_fraction}")
+                config.set("vector_index.hot_ratio", self.hot_fraction)
+
             self.cubo_app = CUBOApp()
 
             # Skip the setup wizard - assume system is already configured
@@ -310,14 +320,8 @@ class RAGTester:
 
         start_time = time.time()
 
-        # MRR (Mean Reciprocal Rank) - reciprocal rank of first relevant doc
+        # MRR will be calculated after retrieval
         mrr = 0.0
-        relevant_docs = ground_truth.get(question_id, [])
-        for i, doc_id in enumerate(retrieved_ids):
-            if doc_id in relevant_docs:
-                mrr = 1.0 / (i + 1)
-                break
-        metrics["mrr"] = mrr
 
         try:
             if not self.cubo_app:
@@ -355,6 +359,16 @@ class RAGTester:
                 ir_metrics = self.ir_evaluator.evaluate_retrieval(
                     question_id, retrieved_ids, self.ground_truth, k_values=k_values
                 )
+                
+                # Calculate MRR (Mean Reciprocal Rank)
+                relevant_docs = self.ground_truth.get(question_id, [])
+                for i, doc_id in enumerate(retrieved_ids):
+                    if doc_id in relevant_docs:
+                        mrr = 1.0 / (i + 1)
+                        break
+                else:
+                    mrr = 0.0
+                ir_metrics["mrr"] = mrr
 
             # For retrieval-only mode, skip generation
             if self.mode == "retrieval-only":
@@ -574,6 +588,12 @@ class RAGTester:
         if not docs:
             logger.info("No documents to index")
             return
+
+        # Shuffle docs if requested (default True) to avoid bias
+        if getattr(self, "shuffle_docs", True) and not sample_size:
+            random.seed(seed)
+            random.shuffle(docs)
+            logger.info(f"Shuffled {len(docs)} documents to ensure unbiased Hot/Cold indexing")
 
         # Sample docs if requested
         if sample_size and sample_size < len(docs):
@@ -1159,6 +1179,19 @@ def main():
         action="store_false",
         help="If supplied, do not auto-populate DB when --skip-index is used",
     )
+    parser.add_argument(
+        "--hot-fraction",
+        type=float,
+        default=None,
+        help="Override hot_fraction (0.0=All Cold, 1.0=All Hot, 0.2=Default)",
+    )
+    parser.add_argument(
+        "--no-shuffle",
+        dest="shuffle_docs",
+        action="store_false",
+        help="Disable document shuffling (not recommended, introduces bias)",
+    )
+    parser.set_defaults(shuffle_docs=True)
 
     args = parser.parse_args()
 
@@ -1175,6 +1208,8 @@ def main():
         index_batch_size=args.index_batch_size,
         index_sample_size=args.index_sample_size,
         index_commit_size=args.index_commit_size,
+        hot_fraction=args.hot_fraction,
+        shuffle_docs=args.shuffle_docs,
     )
 
     # Set indexing options

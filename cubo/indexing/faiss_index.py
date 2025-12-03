@@ -30,6 +30,8 @@ class FAISSIndexManager:
         hot_fraction: float = 0.2,
         use_opq: bool = False,
         opq_m: int = 32,
+        normalize: bool = True,
+        model_path: Optional[str] = None,
     ):
         self.dimension = dimension
         self.index_dir = Path(index_dir or Path.cwd() / "faiss_index")
@@ -41,6 +43,8 @@ class FAISSIndexManager:
         self.hot_fraction = hot_fraction
         self.use_opq = use_opq
         self.opq_m = opq_m
+        self.normalize = normalize
+        self.model_path = model_path
 
         self.hot_index: Optional[faiss.Index] = None
         self.cold_index: Optional[faiss.Index] = None
@@ -105,6 +109,11 @@ class FAISSIndexManager:
                 pass
 
     def _build(self, array: np.ndarray, ids: List[str]):
+        # Normalize vectors if configured (ensures L2 distance == 2*(1-cosine))
+        if self.normalize:
+            faiss.normalize_L2(array)
+            logger.info("Normalized all vectors to unit length")
+
         hot_count = max(1, int(len(ids) * self.hot_fraction))
         hot_count = min(hot_count, len(ids))
         hot_vectors = array[:hot_count]
@@ -210,6 +219,9 @@ class FAISSIndexManager:
             if not self.hot_index and not self.cold_index:
                 raise ValueError("No FAISS indexes built yet")
             query_vec = np.asarray(query, dtype="float32").reshape(1, -1)
+            # Normalize query to match indexed vectors
+            if self.normalize:
+                faiss.normalize_L2(query_vec)
             results: List[Dict[str, Any]] = []
             if self.hot_index and self.hot_ids:
                 dists, labels = self.hot_index.search(query_vec, k)
@@ -263,6 +275,8 @@ class FAISSIndexManager:
             "hot_fraction": self.hot_fraction,
             "use_opq": self.use_opq,
             "opq_m": self.opq_m,
+            "normalize": self.normalize,
+            "model_path": self.model_path,
         }
         metadata_path = save_dir / "metadata.json"
         tmp_meta = save_dir / "metadata.json.tmp"
@@ -314,6 +328,8 @@ class FAISSIndexManager:
             self.m = metadata.get("m", self.m)
             self.use_opq = metadata.get("use_opq", False)
             self.opq_m = metadata.get("opq_m", 32)
+            self.normalize = metadata.get("normalize", True)
+            self.model_path = metadata.get("model_path", None)
             hot_path = load_dir / "hot.index"
             cold_path = load_dir / "cold.index"
             if hot_path.exists():

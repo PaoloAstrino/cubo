@@ -143,10 +143,12 @@ class RetrievalExecutor:
         for i, (doc, metadata, distance) in enumerate(
             zip(results["documents"][0], results["metadatas"][0], results["distances"][0])
         ):
+            # Ensure doc text is string; some vector stores return list-of-strings
+            doc_text = self._to_text(doc)
             base_similarity = 1 - distance
             score_breakdown = self.compute_hybrid_score(doc, query, base_similarity)
 
-            updated_metadata = metadata.copy()
+            updated_metadata = metadata.copy() if isinstance(metadata, dict) else {"metadata": metadata}
             updated_metadata["score_breakdown"] = score_breakdown
             
             # Add document ID to metadata for IR metrics
@@ -157,7 +159,7 @@ class RetrievalExecutor:
 
             candidates.append({
                 "id": doc_id,
-                "document": doc,
+                "document": doc_text,
                 "metadata": updated_metadata,
                 "similarity": score_breakdown["final_score"],
                 "base_similarity": base_similarity,
@@ -205,13 +207,15 @@ class RetrievalExecutor:
             for i, (doc, metadata) in enumerate(
                 zip(all_docs["documents"], all_docs["metadatas"])
             ):
+                # Defensive: ensure text is a plain string for hashing/encoding
+                doc_text = self._to_text(doc)
                 doc_id = (
                     ids_list[i] if i < len(ids_list)
-                    else hashlib.md5(doc.encode(), usedforsecurity=False).hexdigest()[:8]
+                    else hashlib.md5(doc_text.encode(), usedforsecurity=False).hexdigest()[:8]
                 )
                 docs_for_search.append({
                     "doc_id": doc_id,
-                    "text": doc,
+                    "text": doc_text,
                     "metadata": metadata
                 })
 
@@ -270,8 +274,10 @@ class RetrievalExecutor:
                 "bm25_contribution": 0.0,
             }
 
-        doc_id = hashlib.md5(document.encode(), usedforsecurity=False).hexdigest()[:8]
-        bm25_score = self.bm25.compute_score(query_terms, doc_id, document)
+        # Ensure document is a string for hashing and BM25 scoring
+        doc_text = self._to_text(document)
+        doc_id = hashlib.md5(doc_text.encode(), usedforsecurity=False).hexdigest()[:8]
+        bm25_score = self.bm25.compute_score(query_terms, doc_id, doc_text)
         normalized_bm25 = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
 
         semantic_contribution = SEMANTIC_WEIGHT_DETAILED * base_similarity
@@ -297,6 +303,26 @@ class RetrievalExecutor:
             "could", "should", "of", "at", "by", "for", "with", "from", "to", "in", "on",
         }
         return [w for w in words if w not in stop_words and len(w) > 2]
+
+    def _to_text(self, doc: Any) -> str:
+        """Converts a document payload into a plain text string.
+
+        The vector store may return a single string or a list/tuple of strings.
+        We coerce all non-str inputs into string joined by spaces which is
+        sufficient for tokenization, hashing and BM25 scoring.
+        """
+        if doc is None:
+            return ""
+        if isinstance(doc, str):
+            return doc
+        if isinstance(doc, (list, tuple)):
+            # Join list-like document parts into a single string
+            try:
+                return " ".join(map(str, doc))
+            except Exception:
+                return " ".join([str(x) for x in doc])
+        # Fallback to stringifying other types
+        return str(doc)
 
 
 def extract_chunk_id(result: Dict) -> Optional[str]:

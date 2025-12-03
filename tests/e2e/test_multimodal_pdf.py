@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import importlib
 import pdfplumber
 
 from cubo.ingestion.deep_ingestor import DeepIngestor
@@ -173,7 +174,7 @@ class TestMultimodalPDFProcessing:
             print(f"✓ Structured relationships preserved: {license_row}")
     
     @pytest.mark.skipif(
-        not __import__('importlib.util').find_spec('pytesseract'),
+        importlib.util.find_spec('pytesseract') is None,
         reason="Tesseract OCR not available"
     )
     def test_ocr_processing_placeholder(self):

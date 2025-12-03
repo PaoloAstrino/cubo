@@ -69,6 +69,7 @@ class DocumentRetriever:
         auto_merge_for_complex: bool = True,
         window_size: int = DEFAULT_WINDOW_SIZE,
         top_k: int = DEFAULT_TOP_K,
+        use_reranker: bool = True,
     ):
         self.model = model
         self.service_manager = get_service_manager()
@@ -79,6 +80,10 @@ class DocumentRetriever:
         self.window_size = window_size
         self.top_k = top_k
         self._closed = False
+        # Allow callers to disable reranking at retriever construction for
+        # backward compatibility with tests and other tools that specify
+        # 'use_reranker' on the retriever directly.
+        self.use_reranker = bool(use_reranker)
 
         self._initialize_components()
         self._log_initialization_status()
@@ -182,7 +187,7 @@ class DocumentRetriever:
         """Setup postprocessors and reranker."""
         self.window_postprocessor = None
         self.reranker = None
-        if self.use_sentence_window:
+        if self.use_sentence_window and self.use_reranker:
             self.window_postprocessor = PostProcessorFactory.create_window_postprocessor()
             self.reranker = RerankerFactory.create_reranker(
                 model=self.model,
@@ -313,9 +318,27 @@ class DocumentRetriever:
     def debug_collection_info(self) -> Dict:
         return self.document_store.debug_collection_info()
 
-    def add_document(self, filepath: str, chunks: List[dict]) -> bool:
+    def add_document(self, filepath: str, chunks: Optional[List[dict]] = None, metadata: Optional[Dict] = None) -> bool:
         """Add document chunks to the database."""
         try:
+            if metadata is not None and chunks is None:
+                # Treat 'filepath' as text content and metadata as per-test metadata
+                # Choose a fake path that is unique per document to avoid duplicate detection.
+                meta_fp = metadata.get("file_path") if isinstance(metadata, dict) else None
+                if not meta_fp:
+                    # Prefer explicit 'id' in metadata for readability but append
+                    # a unique suffix to avoid collisions with existing database
+                    meta_id = metadata.get("id") if isinstance(metadata, dict) else None
+                    import uuid
+                    if meta_id:
+                        fake_path = f"{meta_id}_{uuid.uuid4().hex}.txt"
+                    else:
+                        # Fallback to unique per-call id
+                        fake_path = f"test_doc_{uuid.uuid4().hex}.txt"
+                else:
+                    fake_path = meta_fp
+                return self._add_test_document(fake_path, filepath, metadata=metadata)
+
             return self.service_manager.execute_sync(
                 "document_processing",
                 lambda: self._do_add_document(filepath, chunks),
@@ -348,10 +371,10 @@ class DocumentRetriever:
                 added = True
         return added
 
-    def _add_test_document(self, fake_path: str, doc: str) -> bool:
+    def _add_test_document(self, fake_path: str, doc: str, metadata: Optional[Dict] = None) -> bool:
         return self.service_manager.execute_sync(
             "document_processing",
-            lambda: self.document_store.add_test_document(fake_path, doc),
+            lambda: self.document_store.add_test_document(fake_path, doc, metadata=metadata),
         )
 
     def remove_document(self, filepath: str) -> bool:
@@ -441,7 +464,9 @@ class DocumentRetriever:
                 )
 
             # Postprocessing
-            use_reranker = strategy.get("use_reranker", True) if strategy else True
+            use_reranker = (
+                strategy.get("use_reranker", self.use_reranker) if strategy else self.use_reranker
+            )
             return self.retrieval_strategy.apply_postprocessing(
                 combined, top_k, query,
                 self.window_postprocessor if self.use_sentence_window else None,
@@ -499,13 +524,28 @@ class DocumentRetriever:
         return self.retrieval_strategy.combine_results(semantic, bm25, top_k, semantic_weight, bm25_weight)
 
     def _apply_reranking_if_available(self, candidates: List[dict], top_k: int, query: str, use_reranker: bool = True) -> List[dict]:
-        if not use_reranker or not self.reranker or len(candidates) <= top_k:
+        # Apply reranking when there are at least top_k candidates available.
+        if not use_reranker or not self.reranker or len(candidates) < top_k:
             return candidates
+
+        # Backwards-compat: 'retrieve' alias for 'retrieve_top_documents' is implemented
+        # as a top-level method on the class; do not define it here.
         try:
             reranked = self.reranker.rerank(query, candidates, max_results=len(candidates))
             return reranked if reranked else candidates
         except Exception:
             return candidates
+
+    # Backwards-compat: 'retrieve' alias for 'retrieve_top_documents'
+    def retrieve(self, query: str, top_k: int = None, **kwargs) -> List[Dict]:
+        """Compatibility method: wrapper around retrieve_top_documents.
+
+        Many tests and external callers call `retrieve(query, top_k=K)`.
+        Keep an alias to preserve the old API.
+        """
+        if top_k is None:
+            top_k = self.top_k
+        return self.retrieve_top_documents(query, top_k=top_k, **kwargs)
 
     def _create_chunk_ids(self, metadatas: List[dict], filename: str) -> List[str]:
         return self.document_store.create_chunk_ids(metadatas, filename)
