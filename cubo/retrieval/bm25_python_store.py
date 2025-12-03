@@ -17,6 +17,7 @@ from typing import Dict, List, Optional
 
 from cubo.retrieval.bm25_store import BM25Store
 from cubo.retrieval.constants import BM25_B, BM25_K1, BM25_NORMALIZATION_FACTOR
+from cubo.retrieval.multilingual_tokenizer import MultilingualTokenizer
 
 
 class BM25PythonStore(BM25Store):
@@ -53,6 +54,18 @@ class BM25PythonStore(BM25Store):
         self.avg_doc_length = 0.0
         self.term_doc_freq = defaultdict(int)  # term -> number of docs containing term
         self.doc_term_freq = {}  # doc_id -> {term: freq}
+        
+        # Initialize multilingual tokenizer
+        try:
+            self.tokenizer = MultilingualTokenizer(
+                use_stemming=True,
+                min_token_length=2
+            )
+            self.use_multilingual = True
+        except ImportError:
+            # Fallback to naive tokenization if dependencies not available
+            self.tokenizer = None
+            self.use_multilingual = False
 
     def index_documents(self, docs: List[Dict]) -> None:
         """
@@ -112,23 +125,28 @@ class BM25PythonStore(BM25Store):
         else:
             self.avg_doc_length = 0.0
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str, language: str = 'auto') -> List[str]:
         """
-        Tokenize text into lowercase alphanumeric tokens.
+        Tokenize text with multilingual stemming support.
 
-        Filters out tokens shorter than 3 characters to remove
-        common stopwords and noise.
+        Uses MultilingualTokenizer for language-aware stemming when available,
+        falls back to naive tokenization otherwise.
 
         Args:
             text: Input text to tokenize.
+            language: Language code ('it', 'fr', 'de', 'es', 'en') or 'auto' for detection.
 
         Returns:
-            List of lowercase tokens with length > 2.
+            List of stemmed tokens (or lowercase tokens if multilingual disabled).
         """
-        # Replace non-alphanumeric with spaces, lowercase, split
-        normalized = "".join(c if c.isalnum() else " " for c in text.lower())
-        tokens = [w for w in normalized.split() if len(w) > 2]
-        return tokens
+        if self.use_multilingual and self.tokenizer:
+            # Use multilingual tokenizer with stemming
+            return self.tokenizer.tokenize(text, language=language)
+        else:
+            # Fallback to naive tokenization
+            normalized = "".join(c if c.isalnum() else " " for c in text.lower())
+            tokens = [w for w in normalized.split() if len(w) > 2]
+            return tokens
 
     def compute_score(
         self, query_terms: List[str], doc_id: str, doc_text: Optional[str] = None

@@ -338,11 +338,26 @@ class LocalReranker:
                                 improved = True
                                 break
                         if not improved:
-                            # Revert to original ordering
-                            result = candidates[: max_results or self.top_n]
+                            # Revert to original ordering and ensure each reverted
+                            # candidate has a rerank_score equal to its base similarity
+                            reverted = []
+                            for c in candidates[: max_results or self.top_n]:
+                                c2 = c.copy()
+                                base_sim = c2.get("base_similarity") or c2.get("similarity") or 0.0
+                                c2["rerank_score"] = float(base_sim)
+                                reverted.append(c2)
+                            result = reverted
             except Exception:
                 # If the heuristic check fails for any reason, ignore and use reranked
                 pass
+
+            # Ensure every returned candidate has a rerank_score. If missing,
+            # fall back to base_similarity (or similarity) so downstream callers
+            # can always expect the field.
+            for c in result:
+                if "rerank_score" not in c or c.get("rerank_score") is None:
+                    base_sim = c.get("base_similarity") or c.get("similarity") or 0.0
+                    c["rerank_score"] = float(base_sim)
 
             # Cache the result
             if self._cache_enabled:
