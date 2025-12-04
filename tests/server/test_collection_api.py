@@ -22,7 +22,7 @@ def client(mock_cubo_app):
     """Create test client with mocked CUBO app."""
     mock_app, mock_vector_store = mock_cubo_app
     
-    with patch("src.cubo.server.api.cubo_app", mock_app):
+    with patch("cubo.server.api.cubo_app", mock_app):
         from cubo.server.api import app
         yield TestClient(app), mock_vector_store
 

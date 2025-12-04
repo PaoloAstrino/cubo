@@ -6,9 +6,17 @@ A portable Retrieval-Augmented Generation system using embedding models and LLMs
 
 import argparse
 import os
+import threading
 import time
+from typing import Optional
 
 from colorama import init
+
+# Set global thread control environment variables to reduce OpenMP/BLAS noise
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 from cubo.config import config
 from cubo.embeddings.model_loader import model_manager
@@ -31,6 +39,9 @@ class CUBOApp:
         self.doc_loader = None
         self.retriever = None
         self.generator = None
+        self.vector_store = None
+        # Lock to protect state during build/query operations
+        self._state_lock = threading.RLock()
 
     def setup_wizard(self):
         """Setup wizard for initial configuration and model checks."""
@@ -236,16 +247,18 @@ class CUBOApp:
         logger.info("Loading embedding model... (this may take a few minutes)")
         start_time = time.time()
         try:
-            self.model = model_manager.get_model()
+            with self._state_lock:
+                self.model = model_manager.get_model()
             logger.info(f"Model loaded successfully in {time.time() - start_time:.2f} seconds.")
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             return False
 
-        # Initialize components
-        self.doc_loader = DocumentLoader()
-        self.retriever = DocumentRetriever(self.model)
-        self.generator = create_response_generator()
+        # Initialize components - protect state mutation
+        with self._state_lock:
+            self.doc_loader = DocumentLoader()
+            self.retriever = DocumentRetriever(self.model)
+            self.generator = create_response_generator()
 
         return True
 
@@ -452,30 +465,51 @@ class CUBOApp:
     def build_index(self, data_folder: str = None) -> int:
         """Initialize components if needed, load documents (if any) and add them to the vector DB.
         Returns number of document chunks processed/added.
+        
+        Thread-safe: Uses _state_lock to prevent race conditions with queries.
         """
-        # Ensure components are set (model, retriever, generator)
-        if not self.model or not self.retriever or not self.generator:
-            if not self.initialize_components():
-                raise RuntimeError("Failed to initialize model and components for index building")
+        with self._state_lock:
+            # Ensure components are set (model, retriever, generator)
+            if not self.model or not self.retriever or not self.generator:
+                if not self.initialize_components():
+                    raise RuntimeError("Failed to initialize model and components for index building")
 
-        folder = data_folder or config.get("data_folder")
-        documents = self._load_all_documents(folder)
-        if not documents:
-            return 0
+            folder = data_folder or config.get("data_folder")
+            documents = self._load_all_documents(folder)
+            if not documents:
+                return 0
 
-        # Add documents to the vector DB
-        self._add_documents_to_db(documents)
-        return len(documents)
+            # Add documents to the vector DB
+            self._add_documents_to_db(documents)
+            return len(documents)
 
     def _process_and_display_query(self, query: str):
         """Process query and display results."""
         logger.info("Retrieving top documents...")
         start = time.time()
-        top_docs = self.retriever.retrieve_top_documents(query)
+        with self._state_lock:
+            top_docs = self.retriever.retrieve_top_documents(query)
         logger.info(f"Retrieved in {time.time() - start:.2f} seconds.")
 
         context = "\n".join(top_docs)
-        response = self.generator.generate_response(query, context)
+        with self._state_lock:
+            response = self.generator.generate_response(query, context)
+
+    def query_retrieve(self, query: str, top_k: int = None, trace_id: Optional[str]=None, **kwargs):
+        """
+        Thread-safe wrapper to call the retriever with the state lock.
+        """
+        with self._state_lock:
+            if top_k is None:
+                top_k = config.get("retrieval.default_top_k", 6)
+            return self.retriever.retrieve_top_documents(query, top_k)
+
+    def generate_response_safe(self, query: str, context: str, trace_id: Optional[str] = None):
+        """
+        Thread-safe wrapper to call the generator with the state lock.
+        """
+        with self._state_lock:
+            return self.generator.generate_response(query=query, context=context, trace_id=trace_id)
 
         self._display_command_line_results(query, top_docs, response)
 

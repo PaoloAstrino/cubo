@@ -62,6 +62,8 @@ def client(mock_cubo_app, mock_retrieved_docs):
             
             mock_cubo_app.retriever.retrieve_top_documents.return_value = mock_retrieved_docs
             mock_cubo_app.generator.generate_response.return_value = "Test answer"
+            # CUBOApp wrapper generate_response_safe may be used in API; ensure it returns string for mocks
+            mock_cubo_app.generate_response_safe.return_value = "Test answer"
             
             from cubo.server.api import app
             yield TestClient(app)

@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import faiss
+try:
+    # Limit FAISS OpenMP threads if available to reduce noisy OpenMP messages
+    faiss.omp_set_num_threads(1)
+except Exception:
+    pass
 import numpy as np
 
 from cubo.indexing.index_publisher import get_current_index_dir
@@ -111,8 +116,11 @@ class FAISSIndexManager:
     def _build(self, array: np.ndarray, ids: List[str]):
         # Normalize vectors if configured (ensures L2 distance == 2*(1-cosine))
         if self.normalize:
-            faiss.normalize_L2(array)
-            logger.info("Normalized all vectors to unit length")
+            try:
+                faiss.normalize_L2(array)
+                logger.info("Normalized all vectors to unit length")
+            except Exception as e:
+                logger.warning(f"Failed to normalize vectors; proceeding without normalization: {e}")
 
         hot_count = max(1, int(len(ids) * self.hot_fraction))
         hot_count = min(hot_count, len(ids))
@@ -194,7 +202,13 @@ class FAISSIndexManager:
             # Apply OPQ (Optimized Product Quantization) transform
             logger.info(f"Building cold index with OPQ (opq_m={self.opq_m})")
             opq_matrix = faiss.OPQMatrix(self.dimension, self.opq_m)
-            opq_matrix.train(vectors)
+            try:
+                opq_matrix.train(vectors)
+            except Exception as e:
+                logger.warning(f"OPQMatrix training failed (falling back to flat index): {e}")
+                cold_index = faiss.IndexFlatL2(self.dimension)
+                cold_index.add(vectors)
+                return cold_index
             # Create IVFPQ index with OPQ preprocessing
             cold_index = faiss.IndexPreTransform(
                 opq_matrix,
@@ -205,7 +219,13 @@ class FAISSIndexManager:
                 quantizer, self.dimension, effective_nlist, m_to_use, nbits
             )
 
-        cold_index.train(vectors)
+        try:
+            cold_index.train(vectors)
+        except Exception as e:
+            logger.warning(f"FAISS index training failed, fallback to flat Index; error: {e}")
+            cold_index = faiss.IndexFlatL2(self.dimension)
+            cold_index.add(vectors)
+            return cold_index
         if hasattr(cold_index, "index"):
             # For IndexPreTransform, set nprobe on the wrapped index
             cold_index.index.nprobe = min(effective_nlist, 8)

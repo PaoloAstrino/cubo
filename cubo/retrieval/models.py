@@ -8,7 +8,7 @@ patterns throughout the retrieval code.
 
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ScoreBreakdown(BaseModel):
@@ -42,10 +42,7 @@ class ChunkMetadata(BaseModel):
     dedup_cluster_id: Optional[int] = Field(default=None, description="Deduplication cluster ID")
     canonical_chunk_id: Optional[str] = Field(default=None, description="Canonical chunk ID for dedup")
 
-    class Config:
-        """Allow extra fields for backwards compatibility."""
-
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class RetrievalCandidate(BaseModel):
@@ -61,10 +58,7 @@ class RetrievalCandidate(BaseModel):
     tier_boost: float = Field(default=0.0, description="Boost from tiered retrieval")
     canonical_chunk_id: Optional[str] = Field(default=None, description="Canonical chunk ID")
 
-    class Config:
-        """Allow extra fields for flexibility."""
-
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backwards compatibility."""

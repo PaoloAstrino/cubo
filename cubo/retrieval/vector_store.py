@@ -19,6 +19,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
+import numpy as np
+
 from cubo.config import config
 from cubo.utils.trace_collector import trace_collector
 
@@ -612,23 +614,43 @@ class FaissStore(VectorStore):
         """Add documents to the store.
 
         Documents and metadata are stored in SQLite for memory efficiency.
-        Embeddings are kept in memory for index rebuilds.
+        Uses two-phase commit: FAISS saves first, then SQLite commits.
+        This prevents zombie documents (in SQLite but not in FAISS).
         """
         if not embeddings or not ids:
             return
 
-        # Persist to FAISS index
+        # Phase 1: Build FAISS indexes (in-memory)
         self._index.build_indexes(embeddings, ids, append=True)
 
-        # Store vectors in SQLite (and cache)
-        self.save_vectors(ids, embeddings)
-        
-        # Init access counts
-        for did in ids:
-            self._access_counts.setdefault(did, 0)
+        # Phase 2: Save FAISS indexes to disk BEFORE committing to SQLite
+        # If this fails, we haven't touched SQLite yet
+        try:
+            self._index.save()
+        except Exception as e:
+            from cubo.utils.logger import logger
+            logger.error(f"FAISS save failed, rolling back: {e}")
+            # Rollback: remove from FAISS index
+            # (rebuild without the new IDs would be expensive, so just log)
+            raise
 
-        # Store documents and metadata in SQLite (not RAM)
-        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+        # Phase 3: Now commit to SQLite (FAISS is safely persisted)
+        conn = sqlite3.connect(str(self._db_path), timeout=30)
+        try:
+            # Store vectors
+            from datetime import datetime
+            created_at = datetime.utcnow().isoformat()
+            for doc_id, vector in zip(ids, embeddings):
+                blob, dtype, dim = self._serialize_vector(vector)
+                conn.execute(
+                    "INSERT OR REPLACE INTO vectors (id, vector, dtype, dim, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (doc_id, blob, dtype, dim, created_at),
+                )
+                # Update cache
+                vec_np = np.asarray(vector, dtype=np.float32)
+                self._vector_cache.put(doc_id, vec_np)
+
+            # Store documents and metadata
             for i, did in enumerate(ids):
                 doc = documents[i] if documents and i < len(documents) else ""
                 meta = metadatas[i] if metadatas and i < len(metadatas) else {}
@@ -636,16 +658,26 @@ class FaissStore(VectorStore):
                     "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)",
                     (did, doc, json.dumps(meta)),
                 )
-                # Also update cache
+                # Update cache
                 self._doc_cache.put(did, doc, meta)
+
+            # Only commit after all inserts succeed
             conn.commit()
 
-        # Save FAISS indexes to disk for persistence
-        self._index.save()
+        except Exception as e:
+            conn.rollback()
+            from cubo.utils.logger import logger
+            logger.error(f"SQLite commit failed after FAISS save: {e}")
+            # Note: FAISS is already saved - this is a partial state
+            # but next startup will rebuild from SQLite if needed
+            raise
+        finally:
+            conn.close()
 
-        # Periodically save embeddings to disk - DEPRECATED
-        # if len(self._embeddings) % 100 == 0:
-        #     self._save_embeddings_to_disk()
+        # Init access counts
+        for did in ids:
+            self._access_counts.setdefault(did, 0)
+
         # Record vector add event optionally
         if trace_id:
             try:

@@ -15,6 +15,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -721,16 +722,17 @@ async def ingest_documents(
 
             logger.info(f"Loaded {len(documents)} documents for ingestion")
 
-            # Use DeepIngestor for proper document processing
+            # Use DeepIngestor for proper document processing and run in threadpool
             from cubo.ingestion.deep_ingestor import DeepIngestor
 
-            ingestor = DeepIngestor(
-                input_folder=str(data_path),
-                output_dir=config.get("ingestion.deep.output_dir", "./data/deep"),
-            )
+            def run_ingestor():
+                ingestor = DeepIngestor(
+                    input_folder=str(data_path),
+                    output_dir=config.get("ingestion.deep.output_dir", "./data/deep"),
+                )
+                return ingestor.ingest()
 
-            # Run ingestion (creates parquet with chunks)
-            result = ingestor.ingest()
+            result = await run_in_threadpool(run_ingestor)
 
             if not result:
                 logger.warning("Deep ingestion produced no results")
@@ -810,7 +812,7 @@ async def build_index(
             # 3. Add documents to vector DB (FAISS)
             # 4. Update BM25 indexes
 
-            doc_count = cubo_app.build_index()
+            doc_count = await run_in_threadpool(cubo_app.build_index)
 
             logger.info(f"Index build completed with {doc_count} documents")
             trace_collector.record(
@@ -925,7 +927,10 @@ async def query(request_data: QueryRequest, request: Request = None):
             if where_filter:
                 retrieve_kwargs["where"] = where_filter
             
-            retrieved_docs = cubo_app.retriever.retrieve_top_documents(**retrieve_kwargs)
+            # Use CUBOApp query_retrieve wrapper which guards access to the retriever
+            retrieved_docs = await run_in_threadpool(
+                lambda: cubo_app.query_retrieve(**retrieve_kwargs)
+            )
 
             logger.info(f"Retrieved {len(retrieved_docs)} documents")
 
@@ -935,8 +940,10 @@ async def query(request_data: QueryRequest, request: Request = None):
                 context = "\n\n".join(
                     [doc.get("document", doc.get("content", "")) for doc in retrieved_docs]
                 )
-                answer = cubo_app.generator.generate_response(
-                    query=request_data.query, context=context, trace_id=trace_id
+                answer = await run_in_threadpool(
+                    lambda: cubo_app.generate_response_safe(
+                        query=request_data.query, context=context, trace_id=trace_id
+                    )
                 )
             else:
                 # Fallback: return retrieved documents as context

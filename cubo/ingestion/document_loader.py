@@ -3,7 +3,7 @@ import os
 from typing import List, Optional
 
 from docx import Document
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from cubo.config import config
 from cubo.utils.logger import logger
@@ -89,10 +89,14 @@ class DocumentLoader:
             doc = Document(file_path)
             return "\n".join([para.text for para in doc.paragraphs])
         elif file_ext == ".pdf":
-            reader = PdfReader(file_path)
+            # Open file in binary mode to avoid leaving handles open on Windows
             text = ""
-            for page in reader.pages:
-                text += page.extract_text()
+            with open(file_path, "rb") as fh:
+                reader = PdfReader(fh)
+                for page in reader.pages:
+                    # pypdf PdfReader may return None for pages with no text
+                    page_text = page.extract_text() or ""
+                    text += page_text
             return text
         else:
             raise ValueError(f"Unsupported file type: {file_ext}")

@@ -375,7 +375,11 @@ class SemanticCache:
             dim = vectors.shape[1]
             self._dimension = dim
             if self._index_type == "hnsw":
-                idx = faiss.IndexHNSWFlat(dim, self._hnsw_m, faiss.METRIC_INNER_PRODUCT)
+                try:
+                    idx = faiss.IndexHNSWFlat(dim, self._hnsw_m, faiss.METRIC_INNER_PRODUCT)
+                except TypeError:
+                    # Older FAISS bindings may not accept metric as positional arg
+                    idx = faiss.IndexHNSWFlat(dim, self._hnsw_m)
                 idx.hnsw.efConstruction = max(40, self._hnsw_m * 2)
                 idx.hnsw.efSearch = max(50, self._hnsw_m * 2)
             else:

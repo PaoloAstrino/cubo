@@ -642,7 +642,7 @@ CUBO is designed for privacy-conscious organizations needing secure, offline AI 
 **Document Processing:**
 
 - `python-docx`: Microsoft Word document support
-- `PyPDF2`: PDF document processing
+- `pypdf`: PDF document processing
 
 **GUI Interface:**
 
@@ -670,7 +670,7 @@ CUBO is designed for privacy-conscious organizations needing secure, offline AI 
 **Document Processing:**
 
 - `python-docx`: Microsoft Word document support
-- `PyPDF2`: PDF document processing
+- `pypdf`: PDF document processing
 
 **GUI Interface:**
 

@@ -162,7 +162,7 @@ pip install whoosh==2.7.4
 # pip install elasticsearch==8.11.0
 
 # Document Processing
-pip install PyPDF2==3.0.1
+pip install pypdf==3.0.1
 pip install pdfplumber==0.10.3
 pip install python-docx==1.1.0
 pip install openpyxl==3.1.2
@@ -289,9 +289,9 @@ class FastPassIngestor:
 
         elif ext == '.pdf':
             try:
-                import PyPDF2
+                import pypdf
                 with open(file_path, 'rb') as f:
-                    pdf = PyPDF2.PdfReader(f)
+                    pdf = pypdf.PdfReader(f)
                     text = ""
                     for page in pdf.pages[:5]:  # First 5 pages only
                         text += page.extract_text()
@@ -3370,7 +3370,7 @@ hnswlib==0.7.0
 whoosh==2.7.4
 
 # Document Processing
-PyPDF2==3.0.1
+pypdf==3.0.1
 pdfplumber==0.10.3
 python-docx==1.1.0
 openpyxl==3.1.2
