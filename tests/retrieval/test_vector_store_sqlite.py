@@ -275,5 +275,5 @@ class TestFaissStoreBackwardCompatibility:
         store2 = FaissStore(dimension=8, index_dir=index_dir)
         store2.load()
 
-        # Embeddings should be loaded
-        assert len(store2._embeddings) > 0
+        # Vectors should be loaded from SQLite
+        assert store2.count_vectors() > 0

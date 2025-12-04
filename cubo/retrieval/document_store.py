@@ -463,18 +463,13 @@ class DocumentStore:
             existing_docs = self.collection.get(where={"file_hash": file_hash})
             if existing_docs.get("ids"):
                 logger.info(f"Document {filename} with same content already exists")
-                # Add the DB-stored filename to current session tracking so
-                # where filters like {'filename': {'$in': [...]}} will match.
-                metas = existing_docs.get("metadatas", [])
-                if metas and isinstance(metas[0], list) and len(metas[0]) > 0:
-                    db_meta = metas[0][0]
-                    db_filename = db_meta.get("filename")
-                    if db_filename:
-                        self.current_documents.add(db_filename)
-                else:
-                    # Fallback: add the filename requested
-                    self.current_documents.add(filename)
-                # Continue to add a unique copy of the document for session-only isolation
+                # Keep behaviour of creating a unique per-session copy of the document
+                # so tests operate against an isolated entry, but avoid adding the
+                # DB filename to session tracking: we should not modify
+                # `self.current_documents` to include DB-managed filenames when
+                # we're purposely adding per-session test copies. This preserves
+                # deterministic, isolated behavior for test documents while
+                # leaving database bookkeeping unchanged.
         except Exception:
             pass
 

@@ -86,6 +86,61 @@ class DocumentCache:
             }
 
 
+class VectorCache:
+    """Thread-safe LRU cache for vector embeddings.
+
+    Reduces SQLite reads for frequently accessed vectors during index building
+    and promotion.
+    """
+
+    def __init__(self, max_size: int = 5000):
+        self._cache: OrderedDict[str, Any] = OrderedDict()
+        self._max_size = max_size
+        self._lock = threading.Lock()
+        self._hits = 0
+        self._misses = 0
+
+    def get(self, doc_id: str) -> Optional[Any]:
+        """Get vector from cache, moving it to end (most recent)."""
+        with self._lock:
+            if doc_id in self._cache:
+                self._cache.move_to_end(doc_id)
+                self._hits += 1
+                return self._cache[doc_id]
+            self._misses += 1
+            return None
+
+    def put(self, doc_id: str, vector: Any) -> None:
+        """Add or update vector in cache."""
+        with self._lock:
+            if doc_id in self._cache:
+                self._cache.move_to_end(doc_id)
+            else:
+                if len(self._cache) >= self._max_size:
+                    self._cache.popitem(last=False)
+            self._cache[doc_id] = vector
+
+    def clear(self) -> None:
+        """Clear entire cache."""
+        with self._lock:
+            self._cache.clear()
+            self._hits = 0
+            self._misses = 0
+
+    @property
+    def stats(self) -> Dict[str, Any]:
+        """Return cache statistics."""
+        with self._lock:
+            total = self._hits + self._misses
+            return {
+                "size": len(self._cache),
+                "max_size": self._max_size,
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_rate": (self._hits / total * 100) if total > 0 else 0,
+            }
+
+
 # Module-level executor for async operations (lazy initialized)
 _promotion_executor: Optional[ThreadPoolExecutor] = None
 _promotion_executor_users: int = 0
@@ -221,12 +276,12 @@ class FaissStore(VectorStore):
         cache_size = int(config.get("document_cache_size", 1000))
         self._doc_cache = DocumentCache(max_size=cache_size)
 
-        # Embeddings kept in memory for index rebuilds (needed for hot/cold promotion)
-        self._embeddings: Dict[str, List[float]] = {}
-        self._access_counts: Dict[str, int] = {}
+        # LRU cache for vectors (replaces full in-memory dict)
+        vector_cache_size = int(config.get("vector_store.cache_size", 5000))
+        self._vector_cache = VectorCache(max_size=vector_cache_size)
 
-        # Load embeddings from disk if available
-        self._load_embeddings_from_disk()
+        # Embeddings are now fetched from DB on demand
+        self._access_counts: Dict[str, int] = {}
 
         # Try to load existing FAISS indexes if available
         indexes_loaded = False
@@ -245,45 +300,17 @@ class FaissStore(VectorStore):
 
             logger.warning(f"Failed to load existing FAISS indexes: {e}")
 
-        # If indexes not loaded but we have embeddings, rebuild them
-        if not indexes_loaded and self._embeddings:
-            from cubo.utils.logger import logger
-
-            logger.info(f"Rebuilding FAISS indexes from {len(self._embeddings)} stored embeddings")
-            try:
-                ids = list(self._embeddings.keys())
-                vectors = [self._embeddings[did] for did in ids]
-                self._index.build_indexes(vectors, ids, append=False)
-                self._index.save()
-                logger.info(f"Rebuilt and saved FAISS indexes with {len(ids)} vectors")
-            except Exception as e:
-                logger.warning(f"Failed to rebuild FAISS indexes: {e}")
-
-        # Configure hot fraction from config
-        from cubo.config import config as _config
-
-        self.hot_fraction = float(_config.get("vector_index.hot_ratio", 0.2))
-        self._index.hot_fraction = self.hot_fraction
-
-        # Async promotion state
-        self._pending_promotions: Set[str] = set()
-        self._promotion_lock = threading.Lock()
-        self._promotion_in_progress = False
-        # Register as an active user of the module-level executor so that
-        # background threads are present while the instance exists.
-        start_promotion_executor(increment=True)
-        self._closed = False
-
-        # LRU cache for fast access to frequently-queried documents
-        cache_size = int(config.get("document_cache_size", 1000))
-        self._doc_cache = DocumentCache(max_size=cache_size)
-
-        # Embeddings kept in memory for index rebuilds (needed for hot/cold promotion)
-        self._embeddings: Dict[str, List[float]] = {}
-        self._access_counts: Dict[str, int] = {}
-
-        # Load embeddings from disk if available
-        self._load_embeddings_from_disk()
+        # If indexes not loaded, we might need to rebuild from DB
+        if not indexes_loaded:
+            count = self.count_vectors()
+            if count > 0:
+                from cubo.utils.logger import logger
+                logger.info(f"Rebuilding FAISS indexes from {count} stored vectors in DB")
+                try:
+                    self._rebuild_index_from_db()
+                    logger.info(f"Rebuilt and saved FAISS indexes")
+                except Exception as e:
+                    logger.warning(f"Failed to rebuild FAISS indexes: {e}")
 
         # Configure hot fraction from config
         from cubo.config import config as _config
@@ -296,6 +323,13 @@ class FaissStore(VectorStore):
         self._promotion_lock = threading.Lock()
         self._promotion_in_progress = False
         self._last_rebuild_time: float = 0.0  # For throttling
+        # Register as an active user of the module-level executor so that
+        # background threads are present while the instance exists.
+        start_promotion_executor(increment=True)
+        self._closed = False
+
+        # Migrate old embeddings.npz to SQLite if needed
+        self._migrate_embeddings_if_needed()
 
     def _init_document_db(self) -> None:
         """Initialize SQLite database for document storage and collections."""
@@ -338,37 +372,193 @@ class FaissStore(VectorStore):
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_coll_doc_coll ON collection_documents(collection_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_coll_doc_doc ON collection_documents(document_id)")
+
+            # Vectors table for storing embeddings
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS vectors (
+                    id TEXT PRIMARY KEY,
+                    vector BLOB NOT NULL,
+                    dtype TEXT NOT NULL,
+                    dim INTEGER NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """
+            )
             conn.commit()
 
-    def _load_embeddings_from_disk(self) -> None:
-        """Load embeddings from disk if a cache file exists."""
+    def _serialize_vector(self, vector: Any) -> tuple[bytes, str, int]:
+        """Serialize numpy vector to bytes."""
         import numpy as np
+        
+        if not isinstance(vector, np.ndarray):
+            vector = np.array(vector, dtype=np.float32)
+        
+        return vector.tobytes(), str(vector.dtype), vector.shape[0]
+
+    def _deserialize_vector(self, blob: bytes, dtype: str, dim: int) -> Any:
+        """Deserialize bytes to numpy vector."""
+        import numpy as np
+        
+        return np.frombuffer(blob, dtype=dtype).reshape(dim)
+
+    def _migrate_embeddings_if_needed(self) -> None:
+        """Migrate embeddings from .npz to SQLite if needed."""
+        import numpy as np
+        from datetime import datetime
 
         emb_path = self.index_dir / "embeddings.npz"
-        if emb_path.exists():
-            try:
-                data = np.load(str(emb_path), allow_pickle=True)
-                ids = data["ids"].tolist()
-                vectors = data["vectors"].tolist()
-                for i, doc_id in enumerate(ids):
-                    self._embeddings[doc_id] = vectors[i]
-                    self._access_counts.setdefault(doc_id, 0)
-            except Exception:
-                pass  # If loading fails, we'll rebuild embeddings on add
+        if not emb_path.exists():
+            return
+
+        # Check if we already have vectors in DB
+        if self.count_vectors() > 0:
+            return
+
+        from cubo.utils.logger import logger
+        logger.info("Migrating embeddings from .npz to SQLite...")
+
+        try:
+            data = np.load(str(emb_path), allow_pickle=True)
+            ids = data["ids"].tolist()
+            vectors = data["vectors"].tolist()
+            
+            self.save_vectors(ids, vectors)
+            
+            # Rename .npz to indicate it's migrated
+            emb_path.rename(emb_path.with_suffix(".npz.migrated"))
+            logger.info(f"Successfully migrated {len(ids)} vectors to SQLite")
+            
+        except Exception as e:
+            logger.error(f"Failed to migrate embeddings: {e}")
+
+    def save_vectors(self, ids: List[str], vectors: List[Any]) -> None:
+        """Save vectors to SQLite."""
+        from datetime import datetime
+        
+        created_at = datetime.utcnow().isoformat()
+        
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            # Enable WAL mode for better concurrency
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            
+            data = []
+            for doc_id, vector in zip(ids, vectors):
+                blob, dtype, dim = self._serialize_vector(vector)
+                data.append((doc_id, blob, dtype, dim, created_at))
+                # Update cache
+                self._vector_cache.put(doc_id, vector)
+            
+            conn.executemany(
+                "INSERT OR REPLACE INTO vectors (id, vector, dtype, dim, created_at) VALUES (?, ?, ?, ?, ?)",
+                data
+            )
+            conn.commit()
+
+    def get_vector(self, doc_id: str) -> Optional[Any]:
+        """Get a single vector by ID."""
+        # Check cache first
+        cached = self._vector_cache.get(doc_id)
+        if cached is not None:
+            return cached
+            
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            row = conn.execute(
+                "SELECT vector, dtype, dim FROM vectors WHERE id = ?", (doc_id,)
+            ).fetchone()
+            
+        if row:
+            vector = self._deserialize_vector(row[0], row[1], row[2])
+            self._vector_cache.put(doc_id, vector)
+            return vector
+        return None
+
+    def get_vectors(self, doc_ids: List[str]) -> Dict[str, Any]:
+        """Get multiple vectors by IDs."""
+        results = {}
+        uncached_ids = []
+        
+        # Check cache
+        for doc_id in doc_ids:
+            cached = self._vector_cache.get(doc_id)
+            if cached is not None:
+                results[doc_id] = cached
+            else:
+                uncached_ids.append(doc_id)
+                
+        if not uncached_ids:
+            return results
+            
+        # Fetch uncached from DB
+        # Chunk large requests to avoid SQL limits
+        chunk_size = 900 # SQLite limit is usually 999 vars
+        for i in range(0, len(uncached_ids), chunk_size):
+            chunk = uncached_ids[i:i + chunk_size]
+            placeholders = ",".join("?" * len(chunk))
+            
+            with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                rows = conn.execute(
+                    f"SELECT id, vector, dtype, dim FROM vectors WHERE id IN ({placeholders})",
+                    chunk
+                ).fetchall()
+                
+            for row in rows:
+                doc_id = row[0]
+                vector = self._deserialize_vector(row[1], row[2], row[3])
+                results[doc_id] = vector
+                self._vector_cache.put(doc_id, vector)
+                
+        return results
+
+    def count_vectors(self) -> int:
+        """Count total vectors in DB."""
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            row = conn.execute("SELECT COUNT(*) FROM vectors").fetchone()
+        return row[0] if row else 0
+
+    def _rebuild_index_from_db(self) -> None:
+        """Rebuild FAISS index by iterating over all vectors in DB."""
+        # This is a heavy operation, should be done carefully
+        # For now, we load all to rebuild, but we could do it in batches if FAISS supports it
+        # Standard FAISS build needs all vectors.
+        # If dataset is huge, we might need a different approach (e.g. on-disk index training)
+        # But for now, we just fetch all from DB instead of keeping in RAM always.
+        
+        total = self.count_vectors()
+        if total == 0:
+            return
+            
+        # Fetch all IDs
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            rows = conn.execute("SELECT id FROM vectors").fetchall()
+        
+        all_ids = [r[0] for r in rows]
+        
+        # Fetch vectors in batches to avoid one massive query, 
+        # but we still need them all in RAM for index.train/add
+        vectors = []
+        batch_size = 1000
+        
+        for i in range(0, len(all_ids), batch_size):
+            batch_ids = all_ids[i:i + batch_size]
+            batch_vecs = self.get_vectors(batch_ids)
+            # Ensure order matches
+            for did in batch_ids:
+                if did in batch_vecs:
+                    vectors.append(batch_vecs[did])
+        
+        if vectors:
+            self._index.build_indexes(vectors, all_ids, append=False)
+            self._index.save()
+
+    def _load_embeddings_from_disk(self) -> None:
+        """Deprecated: Use _migrate_embeddings_if_needed instead."""
+        pass
 
     def _save_embeddings_to_disk(self) -> None:
-        """Save embeddings to disk for persistence."""
-        import numpy as np
-
-        if not self._embeddings:
-            return
-        emb_path = self.index_dir / "embeddings.npz"
-        try:
-            ids = list(self._embeddings.keys())
-            vectors = [self._embeddings[did] for did in ids]
-            np.savez(str(emb_path), ids=np.array(ids), vectors=np.array(vectors))
-        except Exception:
-            pass  # Best effort - don't crash if save fails
+        """Deprecated: Vectors are saved to SQLite immediately."""
+        pass
 
     def _get_document_from_db(self, doc_id: str) -> Optional[Dict[str, Any]]:
         """Fetch a single document from SQLite."""
@@ -430,9 +620,11 @@ class FaissStore(VectorStore):
         # Persist to FAISS index
         self._index.build_indexes(embeddings, ids, append=True)
 
-        # Store embeddings in memory for potential rebuilds (e.g., promotion to hot)
-        for i, did in enumerate(ids):
-            self._embeddings[did] = embeddings[i]
+        # Store vectors in SQLite (and cache)
+        self.save_vectors(ids, embeddings)
+        
+        # Init access counts
+        for did in ids:
             self._access_counts.setdefault(did, 0)
 
         # Store documents and metadata in SQLite (not RAM)
@@ -451,9 +643,9 @@ class FaissStore(VectorStore):
         # Save FAISS indexes to disk for persistence
         self._index.save()
 
-        # Periodically save embeddings to disk
-        if len(self._embeddings) % 100 == 0:
-            self._save_embeddings_to_disk()
+        # Periodically save embeddings to disk - DEPRECATED
+        # if len(self._embeddings) % 100 == 0:
+        #     self._save_embeddings_to_disk()
         # Record vector add event optionally
         if trace_id:
             try:
@@ -625,8 +817,11 @@ class FaissStore(VectorStore):
         """
         with self._promotion_lock:
             # Add to pending set (deduplicates automatically)
+            # Add to pending set (deduplicates automatically)
             for did in doc_ids:
-                if did in self._embeddings and did not in self._pending_promotions:
+                # Check if vector exists in DB (or cache)
+                if did not in self._pending_promotions:
+                    # We can't easily check existence without query, but promotion is safe to fail
                     self._pending_promotions.add(did)
 
             # If promotion already running, it will pick up pending items
@@ -688,19 +883,44 @@ class FaissStore(VectorStore):
         if not doc_ids:
             return
 
-        # Filter to only valid IDs that exist in embeddings
-        valid_ids = [did for did in doc_ids if did in self._embeddings]
+        # Filter to only valid IDs that exist in DB
+        # We fetch them all to verify and get data
+        vectors_map = self.get_vectors(doc_ids)
+        valid_ids = list(vectors_map.keys())
+        
         if not valid_ids:
             return
 
         # Rebuild index with promoted docs at the front (ensures they're in hot set)
-        all_ids = list(self._embeddings.keys())
+        # We need ALL IDs to rebuild. This is expensive.
+        # Ideally we only rebuild the hot index or use FAISS move.
+        # But current logic rebuilds everything.
+        
+        # Get all IDs from DB
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            rows = conn.execute("SELECT id FROM vectors").fetchall()
+        all_ids = [r[0] for r in rows]
+
         for did in valid_ids:
             if did in all_ids:
                 all_ids.remove(did)
         new_ids = valid_ids + all_ids
 
-        vectors = [self._embeddings[did] for did in new_ids]
+        # We need all vectors to rebuild.
+        # This is the bottleneck for massive datasets.
+        # For now, we fetch them all.
+        # TODO: Optimize to only update hot index or use on-disk index
+        
+        # Fetch in batches
+        vectors = []
+        batch_size = 1000
+        for i in range(0, len(new_ids), batch_size):
+            chunk_ids = new_ids[i:i+batch_size]
+            chunk_vecs = self.get_vectors(chunk_ids)
+            for did in chunk_ids:
+                if did in chunk_vecs:
+                    vectors.append(chunk_vecs[did])
+        
         self._index.build_indexes(vectors, new_ids, append=False)
 
         # Reset access counts for promoted docs
@@ -728,14 +948,14 @@ class FaissStore(VectorStore):
         Args:
             doc_id: Document ID to promote
         """
-        if doc_id not in self._embeddings:
+        if self.get_vector(doc_id) is None:
             return
         self._promote_batch_to_hot([doc_id])
 
     def save(self, path: Optional[Path] = None) -> None:
         """Save index and embeddings to disk."""
         self._index.save(path)
-        self._save_embeddings_to_disk()
+        # self._save_embeddings_to_disk() # No longer needed
 
     def load(self, path: Optional[Path] = None) -> None:
         """Load index from disk."""
@@ -998,6 +1218,7 @@ class FaissStore(VectorStore):
             try:
                 with sqlite3.connect(str(self._db_path), timeout=30) as conn:
                     conn.execute("DELETE FROM documents")
+                    conn.execute("DELETE FROM vectors")
                     conn.commit()
                 break
             except sqlite3.OperationalError as e:
@@ -1010,10 +1231,10 @@ class FaissStore(VectorStore):
 
         # Clear caches
         self._doc_cache.clear()
-        self._embeddings.clear()
+        self._vector_cache.clear()
         self._access_counts.clear()
 
-        # Remove embeddings file
+        # Remove embeddings file (legacy)
         emb_path = self.index_dir / "embeddings.npz"
         if emb_path.exists():
             try:
@@ -1030,24 +1251,23 @@ class FaissStore(VectorStore):
             return
         id_set = set(ids)
 
-        # Remove from SQLite
+        # Remove from SQLite (documents and vectors)
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             placeholders = ",".join("?" * len(ids))
             conn.execute(f"DELETE FROM documents WHERE id IN ({placeholders})", list(ids))
+            conn.execute(f"DELETE FROM vectors WHERE id IN ({placeholders})", list(ids))
             conn.commit()
 
         # Remove from cache and in-memory stores
         for did in ids:
             self._doc_cache.remove(did)
-            self._embeddings.pop(did, None)
             self._access_counts.pop(did, None)
 
-        # Rebuild indexes with remaining data
-        remaining_ids = list(self._embeddings.keys())
-        if remaining_ids:
-            vectors = [self._embeddings[did] for did in remaining_ids]
+        # Rebuild indexes with remaining data from DB
+        remaining_count = self.count_vectors()
+        if remaining_count > 0:
             try:
-                self._index.build_indexes(vectors, remaining_ids, append=False)
+                self._rebuild_index_from_db()
             except Exception:
                 # If rebuild fails, reset the index and fallback to empty
                 self.reset()
