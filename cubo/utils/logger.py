@@ -137,6 +137,16 @@ class Logger:
         queue_enabled = bool(_cfg_logging_or("enable_queue", True))
         handler = self._setup_handlers()
 
+        # Filter attaching trace id to logging records
+        class TraceIDFilter(logging.Filter):
+            def filter(self, record):
+                trace = get_current_trace_id()
+                try:
+                    record.trace_id = trace or ""
+                except Exception:
+                    pass
+                return True
+
         if queue_enabled:
             self._queue = Queue(-1)
             qhandler = QueueHandler(self._queue)
@@ -157,14 +167,6 @@ class Logger:
             root_logger.addHandler(handler)
 
         # Add a filter to attach trace_id to stdlib records
-        class TraceIDFilter(logging.Filter):
-            def filter(self, record):
-                trace = get_current_trace_id()
-                try:
-                    record.trace_id = trace or ""
-                except Exception:
-                    pass
-                return True
 
         root_logger.addFilter(TraceIDFilter())
         try:

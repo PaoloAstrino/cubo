@@ -1,3 +1,6 @@
+from typing import List
+
+
 def _get_embedding_vector(self, doc_id: str) -> List[float]:
     """Get embedding vector for a document ID.
 

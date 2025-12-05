@@ -18,23 +18,7 @@ from cubo.retrieval.retriever import DocumentRetriever
 from cubo.utils.logger import logger
 
 
-def parse_args():
-        parser = argparse.ArgumentParser(
-                description="Migrate chunk IDs from filename-based to file-hash-based IDs"
-        )
-        parser.add_argument('--collection', default=config.get('collection_name', 'cubo_documents'))
-        parser.add_argument('--db-path', default=config.get('vector_store_path', './faiss_index'))
-        parser.add_argument('--dry-run', action='store_true')
-        parser.add_argument('--apply', action='store_true')
-        parser.add_argument('--backup', default=None, help='Path to JSONL backup before applying changes')
-        parser.add_argument('--chunk-id-use-file-hash', dest='chunk_id_use_file_hash', action='store_true', default=True,
-                                                help='Prefer file_hash for new chunk ids')
-        parser.add_argument('--no-chunk-id-file-hash', dest='chunk_id_use_file_hash', action='store_false',
-                                                help='Do not prefer file_hash when generating new chunk ids')
-        parser.add_argument('--safe-apply', action='store_true',
-                                                help='Verify new ids created successfully before deleting old ids')
-        parser.add_argument('--verbose', action='store_true', help='Enable progress bars and detailed logging')
-        return parser.parse_args()
+
 #!/usr/bin/env python3
 """Migration tool to migrate chunk IDs from filename-based to file-hash-based IDs.
 
@@ -593,9 +577,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-    parser.add_argument('--safe-apply', action='store_true', help='Verify new ids created successfully before deleting old ids')
-    parser.add_argument('--verbose', action='store_true', help='Enable progress bars and detailed logging')
-    return parser.parse_args()
 
 
 def main():
@@ -1240,23 +1221,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()"""Migration tool to migrate vector store chunk IDs from filename-based to file-hash-based IDs.
-
-Usage:
-    python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-    python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
-"""
-import argparse
-import json
-import os
-from pathlib import Path
-from typing import Dict, List
-
-from tqdm import tqdm
-
-from cubo.config import config
-from cubo.retrieval.retriever import DocumentRetriever
-from cubo.utils.logger import logger
+    main()
 
 
 def parse_args():

@@ -260,8 +260,6 @@ def main():
                 # On some platforms, os.replace may fail for dir; fallback to rename
                 os.rename(str(version_tmp), str(final_version))
             if args.publish:
-                from cubo.indexing.index_publisher import publish_version
-
                 publish_version(final_version, Path(args.index_root))
                 logger.info(f"Published version {final_version}")
         else:

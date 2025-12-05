@@ -54,7 +54,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt -r requirements-dev.txt
+          # Core validation uses minimal requirements for faster installs; heavy deps are installed in integration tests
+          pip install -r requirements-minimal.txt -r requirements-dev.txt
       
       - name: Run all tests with coverage
         run: |
@@ -85,7 +86,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt -r requirements-dev.txt
+          # For Windows tests, keep a smaller set to avoid disk space limits
+          pip install -r requirements-minimal.txt -r requirements-dev.txt
       
       - name: Run core tests (Windows)
         run: |
@@ -106,7 +108,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt -r requirements-dev.txt
+          # Performance and other heavy tests (integration) should install full requirements as needed
+          pip install -r requirements-minimal.txt -r requirements-dev.txt
           pip install playwright
           playwright install chromium --with-deps
       

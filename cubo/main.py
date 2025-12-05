@@ -495,6 +495,12 @@ class CUBOApp:
         with self._state_lock:
             response = self.generator.generate_response(query, context)
 
+        # Display results in command line mode (if invoked interactively)
+        try:
+            self._display_command_line_results(query, top_docs, response)
+        except Exception:
+            pass
+
     def query_retrieve(self, query: str, top_k: int = None, trace_id: Optional[str]=None, **kwargs):
         """
         Thread-safe wrapper to call the retriever with the state lock.
@@ -510,8 +516,6 @@ class CUBOApp:
         """
         with self._state_lock:
             return self.generator.generate_response(query=query, context=context, trace_id=trace_id)
-
-        self._display_command_line_results(query, top_docs, response)
 
     def _display_command_line_results(self, query: str, top_docs: list, response: str):
         """Display query results in command line format."""

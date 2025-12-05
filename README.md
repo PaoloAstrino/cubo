@@ -60,12 +60,19 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 ### Web Interface (Recommended)
 
 ```bash
-# Install dependencies
+# Install full dependencies (production or full CI runs)
 pip install -r requirements.txt
 cd frontend && pnpm install && cd ..
 
 # Start both backend and frontend
 python scripts/start_fullstack.py
+```
+
+For quick development and PR checks, use the minimal dependency set to reduce install time and avoid disk exhaustion in CI runners:
+
+```bash
+# Install minimal dependencies for fast iteration
+pip install -r requirements-minimal.txt
 ```
 
 Visit:

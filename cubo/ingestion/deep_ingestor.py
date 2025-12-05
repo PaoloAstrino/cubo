@@ -235,6 +235,15 @@ class DeepIngestor:
 
         return [chunk for chunk in chunks if chunk.get("text")]
 
+    # Backwards compatibility wrapper
+    def process_single_file(self, path: str) -> List[Dict[str, Any]]:
+        """Compatibility wrapper for old API used in tests: returns chunks for a single file.
+
+        The DeepIngestor used to expose `process_single_file`; keep that contract for tests and
+        consumers by delegating to `_process_file`.
+        """
+        return self._process_file(Path(path))
+
     def _process_csv(self, path: Path) -> List[Dict[str, Any]]:
         try:
             df = pd.read_csv(path)

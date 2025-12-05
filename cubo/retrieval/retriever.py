@@ -318,9 +318,14 @@ class DocumentRetriever:
     def debug_collection_info(self) -> Dict:
         return self.document_store.debug_collection_info()
 
-    def add_document(self, filepath: str, chunks: Optional[List[dict]] = None, metadata: Optional[Dict] = None) -> bool:
+    def add_document(self, filepath: str = None, chunks: Optional[List[dict]] = None, metadata: Optional[Dict] = None, document: Optional[str] = None) -> bool:
         """Add document chunks to the database."""
         try:
+            # Backwards compatibility: legacy callers pass 'document=...' or 'filepath=<text>' as content
+            if document is not None and filepath is None:
+                # treat document param as filepath (text body) to stay compat with old API
+                filepath = document
+
             if metadata is not None and chunks is None:
                 # Treat 'filepath' as text content and metadata as per-test metadata
                 # Choose a fake path that is unique per document to avoid duplicate detection.
@@ -412,6 +417,12 @@ class DocumentRetriever:
             if trace_id:
                 self._record_trace(trace_id, results)
 
+            # Normalize metadata shape for backward compatibility
+            try:
+                self._normalize_result_metadata(results)
+            except Exception:
+                pass
+
             return results
 
         except CUBOError:
@@ -494,6 +505,38 @@ class DocumentRetriever:
             })
         except Exception:
             pass
+
+    def _normalize_result_metadata(self, results: List[Dict]) -> None:
+        """Ensure metadata is always a dict for compatibility with code/tests that
+        expect `result['metadata']` to be a mapping.
+
+        If metadata is a list (e.g., merged/auto-merged candidates), pick a best
+        single metadata dict to preserve backward compatibility.
+        """
+        for r in results:
+            try:
+                md = r.get("metadata")
+                if isinstance(md, dict):
+                    continue
+                if isinstance(md, list):
+                    # Prefer dict with an explicit id if present
+                    chosen = None
+                    for candidate in md:
+                        if isinstance(candidate, dict) and candidate.get("id"):
+                            chosen = candidate
+                            break
+                    if chosen is None:
+                        # Fallback to first dict in the list
+                        for candidate in md:
+                            if isinstance(candidate, dict):
+                                chosen = candidate
+                                break
+                    r["metadata"] = chosen or {}
+                else:
+                    # Not a mapping: coerce to empty dict
+                    r["metadata"] = {} if md is None else {"_legacy_metadata": md}
+            except Exception:
+                r["metadata"] = {}
 
     # ========================================================================
     # Backwards Compatibility

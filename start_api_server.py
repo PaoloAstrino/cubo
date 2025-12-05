@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 # Set up Python path
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 os.environ["PYTHONPATH"] = str(project_root)
 
@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
     # Run server - this will block until Ctrl+C
     uvicorn.run(
-        "src.cubo.server.api_simple:app",
+        "cubo.server.api:app",
         host=args.host,
         port=args.port,
         log_level=args.log_level,

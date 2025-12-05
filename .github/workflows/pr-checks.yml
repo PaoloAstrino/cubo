@@ -58,10 +58,18 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt -r requirements-dev.txt
+          # Use minimal/core requirements for quick PR checks to reduce CI disk/memory usage
+          pip install -r requirements-minimal.txt -r requirements-dev.txt
       
       - name: Run fast unit tests
         run: |
+          # Show which tests are collected for debug purposes
+          pytest --collect-only -q -m "not slow and not integration"
+
+          # Run a short smoke test suite first to ensure the job reports a test run
+          pytest tests/smoke -q
+
+          # Run fast unit tests; keep filters to avoid long/integration tests
           pytest tests/ \
             -m "not slow and not integration" \
             --maxfail=5 \
@@ -82,9 +90,9 @@ jobs:
           python-version: "3.11"
       
       - name: Install core dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-minimal.txt
       
-      - name: Test core imports
+      - name: Test core imports and smoke test
         run: |
           python -c "
           from cubo.config import config
@@ -92,6 +100,8 @@ jobs:
           from cubo.retrieval.retriever import DocumentRetriever
           print('✓ Core imports successful')
           "
+          # Run smoke tests as well
+          pytest tests/smoke -q
         env:
           PYTHONPATH: ${{ github.workspace }}
 

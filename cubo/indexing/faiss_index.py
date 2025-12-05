@@ -18,6 +18,7 @@ import numpy as np
 
 from cubo.indexing.index_publisher import get_current_index_dir
 from cubo.utils.logger import logger
+from cubo.utils.trace_collector import trace_collector
 
 
 class FAISSIndexManager:

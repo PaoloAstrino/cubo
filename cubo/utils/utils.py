@@ -179,10 +179,10 @@ class Utils:
             tokenizer = None
             if tokenizer_name:
                 try:
-                    # Lazy import of transformers
-                    if AutoTokenizer is None:
-                        from transformers import AutoTokenizer
-                    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                    # Lazy import of transformers locally to avoid module-level import cost
+                    from transformers import AutoTokenizer as _AutoTokenizer
+
+                    tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
                 except Exception as e:
                     logger.warning(f"Could not load tokenizer {tokenizer_name}: {e}")
 
