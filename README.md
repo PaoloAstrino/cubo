@@ -60,19 +60,12 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 ### Web Interface (Recommended)
 
 ```bash
-# Install full dependencies (production or full CI runs)
-pip install -r requirements.txt
+# Install with all features (recommended for first-time users)
+pip install -e ".[full]"
 cd frontend && pnpm install && cd ..
 
 # Start both backend and frontend
 python scripts/start_fullstack.py
-```
-
-For quick development and PR checks, use the minimal dependency set to reduce install time and avoid disk exhaustion in CI runners:
-
-```bash
-# Install minimal dependencies for fast iteration
-pip install -r requirements-minimal.txt
 ```
 
 Visit:
@@ -84,9 +77,52 @@ See [API Integration Guide](docs/API_INTEGRATION.md) for details.
 ### Desktop GUI
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[full,gui]"
 python launch_gui.py
 ```
+
+## Installation Options
+
+CUBO uses **optional extras** to minimize install size. Choose what you need:
+
+| Command | What You Get | Size |
+|---------|--------------|------|
+| `pip install cubo` | CLI client, document parsing, logging | ~50MB |
+| `pip install cubo[embeddings]` | + PyTorch, sentence-transformers | ~2.5GB |
+| `pip install cubo[server]` | + FastAPI, uvicorn | ~10MB |
+| `pip install cubo[ollama]` | + Ollama client | ~5MB |
+| `pip install cubo[ocr]` | + Tesseract OCR support | ~20MB |
+| `pip install cubo[faiss]` | + FAISS vector store | ~50MB |
+| `pip install cubo[full]` | **Everything above** (recommended) | ~3GB |
+| `pip install cubo[all]` | Full + GUI + dev tools | ~3.5GB |
+
+### Examples
+
+```bash
+# Minimal: just document parsing (no ML)
+pip install cubo
+
+# API development: server + embeddings
+pip install cubo[embeddings,server]
+
+# Full RAG system with all features
+pip install cubo[full]
+
+# Development environment
+pip install cubo[all]
+```
+
+> **Note:** If upgrading from an older version where `pip install cubo` installed everything,
+> you now need `pip install cubo[full]` to get the same behavior.
+
+### For Quick Development / CI
+
+For fast iteration and PR checks, use minimal dependencies to reduce install time:
+
+```bash
+pip install -e "."  # Core only
+```
+
 
 ## Testing
 

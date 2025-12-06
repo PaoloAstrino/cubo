@@ -50,12 +50,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
       
       - name: Install dependencies
         run: |
-          # Core validation uses minimal requirements for faster installs; heavy deps are installed in integration tests
-          pip install -r requirements-minimal.txt -r requirements-dev.txt
+          # Core + dev dependencies (no heavy ML deps for fast CI)
+          pip install -e ".[dev]"
       
       - name: Run all tests with coverage
         run: |
@@ -87,7 +87,7 @@ jobs:
       - name: Install dependencies
         run: |
           # For Windows tests, keep a smaller set to avoid disk space limits
-          pip install -r requirements-minimal.txt -r requirements-dev.txt
+          pip install -e ".[dev]"
       
       - name: Run core tests (Windows)
         run: |
@@ -108,8 +108,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          # Performance and other heavy tests (integration) should install full requirements as needed
-          pip install -r requirements-minimal.txt -r requirements-dev.txt
+          # Full install for integration tests
+          pip install -e ".[full,dev]"
           pip install playwright
           playwright install chromium --with-deps
       
@@ -150,7 +150,7 @@ jobs:
           python-version: "3.11"
       
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install -e ".[full,dev]"
       
       - name: Run dedup tests
         run: |
@@ -173,7 +173,7 @@ jobs:
           python-version: "3.11"
       
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install -e ".[full,dev]"
       
       - name: Run performance tests
         run: pytest tests/performance/ -v --tb=short

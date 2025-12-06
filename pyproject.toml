@@ -43,51 +43,77 @@ classifiers = [
 ]
 
 dependencies = [
-    "sentence-transformers>=3.0.0,<6.0.0",
-    "torch>=2.0.0",
-    "torchvision>=0.15.0",
-    "transformers>=4.46.0,<5.0.0",
-    "ollama>=0.3.0",
-    "colorama>=0.4.0",
+    # Document parsing (lightweight)
     "python-docx>=1.0.0",
     "pypdf>=3.0.0",
-    "tokenizers>=0.15.0",
-    "numpy>=1.21.0,<2.0.0",
-    "protobuf>=3.20.0,<5.0.0",
-    "cryptography>=40.0.0",
-    "psutil>=5.9.0",
-    "pandas>=1.3.0",
-    "google-generativeai>=0.8.0",
-    "pdf2image>=1.17.0",
-    "Pillow>=10.0.0",
-    "pyarrow>=13.0.0,<15.0.0",
-    "openpyxl>=3.1.0",
     "pdfplumber>=0.10.3",
-    "tqdm>=4.64.0",
-    "datasketch",
-    "networkx",
+    "openpyxl>=3.1.0",
+    "pyarrow>=13.0.0,<15.0.0",
+    
+    # Logging & CLI
+    "colorama>=0.4.0",
     "structlog",
     "python-json-logger",
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "python-multipart>=0.0.6",
-    "scikit-learn>=1.3.0",  # For semantic clustering in scaffolds
-    "pytesseract>=0.3.10",  # For OCR (offline scanned PDF processing)
-    "pdf2image>=1.16.3",  # For converting PDF pages to images for OCR
-    "nltk>=3.8.1",  # For multilingual stemming (SnowballStemmer)
-    "langdetect>=1.0.9",  # For automatic language detection
-    "markdown-it-py>=3.0.0",  # For markdown structure parsing
+    "tqdm>=4.64.0",
+    
+    # Core utilities
+    "numpy>=1.21.0,<2.0.0",
+    "pandas>=1.3.0",
+    "psutil>=5.9.0",
+    "cryptography>=40.0.0",
+    "datasketch",
+    "networkx",
+    "Pillow>=10.0.0",
+    
+    # NLP (lightweight)
+    "nltk>=3.8.1",
+    "langdetect>=1.0.9",
+    "markdown-it-py>=3.0.0",
 ]
 
 [project.optional-dependencies]
-# GUI dependencies
-gui = [
-    "PySide6>=6.5.0",
+# ML embeddings (heavy! ~2.5GB)
+embeddings = [
+    "torch>=2.0.0,<2.5.0",
+    "torchvision>=0.15.0,<0.20.0",
+    "transformers>=4.46.0,<4.48.0",
+    "sentence-transformers>=3.0.0,<3.4.0",
+    "tokenizers>=0.15.0,<0.21.0",
+    "protobuf>=3.20.0,<5.0.0",
+]
+
+# API server
+server = [
+    "fastapi>=0.104.0,<0.116.0",
+    "uvicorn[standard]>=0.24.0,<0.33.0",
+    "python-multipart>=0.0.6",
+]
+
+# Ollama LLM backend
+ollama = [
+    "ollama>=0.3.0,<0.5.0",
+    "google-generativeai>=0.8.0",
+]
+
+# OCR for scanned PDFs
+ocr = [
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.16.3",
 ]
 
 # Dense retrieval with FAISS
 faiss = [
     "faiss-cpu==1.7.4",
+]
+
+# Scaffold generation (clustering)
+scaffolds = [
+    "scikit-learn>=1.3.0,<1.6.0",
+]
+
+# GUI dependencies
+gui = [
+    "PySide6>=6.5.0",
 ]
 
 # Development dependencies
@@ -99,12 +125,17 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
-    "reportlab>=4.0.0",  # For PDF generation in tests
+    "reportlab>=4.0.0",
+]
+
+# Full install (replaces previous default behavior)
+full = [
+    "cubo[embeddings,server,ollama,ocr,faiss,scaffolds]",
 ]
 
 # All optional dependencies combined
 all = [
-    "cubo[gui,faiss,dev]",
+    "cubo[full,gui,dev]",
 ]
 
 [project.urls]
