@@ -21,15 +21,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from cubo.config import config
-from cubo.main import CUBOApp
+from cubo.core import CuboCore
 from cubo.security.security import security_manager
 from cubo.services.service_manager import ServiceManager
 from cubo.utils.logger import logger
 from cubo.utils.logging_context import generate_trace_id, trace_context
 from cubo.utils.trace_collector import trace_collector
 
-# Global app instance
-cubo_app: Optional[CUBOApp] = None
+# Global app instance - uses CuboCore (no CLI side effects)
+cubo_app: Optional[CuboCore] = None
 service_manager: Optional[ServiceManager] = None
 
 
@@ -54,9 +54,9 @@ async def lifespan(app: FastAPI):
     print(">>> LIFESPAN: Starting (MINIMAL TEST)", flush=True)
     logger.info("Initializing CUBO application")
     try:
-        # Initialize CUBO application
+        # Initialize CUBO application (using CuboCore - no CLI side effects)
         try:
-            cubo_app = CUBOApp()
+            cubo_app = CuboCore()
             service_manager = ServiceManager()
             logger.info("CUBO application initialized successfully")
         except Exception as init_error:

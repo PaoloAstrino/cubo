@@ -2,11 +2,13 @@
 """
 CUBO - AI Document Assistant
 A portable Retrieval-Augmented Generation system using embedding models and LLMs.
+
+This module provides the CLI interface. For programmatic usage, import CuboCore:
+    from cubo.core import CuboCore
 """
 
 import argparse
 import os
-import threading
 import time
 from typing import Optional
 
@@ -19,10 +21,7 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 from cubo.config import config
-from cubo.embeddings.model_loader import model_manager
-from cubo.ingestion.document_loader import DocumentLoader
-from cubo.processing.generator import create_response_generator
-from cubo.retrieval.retriever import DocumentRetriever
+from cubo.core import CuboCore
 from cubo.security.security import security_manager
 from cubo.utils.logger import logger
 from cubo.utils.utils import Utils, metrics
@@ -31,17 +30,69 @@ from cubo.utils.utils import Utils, metrics
 init()
 
 
-class CUBOApp:
-    """Main application class for CUBO AI Document Assistant."""
+class CuboCLI:
+    """
+    CLI wrapper around CuboCore.
+    
+    This class handles all interactive (input/print) operations.
+    For programmatic usage without CLI side effects, use CuboCore directly.
+    """
 
     def __init__(self):
-        self.model = None
-        self.doc_loader = None
-        self.retriever = None
-        self.generator = None
-        self.vector_store = None
-        # Lock to protect state during build/query operations
-        self._state_lock = threading.RLock()
+        """Initialize CLI with a CuboCore instance."""
+        self.core = CuboCore()
+
+    # =========================================================================
+    # Properties delegated to core
+    # =========================================================================
+    
+    @property
+    def model(self):
+        return self.core.model
+    
+    @property
+    def doc_loader(self):
+        return self.core.doc_loader
+    
+    @property
+    def retriever(self):
+        return self.core.retriever
+    
+    @property
+    def generator(self):
+        return self.core.generator
+    
+    @property
+    def vector_store(self):
+        return self.core.vector_store
+
+    # =========================================================================
+    # Core methods delegated to core (for backwards compatibility)
+    # =========================================================================
+
+    def initialize_components(self):
+        """Initialize model and components (delegates to core)."""
+        return self.core.initialize_components()
+
+    def build_index(self, data_folder: str = None) -> int:
+        """Build index (delegates to core)."""
+        return self.core.build_index(data_folder)
+
+    def query_retrieve(self, query: str, top_k: int = None, trace_id: Optional[str] = None, **kwargs):
+        """Query retrieve (delegates to core)."""
+        return self.core.query_retrieve(query, top_k, trace_id, **kwargs)
+
+    def generate_response_safe(self, query: str, context: str, trace_id: Optional[str] = None):
+        """Generate response (delegates to core)."""
+        return self.core.generate_response_safe(query, context, trace_id)
+
+    def ingest_documents(self, data_folder: str = None) -> int:
+        """Ingest documents (delegates to core)."""
+        return self.core.ingest_documents(data_folder)
+
+    # =========================================================================
+    # Setup Wizard (CLI-only)
+    # =========================================================================
 
     def setup_wizard(self):
         """Setup wizard for initial configuration and model checks."""
@@ -241,26 +292,9 @@ class CUBOApp:
         except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
             return []
 
-    def initialize_components(self):
-        """Initialize model and components."""
-        # Load model
-        logger.info("Loading embedding model... (this may take a few minutes)")
-        start_time = time.time()
-        try:
-            with self._state_lock:
-                self.model = model_manager.get_model()
-            logger.info(f"Model loaded successfully in {time.time() - start_time:.2f} seconds.")
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            return False
-
-        # Initialize components - protect state mutation
-        with self._state_lock:
-            self.doc_loader = DocumentLoader()
-            self.retriever = DocumentRetriever(self.model)
-            self.generator = create_response_generator()
-
-        return True
+    # =========================================================================
+    # Interactive Mode (CLI-only)
+    # =========================================================================
 
     def interactive_mode(self):
         """Run the RAG system in interactive mode."""
@@ -343,7 +377,7 @@ class CUBOApp:
             logger.info("Loading and chunking selected document...")
             start = time.time()
             file_path = os.path.join(data_folder, selected_file)
-            documents = self.doc_loader.load_single_document(file_path)
+            documents = self.core.doc_loader.load_single_document(file_path)
             logger.info(
                 f"Document loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds."
             )
@@ -357,7 +391,7 @@ class CUBOApp:
         logger.info("Documents loaded. Starting conversation. Type 'exit' to quit.")
 
         # Add to vector DB
-        self.retriever.add_documents(documents)
+        self.core.add_documents(documents)
 
         last_query_time = 0
         while True:
@@ -387,9 +421,9 @@ class CUBOApp:
     def _process_query(self, query: str):
         """Process a single query and display results."""
         # Retrieve and generate
-        top_docs = self.retriever.retrieve_top_documents(query)
-        context = "\n".join(top_docs)
-        response = self.generator.generate_response(query, context)
+        top_docs = self.core.retriever.retrieve_top_documents(query)
+        context = "\n".join([d.get("document", str(d)) for d in top_docs] if isinstance(top_docs[0], dict) else top_docs)
+        response = self.core.generator.generate_response(query, context)
 
         # Audit log the query
         security_manager.audit_log(
@@ -403,12 +437,17 @@ class CUBOApp:
         """Display query results to user."""
         logger.info("Retrieved Documents:")
         for i, doc in enumerate(top_docs, 1):
-            logger.info(f"{i}. {doc[:200]}...")
+            doc_text = doc.get("document", str(doc)) if isinstance(doc, dict) else str(doc)
+            logger.info(f"{i}. {doc_text[:200]}...")
         logger.info("Response:")
         logger.info(response)
         # Respect config 'scrub_queries' to avoid logging raw user queries
         query_to_log = security_manager.scrub(query)
         logger.info(f"Processed query: {query_to_log}")
+
+    # =========================================================================
+    # Command Line Mode (CLI-only)
+    # =========================================================================
 
     def command_line_mode(self, args):
         """Run the RAG system in command-line mode."""
@@ -421,7 +460,7 @@ class CUBOApp:
         if not self.initialize_components():
             return
 
-        documents = self._load_all_documents(data_folder)
+        documents = self._load_all_documents_cli(data_folder)
         if not documents:
             return
 
@@ -436,11 +475,11 @@ class CUBOApp:
             logger.error(f"Invalid path: {e}")
             return None
 
-    def _load_all_documents(self, data_folder: str) -> list:
+    def _load_all_documents_cli(self, data_folder: str) -> list:
         """Load and chunk all documents from the data folder."""
         logger.info("Loading and chunking all documents...")
         start = time.time()
-        documents = self.doc_loader.load_documents_from_folder(data_folder)
+        documents = self.core.doc_loader.load_documents_from_folder(data_folder)
         logger.info(
             f"Documents loaded and chunked into {len(documents)} chunks in {time.time() - start:.2f} seconds."
         )
@@ -448,86 +487,38 @@ class CUBOApp:
 
     def _add_documents_to_db(self, documents: list):
         """Add documents to the vector database."""
-        self.retriever.add_documents(documents)
-
-    # Public API wrappers for programmatic usage (e.g., from API server)
-    def ingest_documents(self, data_folder: str = None) -> int:
-        """Load and chunk all documents from a folder and return count of chunks.
-        This does not add them to the vector DB; call build_index to persist to store.
-        """
-        folder = data_folder or config.get("data_folder")
-        if not self.doc_loader:
-            # Ensure doc loader available even if components not fully initialized
-            self.doc_loader = DocumentLoader()
-        documents = self._load_all_documents(folder)
-        return len(documents)
-
-    def build_index(self, data_folder: str = None) -> int:
-        """Initialize components if needed, load documents (if any) and add them to the vector DB.
-        Returns number of document chunks processed/added.
-        
-        Thread-safe: Uses _state_lock to prevent race conditions with queries.
-        """
-        with self._state_lock:
-            # Ensure components are set (model, retriever, generator)
-            if not self.model or not self.retriever or not self.generator:
-                if not self.initialize_components():
-                    raise RuntimeError("Failed to initialize model and components for index building")
-
-            folder = data_folder or config.get("data_folder")
-            documents = self._load_all_documents(folder)
-            if not documents:
-                return 0
-
-            # Add documents to the vector DB
-            self._add_documents_to_db(documents)
-            return len(documents)
+        self.core.add_documents(documents)
 
     def _process_and_display_query(self, query: str):
         """Process query and display results."""
         logger.info("Retrieving top documents...")
         start = time.time()
-        with self._state_lock:
-            top_docs = self.retriever.retrieve_top_documents(query)
+        top_docs = self.core.retriever.retrieve_top_documents(query)
         logger.info(f"Retrieved in {time.time() - start:.2f} seconds.")
 
-        context = "\n".join(top_docs)
-        with self._state_lock:
-            response = self.generator.generate_response(query, context)
+        context = "\n".join([d.get("document", str(d)) for d in top_docs] if top_docs and isinstance(top_docs[0], dict) else [str(d) for d in top_docs])
+        response = self.core.generator.generate_response(query, context)
 
-        # Display results in command line mode (if invoked interactively)
+        # Display results in command line mode
         try:
             self._display_command_line_results(query, top_docs, response)
         except Exception:
             pass
 
-    def query_retrieve(self, query: str, top_k: int = None, trace_id: Optional[str]=None, **kwargs):
-        """
-        Thread-safe wrapper to call the retriever with the state lock.
-        """
-        with self._state_lock:
-            if top_k is None:
-                top_k = config.get("retrieval.default_top_k", 6)
-            return self.retriever.retrieve_top_documents(query, top_k)
-
-    def generate_response_safe(self, query: str, context: str, trace_id: Optional[str] = None):
-        """
-        Thread-safe wrapper to call the generator with the state lock.
-        """
-        with self._state_lock:
-            return self.generator.generate_response(query=query, context=context, trace_id=trace_id)
-
     def _display_command_line_results(self, query: str, top_docs: list, response: str):
         """Display query results in command line format."""
-        from cubo.security.security import security_manager
-
         scrubbed = security_manager.hash_sensitive_data(query) if config.get("logging.scrub_queries", False) else security_manager.scrub(query)
         logger.info(f"Query: {scrubbed}")
         logger.info("Retrieved Documents:")
         for i, doc in enumerate(top_docs, 1):
-            logger.info(f"{i}. {doc[:200]}...")
+            doc_text = doc.get("document", str(doc)) if isinstance(doc, dict) else str(doc)
+            logger.info(f"{i}. {doc_text[:200]}...")
         logger.info("Generated Response:")
         logger.info(response)
+
+    # =========================================================================
+    # Main Entry Point
+    # =========================================================================
 
     def main(self):
         """Main entry point."""
@@ -584,6 +575,10 @@ class CUBOApp:
         else:
             self.interactive_mode()
 
+    def _get_version(self) -> str:
+        """Get application version."""
+        return "1.0.0"
+
     def _finalize_application(self, start_time: float):
         """Finalize application execution with timing and error handling."""
         duration = time.time() - start_time
@@ -594,9 +589,13 @@ class CUBOApp:
         input("Press Enter to exit...")  # Keep terminal open for debugging
 
 
+# Backwards compatibility alias
+CUBOApp = CuboCLI
+
+
 if __name__ == "__main__":
     try:
-        app = CUBOApp()
+        app = CuboCLI()
         app.main()
     except Exception as e:
         logger.error(f"An error occurred: {e}")

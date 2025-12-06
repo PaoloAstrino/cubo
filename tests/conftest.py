@@ -147,13 +147,14 @@ def fast_pass_result(mini_data, tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def cubo_app():
-    """Provide a minimal CUBOApp instance that avoids loading heavy models.
+    """Provide a minimal CuboCore instance that avoids loading heavy models.
 
-    The fixture initializes a light CUBOApp instance and monkeypatches the generator to a deterministic one.
+    The fixture initializes a light CuboCore instance and monkeypatches the generator to a deterministic one.
+    Uses CuboCore (not CuboCLI) to avoid any CLI side effects in tests.
     """
-    from cubo.main import CUBOApp
+    from cubo.core import CuboCore
 
-    app = CUBOApp()
+    app = CuboCore()
     # Try to set a real DocumentLoader, otherwise use a mock
     try:
         from cubo.ingestion.document_loader import DocumentLoader
