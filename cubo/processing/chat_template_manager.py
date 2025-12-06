@@ -28,6 +28,21 @@ class ChatTemplateManager:
         # Fallback to default
         return self._format_default(messages)
 
+    def format_user_message(self, context: str, query: str) -> str:
+        """Format the user message content (context + question).
+        
+        This provides a consistent format for the user message content
+        that works well with both Ollama and local llama_cpp backends.
+        
+        Args:
+            context: Document context to include
+            query: User's question
+            
+        Returns:
+            Formatted user message content
+        """
+        return f"Context:\n{context}\n\nQuestion: {query}"
+
     def _format_llama3(self, messages: List[Dict[str, str]]) -> str:
         """Formats messages using Llama 3 chat template.
         

@@ -5,6 +5,7 @@ import ollama
 from colorama import Fore, Style
 
 from cubo.config import config
+from cubo.processing.chat_template_manager import ChatTemplateManager
 from cubo.services.service_manager import get_service_manager
 from cubo.utils.logger import logger
 from cubo.utils.trace_collector import trace_collector
@@ -16,6 +17,7 @@ class ResponseGenerator:
     def __init__(self):
         self.messages = []
         self.service_manager = get_service_manager()
+        self.chat_template_manager = ChatTemplateManager()
         # Load system prompt from config, with fallback to default
         self.system_prompt = config.get(
             "llm.system_prompt",
@@ -72,7 +74,7 @@ class ResponseGenerator:
         self, conversation_messages: List[Dict[str, str]], query: str, context: str
     ):
         """Add the user message with context to the conversation."""
-        user_content = f"Context: {context}\n\nQuestion: {query}"
+        user_content = self.chat_template_manager.format_user_message(context, query)
         conversation_messages.append({"role": "user", "content": user_content})
 
     def _generate_with_ollama(self, conversation_messages: List[Dict[str, str]]) -> str:
