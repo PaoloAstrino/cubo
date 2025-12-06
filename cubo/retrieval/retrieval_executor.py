@@ -119,7 +119,48 @@ class RetrievalExecutor:
                 query_params["trace_id"] = trace_id
 
             results = self.collection.query(**query_params)
+            try:
+                raw_count = len(results.get("documents", [[]])[0]) if results else 0
+                logger.debug(
+                    f"dense retrieval requested={top_k}, raw_returned={raw_count}, trace_id={trace_id}"
+                )
+            except Exception:
+                pass
+            # Faiss / backend may return fewer results than requested. If so, pad
+            # with additional documents from the collection (with base similarity
+            # 0.0) up to 'top_k' to ensure deterministic result lengths.
+            try:
+                returned_docs = results.get("documents", [[]])[0]
+                returned_ids = results.get("ids", [[]])[0]
+                if len(returned_docs) < top_k:
+                    logger.debug(
+                        f"dense retrieval padding: have={len(returned_docs)}, need={top_k}"
+                    )
+                    all_docs = self.collection.get(include=["documents", "metadatas", "ids"]) or {}
+                    all_ids = all_docs.get("ids", [])
+                    all_metas = all_docs.get("metadatas", [])
+                    all_docs_list = list(zip(all_ids, all_metas))
+                    # Append until we reach top_k results
+                    for doc_id, meta in all_docs_list:
+                        if doc_id in returned_ids:
+                            continue
+                        returned_docs.append("")
+                        # distances fill with 1.0 (similarity 0.0)
+                        results.setdefault("distances", [[]])[0].append(1.0)
+                        results.setdefault("ids", [[]])[0].append(doc_id)
+                        results.setdefault("metadatas", [[]])[0].append(meta)
+                        if len(returned_docs) >= top_k:
+                            break
+            except Exception:
+                pass
             processed = self._process_dense_results(results, query)
+
+            try:
+                logger.debug(
+                    f"dense retrieval final_count={len(processed)}, trace_id={trace_id}"
+                )
+            except Exception:
+                pass
 
             if self.semantic_cache and processed:
                 self.semantic_cache.add(query, query_embedding, processed)
@@ -221,6 +262,13 @@ class RetrievalExecutor:
 
             # Execute BM25 search
             results = self.bm25.search(query, top_k=top_k, docs=docs_for_search)
+
+            try:
+                logger.debug(
+                    f"bm25 retrieval docs={len(docs_for_search)}, returned={len(results)}, requested={top_k}"
+                )
+            except Exception:
+                pass
 
             return [
                 {

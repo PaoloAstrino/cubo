@@ -9,6 +9,7 @@ from __future__ import annotations
 import time
 from typing import Dict, List, Optional
 
+from cubo.processing.chat_template_manager import ChatTemplateManager
 from cubo.config import config
 from cubo.services.service_manager import get_service_manager
 from cubo.utils.logger import logger
@@ -21,13 +22,14 @@ class LocalResponseGenerator:
         self.model_path = model_path or config.get("local_llama_model_path")
         self.service_manager = get_service_manager()
         self._model = None
+        self.chat_template_manager = ChatTemplateManager()
         if not self.model_path:
             raise RuntimeError("No local Llama model path configured (local_llama_model_path)")
         try:
             # Import lazily to avoid crash if llama_cpp is missing
             from llama_cpp import Llama  # type: ignore
 
-            self._llm = Llama(model_path=self.model_path)
+            self._llm = Llama(model_path=self.model_path, n_ctx=2048)
         except Exception as e:
             logger.warning("Failed to initialize local llama model: %s", e)
             self._llm = None
@@ -46,12 +48,25 @@ class LocalResponseGenerator:
         """
         convo = []
         if messages is None:
-            convo = []
+            # Basic system prompt if no history provided
+            system_prompt = config.get(
+                "llm.system_prompt",
+                "You are an AI assistant that answers queries strictly based on the provided context.",
+            )
+            convo.append({"role": "system", "content": system_prompt})
         else:
             convo = messages.copy()
+            # ensuring system prompt is there if not present might be good, but
+            # relying on what's passed is safer for now.
 
-        # Build a simple prompt schema: context + question
-        prompt = f"Context: {context}\n\nQuestion: {query}"
+        # Add current user query with context
+        user_content = f"Context: {context}\n\nQuestion: {query}"
+        convo.append({"role": "user", "content": user_content})
+
+        # Use ChatTemplateManager to format
+        # We try to infer model name from path or config to pick the right template
+        model_name = self.model_path or config.get("llm_model") or "llama3"
+        prompt = self.chat_template_manager.format_chat(convo, model_name=model_name)
 
         def _generate_operation():
             if not self._llm:

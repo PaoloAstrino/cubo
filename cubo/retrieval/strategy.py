@@ -38,6 +38,13 @@ class RetrievalStrategy:
         """
         from cubo.retrieval.fusion import combine_semantic_and_bm25
 
+        try:
+            logger.debug(
+                f"combine_results semantic={len(semantic_candidates)} bm25={len(bm25_candidates)} top_k={top_k}"
+            )
+        except Exception:
+            pass
+
         return combine_semantic_and_bm25(
             semantic_candidates,
             bm25_candidates,
@@ -71,6 +78,10 @@ class RetrievalStrategy:
         """
         # Apply window postprocessing
         if window_postprocessor:
+            try:
+                logger.debug(f"postprocess window start count={len(candidates)}")
+            except Exception:
+                pass
             candidates = window_postprocessor.postprocess_results(candidates)
 
         # Apply reranking if available and requested
@@ -78,10 +89,18 @@ class RetrievalStrategy:
         # candidate count equals requested top_k as some pipelines cap results.
         if use_reranker and reranker and len(candidates) >= top_k:
             try:
+                logger.debug(
+                    f"rerank start count={len(candidates)} top_k={top_k} use_reranker={use_reranker}"
+                )
                 reranked = reranker.rerank(query, candidates, max_results=len(candidates))
                 if reranked:
                     candidates = reranked
             except Exception as e:
                 logger.warning(f"Reranking failed: {e}, using original order")
+
+        try:
+            logger.debug(f"postprocess end count={len(candidates)} (will trim to {top_k})")
+        except Exception:
+            pass
 
         return candidates[:top_k]

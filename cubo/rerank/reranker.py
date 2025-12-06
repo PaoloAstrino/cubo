@@ -269,6 +269,13 @@ class LocalReranker:
         Returns:
             Reranked list of candidates
         """
+        try:
+            logger.debug(
+                f"rerank start candidates={len(candidates)} max_results={max_results}"
+            )
+        except Exception:
+            pass
+
         if not self._validate_rerank_inputs(candidates):
             return candidates[: max_results or self.top_n]
 
@@ -363,6 +370,11 @@ class LocalReranker:
             if self._cache_enabled:
                 candidate_ids = self._get_candidate_ids(candidates)
                 self._cache.put_query_result(query, candidate_ids, result)
+
+            try:
+                logger.debug(f"rerank end count={len(result)}")
+            except Exception:
+                pass
 
             return result
         except Exception as e:
