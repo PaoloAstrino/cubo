@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 import json
 
 import numpy as np

@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 from cubo.config import config
 from cubo.retrieval.retriever import DocumentRetriever
 

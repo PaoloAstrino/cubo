@@ -1,5 +1,6 @@
 """Unit tests for multilingual tokenizer."""
 import pytest
+pytest.importorskip("torch")
 from cubo.retrieval.multilingual_tokenizer import (
     MultilingualTokenizer,
     tokenize_multilingual,

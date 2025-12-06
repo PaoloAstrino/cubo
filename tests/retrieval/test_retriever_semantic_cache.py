@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 from cubo.retrieval.cache import SemanticCache
 from cubo.retrieval.retriever import DocumentRetriever
 

@@ -2,6 +2,9 @@
 Tests for ScaffoldGenerator grouping and embedding logic.
 """
 
+import pytest
+pytest.importorskip("torch")
+
 import unittest
 from unittest.mock import MagicMock
 

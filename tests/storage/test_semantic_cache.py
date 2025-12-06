@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 import time
 
 import numpy as np

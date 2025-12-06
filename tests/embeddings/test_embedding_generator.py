@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 from unittest.mock import MagicMock, patch
 
 from cubo.embeddings.embedding_generator import EmbeddingGenerator

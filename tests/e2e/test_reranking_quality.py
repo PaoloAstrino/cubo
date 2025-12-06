@@ -10,6 +10,7 @@ Tests that reranking improves retrieval precision:
 
 import numpy as np
 import pytest
+pytest.importorskip("torch")
 
 from cubo.retrieval.retriever import DocumentRetriever
 from cubo.rerank.reranker import Reranker

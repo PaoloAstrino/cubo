@@ -16,6 +16,7 @@ Requires: Playwright for browser automation
 
 import subprocess
 import time
+import shutil
 from pathlib import Path
 
 import pytest
@@ -67,7 +68,10 @@ def frontend_server():
     """Start Next.js frontend dev server."""
     if not (Path.cwd() / "frontend").exists():
         pytest.skip("Frontend directory not found")
-    
+    # Skip if npm is not available in this environment
+    if not shutil.which("npm"):
+        pytest.skip("npm not installed; skipping frontend integration")
+
     process = subprocess.Popen(
         ["npm", "run", "dev"],
         stdout=subprocess.PIPE,

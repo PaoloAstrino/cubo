@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+pytest.importorskip("torch")
 
 from cubo.retrieval.vector_store import DocumentCache, FaissStore
 

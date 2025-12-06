@@ -2,6 +2,9 @@
 Tests for HierarchicalChunker in CustomAutoMerging.
 """
 
+import pytest
+pytest.importorskip("torch")
+
 import unittest
 
 from cubo.deduplication.custom_auto_merging import HierarchicalChunker

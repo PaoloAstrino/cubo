@@ -106,6 +106,9 @@ class DocumentRetriever:
         from cubo.retrieval.vector_store import create_vector_store
 
         backend = config.get("vector_store_backend", "faiss")
+        if config.get("laptop_mode", False):
+            # Prefer in-memory collection in laptop mode to minimize RAM footprint
+            backend = "memory"
         model_dimension = (
             self.model.get_sentence_embedding_dimension()
             if self.model is not None
@@ -411,6 +414,9 @@ class DocumentRetriever:
     ) -> List[Dict]:
         """Retrieve top-k relevant document chunks using hybrid retrieval."""
         try:
+            if not query or not str(query).strip():
+                return []
+
             if "k" in kwargs:
                 try:
                     top_k = int(kwargs["k"])
@@ -556,8 +562,8 @@ class DocumentRetriever:
             except Exception:
                 pass
 
-            # Combine
-            combined = self.retrieval_strategy.combine_results(semantic, bm25, retrieval_k, dense_weight, bm25_weight)
+            # Combine using Reciprocal Rank Fusion (RRF)
+            combined = self.retrieval_strategy.combine_results_rrf(semantic, bm25, retrieval_k)
             try:
                 logger.debug(f"combined_count={len(combined)}")
             except Exception:
@@ -588,6 +594,9 @@ class DocumentRetriever:
         # by expanding candidate set from semantic retrieval and recombining. This helps
         # when candidate selection is unexpectedly small due to filtering or dedup.
         results = self.service_manager.execute_sync("database_operation", _operation)
+        use_reranker = (
+            strategy.get("use_reranker", self.use_reranker) if strategy else self.use_reranker
+        )
         if len(results) < top_k:
             try:
                 expanded_k = min(max(100, top_k * 10), max(0, getattr(self.collection, "count", lambda: 0)()))
@@ -598,7 +607,7 @@ class DocumentRetriever:
                 query_embedding = self.executor.generate_query_embedding(query)
                 semantic_full = self.executor.query_dense(query_embedding, expanded_k, query, self.current_documents, trace_id)
                 bm25_full = self.executor.query_bm25(query, expanded_k, self.current_documents)
-                combined_full = self.retrieval_strategy.combine_results(semantic_full, bm25_full, expanded_k, dense_weight, bm25_weight)
+                combined_full = self.retrieval_strategy.combine_results_rrf(semantic_full, bm25_full, expanded_k)
                 results = self.retrieval_strategy.apply_postprocessing(
                     combined_full, top_k, query,
                     self.window_postprocessor if self.use_sentence_window else None,
@@ -609,8 +618,6 @@ class DocumentRetriever:
             except Exception:
                 pass
         return results
-
-        return self.service_manager.execute_sync("database_operation", _operation)
 
     def _retrieve_auto_merging(self, query: str, top_k: int) -> List[Dict]:
         """Retrieve using auto-merging."""

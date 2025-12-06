@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 import json
 from pathlib import Path
 

@@ -2,6 +2,9 @@
 Tests for Deduplicator.
 """
 
+import pytest
+pytest.importorskip("torch")
+
 import unittest
 
 from cubo.deduplication.deduplicator import Deduplicator

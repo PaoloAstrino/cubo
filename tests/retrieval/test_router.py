@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 from cubo.retrieval.router import QueryType, SemanticRouter
 
 

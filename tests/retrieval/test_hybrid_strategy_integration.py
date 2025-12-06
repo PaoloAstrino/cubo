@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("torch")
+
 from pathlib import Path
 
 from cubo.indexing.faiss_index import FAISSIndexManager

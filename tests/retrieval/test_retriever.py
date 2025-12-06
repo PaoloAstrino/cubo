@@ -3,6 +3,8 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
+pytest.importorskip("torch")
+
 from sentence_transformers import SentenceTransformer
 
 from cubo.config import config

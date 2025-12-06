@@ -247,7 +247,8 @@ class BM25PythonStore(BM25Store):
             if not doc_id:
                 continue
 
-            bm25_score = self._compute_bm25_score(query_terms, doc_id)
+            # Use doc text fallback to ensure scoring even if in-memory stats are missing
+            bm25_score = self._compute_bm25_score(query_terms, doc_id, d.get("text", ""))
 
             # Normalize score to [0, 1] range using empirical max
             norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)

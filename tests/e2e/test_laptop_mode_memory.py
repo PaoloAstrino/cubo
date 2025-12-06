@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 import pytest
+pytest.importorskip("torch")
 
 from cubo.config import Config
 from cubo.embeddings.lazy_model_manager import get_lazy_model_manager

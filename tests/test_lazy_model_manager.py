@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import pytest
+pytest.importorskip("torch")
 
 from cubo.embeddings.lazy_model_manager import LazyModelManager, get_lazy_model_manager
 

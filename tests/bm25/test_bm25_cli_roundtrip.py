@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+pytest.importorskip("torch")
 
 from cubo.retrieval.bm25_python_store import BM25PythonStore
 

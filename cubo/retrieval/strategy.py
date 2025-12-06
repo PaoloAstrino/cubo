@@ -53,6 +53,76 @@ class RetrievalStrategy:
             top_k=top_k,
         )
 
+    def combine_results_rrf(
+        self,
+        semantic_candidates: List[Dict],
+        bm25_candidates: List[Dict],
+        top_k: int,
+        rrf_k: int = 60,
+    ) -> List[Dict]:
+        """
+        Combine semantic and BM25 results using Reciprocal Rank Fusion (RRF).
+
+        RRF is more robust than linear weighted scoring because it uses rank
+        positions rather than raw scores, making it invariant to score
+        distribution differences between retrieval methods.
+
+        Formula: score(d) = sum(1 / (k + rank_i(d))) for each retrieval method i
+
+        Args:
+            semantic_candidates: Results from semantic search
+            bm25_candidates: Results from BM25 search
+            top_k: Number of final results to return
+            rrf_k: RRF constant (default 60, higher = smoother ranking)
+
+        Returns:
+            Combined and sorted list of candidates using RRF scores
+        """
+        from cubo.retrieval.fusion import rrf_fuse
+
+        try:
+            logger.debug(
+                f"combine_results_rrf semantic={len(semantic_candidates)} bm25={len(bm25_candidates)} top_k={top_k}"
+            )
+        except Exception:
+            pass
+
+        # RRF expects ranked lists; results should already be sorted by score
+        fused_scores = rrf_fuse(bm25_candidates, semantic_candidates, k=rrf_k)
+
+        # Sort by RRF score descending
+        fused_scores.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        # Map fused scores back to full candidate data
+        # Build lookup from candidates
+        candidate_lookup = {}
+        for cand in semantic_candidates + bm25_candidates:
+            doc_id = cand.get("id") or cand.get("doc_id")
+            if doc_id and doc_id not in candidate_lookup:
+                candidate_lookup[doc_id] = cand
+
+        # Build result list with RRF scores
+        results = []
+        for fused in fused_scores[:top_k]:
+            doc_id = fused.get("doc_id")
+            if doc_id in candidate_lookup:
+                result = candidate_lookup[doc_id].copy()
+                result["similarity"] = fused.get("score", 0)
+                result["rrf_score"] = fused.get("score", 0)
+                results.append(result)
+            else:
+                # Fallback: create minimal result
+                results.append({
+                    "id": doc_id,
+                    "doc_id": doc_id,
+                    "similarity": fused.get("score", 0),
+                    "rrf_score": fused.get("score", 0),
+                    "document": "",
+                    "metadata": {},
+                })
+
+        return results
+
     def apply_postprocessing(
         self,
         candidates: List[Dict],

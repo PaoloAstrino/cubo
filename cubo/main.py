@@ -521,7 +521,8 @@ class CUBOApp:
         """Display query results in command line format."""
         from cubo.security.security import security_manager
 
-        logger.info(f"Query: {security_manager.scrub(query)}")
+        scrubbed = security_manager.hash_sensitive_data(query) if config.get("logging.scrub_queries", False) else security_manager.scrub(query)
+        logger.info(f"Query: {scrubbed}")
         logger.info("Retrieved Documents:")
         for i, doc in enumerate(top_docs, 1):
             logger.info(f"{i}. {doc[:200]}...")

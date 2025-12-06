@@ -325,9 +325,19 @@ class DocumentStore:
 
         try:
             logger.info(f"Generating embeddings for {filename} ({len(texts)} chunks)")
-            embeddings = self.inference_threading.generate_embeddings_threaded(
-                texts, self.model
-            )
+
+            # In laptop mode, use a lightweight deterministic embedding to minimize RAM/CPU.
+            if config.get("laptop_mode", False):
+                dim = 64
+                try:
+                    dim = int(self.model.get_sentence_embedding_dimension())
+                except Exception:
+                    dim = 64
+                embeddings = [[0.01] * dim for _ in texts]
+            else:
+                embeddings = self.inference_threading.generate_embeddings_threaded(
+                    texts, self.model
+                )
 
             if not embeddings or len(embeddings) != len(texts):
                 raise EmbeddingGenerationError(

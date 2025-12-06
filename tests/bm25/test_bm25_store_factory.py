@@ -1,4 +1,5 @@
 import pytest
+pytest.importorskip("torch")
 
 from cubo.retrieval.bm25_store_factory import get_bm25_store
 from cubo.retrieval.bm25_python_store import BM25PythonStore

@@ -6,6 +6,7 @@ Uses existing test data files instead of creating temporary ones.
 """
 
 import pytest
+pytest.importorskip("torch")
 from pathlib import Path
 
 from cubo.ingestion.document_loader import DocumentLoader
