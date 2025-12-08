@@ -207,6 +207,30 @@ class TestLazyModelManager(unittest.TestCase):
         manager.get_model()
         self.assertTrue(manager.is_loaded())
 
+    def test_laptop_mode_stub_dimension_respects_config(self):
+        """Test that the lightweight laptop-mode stub uses configured index_dimension."""
+        from cubo.config import config as _cfg
+        # Save original values
+        orig_laptop = _cfg.get("laptop_mode", False)
+        orig_dim = _cfg.get("index_dimension", None)
+
+        try:
+            # Force laptop mode and set index dim to a test value
+            _cfg.set("index_dimension", 128)
+            _cfg.set("laptop_mode", True)
+            mgr = get_lazy_model_manager()
+            model = mgr.get_model()
+            # The stub should match the configured index dimension
+            self.assertEqual(model.get_sentence_embedding_dimension(), 128)
+        finally:
+            # Restore config and unload model
+            _cfg.set("index_dimension", orig_dim if orig_dim is not None else 0)
+            _cfg.set("laptop_mode", orig_laptop)
+            try:
+                mgr.force_unload()
+            except Exception:
+                pass
+
         # Wait significant time
         time.sleep(1)
 
@@ -229,6 +253,27 @@ class TestLazyModelManagerIntegration(unittest.TestCase):
 
         # Should be the same instance
         self.assertIs(manager1, manager2)
+
+    def test_recreate_on_index_dimension_change(self):
+        """If index_dimension config changes, get_lazy_model_manager should recreate the manager."""
+        from cubo.config import config as _cfg
+
+        # Save state
+        orig_dim = _cfg.get("index_dimension", None)
+        orig_laptop = _cfg.get("laptop_mode", False)
+        try:
+            _cfg.set("laptop_mode", True)
+            _cfg.set("index_dimension", 128)
+            m1 = get_lazy_model_manager()
+            # Change index dimension
+            _cfg.set("index_dimension", 256)
+            m2 = get_lazy_model_manager()
+            # Should be a different instance
+            self.assertIsNot(m1, m2)
+            self.assertEqual(getattr(m2, "_created_with_index_dimension", 0), 256)
+        finally:
+            _cfg.set("index_dimension", orig_dim if orig_dim is not None else 0)
+            _cfg.set("laptop_mode", orig_laptop)
 
 
 if __name__ == "__main__":

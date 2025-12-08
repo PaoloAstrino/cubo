@@ -448,7 +448,7 @@ class DocumentRetriever:
     def retrieve_top_documents(
         self,
         query: str,
-        top_k: int = 6,
+        top_k: Optional[int] = None,
         trace_id: Optional[str] = None,
         **kwargs,
     ) -> List[Dict]:
@@ -462,6 +462,10 @@ class DocumentRetriever:
                     top_k = int(kwargs["k"])
                 except Exception:
                     pass
+
+            # Default top_k to the retriever-configured top_k if not provided
+            if top_k is None:
+                top_k = self.top_k
 
             logger.debug(
                 f"retrieve_top_documents query='{query[:50]}' top_k={top_k} trace_id={trace_id}"

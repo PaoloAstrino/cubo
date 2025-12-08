@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import pytest
+pytest.importorskip("fastapi")
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path

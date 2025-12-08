@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from PIL import Image
 
 from cubo.embeddings.model_loader import ModelManager
+
 try:
     from cubo.models.dolphin_processor import DolphinProcessor
 except Exception:

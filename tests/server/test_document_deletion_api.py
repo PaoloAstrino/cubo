@@ -1,6 +1,10 @@
 """Tests for DELETE /api/documents/{doc_id} endpoint."""
 
+import os
 import pytest
+pytest.importorskip("fastapi")
+from unittest.mock import MagicMock, patch
+from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 

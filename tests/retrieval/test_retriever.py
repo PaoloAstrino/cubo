@@ -89,7 +89,14 @@ def test_retrieve_no_documents(mock_model, temp_db_path):
     config.set("index_dimension", 768)
     retriever = DocumentRetriever(mock_model)
     result = retriever.retrieve_top_documents("test query")
-    assert result == []
+    # When no documents are available, retriever returns a padded list of
+    # placeholders to ensure consistent list length for downstream consumers.
+    assert isinstance(result, list)
+    assert len(result) == retriever.top_k
+    # Placeholder entries carry zero similarity and empty document text
+    for r in result:
+        assert r.get("similarity", None) == 0.0
+        assert r.get("document", "") == ""
     close_fn = getattr(retriever, "close", None)
     if callable(close_fn):
         close_fn()

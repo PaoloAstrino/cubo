@@ -53,6 +53,17 @@ class LazyModelManager:
         self._last_access_time: float = 0
         self._unload_timer: Optional[threading.Timer] = None
         self._is_unloading = False
+        # Record how this instance was created to allow reinit if config changes
+        try:
+            from cubo.config import config as _config
+            self._created_with_laptop_mode = bool(_config.get("laptop_mode", False))
+            # Track the index dimension at creation so we can re-create if changed
+            self._created_with_index_dimension = int(
+                _config.get("index_dimension", 0) or 0
+            )
+        except Exception:
+            self._created_with_laptop_mode = False
+            self._created_with_index_dimension = 0
 
         logger.info(
             f"LazyModelManager initialized (device={self.device}, "
@@ -101,7 +112,11 @@ class LazyModelManager:
         try:
             # In laptop_mode, load a lightweight stub model to reduce RAM and test footprint.
             if config.get("laptop_mode", False):
-                self._model = _LightweightModel()
+                # Use configured index dimension for lightweight stub to avoid
+                # embedding shape mismatches during tests or when index dim
+                # is forced via config. Defaults to the existing 64 if not set.
+                dim = int(config.get("index_dimension", 64) or 64)
+                self._model = _LightweightModel(dim=dim)
                 # Allocate a small buffer to ensure observable memory delta for unload tests (~64MB)
                 self._extra_allocation = bytearray(64 * 1024 * 1024)
                 duration = time.time() - start_time
@@ -265,10 +280,20 @@ _manager_lock = threading.Lock()
 
 
 class _LightweightModel:
-    """Tiny stub model used in laptop-mode tests to minimize RAM while providing encode API."""
+    """Tiny stub model used in laptop-mode tests to minimize RAM while providing encode API.
 
-    def __init__(self, dim: int = 64):
-        self._dim = dim
+    The stub uses a configurable embedding dimension to better match tests and
+    the indexing layer. By default it will use the configured `index_dimension`
+    value if present, otherwise fall back to 64.
+    """
+
+    def __init__(self, dim: int | None = None):
+        from cubo.config import config as _config
+
+        # Respect explicit dim or fall back to configured index_dimension (or 64)
+        if dim is None:
+            dim = int(_config.get("index_dimension", 64) or 64)
+        self._dim = int(dim)
         self.device = "cpu"
 
     def encode(self, texts, convert_to_tensor=False):
@@ -289,9 +314,26 @@ def get_lazy_model_manager() -> LazyModelManager:
     """
     global _lazy_model_manager
 
+    from cubo.config import config as _config
+
     if _lazy_model_manager is None:
         with _manager_lock:
             if _lazy_model_manager is None:
                 _lazy_model_manager = LazyModelManager()
+    else:
+        # If the global config toggled laptop_mode or the index dimension since
+        # the manager was created, recreate it to honor the new mode and avoid
+        # loading a heavy model for tests that expect the laptop-mode stub.
+        try:
+            if bool(_config.get("laptop_mode", False)) != _lazy_model_manager._created_with_laptop_mode or int(
+                _config.get("index_dimension", 0) or 0
+            ) != getattr(_lazy_model_manager, "_created_with_index_dimension", 0):
+                # If a model is loaded, unload it before re-creating manager
+                if _lazy_model_manager.is_loaded():
+                    _lazy_model_manager.force_unload()
+                # Recreate
+                _lazy_model_manager = LazyModelManager()
+        except Exception:
+            pass
 
     return _lazy_model_manager

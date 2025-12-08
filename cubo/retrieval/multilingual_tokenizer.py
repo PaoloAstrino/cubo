@@ -114,6 +114,16 @@ class MultilingualTokenizer:
         if not LANGDETECT_AVAILABLE:
             return "en"  # Default to English
 
+        # Avoid unreliable detection on very short inputs (e.g., single word
+        # queries) — default to English for short inputs where language detection
+        # is prone to misclassification.
+        try:
+            token_count = len(re.findall(r"\w+", text))
+            if token_count < 3:
+                return "en"
+        except Exception:
+            pass
+
         try:
             # Use first 500 chars for detection (faster)
             sample = text[:500] if len(text) > 500 else text

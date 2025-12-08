@@ -69,6 +69,27 @@ class FAISSIndexManager:
         if len(array) != len(ids):
             raise ValueError("Embeddings and ids must have the same length")
 
+        # If the input embedding dimensionality doesn't match the index's expected
+        # dimension, avoid attempting to append and instead rebuild from scratch.
+        # This often happens when tests or processes use a different embedding
+        # model (e.g. 64 dims vs 768 dims) than an existing index on disk.
+        new_dim = array.shape[1]
+        if new_dim != self.dimension:
+            logger.warning(
+                f"Embedding dimension mismatch: existing_index_dim={self.dimension}, new_vectors_dim={new_dim}."
+                " Rebuilding FAISS indexes with new dimension and dropping old indexes."
+            )
+            # Reset existing index state to avoid vstack dimension errors and
+            # ensure the index uses the correct new dimension going forward.
+            self.hot_index = None
+            self.cold_index = None
+            self.hot_ids = []
+            self.cold_ids = []
+            # Update our expected dimension
+            self.dimension = new_dim
+            # Force a rebuild rather than attempting to append
+            append = False
+
         if append and self.hot_index is not None:
             # Append to existing indexes by rebuilding with all data
             logger.info("Appending data to existing indexes by rebuilding...")

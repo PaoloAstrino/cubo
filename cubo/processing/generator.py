@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 
 try:
     import ollama
+
     OLLAMA_AVAILABLE = True
 except Exception:
     ollama = None
