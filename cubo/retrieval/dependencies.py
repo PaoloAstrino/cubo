@@ -7,7 +7,7 @@ not always be available (like cross-encoder rerankers) are loaded on-demand.
 
 Usage:
     from cubo.retrieval.dependencies import get_auto_merging_retriever
-    
+
     retriever = get_auto_merging_retriever(model)
     if retriever is not None:
         results = retriever.retrieve(query)
@@ -46,6 +46,7 @@ def get_auto_merging_retriever(model: "SentenceTransformer") -> Optional[Any]:
     if _auto_merging_class is None:
         try:
             from cubo.retrieval.custom_auto_merging import AutoMergingRetriever
+
             _auto_merging_class = AutoMergingRetriever
         except ImportError as e:
             logger.debug(f"AutoMergingRetriever not available: {e}")
@@ -74,6 +75,7 @@ def get_cross_encoder_reranker(model_name: str, top_n: int = 10) -> Optional[Any
     if _cross_encoder_class is None:
         try:
             from cubo.rerank.reranker import CrossEncoderReranker
+
             _cross_encoder_class = CrossEncoderReranker
         except ImportError as e:
             logger.debug(f"CrossEncoderReranker not available: {e}")
@@ -101,6 +103,7 @@ def get_local_reranker(model: "SentenceTransformer") -> Optional[Any]:
     if _local_reranker_class is None:
         try:
             from cubo.rerank.reranker import LocalReranker
+
             _local_reranker_class = LocalReranker
         except ImportError as e:
             logger.debug(f"LocalReranker not available: {e}")
@@ -125,6 +128,7 @@ def get_semantic_router() -> Optional[Any]:
     if _semantic_router_class is None:
         try:
             from cubo.retrieval.router import SemanticRouter
+
             _semantic_router_class = SemanticRouter
         except ImportError as e:
             logger.debug(f"SemanticRouter not available: {e}")
@@ -149,6 +153,7 @@ def get_window_postprocessor() -> Optional[Any]:
     if _window_postprocessor_class is None:
         try:
             from cubo.processing.postprocessor import WindowReplacementPostProcessor
+
             _window_postprocessor_class = WindowReplacementPostProcessor
         except ImportError as e:
             logger.debug(f"WindowReplacementPostProcessor not available: {e}")
@@ -179,6 +184,7 @@ def get_scaffold_retriever(scaffold_dir: str, embedding_generator: Any) -> Optio
             from cubo.retrieval.scaffold_retriever import (
                 create_scaffold_retriever_from_directory,
             )
+
             _scaffold_retriever_factory = create_scaffold_retriever_from_directory
         except ImportError as e:
             logger.debug(f"ScaffoldRetriever not available: {e}")
@@ -210,6 +216,7 @@ def get_summary_embedder() -> Optional[Any]:
     if _summary_embedder_class is None:
         try:
             from cubo.embeddings.summary_embedder import SummaryEmbedder
+
             _summary_embedder_class = SummaryEmbedder
         except ImportError as e:
             logger.debug(f"SummaryEmbedder not available: {e}")
@@ -231,6 +238,7 @@ def get_embedding_generator() -> Optional[Any]:
     """
     try:
         from cubo.embeddings.embedding_generator import EmbeddingGenerator
+
         return EmbeddingGenerator()
     except ImportError as e:
         logger.debug(f"EmbeddingGenerator not available: {e}")
@@ -272,8 +280,7 @@ class RerankerFactory:
                 logger.info(f"Using CrossEncoderReranker: {reranker_model_name}")
                 return reranker
             logger.warning(
-                "Failed to initialize CrossEncoderReranker, "
-                "falling back to LocalReranker"
+                "Failed to initialize CrossEncoderReranker, " "falling back to LocalReranker"
             )
 
         # Fall back to local reranker

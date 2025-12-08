@@ -30,7 +30,9 @@ class ChunkMetadata(BaseModel):
     file_hash: str = Field(default="", description="Hash of source file content")
     filepath: str = Field(default="", description="Full path to source file")
     chunk_index: int = Field(default=0, description="Index of chunk in document")
-    sentence_index: Optional[int] = Field(default=None, description="Sentence index for window chunks")
+    sentence_index: Optional[int] = Field(
+        default=None, description="Sentence index for window chunks"
+    )
     window: str = Field(default="", description="Window context text")
     window_start: Optional[int] = Field(default=None, description="Start index of window")
     window_end: Optional[int] = Field(default=None, description="End index of window")
@@ -40,7 +42,9 @@ class ChunkMetadata(BaseModel):
     total_chunks: Optional[int] = Field(default=None, description="Total chunks in document")
     score_breakdown: Optional[ScoreBreakdown] = Field(default=None, description="Score breakdown")
     dedup_cluster_id: Optional[int] = Field(default=None, description="Deduplication cluster ID")
-    canonical_chunk_id: Optional[str] = Field(default=None, description="Canonical chunk ID for dedup")
+    canonical_chunk_id: Optional[str] = Field(
+        default=None, description="Canonical chunk ID for dedup"
+    )
 
     model_config = ConfigDict(extra="allow")
 
@@ -97,7 +101,9 @@ class RetrievalCandidate(BaseModel):
 class RetrievalResult(BaseModel):
     """Result from a retrieval operation."""
 
-    candidates: List[RetrievalCandidate] = Field(default_factory=list, description="Retrieved candidates")
+    candidates: List[RetrievalCandidate] = Field(
+        default_factory=list, description="Retrieved candidates"
+    )
     method: str = Field(default="hybrid", description="Retrieval method used")
     query: str = Field(default="", description="Original query")
     top_k: int = Field(default=0, description="Number of results requested")
@@ -132,7 +138,9 @@ class ChunkData(BaseModel):
     """Prepared chunk data for batch operations."""
 
     texts: List[str] = Field(default_factory=list, description="List of chunk texts")
-    metadatas: List[Dict[str, Any]] = Field(default_factory=list, description="List of metadata dicts")
+    metadatas: List[Dict[str, Any]] = Field(
+        default_factory=list, description="List of metadata dicts"
+    )
     chunk_ids: List[str] = Field(default_factory=list, description="List of chunk IDs")
     embeddings: Optional[List[List[float]]] = Field(default=None, description="List of embeddings")
 

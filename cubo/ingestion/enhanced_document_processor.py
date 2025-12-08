@@ -11,7 +11,11 @@ from typing import Any, Dict, List
 from PIL import Image
 
 from cubo.embeddings.model_loader import ModelManager
-from cubo.models.dolphin_processor import DolphinProcessor
+try:
+    from cubo.models.dolphin_processor import DolphinProcessor
+except Exception:
+    DolphinProcessor = None
+    # Dolphin model support is optional; if import fails, fallback occurs at runtime.
 from cubo.utils.utils import Utils
 
 logger = logging.getLogger(__name__)

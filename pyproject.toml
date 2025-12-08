@@ -128,6 +128,14 @@ dev = [
     "reportlab>=4.0.0",
 ]
 
+# Benchmarking (LightRAG-style evaluation)
+benchmark = [
+    "ragas>=0.1.0",
+    "datasets>=2.14.0",
+    "langchain-openai>=0.0.5",
+    "llama-index>=0.10.0",
+]
+
 # Full install (replaces previous default behavior)
 full = [
     "cubo[embeddings,server,ollama,ocr,faiss,scaffolds]",
@@ -135,7 +143,7 @@ full = [
 
 # All optional dependencies combined
 all = [
-    "cubo[full,gui,dev]",
+    "cubo[full,gui,dev,benchmark]",
 ]
 
 [project.urls]

@@ -10,6 +10,7 @@ import logging
 import os
 import sys
 import time
+from time import perf_counter
 from typing import Any, Dict, List
 
 # Add parent directory to path for imports
@@ -27,6 +28,8 @@ from tqdm import tqdm
 from benchmarks.utils.metrics import AdvancedEvaluator, GroundTruthLoader, IRMetricsEvaluator
 from benchmarks.utils.hardware import log_hardware_metadata, sample_latency, sample_memory
 from cubo.main import CUBOApp
+from cubo.retrieval.retrieval_executor import extract_chunk_id
+from colorama import Fore, Style, init as colorama_init
 from benchmarks.utils.ragas_evaluator import get_ragas_evaluator
 
 try:
@@ -47,6 +50,7 @@ logging.basicConfig(
     handlers=[logging.FileHandler("test_results.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
+colorama_init(autoreset=True)
 
 try:
     import ollama
@@ -72,13 +76,18 @@ class RAGTester:
         index_commit_size: int = 4096,
         hot_fraction: float = None,
         shuffle_docs: bool = True,
+        populate_bm25_on_index: bool = False,
+        query_batch_size: int = 8,
     ):
         """Initialize the tester with question data and CUBO system."""
+        self.trace_events: List[Dict[str, Any]] = []
         self.questions_file = questions_file
+        _t0 = perf_counter()
         self.questions = self.load_questions()
+        self._trace("load_questions", perf_counter() - _t0, {"questions_file": questions_file, "reason": "load question set"})
         self.data_folder = data_folder
         self.mode = mode  # 'full', 'retrieval-only', 'ingestion-only'
-
+        
         # Load ground truth for IR metrics if provided
         self.ground_truth = None
         if ground_truth_file:
@@ -117,6 +126,9 @@ class RAGTester:
         self.index_batch_size = index_batch_size
         self.index_sample_size = index_sample_size
         self.index_commit_size = index_commit_size
+        # Should we populate BM25 store automatically after indexing?
+        self.populate_bm25_on_index = bool(populate_bm25_on_index)
+        self.query_batch_size = int(query_batch_size)
         # Auto-populate DB from corpus: when skip_index is True and collection lacks doc rows
         self.auto_populate_db = False
         self.hot_fraction = hot_fraction
@@ -125,7 +137,9 @@ class RAGTester:
         # Initialize CUBO system (skip for ingestion-only mode)
         self.cubo_app = None
         if mode != "ingestion-only":
+            _t0 = perf_counter()
             self._initialize_cubo_system()
+            self._trace("initialize_cubo_system", perf_counter() - _t0, {"reason": "prepare retriever/generator"})
 
         # Capture hardware metadata
         self.hardware_metadata = log_hardware_metadata()
@@ -145,6 +159,10 @@ class RAGTester:
             },
             "results": {"easy": [], "medium": [], "hard": []},
         }
+
+    def _trace(self, name: str, duration: float, extra: Dict[str, Any]):
+        """Append a trace event with duration and optional extra info."""
+        self.trace_events.append({"name": name, "duration": duration, "extra": extra})
 
     def _initialize_cubo_system(self):
         """Initialize the CUBO RAG system for testing."""
@@ -387,6 +405,11 @@ class RAGTester:
                     "success": True,
                     "timestamp": time.time(),
                 }
+                self._trace(
+                    "run_single_test",
+                    processing_time,
+                    {"question_id": question_id, "difficulty": difficulty, "mode": "retrieval-only"},
+                )
                 return result
 
             # Full RAG mode: generate response
@@ -410,33 +433,29 @@ class RAGTester:
                 self.evaluate_response(question, response, context_texts, processing_time)
             )
 
-            # Evaluate using RAGAS if available
+            # Evaluate using RAGAS if available (LLM-based judge); use ground truth if present
             ragas_metrics = {}
             if self.ragas_evaluator:
                 try:
-                    # Use ground truth if available for this specific question
                     gt = None
                     if self.ground_truth and question_id and question_id in self.ground_truth:
-                        # Ground truth might be a list of answers or single string
                         gt_data = self.ground_truth[question_id]
                         if isinstance(gt_data, list):
                             gt = gt_data[0]
                         elif isinstance(gt_data, str):
                             gt = gt_data
-                        elif isinstance(gt_data, dict) and "text" in gt_data:
-                            gt = gt_data["text"]
 
-                    ragas_metrics = asyncio.run(self.ragas_evaluator.evaluate_single(
-                        question=question,
-                        answer=response,
-                        contexts=context_texts,
-                        ground_truth=gt
-                    ))
+                    # Evaluate RAGAS asynchronously
+                    ragas_metrics = asyncio.run(
+                        self.ragas_evaluator.evaluate_single(
+                            question, response, context_texts, ground_truth=gt
+                        )
+                    )
                 except Exception as e:
                     logger.error(f"RAGAS evaluation failed: {e}")
                     ragas_metrics = {"error": str(e)}
 
-            result = {
+                    result = {
                 "question": question,
                 "question_id": question_id,
                 "difficulty": difficulty,
@@ -453,7 +472,13 @@ class RAGTester:
                 "success": True,
                 "timestamp": time.time(),
             }
-
+            self._trace("run_single_test", processing_time, {
+                            "question_id": question_id,
+                            "difficulty": difficulty,
+                            "mode": "full",
+                            "generation_time": generation_time,
+                            "reason": "full RAG evaluation",
+                        })
         except Exception as e:
             processing_time = time.time() - start_time
             logger.error(f"Test failed for question: {question[:50]}... Error: {e}")
@@ -731,6 +756,55 @@ class RAGTester:
             except Exception as e:
                 logger.error(f"Final commit failed: {e}")
         logger.info(f"Indexing completed: {total} documents")
+        # Optionally populate the BM25 store from the collection after indexing.
+        # This may be slow for large corpora — we perform batched indexing with a progress bar.
+        should_populate_bm25 = self.populate_bm25_on_index or False
+        try:
+            from cubo.config import config as _config
+            should_populate_bm25 = should_populate_bm25 or _config.get("bm25.populate_on_index", False)
+        except Exception:
+            pass
+
+        if should_populate_bm25 and getattr(self, 'cubo_app', None) and getattr(self.cubo_app.retriever, 'bm25', None):
+            try:
+                logger.info("Populating BM25 store from collection (batched)...")
+                all_docs = self.cubo_app.retriever.collection.get(include=["documents", "metadatas", "ids"]) or {}
+                ids_list = all_docs.get('ids', [])
+                lens = len(all_docs.get('documents', []))
+                if lens == 0:
+                    logger.warning("No documents in collection to populate BM25 store from")
+                else:
+                    docs_for_index = []
+                    for i, (doc, meta) in enumerate(zip(all_docs.get('documents', []), all_docs.get('metadatas', []))):
+                        doc_text = doc if isinstance(doc, str) else ' '.join(doc) if isinstance(doc, (list, tuple)) else str(doc)
+                        doc_id = ids_list[i] if i < len(ids_list) else None
+                        if doc_id:
+                            docs_for_index.append({"doc_id": doc_id, "text": doc_text, "metadata": meta})
+                    # Index in batches to show progress
+                    batch_size = max(256, self.index_commit_size // 2)
+                    import time as _time
+                    start_pop = _time.time()
+                    with tqdm(total=len(docs_for_index), desc="Populating BM25", unit="docs") as bm25_pbar:
+                        for j in range(0, len(docs_for_index), batch_size):
+                            slice_docs = docs_for_index[j : j + batch_size]
+                            try:
+                                # Prefer bulk index if available for speed
+                                if hasattr(self.cubo_app.retriever.bm25, 'index_documents'):
+                                    self.cubo_app.retriever.bm25.index_documents(slice_docs)
+                                else:
+                                    self.cubo_app.retriever.bm25.add_documents(slice_docs, reset=False)
+                            except Exception:
+                                # Fallback to incremental adds if bulk fails
+                                for d in slice_docs:
+                                    try:
+                                        self.cubo_app.retriever.bm25.add_documents([d])
+                                    except Exception:
+                                        logger.debug(f"Failed to index doc {d.get('doc_id')} to BM25")
+                            bm25_pbar.update(len(slice_docs))
+                    elapsed_pop = _time.time() - start_pop
+                    logger.info(f"BM25 store populated from collection after indexing (docs={len(docs_for_index)} elapsed={elapsed_pop:.2f}s)")
+            except Exception as e:
+                logger.warning(f"BM25 populate after indexing failed: {e}")
 
     async def evaluate_response(
         self, question: str, answer: str, contexts: List[str], response_time: float
@@ -769,6 +843,7 @@ class RAGTester:
         self, difficulty: str, limit: int = None, k_values: List[int] = [5, 10, 20]
     ) -> List[Dict[str, Any]]:
         """Run all tests for a specific difficulty level."""
+        _t0 = perf_counter()
         questions = self.questions.get(difficulty, [])
         if limit:
             questions = questions[:limit]
@@ -782,19 +857,126 @@ class RAGTester:
             pass
         results = []
         with tqdm(total=len(questions), desc=f"Testing {difficulty}", unit="question") as pbar:
-            for i, question in enumerate(questions, 1):
-                # Use actual query ID from metadata if available, otherwise generate one
-                if self.query_ids and i - 1 < len(self.query_ids):
-                    question_id = self.query_ids[i - 1]
-                else:
-                    question_id = f"{difficulty}_{i}"
-                result = self.run_single_test(
-                    question, difficulty, question_id=question_id, k_values=k_values
-                )
-                results.append(result)
-                pbar.update(1)
-
+            # Use batched embedding generation where possible to reduce per-query overhead
+            qbatch = getattr(self, 'query_batch_size', 8) or 8
+            for i in range(0, len(questions), qbatch):
+                batch = questions[i : i + qbatch]
+                # Pre-generate embeddings in batch if retriever and inference threading available
+                embeddings = None
+                try:
+                    if self.cubo_app and hasattr(self.cubo_app, 'retriever') and hasattr(self.cubo_app.retriever, 'inference_threading') and self.cubo_app.retriever.model:
+                        embeddings = self.cubo_app.retriever.inference_threading.generate_embeddings_threaded(batch, self.cubo_app.retriever.model)
+                except Exception:
+                    embeddings = None
+                for j, question in enumerate(batch, 1):
+                    idx = i + j
+                    # Use actual query ID if available
+                    if self.query_ids and idx - 1 < len(self.query_ids):
+                        question_id = self.query_ids[idx - 1]
+                    else:
+                        question_id = f"{difficulty}_{idx}"
+                    # If we precomputed embeddings, use a fast retrieval path
+                    pre_emb = embeddings[j - 1] if embeddings and len(embeddings) >= j else None
+                    if pre_emb is not None:
+                        result = self.run_single_test_with_embedding(question, pre_emb, difficulty, question_id=question_id, k_values=k_values)
+                    else:
+                        result = self.run_single_test(
+                            question, difficulty, question_id=question_id, k_values=k_values
+                        )
+                    results.append(result)
+                    pbar.update(1)
+        self._trace(
+            f"run_difficulty_tests.{difficulty}",
+            perf_counter() - _t0,
+            {"questions": len(questions), "reason": "execute difficulty batch"},
+        )
         return results
+
+    def run_single_test_with_embedding(
+        self,
+        question: str,
+        embedding: List[float],
+        difficulty: str,
+        question_id: str = None,
+        k_values: List[int] = [5, 10, 20],
+    ) -> Dict[str, Any]:
+        """Run a single question test with precomputed embedding for faster retrieval."""
+        logger.info(f"Testing [{difficulty}] (batched): {question[:50]}...")
+
+        start_time = time.time()
+        try:
+            if not self.cubo_app:
+                raise Exception("CUBO system not initialized")
+
+            # Fast path: query dense and BM25 using precomputed embedding
+            retriever = self.cubo_app.retriever
+            retrieval_k = max(k_values) * 3 if k_values else 20
+            semantic = self.cubo_app.retriever.executor.query_dense(embedding, retrieval_k, question, retriever.current_documents)
+            bm25 = self.cubo_app.retriever.executor.query_bm25(question, retrieval_k, retriever.current_documents)
+
+            combined = semantic + bm25
+            unique = self.cubo_app.retriever.orchestrator.deduplicate_results(combined, extract_chunk_id)
+            unique.sort(key=lambda x: x.get("similarity", 0.0), reverse=True)
+            contexts = unique[: max(k_values)]
+
+            # Cache metrics
+            cache_metrics = {}
+            try:
+                cache_metrics = self.cubo_app.retriever.cache_service.get_metrics()
+            except Exception:
+                cache_metrics = {}
+
+            retrieved_ids = [str(ctx.get("metadata", {}).get("id") or ctx.get("id")) for ctx in contexts]
+
+            ir_metrics = {}
+            mrr = 0.0
+            if self.ground_truth and question_id:
+                ir_metrics = self.ir_evaluator.evaluate_retrieval(
+                    question_id, retrieved_ids, self.ground_truth, k_values=k_values
+                )
+                relevant_docs = self.ground_truth.get(question_id, [])
+                for i, doc_id in enumerate(retrieved_ids):
+                    if doc_id in relevant_docs:
+                        mrr = 1.0 / (i + 1)
+                        break
+
+            processing_time = time.time() - start_time
+
+            result = {
+                "question": question,
+                "question_id": question_id,
+                "difficulty": difficulty,
+                "retrieved_ids": retrieved_ids,
+                "contexts": contexts,
+                "retrieval_latency": {"p50_ms": processing_time * 1000},
+                "cache_metrics": cache_metrics,
+                "ir_metrics": ir_metrics,
+                "processing_time": processing_time,
+                "success": True,
+                "timestamp": time.time(),
+            }
+            self._trace(
+                "run_single_test_with_embedding",
+                processing_time,
+                {"question_id": question_id, "difficulty": difficulty},
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"run_single_test_with_embedding failed: {e}")
+            return {
+                "question": question,
+                "question_id": question_id,
+                "difficulty": difficulty,
+                "retrieved_ids": [],
+                "contexts": [],
+                "retrieval_latency": {"p50_ms": 0},
+                "cache_metrics": {},
+                "ir_metrics": {},
+                "processing_time": 0,
+                "success": False,
+                "error": str(e),
+            }
 
     def run_all_tests(
         self,
@@ -805,6 +987,7 @@ class RAGTester:
     ) -> Dict[str, Any]:
         """Run comprehensive test suite."""
         logger.info(f"Starting comprehensive RAG testing (mode: {self.mode})")
+        _t0 = perf_counter()
 
         # Run tests by difficulty
         self.results["results"]["easy"] = self.run_difficulty_tests(
@@ -819,12 +1002,14 @@ class RAGTester:
 
         # Calculate statistics
         self.calculate_statistics()
+        self._trace("run_all_tests", perf_counter() - _t0, {"reason": "complete test suite"})
 
         logger.info("Testing completed")
         return self.results
 
     def calculate_statistics(self):
         """Calculate test statistics including evaluation and IR metrics."""
+        _t0 = perf_counter()
         all_results = []
         evaluation_metrics = {"answer_relevance": [], "context_relevance": [], "groundedness": []}
         for difficulty in ["easy", "medium", "hard"]:
@@ -1010,8 +1195,10 @@ class RAGTester:
                 "success_rate": overall_success_rate,
                 "total_processing_time": sum(r.get("processing_time", 0) for r in all_results),
                 **overall_metrics,
+                "trace": self.trace_events,
             }
         )
+        self._trace("calculate_statistics", perf_counter() - _t0, {"total_questions": total_questions, "reason": "aggregate metrics"})
 
     def save_results(self, output_file: str = "test_results.json"):
         """Save test results to JSON file."""
@@ -1026,71 +1213,93 @@ class RAGTester:
         """Print test summary with evaluation and IR metrics."""
         meta = self.results["metadata"]
 
+        # Terminal colors and formatting
+        bold = Style.BRIGHT
+        green = Fore.GREEN
+        yellow = Fore.YELLOW
+        cyan = Fore.CYAN
+        red = Fore.RED
+        reset = Style.RESET_ALL
+
+        def fmt_num(val, fmt=".2f", none_label="n/a"):
+            return f"{val:{fmt}}" if val is not None else none_label
+
         print("\n" + "=" * 60)
-        print(f"CUBO RAG TESTING SUMMARY (Mode: {meta.get('mode', 'full')})")
+        print(f"{bold}{cyan}CUBO RAG TESTING SUMMARY (Mode: {meta.get('mode', 'full')}){reset}")
         print("=" * 60)
+        print(f"Total Questions Tested: {bold}{meta.get('total_questions', 0)}{reset}")
+        print(f"Success Rate: {bold}{meta.get('success_rate', 0)*100:.1f}%{reset}")
+        print(f"Total Processing Time: {bold}{meta.get('total_processing_time', 0):.2f}s{reset}")
 
-        print(f"Total Questions Tested: {meta['total_questions']}")
-        print(f"Success Rate: {meta['success_rate']*100:.1f}%")
-        print(f"Total Processing Time: {meta['total_processing_time']:.2f}s")
-
-        # Print overall IR metrics
-        print("\nOverall IR Metrics:")
+        print(f"\n{bold}Overall IR Metrics:{reset}")
+        any_ir = False
         for key, value in meta.items():
             if key.startswith("avg_recall_at_k"):
                 k = key.split("_")[-1]
-                print(f"  Recall@{k}: {value:.3f}")
+                print(f"  Recall@{k}: {fmt_num(value, '.3f')}")
+                any_ir = True
         for key, value in meta.items():
             if key.startswith("avg_ndcg_at_k"):
                 k = key.split("_")[-1]
-                print(f"  nDCG@{k}: {value:.3f}")
+                print(f"  nDCG@{k}: {fmt_num(value, '.3f')}")
+                any_ir = True
         if "avg_mrr" in meta:
-            print(f"  MRR: {meta['avg_mrr']:.3f}")
+            print(f"  MRR: {fmt_num(meta.get('avg_mrr'), '.3f')}")
+            any_ir = True
+        if not any_ir:
+            print("  (no IR metrics computed)")
 
-        # Print overall cache metrics if available
-        if "avg_semantic_hit_rate_percent" in meta:
-            print(f"  Avg Semantic Cache Hit Rate: {meta['avg_semantic_hit_rate_percent']:.1f}%")
-        if "avg_semantic_hits" in meta:
-            print(f"  Avg Semantic Cache Hits: {meta['avg_semantic_hits']:.1f}")
-
-        # Print overall evaluation metrics (full RAG mode)
-        if meta.get("mode") == "full":
-            print("\nOverall RAG Metrics:")
-            if "avg_answer_relevance" in meta and meta["avg_answer_relevance"] > 0:
-                print(f"  Answer Relevance: {meta['avg_answer_relevance']:.3f}")
-            if "avg_context_relevance" in meta and meta["avg_context_relevance"] > 0:
-                print(f"  Context Relevance: {meta['avg_context_relevance']:.3f}")
-            if "avg_groundedness" in meta and meta["avg_groundedness"] > 0:
-                print(f"  Groundedness: {meta['avg_groundedness']:.3f}")
-
-        print("\nBy Difficulty:")
-        for difficulty, stats in meta["questions_by_difficulty"].items():
-            print(f"  {difficulty.capitalize()}:")
-            print(f"    Questions: {stats['total']}")
-            print(f"    Success Rate: {stats['success_rate']*100:.1f}%")
-            print(f"    Avg Processing Time: {stats['avg_processing_time']:.2f}s")
-
-            if "avg_retrieval_latency_p50_ms" in stats:
+        if "avg_semantic_hit_rate_percent" in meta or "avg_semantic_hits" in meta:
+            print(f"\n{bold}Cache Metrics:{reset}")
+            if "avg_semantic_hit_rate_percent" in meta:
                 print(
-                    f"    Avg Retrieval Latency (p50): {stats['avg_retrieval_latency_p50_ms']:.1f}ms"
+                    f"  Avg Semantic Cache Hit Rate: {fmt_num(meta.get('avg_semantic_hit_rate_percent'), '.1f')}%"
+                )
+            if "avg_semantic_hits" in meta:
+                print(f"  Avg Semantic Cache Hits: {fmt_num(meta.get('avg_semantic_hits'), '.1f')}")
+
+        if meta.get("mode") == "full":
+            print(f"\n{bold}Overall RAG Metrics:{reset}")
+            for metric_name in ["answer_relevance", "context_relevance", "groundedness"]:
+                key = f"avg_{metric_name}"
+                if key in meta:
+                    print(f"  {metric_name.replace('_', ' ').title()}: {fmt_num(meta.get(key), '.3f')}")
+
+        print(f"\n{bold}By Difficulty:{reset}")
+        for difficulty in ["easy", "medium", "hard"]:
+                stats = meta["questions_by_difficulty"].get(difficulty, {})
+                if not stats:
+                    continue
+                print(f"  {yellow}{difficulty.title()}{reset}:")
+                print(f"    Questions: {stats.get('total', 0)}")
+                print(f"    Success Rate: {stats.get('success_rate', 0)*100:.1f}%")
+                print(f"    Avg Processing Time: {stats.get('avg_processing_time', 0):.2f}s")
+                print(
+                    f"    Avg Retrieval Latency (p50): {stats.get('avg_retrieval_latency_p50_ms', 0):.1f}ms"
+                )
+                if stats.get("avg_mrr") is not None:
+                    print(f"    Avg MRR: {fmt_num(stats.get('avg_mrr'), '.3f')}")
+
+        if "hardware" in meta:
+            hw = meta["hardware"]
+            print(f"\n{bold}Hardware Configuration:{reset}")
+            print(f"  CPU: {hw['cpu']['model']}")
+            print(f"  RAM: {hw['ram']['total_gb']:.1f} GB")
+            if hw["gpu"].get("available"):
+                print(
+                    f"  GPU: {hw['gpu']['device_name']} ({hw['gpu']['vram_total_gb']:.1f} GB VRAM)"
                 )
 
-            # Show IR metrics per difficulty
-            for key, value in stats.items():
-                if key.startswith("avg_recall_at_k"):
-                    k = key.split("_")[-1]
-                    print(f"    Recall@{k}: {value:.3f}")
+        if meta.get("trace"):
+            print(f"\n{bold}{green}Function Trace (durations in seconds):{reset}")
+            for ev in meta["trace"]:
+                name = ev.get("name", "")
+                dur = ev.get("duration", 0.0)
+                info = ev.get("extra", {})
+                extra_str = ", ".join(f"{k}={v}" for k, v in info.items()) if info else ""
+                print(f"  {name}: {dur:.3f}s" + (f" ({extra_str})" if extra_str else ""))
 
-            # Show RAG metrics per difficulty (full mode)
-            if meta.get("mode") == "full":
-                if "avg_answer_relevance" in stats and stats["avg_answer_relevance"] > 0:
-                    print(f"    Answer Relevance: {stats['avg_answer_relevance']:.3f}")
-                if "avg_groundedness" in stats and stats["avg_groundedness"] > 0:
-                    print(f"    Groundedness: {stats['avg_groundedness']:.3f}")
-
-            # Show cache metrics per difficulty
-            if "avg_semantic_hit_rate_percent" in stats:
-                print(f"    Semantic Cache Hit Rate: {stats['avg_semantic_hit_rate_percent']:.1f}%")
+            print(f"\n{bold}{green}Detailed results saved to test_results.json{reset}")
 
         # Hardware summary
         if "hardware" in meta:
@@ -1131,6 +1340,13 @@ def main():
         default="5,10,20",
         help="Comma-separated K values for IR metrics (default: 5,10,20)",
     )
+    parser.add_argument(
+        "--populate-bm25",
+        dest="populate_bm25",
+        action="store_true",
+        default=False,
+        help="After building the vector index, populate the BM25 store from the indexed collection (may be slow)",
+    )
     parser.add_argument("--easy-limit", type=int, help="Limit number of easy questions")
     parser.add_argument("--medium-limit", type=int, help="Limit number of medium questions")
     parser.add_argument("--hard-limit", type=int, help="Limit number of hard questions")
@@ -1165,6 +1381,12 @@ def main():
         type=int,
         default=4096,
         help="Number of documents to commit per vector store.add() call (avoids frequent FAISS re-train warnings)",
+    )
+    parser.add_argument(
+        "--query-batch-size",
+        type=int,
+        default=8,
+        help="Batch size to use for query embedding generation and batched retrieval (default: 8)",
     )
     parser.add_argument(
         "--auto-populate-db",
@@ -1210,6 +1432,8 @@ def main():
         index_commit_size=args.index_commit_size,
         hot_fraction=args.hot_fraction,
         shuffle_docs=args.shuffle_docs,
+            populate_bm25_on_index=args.populate_bm25,
+            query_batch_size=args.query_batch_size,
     )
 
     # Set indexing options

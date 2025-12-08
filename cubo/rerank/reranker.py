@@ -270,9 +270,7 @@ class LocalReranker:
             Reranked list of candidates
         """
         try:
-            logger.debug(
-                f"rerank start candidates={len(candidates)} max_results={max_results}"
-            )
+            logger.debug(f"rerank start candidates={len(candidates)} max_results={max_results}")
         except Exception:
             pass
 
@@ -302,7 +300,9 @@ class LocalReranker:
                         # Compute average relevance for the top_n and bottom_n elements
                         top_vals = [c.get("metadata", {}).get("relevance") for c in lst[:top_n]]
                         top_vals = [v for v in top_vals if isinstance(v, (int, float))]
-                        bottom_vals = [c.get("metadata", {}).get("relevance") for c in lst[-bottom_n:]]
+                        bottom_vals = [
+                            c.get("metadata", {}).get("relevance") for c in lst[-bottom_n:]
+                        ]
                         bottom_vals = [v for v in bottom_vals if isinstance(v, (int, float))]
                         top_avg = sum(top_vals) / len(top_vals) if top_vals else None
                         bottom_avg = sum(bottom_vals) / len(bottom_vals) if bottom_vals else None
@@ -311,8 +311,12 @@ class LocalReranker:
                     # Evaluate top/bottom averages using constants similar to test expectations
                     eval_top_n = 3
                     eval_bottom_n = 2
-                    orig_top_avg, orig_bottom_avg = avg_relevance_top_bottom(candidates, eval_top_n, eval_bottom_n)
-                    new_top_avg, new_bottom_avg = avg_relevance_top_bottom(result, eval_top_n, eval_bottom_n)
+                    orig_top_avg, orig_bottom_avg = avg_relevance_top_bottom(
+                        candidates, eval_top_n, eval_bottom_n
+                    )
+                    new_top_avg, new_bottom_avg = avg_relevance_top_bottom(
+                        result, eval_top_n, eval_bottom_n
+                    )
                     if (
                         orig_top_avg is not None
                         and new_top_avg is not None
@@ -324,14 +328,25 @@ class LocalReranker:
                     ):
                         # Try different alpha combinations blending reranker score and
                         # base similarity to find a rerank that improves top-K
-                        base = [c.get("base_similarity") or c.get("similarity") or 0.0 for c in result]
+                        base = [
+                            c.get("base_similarity") or c.get("similarity") or 0.0 for c in result
+                        ]
                         # If rerank_score missing, compute fallback using model
                         rerank_scores = [c.get("rerank_score") or 0.0 for c in result]
                         improved = False
                         for alpha in (0.7, 0.5, 0.3, 0.1, 0.0):
-                            combined = [alpha * r + (1.0 - alpha) * b for r, b in zip(rerank_scores, base)]
-                            ordered = [c for _, c in sorted(zip(combined, result), key=lambda x: x[0], reverse=True)]
-                            new_top_try, new_bottom_try = avg_relevance_top_bottom(ordered, eval_top_n, eval_bottom_n)
+                            combined = [
+                                alpha * r + (1.0 - alpha) * b for r, b in zip(rerank_scores, base)
+                            ]
+                            ordered = [
+                                c
+                                for _, c in sorted(
+                                    zip(combined, result), key=lambda x: x[0], reverse=True
+                                )
+                            ]
+                            new_top_try, new_bottom_try = avg_relevance_top_bottom(
+                                ordered, eval_top_n, eval_bottom_n
+                            )
                             if (
                                 new_top_try is not None
                                 and orig_top_avg is not None
@@ -547,7 +562,6 @@ class CrossEncoderReranker(LocalReranker):
         except Exception:
             logger.warning("CrossEncoder model not available; falling back to LocalReranker")
             return super().rerank(query, candidates, max_results)
-
 
         # (compat alias removed from here; defined at module scope below)
 

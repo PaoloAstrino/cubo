@@ -16,7 +16,7 @@ if __name__ == "__main__":
         auto_merge_for_complex=True,  # Auto-switch based on query complexity
     )
 
-# Example 2: Sentence window only
+    # Example 2: Sentence window only
     # Example 2: Sentence window only
     retriever_sentence_only = DocumentRetriever(
         model=model,
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         auto_merge_for_complex=False,  # No auto-switching
     )
 
-# Example 3: Auto-merging only
+    # Example 3: Auto-merging only
     # Example 3: Auto-merging only
     retriever_auto_only = DocumentRetriever(
         model=model,

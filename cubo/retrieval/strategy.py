@@ -112,14 +112,16 @@ class RetrievalStrategy:
                 results.append(result)
             else:
                 # Fallback: create minimal result
-                results.append({
-                    "id": doc_id,
-                    "doc_id": doc_id,
-                    "similarity": fused.get("score", 0),
-                    "rrf_score": fused.get("score", 0),
-                    "document": "",
-                    "metadata": {},
-                })
+                results.append(
+                    {
+                        "id": doc_id,
+                        "doc_id": doc_id,
+                        "similarity": fused.get("score", 0),
+                        "rrf_score": fused.get("score", 0),
+                        "document": "",
+                        "metadata": {},
+                    }
+                )
 
         return results
 

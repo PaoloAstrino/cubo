@@ -11,6 +11,6 @@ from benchmarks.utils.hardware import (
 
 __all__ = [
     "log_hardware_metadata",
-    "sample_latency", 
+    "sample_latency",
     "sample_memory",
 ]

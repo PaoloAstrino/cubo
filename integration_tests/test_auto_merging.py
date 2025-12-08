@@ -11,7 +11,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from llama_index.core import Document
 
+import tempfile
+from pathlib import Path
+
 from cubo.config import config
+
+# Ensure vector store uses an isolated in-memory backend before importing modules that
+# may initialize or load vector stores at import time.
+tmpdir = Path(tempfile.mkdtemp())
+config.set("vector_store_backend", "inmemory")
+config.set("vector_store_path", str(tmpdir / "vector_store"))
+
 from cubo.deduplication.custom_auto_merging import AutoMergingRetriever
 
 
@@ -48,6 +58,8 @@ def test_auto_merging():
     print("🔧 Initializing auto-merging retriever...")
     # Use a dummy model for quick integration test runs to avoid heavy model downloads
     config.set("auto_merge_index_dimension", 2)
+    # Force in-memory vector store for auto-merging to avoid appending to archive FAISS
+    config.set("auto_merge_vector_store_backend", "inmemory")
     retriever = AutoMergingRetriever(DummyModel())
 
     # Build index by creating temporary files for each document and adding them
@@ -56,6 +68,9 @@ def test_auto_merging():
     from pathlib import Path
 
     tmpdir = Path(tempfile.mkdtemp())
+    # Ensure vector store uses in-memory backend and isolated path for this test
+    config.set("vector_store_backend", "inmemory")
+    config.set("vector_store_path", str(tmpdir / "vector_store"))
     for i, doc in enumerate(test_docs, 1):
         fp = tmpdir / f"doc_{i}.txt"
         with open(fp, "w", encoding="utf-8") as fh:

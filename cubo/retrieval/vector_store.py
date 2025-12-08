@@ -26,7 +26,7 @@ from cubo.utils.trace_collector import trace_collector
 
 # Promotion throttling constants to prevent RAM spikes
 MIN_REBUILD_INTERVAL_SECONDS = 60  # Minimum time between index rebuilds
-MAX_PROMOTIONS_PER_REBUILD = 50    # Maximum docs to promote per rebuild cycle
+MAX_PROMOTIONS_PER_REBUILD = 50  # Maximum docs to promote per rebuild cycle
 
 
 class DocumentCache:
@@ -54,13 +54,18 @@ class DocumentCache:
 
     def put(self, doc_id: str, document: str, metadata: Dict) -> None:
         """Add or update document in cache."""
+        if self._max_size <= 0:
+            return
+
         with self._lock:
             if doc_id in self._cache:
                 self._cache.move_to_end(doc_id)
             else:
-                if len(self._cache) >= self._max_size:
+                while len(self._cache) >= self._max_size and self._cache:
                     self._cache.popitem(last=False)
-            self._cache[doc_id] = {"document": document, "metadata": metadata}
+
+            if len(self._cache) < self._max_size:
+                self._cache[doc_id] = {"document": document, "metadata": metadata}
 
     def remove(self, doc_id: str) -> None:
         """Remove document from cache."""
@@ -114,13 +119,18 @@ class VectorCache:
 
     def put(self, doc_id: str, vector: Any) -> None:
         """Add or update vector in cache."""
+        if self._max_size <= 0:
+            return
+
         with self._lock:
             if doc_id in self._cache:
                 self._cache.move_to_end(doc_id)
             else:
-                if len(self._cache) >= self._max_size:
+                while len(self._cache) >= self._max_size and self._cache:
                     self._cache.popitem(last=False)
-            self._cache[doc_id] = vector
+
+            if len(self._cache) < self._max_size:
+                self._cache[doc_id] = vector
 
     def clear(self) -> None:
         """Clear entire cache."""
@@ -307,6 +317,7 @@ class FaissStore(VectorStore):
             count = self.count_vectors()
             if count > 0:
                 from cubo.utils.logger import logger
+
                 logger.info(f"Rebuilding FAISS indexes from {count} stored vectors in DB")
                 try:
                     self._rebuild_index_from_db()
@@ -346,7 +357,7 @@ class FaissStore(VectorStore):
             """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_id ON documents(id)")
-            
+
             # Collections table for organizing documents into containers
             conn.execute(
                 """
@@ -358,7 +369,7 @@ class FaissStore(VectorStore):
                 )
             """
             )
-            
+
             # Junction table linking documents to collections
             conn.execute(
                 """
@@ -372,8 +383,12 @@ class FaissStore(VectorStore):
                 )
             """
             )
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_coll_doc_coll ON collection_documents(collection_id)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_coll_doc_doc ON collection_documents(document_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_coll_doc_coll ON collection_documents(collection_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_coll_doc_doc ON collection_documents(document_id)"
+            )
 
             # Vectors table for storing embeddings
             conn.execute(
@@ -392,16 +407,16 @@ class FaissStore(VectorStore):
     def _serialize_vector(self, vector: Any) -> tuple[bytes, str, int]:
         """Serialize numpy vector to bytes."""
         import numpy as np
-        
+
         if not isinstance(vector, np.ndarray):
             vector = np.array(vector, dtype=np.float32)
-        
+
         return vector.tobytes(), str(vector.dtype), vector.shape[0]
 
     def _deserialize_vector(self, blob: bytes, dtype: str, dim: int) -> Any:
         """Deserialize bytes to numpy vector."""
         import numpy as np
-        
+
         return np.frombuffer(blob, dtype=dtype).reshape(dim)
 
     def _migrate_embeddings_if_needed(self) -> None:
@@ -418,43 +433,44 @@ class FaissStore(VectorStore):
             return
 
         from cubo.utils.logger import logger
+
         logger.info("Migrating embeddings from .npz to SQLite...")
 
         try:
             data = np.load(str(emb_path), allow_pickle=True)
             ids = data["ids"].tolist()
             vectors = data["vectors"].tolist()
-            
+
             self.save_vectors(ids, vectors)
-            
+
             # Rename .npz to indicate it's migrated
             emb_path.rename(emb_path.with_suffix(".npz.migrated"))
             logger.info(f"Successfully migrated {len(ids)} vectors to SQLite")
-            
+
         except Exception as e:
             logger.error(f"Failed to migrate embeddings: {e}")
 
     def save_vectors(self, ids: List[str], vectors: List[Any]) -> None:
         """Save vectors to SQLite."""
         from datetime import datetime
-        
+
         created_at = datetime.utcnow().isoformat()
-        
+
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             # Enable WAL mode for better concurrency
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
-            
+
             data = []
             for doc_id, vector in zip(ids, vectors):
                 blob, dtype, dim = self._serialize_vector(vector)
                 data.append((doc_id, blob, dtype, dim, created_at))
                 # Update cache
                 self._vector_cache.put(doc_id, vector)
-            
+
             conn.executemany(
                 "INSERT OR REPLACE INTO vectors (id, vector, dtype, dim, created_at) VALUES (?, ?, ?, ?, ?)",
-                data
+                data,
             )
             conn.commit()
 
@@ -464,12 +480,12 @@ class FaissStore(VectorStore):
         cached = self._vector_cache.get(doc_id)
         if cached is not None:
             return cached
-            
+
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             row = conn.execute(
                 "SELECT vector, dtype, dim FROM vectors WHERE id = ?", (doc_id,)
             ).fetchone()
-            
+
         if row:
             vector = self._deserialize_vector(row[0], row[1], row[2])
             self._vector_cache.put(doc_id, vector)
@@ -480,7 +496,7 @@ class FaissStore(VectorStore):
         """Get multiple vectors by IDs."""
         results = {}
         uncached_ids = []
-        
+
         # Check cache
         for doc_id in doc_ids:
             cached = self._vector_cache.get(doc_id)
@@ -488,29 +504,29 @@ class FaissStore(VectorStore):
                 results[doc_id] = cached
             else:
                 uncached_ids.append(doc_id)
-                
+
         if not uncached_ids:
             return results
-            
+
         # Fetch uncached from DB
         # Chunk large requests to avoid SQL limits
-        chunk_size = 900 # SQLite limit is usually 999 vars
+        chunk_size = 900  # SQLite limit is usually 999 vars
         for i in range(0, len(uncached_ids), chunk_size):
-            chunk = uncached_ids[i:i + chunk_size]
+            chunk = uncached_ids[i : i + chunk_size]
             placeholders = ",".join("?" * len(chunk))
-            
+
             with sqlite3.connect(str(self._db_path), timeout=30) as conn:
                 rows = conn.execute(
                     f"SELECT id, vector, dtype, dim FROM vectors WHERE id IN ({placeholders})",
-                    chunk
+                    chunk,
                 ).fetchall()
-                
+
             for row in rows:
                 doc_id = row[0]
                 vector = self._deserialize_vector(row[1], row[2], row[3])
                 results[doc_id] = vector
                 self._vector_cache.put(doc_id, vector)
-                
+
         return results
 
     def count_vectors(self) -> int:
@@ -526,30 +542,30 @@ class FaissStore(VectorStore):
         # Standard FAISS build needs all vectors.
         # If dataset is huge, we might need a different approach (e.g. on-disk index training)
         # But for now, we just fetch all from DB instead of keeping in RAM always.
-        
+
         total = self.count_vectors()
         if total == 0:
             return
-            
+
         # Fetch all IDs
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             rows = conn.execute("SELECT id FROM vectors").fetchall()
-        
+
         all_ids = [r[0] for r in rows]
-        
-        # Fetch vectors in batches to avoid one massive query, 
+
+        # Fetch vectors in batches to avoid one massive query,
         # but we still need them all in RAM for index.train/add
         vectors = []
         batch_size = 1000
-        
+
         for i in range(0, len(all_ids), batch_size):
-            batch_ids = all_ids[i:i + batch_size]
+            batch_ids = all_ids[i : i + batch_size]
             batch_vecs = self.get_vectors(batch_ids)
             # Ensure order matches
             for did in batch_ids:
                 if did in batch_vecs:
                     vectors.append(batch_vecs[did])
-        
+
         if vectors:
             self._index.build_indexes(vectors, all_ids, append=False)
             self._index.save()
@@ -629,6 +645,7 @@ class FaissStore(VectorStore):
             self._index.save()
         except Exception as e:
             from cubo.utils.logger import logger
+
             logger.error(f"FAISS save failed, rolling back: {e}")
             # Rollback: remove from FAISS index
             # (rebuild without the new IDs would be expensive, so just log)
@@ -639,6 +656,7 @@ class FaissStore(VectorStore):
         try:
             # Store vectors
             from datetime import datetime
+
             created_at = datetime.utcnow().isoformat()
             for doc_id, vector in zip(ids, embeddings):
                 blob, dtype, dim = self._serialize_vector(vector)
@@ -667,6 +685,7 @@ class FaissStore(VectorStore):
         except Exception as e:
             conn.rollback()
             from cubo.utils.logger import logger
+
             logger.error(f"SQLite commit failed after FAISS save: {e}")
             # Note: FAISS is already saved - this is a partial state
             # but next startup will rebuild from SQLite if needed
@@ -833,7 +852,12 @@ class FaissStore(VectorStore):
                     filtered_metas.append(meta)
                     filtered_dists.append(dist)
                     filtered_ids.append(did)
-            docs, metas, dists, ids_list = filtered_docs, filtered_metas, filtered_dists, filtered_ids
+            docs, metas, dists, ids_list = (
+                filtered_docs,
+                filtered_metas,
+                filtered_dists,
+                filtered_ids,
+            )
 
         return {"documents": [docs], "metadatas": [metas], "distances": [dists], "ids": [ids_list]}
 
@@ -919,7 +943,7 @@ class FaissStore(VectorStore):
         # We fetch them all to verify and get data
         vectors_map = self.get_vectors(doc_ids)
         valid_ids = list(vectors_map.keys())
-        
+
         if not valid_ids:
             return
 
@@ -927,7 +951,7 @@ class FaissStore(VectorStore):
         # We need ALL IDs to rebuild. This is expensive.
         # Ideally we only rebuild the hot index or use FAISS move.
         # But current logic rebuilds everything.
-        
+
         # Get all IDs from DB
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             rows = conn.execute("SELECT id FROM vectors").fetchall()
@@ -942,17 +966,17 @@ class FaissStore(VectorStore):
         # This is the bottleneck for massive datasets.
         # For now, we fetch them all.
         # TODO: Optimize to only update hot index or use on-disk index
-        
+
         # Fetch in batches
         vectors = []
         batch_size = 1000
         for i in range(0, len(new_ids), batch_size):
-            chunk_ids = new_ids[i:i+batch_size]
+            chunk_ids = new_ids[i : i + batch_size]
             chunk_vecs = self.get_vectors(chunk_ids)
             for did in chunk_ids:
                 if did in chunk_vecs:
                     vectors.append(chunk_vecs[did])
-        
+
         self._index.build_indexes(vectors, new_ids, append=False)
 
         # Reset access counts for promoted docs
@@ -1000,44 +1024,44 @@ class FaissStore(VectorStore):
 
     def create_collection(self, name: str, color: str = "#2563eb") -> Dict[str, Any]:
         """Create a new document collection.
-        
+
         Args:
             name: Unique name for the collection
             color: Hex color for visual representation (default: brand blue)
-            
+
         Returns:
             Dict with collection id, name, color, and created_at
-            
+
         Raises:
             ValueError: If collection name already exists
         """
         import uuid
         from datetime import datetime
-        
+
         collection_id = str(uuid.uuid4())
         created_at = datetime.utcnow().isoformat()
-        
+
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             try:
                 conn.execute(
                     "INSERT INTO collections (id, name, created_at, color) VALUES (?, ?, ?, ?)",
-                    (collection_id, name, created_at, color)
+                    (collection_id, name, created_at, color),
                 )
                 conn.commit()
             except sqlite3.IntegrityError:
                 raise ValueError(f"Collection '{name}' already exists")
-        
+
         return {
             "id": collection_id,
             "name": name,
             "color": color,
             "created_at": created_at,
-            "document_count": 0
+            "document_count": 0,
         }
 
     def list_collections(self) -> List[Dict[str, Any]]:
         """List all collections with document counts.
-        
+
         Returns:
             List of collection dicts with id, name, color, created_at, document_count
         """
@@ -1053,24 +1077,24 @@ class FaissStore(VectorStore):
                 ORDER BY c.created_at DESC
                 """
             ).fetchall()
-            
+
         return [
             {
                 "id": row["id"],
                 "name": row["name"],
                 "color": row["color"],
                 "created_at": row["created_at"],
-                "document_count": row["document_count"]
+                "document_count": row["document_count"],
             }
             for row in rows
         ]
 
     def get_collection(self, collection_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific collection by ID.
-        
+
         Args:
             collection_id: The collection's unique ID
-            
+
         Returns:
             Collection dict or None if not found
         """
@@ -1085,38 +1109,34 @@ class FaissStore(VectorStore):
                 WHERE c.id = ?
                 GROUP BY c.id
                 """,
-                (collection_id,)
+                (collection_id,),
             ).fetchone()
-            
+
         if row:
             return {
                 "id": row["id"],
                 "name": row["name"],
                 "color": row["color"],
                 "created_at": row["created_at"],
-                "document_count": row["document_count"]
+                "document_count": row["document_count"],
             }
         return None
 
     def delete_collection(self, collection_id: str) -> bool:
         """Delete a collection (documents remain in store, just unlinked).
-        
+
         Args:
             collection_id: The collection's unique ID
-            
+
         Returns:
             True if deleted, False if not found
         """
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             # Delete from junction table first (foreign key cascade would do this too)
             conn.execute(
-                "DELETE FROM collection_documents WHERE collection_id = ?",
-                (collection_id,)
+                "DELETE FROM collection_documents WHERE collection_id = ?", (collection_id,)
             )
-            cursor = conn.execute(
-                "DELETE FROM collections WHERE id = ?",
-                (collection_id,)
-            )
+            cursor = conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
             conn.commit()
             return cursor.rowcount > 0
 
@@ -1124,43 +1144,41 @@ class FaissStore(VectorStore):
         self, collection_id: str, document_ids: List[str]
     ) -> Dict[str, Any]:
         """Add documents to a collection.
-        
+
         Args:
             collection_id: The collection's unique ID
             document_ids: List of document IDs to add
-            
+
         Returns:
             Dict with added_count and already_in_collection count
         """
         from datetime import datetime
-        
+
         added_at = datetime.utcnow().isoformat()
         added_count = 0
         already_exists = 0
-        
+
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             for doc_id in document_ids:
                 try:
                     conn.execute(
                         "INSERT INTO collection_documents (collection_id, document_id, added_at) VALUES (?, ?, ?)",
-                        (collection_id, doc_id, added_at)
+                        (collection_id, doc_id, added_at),
                     )
                     added_count += 1
                 except sqlite3.IntegrityError:
                     already_exists += 1
             conn.commit()
-        
+
         return {"added_count": added_count, "already_in_collection": already_exists}
 
-    def remove_documents_from_collection(
-        self, collection_id: str, document_ids: List[str]
-    ) -> int:
+    def remove_documents_from_collection(self, collection_id: str, document_ids: List[str]) -> int:
         """Remove documents from a collection.
-        
+
         Args:
             collection_id: The collection's unique ID
             document_ids: List of document IDs to remove
-            
+
         Returns:
             Number of documents removed
         """
@@ -1168,33 +1186,33 @@ class FaissStore(VectorStore):
             placeholders = ",".join("?" * len(document_ids))
             cursor = conn.execute(
                 f"DELETE FROM collection_documents WHERE collection_id = ? AND document_id IN ({placeholders})",
-                [collection_id] + list(document_ids)
+                [collection_id] + list(document_ids),
             )
             conn.commit()
             return cursor.rowcount
 
     def get_collection_documents(self, collection_id: str) -> List[str]:
         """Get all document IDs in a collection.
-        
+
         Args:
             collection_id: The collection's unique ID
-            
+
         Returns:
             List of document IDs
         """
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             rows = conn.execute(
                 "SELECT document_id FROM collection_documents WHERE collection_id = ? ORDER BY added_at DESC",
-                (collection_id,)
+                (collection_id,),
             ).fetchall()
         return [row[0] for row in rows]
 
     def get_document_filenames_in_collection(self, collection_id: str) -> List[str]:
         """Get all filenames of documents in a collection (for query filtering).
-        
+
         Args:
             collection_id: The collection's unique ID
-            
+
         Returns:
             List of unique filenames
         """
@@ -1206,9 +1224,9 @@ class FaissStore(VectorStore):
                 JOIN collection_documents cd ON d.id = cd.document_id
                 WHERE cd.collection_id = ?
                 """,
-                (collection_id,)
+                (collection_id,),
             ).fetchall()
-        
+
         filenames = set()
         for row in rows:
             try:
@@ -1217,7 +1235,7 @@ class FaissStore(VectorStore):
                     filenames.add(metadata["filename"])
             except (json.JSONDecodeError, KeyError):
                 pass
-        
+
         return list(filenames)
 
     # =========================================================================

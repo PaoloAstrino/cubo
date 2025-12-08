@@ -193,9 +193,7 @@ class DocumentStore:
         metadatas = []
 
         for i, chunk in enumerate(chunks):
-            text, metadata = self._extract_chunk_info(
-                chunk, i, filename, file_hash, filepath
-            )
+            text, metadata = self._extract_chunk_info(chunk, i, filename, file_hash, filepath)
             texts.append(text)
             metadatas.append(metadata)
 
@@ -211,13 +209,9 @@ class DocumentStore:
     ) -> tuple:
         """Extract text and metadata from a chunk."""
         if isinstance(chunk, dict):
-            return self._extract_sentence_window_chunk(
-                chunk, index, filename, file_hash, filepath
-            )
+            return self._extract_sentence_window_chunk(chunk, index, filename, file_hash, filepath)
         else:
-            return self._extract_character_chunk(
-                chunk, index, filename, file_hash, filepath
-            )
+            return self._extract_character_chunk(chunk, index, filename, file_hash, filepath)
 
     def _extract_sentence_window_chunk(
         self,
@@ -319,8 +313,7 @@ class DocumentStore:
 
         if self.inference_threading is None:
             raise EmbeddingGenerationError(
-                "Inference threading not configured",
-                {"filename": filename}
+                "Inference threading not configured", {"filename": filename}
             )
 
         try:
@@ -486,6 +479,7 @@ class DocumentStore:
         embeddings = self.generate_embeddings([content], filename)
         # Use unique chunk id suffix to avoid replacing existing DB entries if duplicate
         import uuid
+
         uid = uuid.uuid4().hex
         chunk_ids = [f"{filename}_chunk_0_{uid}"]
         base_metadata = {
@@ -548,9 +542,7 @@ class DocumentStore:
         try:
             result = self.collection.count()
             if result > 0:
-                logger.info(
-                    f"No session documents, but found {result} chunks in database"
-                )
+                logger.info(f"No session documents, but found {result} chunks in database")
                 return True
         except Exception as e:
             logger.error(f"Error checking database: {e}")

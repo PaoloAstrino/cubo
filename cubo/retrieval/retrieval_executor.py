@@ -21,12 +21,13 @@ from cubo.retrieval.constants import (
 )
 from cubo.utils.exceptions import DatabaseError
 from cubo.utils.logger import logger
+from cubo.config import config
 
 
 class RetrievalExecutor:
     """
     Executes retrieval operations against vector stores and BM25 indexes.
-    
+
     This class handles the low-level mechanics of retrieval:
     - Generating query embeddings
     - Querying the vector store
@@ -70,7 +71,7 @@ class RetrievalExecutor:
         """
         if self.model is None or self.inference_threading is None:
             return []
-            
+
         query_embeddings = self.inference_threading.generate_embeddings_threaded(
             [query], self.model
         )
@@ -156,9 +157,7 @@ class RetrievalExecutor:
             processed = self._process_dense_results(results, query)
 
             try:
-                logger.debug(
-                    f"dense retrieval final_count={len(processed)}, trace_id={trace_id}"
-                )
+                logger.debug(f"dense retrieval final_count={len(processed)}, trace_id={trace_id}")
             except Exception:
                 pass
 
@@ -175,10 +174,14 @@ class RetrievalExecutor:
     def _process_dense_results(self, results: Dict, query: str = "") -> List[Dict]:
         """Process raw query results into candidate format with scoring."""
         candidates = []
-        
-        if not results.get("documents") or not results.get("metadatas") or not results.get("distances"):
+
+        if (
+            not results.get("documents")
+            or not results.get("metadatas")
+            or not results.get("distances")
+        ):
             return candidates
-            
+
         ids = results.get("ids", [[]])[0] if "ids" in results else []
 
         for i, (doc, metadata, distance) in enumerate(
@@ -189,22 +192,26 @@ class RetrievalExecutor:
             base_similarity = 1 - distance
             score_breakdown = self.compute_hybrid_score(doc, query, base_similarity)
 
-            updated_metadata = metadata.copy() if isinstance(metadata, dict) else {"metadata": metadata}
+            updated_metadata = (
+                metadata.copy() if isinstance(metadata, dict) else {"metadata": metadata}
+            )
             updated_metadata["score_breakdown"] = score_breakdown
-            
+
             # Add document ID to metadata for IR metrics
             doc_id = ids[i] if i < len(ids) else None
             if doc_id:
                 updated_metadata["id"] = doc_id
                 updated_metadata["doc_id"] = doc_id
 
-            candidates.append({
-                "id": doc_id,
-                "document": doc_text,
-                "metadata": updated_metadata,
-                "similarity": score_breakdown["final_score"],
-                "base_similarity": base_similarity,
-            })
+            candidates.append(
+                {
+                    "id": doc_id,
+                    "document": doc_text,
+                    "metadata": updated_metadata,
+                    "similarity": score_breakdown["final_score"],
+                    "base_similarity": base_similarity,
+                }
+            )
 
         return candidates
 
@@ -226,42 +233,75 @@ class RetrievalExecutor:
             List of candidate documents with BM25 scores
         """
         try:
-            # Get all documents from collection
-            where_filter = (
-                {"filename": {"$in": list(current_documents)}}
-                if current_documents
-                else None
-            )
-            
-            all_docs = self.collection.get(
-                include=["documents", "metadatas", "ids"],
-                where=where_filter,
-            )
-            
-            if not all_docs.get("documents"):
+            # Allow disabling BM25 for faster dense-only retrieval in benchmarks
+            bm25_enabled = config.get("retrieval.bm25_enabled", True)
+            if isinstance(bm25_enabled, str):
+                bm25_enabled = bm25_enabled.lower() not in ("0", "false", "no", "off")
+            if not bm25_enabled:
                 return []
-
-            # Prepare docs for BM25 search
-            docs_for_search = []
-            ids_list = all_docs.get("ids", [])
-            
-            for i, (doc, metadata) in enumerate(
-                zip(all_docs["documents"], all_docs["metadatas"])
-            ):
-                # Defensive: ensure text is a plain string for hashing/encoding
-                doc_text = self._to_text(doc)
-                doc_id = (
-                    ids_list[i] if i < len(ids_list)
-                    else hashlib.md5(doc_text.encode(), usedforsecurity=False).hexdigest()[:8]
+            # If BM25 store already has an index precomputed (docs loaded), prefer
+            # searching the internal store for performance (avoids reconstructing
+            # the docs list on each query). If a current_documents filter is
+            # requested, fall back to selecting a small subset of docs to search.
+            if not current_documents and getattr(self.bm25, "docs", None):
+                # Fast path: use prebuilt BM25 index
+                results = self.bm25.search(query, top_k=top_k)
+            else:
+                # Fallback: retrieve explicit document list from the collection
+                where_filter = (
+                    {"filename": {"$in": list(current_documents)}} if current_documents else None
                 )
-                docs_for_search.append({
-                    "doc_id": doc_id,
-                    "text": doc_text,
-                    "metadata": metadata
-                })
-
-            # Execute BM25 search
-            results = self.bm25.search(query, top_k=top_k, docs=docs_for_search)
+                all_docs = self.collection.get(
+                    include=["documents", "metadatas", "ids"],
+                    where=where_filter,
+                )
+                if not all_docs.get("documents"):
+                    return []
+                # If BM25 store has not been populated yet, index all documents
+                if not getattr(self.bm25, "docs", None):
+                    docs_parsed = []
+                    for i, (doc, metadata) in enumerate(
+                        zip(all_docs["documents"], all_docs["metadatas"])
+                    ):
+                        doc_text = self._to_text(doc)
+                        doc_id = (
+                            all_docs.get("ids", [])[i]
+                            if i < len(all_docs.get("ids", []))
+                            else hashlib.md5(doc_text.encode(), usedforsecurity=False).hexdigest()[
+                                :8
+                            ]
+                        )
+                        docs_parsed.append(
+                            {"doc_id": doc_id, "text": doc_text, "metadata": metadata}
+                        )
+                    try:
+                        self.bm25.index_documents(docs_parsed)
+                    except Exception:
+                        # Fall back to adding incrementally on failure
+                        try:
+                            self.bm25.add_documents(docs_parsed)
+                        except Exception:
+                            pass
+                # Build subset of docs for BM25 search if a filter exists
+                docs_for_search = []
+                ids_list = all_docs.get("ids", [])
+                for i, (doc, metadata) in enumerate(
+                    zip(all_docs["documents"], all_docs["metadatas"])
+                ):
+                    doc_text = self._to_text(doc)
+                    doc_id = (
+                        ids_list[i]
+                        if i < len(ids_list)
+                        else hashlib.md5(doc_text.encode(), usedforsecurity=False).hexdigest()[:8]
+                    )
+                    docs_for_search.append(
+                        {
+                            "doc_id": doc_id,
+                            "text": doc_text,
+                            "metadata": metadata,
+                        }
+                    )
+                results = self.bm25.search(query, top_k=top_k, docs=docs_for_search)
 
             try:
                 logger.debug(
@@ -281,7 +321,7 @@ class RetrievalExecutor:
                 }
                 for r in results
             ]
-            
+
         except Exception as e:
             logger.error(f"Error in BM25 retrieval: {e}")
             return []
@@ -344,11 +384,53 @@ class RetrievalExecutor:
         """Tokenize text into words, removing stopwords."""
         words = re.findall(r"\b\w+\b", text.lower())
         stop_words = {
-            "tell", "me", "about", "the", "what", "is", "a", "an", "and", "or",
-            "describe", "explain", "how", "why", "when", "where", "who", "which",
-            "that", "this", "these", "those", "was", "were", "are", "be", "been",
-            "being", "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "of", "at", "by", "for", "with", "from", "to", "in", "on",
+            "tell",
+            "me",
+            "about",
+            "the",
+            "what",
+            "is",
+            "a",
+            "an",
+            "and",
+            "or",
+            "describe",
+            "explain",
+            "how",
+            "why",
+            "when",
+            "where",
+            "who",
+            "which",
+            "that",
+            "this",
+            "these",
+            "those",
+            "was",
+            "were",
+            "are",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "of",
+            "at",
+            "by",
+            "for",
+            "with",
+            "from",
+            "to",
+            "in",
+            "on",
         }
         return [w for w in words if w not in stop_words and len(w) > 2]
 
@@ -376,10 +458,10 @@ class RetrievalExecutor:
 def extract_chunk_id(result: Dict) -> Optional[str]:
     """
     Extract chunk ID from a result dictionary.
-    
+
     Args:
         result: Result dictionary
-        
+
     Returns:
         Chunk ID string or None
     """

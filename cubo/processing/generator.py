@@ -1,7 +1,13 @@
 import time
 from typing import Dict, List, Optional
 
-import ollama
+try:
+    import ollama
+    OLLAMA_AVAILABLE = True
+except Exception:
+    ollama = None
+    OLLAMA_AVAILABLE = False
+    # Import failure is OK; tests can run without Ollama installed. We'll fallback or stub when needed.
 from colorama import Fore, Style
 
 from cubo.config import config
@@ -88,6 +94,10 @@ class ResponseGenerator:
                 or config.get("llm_model")
                 or "llama3"  # Default fallback
             )
+            if not OLLAMA_AVAILABLE or ollama is None:
+                raise RuntimeError(
+                    "Ollama Python package not available. Install ollama or configure local provider."
+                )
             response = ollama.chat(model=model_name, messages=conversation_messages)
             return response["message"]["content"]
 
@@ -129,4 +139,17 @@ def create_response_generator() -> ResponseGenerator:
             )
             return ResponseGenerator()
     else:
+        # If provider is 'ollama' but the package is not available, attempt to fallback to local provider
+        if provider in ("ollama", "default") and not OLLAMA_AVAILABLE:
+            logger.warning(
+                "Ollama provider configured but 'ollama' package not available; defaulting to local provider."
+            )
+            try:
+                from cubo.processing.llm_local import LocalResponseGenerator
+
+                return LocalResponseGenerator(config.get("local_llama_model_path", None))
+            except Exception:
+                logger.warning(
+                    "Local LLama generator failed to initialize; returning default ResponseGenerator which will raise when used."
+                )
         return ResponseGenerator()

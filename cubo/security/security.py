@@ -5,6 +5,7 @@ import warnings
 
 try:
     from cryptography.fernet import Fernet
+
     _HAS_FERNET = True
 except Exception:
     Fernet = None
@@ -43,7 +44,10 @@ class SecurityManager:
                         Fernet(key_str)
                         return key_str
                     else:
-                        warnings.warn("cryptography is not installed; cannot validate encryption key", ImportWarning)
+                        warnings.warn(
+                            "cryptography is not installed; cannot validate encryption key",
+                            ImportWarning,
+                        )
                         return hashlib.sha256(key_str).digest()
                 except Exception:
                     logger.warning(
@@ -63,7 +67,10 @@ class SecurityManager:
             logger.critical(error_msg)
             # If cryptography isn't available, still allow the app to run without encryption
             if not _HAS_FERNET:
-                warnings.warn("cryptography not installed; encryption features will be disabled", ImportWarning)
+                warnings.warn(
+                    "cryptography not installed; encryption features will be disabled",
+                    ImportWarning,
+                )
                 return b""
             raise ValueError(error_msg)
 

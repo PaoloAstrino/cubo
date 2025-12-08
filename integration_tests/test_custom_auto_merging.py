@@ -11,6 +11,17 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import pytest
 
+import tempfile
+from pathlib import Path as _Path
+
+from cubo.config import config as _test_cfg
+
+# Ensure vector store uses an isolated in-memory backend before importing modules
+# that may load FAISS indexes during import
+tmpdir_global = _Path(tempfile.mkdtemp())
+_test_cfg.set("vector_store_backend", "inmemory")
+_test_cfg.set("vector_store_path", str(tmpdir_global / "vector_store"))
+
 from cubo.deduplication.custom_auto_merging import AutoMergingRetriever
 from cubo.utils.logger import logger
 
@@ -36,7 +47,15 @@ def test_custom_auto_merging():
         from cubo.config import config as _cfg
 
         _cfg.set("auto_merge_index_dimension", 2)
+        # Force in-memory vector store for auto-merging to avoid appending to existing FAISS indexes
+        _cfg.set("auto_merge_vector_store_backend", "inmemory")
         logger.info("Dummy model set for testing")
+        import tempfile
+        from pathlib import Path
+
+        tmpdir = Path(tempfile.mkdtemp())
+        _cfg.set("vector_store_backend", "inmemory")
+        _cfg.set("vector_store_path", str(tmpdir / "vector_store"))
     except Exception as e:
         pytest.skip(f"Failed to load model: {e}")
 

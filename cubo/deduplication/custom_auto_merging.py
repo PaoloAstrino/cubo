@@ -8,7 +8,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    SentenceTransformer = None
 
 from cubo.config import config
 from cubo.retrieval.vector_store import create_vector_store
@@ -377,13 +380,17 @@ class AutoMergingRetriever:
     Auto-merging retriever that uses hierarchical chunking and intelligent merging.
     """
 
-    def __init__(self, model: SentenceTransformer):
+    def __init__(self, model: Optional[SentenceTransformer]):
         """
         Initialize the auto-merging retriever.
 
         Args:
             model: SentenceTransformer model for embeddings
         """
+        if model is None:
+            raise RuntimeError(
+                "AutoMergingRetriever requires 'sentence_transformers' to be installed and a model instance to be provided."
+            )
         self.model = model
         self.chunker = HierarchicalChunker()
         self.collection_name = "cubo_auto_merging"

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import faiss
+
 try:
     # Limit FAISS OpenMP threads if available to reduce noisy OpenMP messages
     faiss.omp_set_num_threads(1)
@@ -121,7 +122,9 @@ class FAISSIndexManager:
                 faiss.normalize_L2(array)
                 logger.info("Normalized all vectors to unit length")
             except Exception as e:
-                logger.warning(f"Failed to normalize vectors; proceeding without normalization: {e}")
+                logger.warning(
+                    f"Failed to normalize vectors; proceeding without normalization: {e}"
+                )
 
         hot_count = max(1, int(len(ids) * self.hot_fraction))
         hot_count = min(hot_count, len(ids))

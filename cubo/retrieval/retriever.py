@@ -18,7 +18,11 @@ import numpy as np
 if not hasattr(np, "float_"):
     np.float_ = np.float64
 
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:
+    # sentence_transformers is optional for many of the tests; make it optional
+    SentenceTransformer = None
 
 from cubo.config import config
 from cubo.embeddings.model_inference_threading import get_model_inference_threading
@@ -45,7 +49,12 @@ from cubo.retrieval.retrieval_executor import RetrievalExecutor, extract_chunk_i
 from cubo.retrieval.strategy import RetrievalStrategy
 from cubo.services.service_manager import get_service_manager
 from cubo.storage.memory_store import InMemoryCollection
-from cubo.utils.exceptions import CUBOError, DatabaseError, DocumentAlreadyExistsError, RetrievalError
+from cubo.utils.exceptions import (
+    CUBOError,
+    DatabaseError,
+    DocumentAlreadyExistsError,
+    RetrievalError,
+)
 from cubo.utils.logger import logger
 from cubo.utils.trace_collector import trace_collector
 
@@ -110,9 +119,7 @@ class DocumentRetriever:
             # Prefer in-memory collection in laptop mode to minimize RAM footprint
             backend = "memory"
         model_dimension = (
-            self.model.get_sentence_embedding_dimension()
-            if self.model is not None
-            else 384
+            self.model.get_sentence_embedding_dimension() if self.model is not None else 384
         )
 
         try:
@@ -132,6 +139,24 @@ class DocumentRetriever:
         self.bm25 = BM25Searcher(bm25_stats=bm25_stats_path)
         if bm25_stats_path and os.path.exists(bm25_stats_path):
             logger.info(f"Loaded BM25 stats from {bm25_stats_path}")
+        # Optionally populate BM25 index from the collection on init (expensive)
+        if config.get("bm25.populate_on_init", False):
+            try:
+                all_docs = self.collection.get(include=["documents", "metadatas", "ids"]) or {}
+                docs = []
+                ids_list = all_docs.get("ids", [])
+                for i, (doc, meta) in enumerate(
+                    zip(all_docs.get("documents", []), all_docs.get("metadatas", []))
+                ):
+                    doc_text = self._to_text(doc)
+                    doc_id = ids_list[i] if i < len(ids_list) else None
+                    if doc_id:
+                        docs.append({"doc_id": doc_id, "text": doc_text, "metadata": meta})
+                if docs:
+                    self.bm25.index_documents(docs)
+                    logger.info("BM25 index populated from collection on init")
+            except Exception:
+                logger.warning("BM25 populate on init failed; will index lazily on first query")
 
     def _setup_caching(self) -> None:
         """Setup caching services."""
@@ -221,7 +246,9 @@ class DocumentRetriever:
         self.summary_embeddings = None
         self.summary_chunk_ids = None
         if self.use_summary_prefilter:
-            summary_dir = Path(config.get("summary_embeddings.output_dir", "./data/summary_embeddings"))
+            summary_dir = Path(
+                config.get("summary_embeddings.output_dir", "./data/summary_embeddings")
+            )
             if summary_dir.exists():
                 embedder = get_summary_embedder()
                 if embedder:
@@ -255,7 +282,9 @@ class DocumentRetriever:
         if self.summary_embeddings is not None:
             tiered.append("summary")
         tiered_str = f", tiered=[{','.join(tiered)}]" if tiered else ""
-        logger.info(f"DocumentRetriever initialized (window={self.use_sentence_window}, auto_merge={self.use_auto_merging}{tiered_str})")
+        logger.info(
+            f"DocumentRetriever initialized (window={self.use_sentence_window}, auto_merge={self.use_auto_merging}{tiered_str})"
+        )
 
     # ========================================================================
     # Resource Management
@@ -321,7 +350,13 @@ class DocumentRetriever:
     def debug_collection_info(self) -> Dict:
         return self.document_store.debug_collection_info()
 
-    def add_document(self, filepath: str = None, chunks: Optional[List[dict]] = None, metadata: Optional[Dict] = None, document: Optional[str] = None) -> bool:
+    def add_document(
+        self,
+        filepath: str = None,
+        chunks: Optional[List[dict]] = None,
+        metadata: Optional[Dict] = None,
+        document: Optional[str] = None,
+    ) -> bool:
         """Add document chunks to the database."""
         try:
             # Backwards compatibility: legacy callers pass 'document=...' or 'filepath=<text>' as content
@@ -345,6 +380,7 @@ class DocumentRetriever:
                     # a unique suffix to avoid collisions with existing database
                     meta_id = metadata.get("id") if isinstance(metadata, dict) else None
                     import uuid
+
                     if meta_id:
                         fake_path = f"{meta_id}_{uuid.uuid4().hex}.txt"
                     else:
@@ -387,7 +423,11 @@ class DocumentRetriever:
         added = False
         for i, doc in enumerate(documents):
             text = doc.get("text", "") if isinstance(doc, dict) else str(doc)
-            path = doc.get("file_path", f"test_doc_{i}.txt") if isinstance(doc, dict) else f"test_doc_{i}.txt"
+            path = (
+                doc.get("file_path", f"test_doc_{i}.txt")
+                if isinstance(doc, dict)
+                else f"test_doc_{i}.txt"
+            )
             if text and self._add_test_document(path, text):
                 added = True
         return added
@@ -423,10 +463,14 @@ class DocumentRetriever:
                 except Exception:
                     pass
 
-            logger.debug(f"retrieve_top_documents query='{query[:50]}' top_k={top_k} trace_id={trace_id}")
+            logger.debug(
+                f"retrieve_top_documents query='{query[:50]}' top_k={top_k} trace_id={trace_id}"
+            )
 
             if trace_id:
-                trace_collector.record(trace_id, "retriever", "start", {"query": query, "top_k": top_k})
+                trace_collector.record(
+                    trace_id, "retriever", "start", {"query": query, "top_k": top_k}
+                )
 
             strategy = self.router.route_query(query) if self.router else None
 
@@ -452,9 +496,7 @@ class DocumentRetriever:
             # expect fixed-length result lists.
             try:
                 if len(results) < top_k:
-                    logger.debug(
-                        f"retriever padding results: have={len(results)} need={top_k}"
-                    )
+                    logger.debug(f"retriever padding results: have={len(results)} need={top_k}")
                     # Fetch all documents from the vector store and append until we
                     # reach the requested top_k. Avoid duplicates based on metadata id.
                     total_docs = 0
@@ -465,7 +507,9 @@ class DocumentRetriever:
                     if total_docs > len(results):
                         existing_ids = {r.get("metadata", {}).get("id") for r in results}
                         # Request a lightweight list of all docs
-                        all_docs = self.collection.get(include=["ids", "metadatas", "documents"]) or {}
+                        all_docs = (
+                            self.collection.get(include=["ids", "metadatas", "documents"]) or {}
+                        )
                         all_ids = all_docs.get("ids", [])
                         all_metas = all_docs.get("metadatas", [])
                         all_docs_list = list(zip(all_ids, all_metas))
@@ -474,13 +518,17 @@ class DocumentRetriever:
                                 break
                             if doc_id in (existing_ids or set()):
                                 continue
-                            results.append({
-                                "document": meta.get("document", "") if isinstance(meta, dict) else "",
-                                "metadata": meta if isinstance(meta, dict) else {"id": doc_id},
-                                "similarity": 0.0,
-                                "base_similarity": 0.0,
-                                "id": doc_id,
-                            })
+                            results.append(
+                                {
+                                    "document": (
+                                        meta.get("document", "") if isinstance(meta, dict) else ""
+                                    ),
+                                    "metadata": meta if isinstance(meta, dict) else {"id": doc_id},
+                                    "similarity": 0.0,
+                                    "base_similarity": 0.0,
+                                    "id": doc_id,
+                                }
+                            )
                 # If there still aren't enough results (e.g., vector store empty or
                 # count unavailable), pad with synthetic placeholders so callers
                 # always receive a stable top_k-length list. Placeholder entries
@@ -497,9 +545,7 @@ class DocumentRetriever:
                                 "id": pad_id,
                             }
                         )
-                logger.debug(
-                    f"retrieve_top_documents final_count={len(results)} requested={top_k}"
-                )
+                logger.debug(f"retrieve_top_documents final_count={len(results)} requested={top_k}")
             except Exception:
                 pass
 
@@ -508,11 +554,17 @@ class DocumentRetriever:
         except CUBOError:
             raise
         except Exception as e:
-            raise RetrievalError(str(e), "RETRIEVAL_FAILED", {"query": query[:100], "top_k": top_k}) from e
+            raise RetrievalError(
+                str(e), "RETRIEVAL_FAILED", {"query": query[:100], "top_k": top_k}
+            ) from e
 
-    def _hybrid_retrieval(self, query: str, top_k: int, strategy: Optional[Dict], trace_id: Optional[str]) -> List[Dict]:
+    def _hybrid_retrieval(
+        self, query: str, top_k: int, strategy: Optional[Dict], trace_id: Optional[str]
+    ) -> List[Dict]:
         """Combine sentence window and auto-merging retrieval."""
-        sentence_results = self._retrieve_sentence_window(query, top_k // 2 + top_k % 2, strategy, trace_id)
+        sentence_results = self._retrieve_sentence_window(
+            query, top_k // 2 + top_k % 2, strategy, trace_id
+        )
         auto_results = self._retrieve_auto_merging(query, top_k // 2)
         combined = sentence_results + auto_results
         unique = self.orchestrator.deduplicate_results(combined, extract_chunk_id)
@@ -553,7 +605,9 @@ class DocumentRetriever:
                 pass
 
             # Dense + BM25 retrieval
-            semantic = self.executor.query_dense(query_embedding, retrieval_k, query, self.current_documents, trace_id)
+            semantic = self.executor.query_dense(
+                query_embedding, retrieval_k, query, self.current_documents, trace_id
+            )
             bm25 = self.executor.query_bm25(query, retrieval_k, self.current_documents)
             try:
                 logger.debug(
@@ -584,7 +638,9 @@ class DocumentRetriever:
                 strategy.get("use_reranker", self.use_reranker) if strategy else self.use_reranker
             )
             return self.retrieval_strategy.apply_postprocessing(
-                combined, top_k, query,
+                combined,
+                top_k,
+                query,
                 self.window_postprocessor if self.use_sentence_window else None,
                 self.reranker if self.use_sentence_window else None,
                 use_reranker,
@@ -599,17 +655,25 @@ class DocumentRetriever:
         )
         if len(results) < top_k:
             try:
-                expanded_k = min(max(100, top_k * 10), max(0, getattr(self.collection, "count", lambda: 0)()))
+                expanded_k = min(
+                    max(100, top_k * 10), max(0, getattr(self.collection, "count", lambda: 0)())
+                )
                 logger.debug(
                     f"fallback retrieval triggered: have={len(results)} need={top_k} expanded_k={expanded_k}"
                 )
                 # Re-run semantic and bm25 retrieval with larger candidate set
                 query_embedding = self.executor.generate_query_embedding(query)
-                semantic_full = self.executor.query_dense(query_embedding, expanded_k, query, self.current_documents, trace_id)
+                semantic_full = self.executor.query_dense(
+                    query_embedding, expanded_k, query, self.current_documents, trace_id
+                )
                 bm25_full = self.executor.query_bm25(query, expanded_k, self.current_documents)
-                combined_full = self.retrieval_strategy.combine_results_rrf(semantic_full, bm25_full, expanded_k)
+                combined_full = self.retrieval_strategy.combine_results_rrf(
+                    semantic_full, bm25_full, expanded_k
+                )
                 results = self.retrieval_strategy.apply_postprocessing(
-                    combined_full, top_k, query,
+                    combined_full,
+                    top_k,
+                    query,
                     self.window_postprocessor if self.use_sentence_window else None,
                     self.reranker if self.use_sentence_window else None,
                     use_reranker,
@@ -625,16 +689,34 @@ class DocumentRetriever:
             return []
         try:
             results = self.auto_merging_retriever.retrieve(query, top_k=top_k)
-            return [{"document": r.get("document", ""), "metadata": r.get("metadata", {}), "similarity": r.get("similarity", 1.0)} for r in results]
+            return [
+                {
+                    "document": r.get("document", ""),
+                    "metadata": r.get("metadata", {}),
+                    "similarity": r.get("similarity", 1.0),
+                }
+                for r in results
+            ]
         except Exception:
             return []
 
     def _record_trace(self, trace_id: str, results: List[Dict]) -> None:
         try:
-            trace_collector.record(trace_id, "retriever", "candidates", {
-                "method": "hybrid" if self.use_auto_merging else "sentence_window",
-                "candidates": [{"id": r.get("metadata", {}).get("id", ""), "similarity": r.get("similarity", 0)} for r in results[:10]],
-            })
+            trace_collector.record(
+                trace_id,
+                "retriever",
+                "candidates",
+                {
+                    "method": "hybrid" if self.use_auto_merging else "sentence_window",
+                    "candidates": [
+                        {
+                            "id": r.get("metadata", {}).get("id", ""),
+                            "similarity": r.get("similarity", 0),
+                        }
+                        for r in results[:10]
+                    ],
+                },
+            )
         except Exception:
             pass
 
@@ -677,13 +759,23 @@ class DocumentRetriever:
     def _generate_query_embedding(self, query: str) -> List[float]:
         return self.executor.generate_query_embedding(query)
 
-    def _query_collection_for_candidates(self, query_embedding: List[float], initial_top_k: int, query: str = "", trace_id: Optional[str] = None) -> List[dict]:
-        return self.executor.query_dense(query_embedding, initial_top_k, query, self.current_documents, trace_id)
+    def _query_collection_for_candidates(
+        self,
+        query_embedding: List[float],
+        initial_top_k: int,
+        query: str = "",
+        trace_id: Optional[str] = None,
+    ) -> List[dict]:
+        return self.executor.query_dense(
+            query_embedding, initial_top_k, query, self.current_documents, trace_id
+        )
 
     def _retrieve_by_bm25(self, query: str, top_k: int) -> List[dict]:
         return self.executor.query_bm25(query, top_k, self.current_documents)
 
-    def _apply_keyword_boost_detailed(self, document: str, query: str, base_similarity: float) -> Dict[str, float]:
+    def _apply_keyword_boost_detailed(
+        self, document: str, query: str, base_similarity: float
+    ) -> Dict[str, float]:
         return self.executor.compute_hybrid_score(document, query, base_similarity)
 
     def _tokenize(self, text: str) -> List[str]:
@@ -695,10 +787,21 @@ class DocumentRetriever:
     def _extract_chunk_id(self, result: Dict) -> Optional[str]:
         return extract_chunk_id(result)
 
-    def _combine_semantic_and_bm25(self, semantic: List[dict], bm25: List[dict], top_k: int, semantic_weight: float = 0.7, bm25_weight: float = 0.3) -> List[dict]:
-        return self.retrieval_strategy.combine_results(semantic, bm25, top_k, semantic_weight, bm25_weight)
+    def _combine_semantic_and_bm25(
+        self,
+        semantic: List[dict],
+        bm25: List[dict],
+        top_k: int,
+        semantic_weight: float = 0.7,
+        bm25_weight: float = 0.3,
+    ) -> List[dict]:
+        return self.retrieval_strategy.combine_results(
+            semantic, bm25, top_k, semantic_weight, bm25_weight
+        )
 
-    def _apply_reranking_if_available(self, candidates: List[dict], top_k: int, query: str, use_reranker: bool = True) -> List[dict]:
+    def _apply_reranking_if_available(
+        self, candidates: List[dict], top_k: int, query: str, use_reranker: bool = True
+    ) -> List[dict]:
         # Apply reranking when there are at least top_k candidates available.
         if not use_reranker or not self.reranker or len(candidates) < top_k:
             return candidates
@@ -778,7 +881,14 @@ from cubo.embeddings.embedding_generator import EmbeddingGenerator
 class FaissHybridRetriever:
     """Hybrid Retriever combining BM25 and FAISS retrieval."""
 
-    def __init__(self, bm25_searcher: BM25Searcher, faiss_manager: FAISSIndexManager, embedding_generator: EmbeddingGenerator, documents: List[Dict], reranker=None):
+    def __init__(
+        self,
+        bm25_searcher: BM25Searcher,
+        faiss_manager: FAISSIndexManager,
+        embedding_generator: EmbeddingGenerator,
+        documents: List[Dict],
+        reranker=None,
+    ):
         self.bm25_searcher = bm25_searcher
         self.faiss_manager = faiss_manager
         self.embedding_generator = embedding_generator
@@ -792,8 +902,10 @@ class FaissHybridRetriever:
         faiss_results = self.faiss_manager.search(query_embedding, k=top_k)
         fused = rrf_fuse(bm25_results, faiss_results)
         fused.sort(key=lambda x: x.get("score", 0), reverse=True)
-        results = [self.documents[r["doc_id"]] for r in fused[:top_k] if r.get("doc_id") in self.documents]
-        
+        results = [
+            self.documents[r["doc_id"]] for r in fused[:top_k] if r.get("doc_id") in self.documents
+        ]
+
         # Apply reranking if enabled in strategy
         use_reranker = strategy.get("use_reranker", False) if strategy else False
         if use_reranker and self.reranker and results:
@@ -803,7 +915,7 @@ class FaissHybridRetriever:
                     results = reranked[:top_k]
             except Exception:
                 pass
-        
+
         return results
 
 

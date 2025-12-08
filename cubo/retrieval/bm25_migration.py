@@ -27,7 +27,9 @@ def _read_chunks_jsonl(chunks_jsonl_path: str):
     return docs
 
 
-def convert_json_stats_to_bm25(json_stats_path: str, chunks_jsonl_path: str, output_dir: str) -> Dict:
+def convert_json_stats_to_bm25(
+    json_stats_path: str, chunks_jsonl_path: str, output_dir: str
+) -> Dict:
     """Convert JSON BM25 chunks into a small Python BM25 "index" on disk.
 
     This function does the following: read input chunks JSONL, construct
@@ -51,7 +53,9 @@ def convert_json_stats_to_bm25(json_stats_path: str, chunks_jsonl_path: str, out
     store = BM25PythonStore()
 
     # Reformat docs for Python store (doc_id + text only)
-    py_docs = [{"doc_id": d["doc_id"], "text": d["text"], "metadata": d.get("metadata", {})} for d in docs]
+    py_docs = [
+        {"doc_id": d["doc_id"], "text": d["text"], "metadata": d.get("metadata", {})} for d in docs
+    ]
     store.index_documents(py_docs)
 
     out_dir_path = Path(output_dir)
@@ -61,7 +65,13 @@ def convert_json_stats_to_bm25(json_stats_path: str, chunks_jsonl_path: str, out
     chunks_out = out_dir_path / "chunks.jsonl"
     with open(chunks_out, "w", encoding="utf-8") as f:
         for d in py_docs:
-            f.write(json.dumps({"doc_id": d["doc_id"], "text": d["text"], "metadata": d.get("metadata", {})}, ensure_ascii=False) + "\n")
+            f.write(
+                json.dumps(
+                    {"doc_id": d["doc_id"], "text": d["text"], "metadata": d.get("metadata", {})},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
 
     # Optionally persist BM25 stats if requested
     stats_out = None
@@ -70,7 +80,11 @@ def convert_json_stats_to_bm25(json_stats_path: str, chunks_jsonl_path: str, out
         stats_out.parent.mkdir(parents=True, exist_ok=True)
         store.save_stats(str(stats_out))
 
-    return {"docs_indexed": len(py_docs), "bm25_dir": str(out_dir_path), "stats_file": str(stats_out) if stats_out else None}
+    return {
+        "docs_indexed": len(py_docs),
+        "bm25_dir": str(out_dir_path),
+        "stats_file": str(stats_out) if stats_out else None,
+    }
 
 
 def export_bm25_to_json(bm25_dir: str, output_chunks_jsonl: str) -> Dict:
@@ -88,7 +102,9 @@ def export_bm25_to_json(bm25_dir: str, output_chunks_jsonl: str) -> Dict:
     if not chunks_file.exists():
         raise FileNotFoundError(f"chunks.jsonl not found in {bm25_dir}")
 
-    with open(output_chunks_jsonl, "w", encoding="utf-8") as out_f, open(chunks_file, encoding="utf-8") as in_f:
+    with open(output_chunks_jsonl, "w", encoding="utf-8") as out_f, open(
+        chunks_file, encoding="utf-8"
+    ) as in_f:
         for line in in_f:
             out_f.write(line)
 

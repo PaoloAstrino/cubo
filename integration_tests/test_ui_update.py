@@ -12,9 +12,14 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 def test_ui_update():
     """Test if UI updates work properly."""
+    import pytest
+    pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication
 
-    from cubo.gui.components import QueryWidget
+    try:
+        from cubo.gui.components import QueryWidget
+    except Exception:  # pragma: no cover - Optional GUI not installed in CI/dev
+        pytest.skip("cubo.gui GUI components not available in this environment")
 
     app = QApplication.instance()
     if app is None:

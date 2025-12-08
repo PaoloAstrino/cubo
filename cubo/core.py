@@ -25,15 +25,15 @@ from cubo.utils.logger import logger
 class CuboCore:
     """
     Core CUBO logic - no CLI dependencies.
-    
+
     This class provides the pure business logic for:
     - Component initialization (model, retriever, generator)
     - Document ingestion and indexing
     - Query retrieval
     - Response generation
-    
+
     Thread-safe: Uses internal locking for state mutations.
-    
+
     Example:
         >>> core = CuboCore()
         >>> core.initialize_components()
@@ -58,13 +58,13 @@ class CuboCore:
     def initialize_components(self) -> bool:
         """
         Initialize model and all components.
-        
+
         Returns:
             True if initialization succeeded, False otherwise.
         """
         logger.info("Loading embedding model... (this may take a few minutes)")
         start_time = time.time()
-        
+
         try:
             with self._state_lock:
                 self.model = model_manager.get_model()
@@ -79,7 +79,7 @@ class CuboCore:
             self.retriever = DocumentRetriever(self.model)
             self.generator = create_response_generator()
             # Expose vector store from retriever for collection management
-            if hasattr(self.retriever, 'collection'):
+            if hasattr(self.retriever, "collection"):
                 self.vector_store = self.retriever.collection
 
         return True
@@ -87,24 +87,26 @@ class CuboCore:
     def build_index(self, data_folder: str = None) -> int:
         """
         Initialize components if needed, load documents and add them to vector DB.
-        
+
         Args:
-            data_folder: Path to folder containing documents. 
+            data_folder: Path to folder containing documents.
                          Defaults to config 'data_folder'.
-        
+
         Returns:
             Number of document chunks processed/added.
-            
+
         Raises:
             RuntimeError: If component initialization fails.
-        
+
         Thread-safe: Uses _state_lock to prevent race conditions.
         """
         with self._state_lock:
             # Ensure components are set (model, retriever, generator)
             if not self.model or not self.retriever or not self.generator:
                 if not self.initialize_components():
-                    raise RuntimeError("Failed to initialize model and components for index building")
+                    raise RuntimeError(
+                        "Failed to initialize model and components for index building"
+                    )
 
             folder = data_folder or config.get("data_folder")
             documents = self._load_all_documents(folder)
@@ -118,14 +120,14 @@ class CuboCore:
     def ingest_documents(self, data_folder: str = None) -> int:
         """
         Load and chunk all documents from a folder.
-        
-        Note: This does NOT add them to the vector DB. 
+
+        Note: This does NOT add them to the vector DB.
         Call build_index() to persist to store.
-        
+
         Args:
             data_folder: Path to folder containing documents.
                          Defaults to config 'data_folder'.
-        
+
         Returns:
             Number of chunks loaded.
         """
@@ -137,24 +139,20 @@ class CuboCore:
         return len(documents)
 
     def query_retrieve(
-        self, 
-        query: str, 
-        top_k: int = None, 
-        trace_id: Optional[str] = None,
-        **kwargs
+        self, query: str, top_k: int = None, trace_id: Optional[str] = None, **kwargs
     ) -> List[Dict[str, Any]]:
         """
         Retrieve relevant documents for a query.
-        
+
         Args:
             query: User's question
             top_k: Number of results to return. Defaults to config value.
             trace_id: Optional trace ID for logging
             **kwargs: Additional arguments passed to retriever
-            
+
         Returns:
             List of retrieved document chunks with metadata.
-            
+
         Thread-safe: Uses _state_lock.
         """
         with self._state_lock:
@@ -163,73 +161,56 @@ class CuboCore:
             return self.retriever.retrieve_top_documents(query, top_k, **kwargs)
 
     def generate_response_safe(
-        self, 
-        query: str, 
-        context: str, 
-        trace_id: Optional[str] = None
+        self, query: str, context: str, trace_id: Optional[str] = None
     ) -> str:
         """
         Generate a response using the LLM.
-        
+
         Args:
             query: User's question
             context: Document context to include
             trace_id: Optional trace ID for logging
-            
+
         Returns:
             Generated response string.
-            
+
         Thread-safe: Uses _state_lock.
         """
         with self._state_lock:
-            return self.generator.generate_response(
-                query=query, 
-                context=context, 
-                trace_id=trace_id
-            )
+            return self.generator.generate_response(query=query, context=context, trace_id=trace_id)
 
     def query_and_generate(
-        self, 
-        query: str, 
-        top_k: int = None,
-        trace_id: Optional[str] = None
+        self, query: str, top_k: int = None, trace_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Combined query and response generation.
-        
+
         Args:
             query: User's question
             top_k: Number of context documents to retrieve
             trace_id: Optional trace ID
-            
+
         Returns:
             Dict with 'answer', 'sources', and 'trace_id' keys.
         """
         # Retrieve
         docs = self.query_retrieve(query, top_k, trace_id)
-        
+
         # Build context
-        context = "\n\n".join([
-            doc.get("document", doc.get("content", "")) 
-            for doc in docs
-        ])
-        
+        context = "\n\n".join([doc.get("document", doc.get("content", "")) for doc in docs])
+
         # Generate
         answer = self.generate_response_safe(query, context, trace_id)
-        
-        return {
-            "answer": answer,
-            "sources": docs,
-            "trace_id": trace_id
-        }
+
+        return {"answer": answer, "sources": docs, "trace_id": trace_id}
 
     def add_documents(self, documents: List[Dict]) -> bool:
         """
         Add documents directly to the vector store.
-        
+
         Args:
             documents: List of document dicts with 'text' and optionally 'file_path'
-            
+
         Returns:
             True if any documents were added.
         """
@@ -264,7 +245,7 @@ class CuboCore:
 def create_cubo_core() -> CuboCore:
     """
     Factory function to create and optionally initialize a CuboCore instance.
-    
+
     Returns:
         Initialized CuboCore instance.
     """

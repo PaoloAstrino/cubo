@@ -54,13 +54,12 @@ class BM25PythonStore(BM25Store):
         self.avg_doc_length = 0.0
         self.term_doc_freq = defaultdict(int)  # term -> number of docs containing term
         self.doc_term_freq = {}  # doc_id -> {term: freq}
-        
+        self.postings = defaultdict(list)  # term -> list of doc_ids (posting lists)
+        self.docs_map = {}  # doc_id -> doc dict
+
         # Initialize multilingual tokenizer
         try:
-            self.tokenizer = MultilingualTokenizer(
-                use_stemming=True,
-                min_token_length=2
-            )
+            self.tokenizer = MultilingualTokenizer(use_stemming=True, min_token_length=2)
             self.use_multilingual = True
         except ImportError:
             # Fallback to naive tokenization if dependencies not available
@@ -114,10 +113,15 @@ class BM25PythonStore(BM25Store):
             # Update index structures
             self.doc_term_freq[doc_id] = dict(tf)
             self.doc_lengths[doc_id] = len(tokens)
+            # Update document map for fast lookup
+            self.docs_map[doc_id] = d
 
             # Update document frequencies for each unique term
             for term in set(tokens):
                 self.term_doc_freq[term] += 1
+                # update posting lists
+                if doc_id not in self.postings[term]:
+                    self.postings[term].append(doc_id)
 
         # Recompute average document length
         if self.doc_lengths:
@@ -125,7 +129,7 @@ class BM25PythonStore(BM25Store):
         else:
             self.avg_doc_length = 0.0
 
-    def _tokenize(self, text: str, language: str = 'auto') -> List[str]:
+    def _tokenize(self, text: str, language: str = "auto") -> List[str]:
         """
         Tokenize text with multilingual stemming support.
 
@@ -239,20 +243,53 @@ class BM25PythonStore(BM25Store):
         if not query_terms:
             return []
 
-        docs_to_search = docs if docs is not None else self.docs
         results = []
+        docs_map_local = {}
+        # Determine candidate documents: either from provided docs or posting lists.
+        if docs is not None:
+            docs_map_local = {d.get("doc_id"): d for d in docs}
+            candidate_docs = [d.get("doc_id") for d in docs if d.get("doc_id")]
+        else:
+            # To improve performance, pick the least frequent query terms (lowest df)
+            # and use their posting lists as the candidate set to minimize the
+            # number of documents scored.
+            term_dfs = [(term, self.term_doc_freq.get(term, 0)) for term in query_terms]
+            term_dfs.sort(key=lambda x: x[1])
+            candidate_set = set()
+            num_seed_terms = min(2, len(term_dfs))
+            for term, _ in term_dfs[:num_seed_terms]:
+                for did in self.postings.get(term, []):
+                    candidate_set.add(did)
+            # If seed selection produced no candidates (e.g., query terms not indexed),
+            # expand to union of all query term posting lists.
+            if not candidate_set:
+                for term in query_terms:
+                    for did in self.postings.get(term, []):
+                        candidate_set.add(did)
+            candidate_docs = list(candidate_set)
+            # Hard limit to avoid pathological queries from scanning entire corpus
+            MAX_CANDIDATES = 2000
+            if len(candidate_docs) > MAX_CANDIDATES:
+                candidate_docs = candidate_docs[:MAX_CANDIDATES]
 
-        for d in docs_to_search:
-            doc_id = d.get("doc_id")
+        for doc_id in candidate_docs:
             if not doc_id:
                 continue
-
-            # Use doc text fallback to ensure scoring even if in-memory stats are missing
-            bm25_score = self._compute_bm25_score(query_terms, doc_id, d.get("text", ""))
-
-            # Normalize score to [0, 1] range using empirical max
+            # Get doc dict from local map or global docs_map
+            d = (
+                docs_map_local.get(doc_id)
+                if doc_id in docs_map_local
+                else self.docs_map.get(doc_id)
+            )
+            if not d:
+                # fallback: try finding in docs list
+                d = next((x for x in self.docs if x.get("doc_id") == doc_id), None)
+            if not d:
+                continue
+            # Get document text
+            doc_text = d.get("text", "")
+            bm25_score = self._compute_bm25_score(query_terms, doc_id, doc_text)
             norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
-
             if norm_score > 0.0:
                 results.append(
                     {

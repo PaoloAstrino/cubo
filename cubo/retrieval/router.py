@@ -1,5 +1,4 @@
-"""Semantic Router responsible for classifying the query and returning a retrieval strategy.
-"""
+"""Semantic Router responsible for classifying the query and returning a retrieval strategy."""
 
 from __future__ import annotations
 
