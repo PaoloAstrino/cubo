@@ -1,6 +1,7 @@
 "use client"
 
 import { AppearanceSettings } from "@/components/appearance-settings"
+import { LLMSettings } from "@/components/llm-settings"
 import {
     Card,
     CardContent,
@@ -15,6 +16,19 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold">Settings</h1>
             </div>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>AI Model</CardTitle>
+                    <CardDescription>
+                        Configure the LLM used for generating answers.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <LLMSettings />
+                </CardContent>
+            </Card>
+
             <Card>
                 <CardHeader>
                     <CardTitle>Appearance</CardTitle>

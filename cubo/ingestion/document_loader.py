@@ -32,6 +32,14 @@ class DocumentLoader:
             except Exception as e:
                 logger.warning(f"Enhanced processor not available: {e}")
 
+        # Initialize standard chunker
+        from .hierarchical_chunker import HierarchicalChunker
+        self.chunker = HierarchicalChunker(
+            max_chunk_size=config.get("chunk_size", 1000),
+            min_chunk_size=config.get("min_chunk_size", 100),
+            overlap_sentences=config.get("chunk_overlap_sentences", 1)
+        )
+
     def load_single_document(self, file_path: str, chunking_config: dict = None) -> List[dict]:
         """Load and process a single document file with automatic enhanced processing when available."""
 
@@ -105,7 +113,7 @@ class DocumentLoader:
         self, text: str, file_path: str, chunking_config: dict = None
     ) -> List[dict]:
         """
-        Process text content and create chunks using sentence window chunking.
+        Process text content and create chunks using HierarchicalChunker.
 
         Args:
                 text: The raw text content to process
@@ -116,28 +124,17 @@ class DocumentLoader:
                 List of chunk dictionaries with processed text content
         """
         text = Utils.clean_text(text)
-        cfg = self._configure_chunking(chunking_config)
-        chunks = self._create_sentence_window_chunks(text, cfg)
+        
+        # Use HierarchicalChunker
+        # If specific config overrides are needed, we could re-init chunker, 
+        # but for now we rely on the instance initialized with config.
+        # Future: apply chunking_config overrides here if strict requirement.
+        
+        chunks = self.chunker.chunk(text, format_type="auto")
 
         self._embed_file_metadata(chunks, file_path)
-        self._log_chunking_results(file_path, chunks, cfg)
+        self._log_chunking_results(file_path, chunks, {"method": "hierarchical"})
         return chunks
-
-    def _configure_chunking(self, chunking_config: dict = None) -> dict:
-        """Configure sentence window chunking parameters."""
-        cfg = {"method": "sentence_window", "window_size": 3, "tokenizer_name": None}
-
-        # Allow overriding window_size if provided
-        if chunking_config and "window_size" in chunking_config:
-            cfg["window_size"] = chunking_config["window_size"]
-
-        return cfg
-
-    def _create_sentence_window_chunks(self, text: str, cfg: dict) -> List[dict]:
-        """Create sentence window chunks using the configured parameters."""
-        return Utils.create_sentence_window_chunks(
-            text, window_size=cfg["window_size"], tokenizer_name=cfg["tokenizer_name"]
-        )
 
     def _embed_file_metadata(self, chunks: List[dict], file_path: str) -> None:
         """Add filename, chunk index, and hash metadata to each chunk."""

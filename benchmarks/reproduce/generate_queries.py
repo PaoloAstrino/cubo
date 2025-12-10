@@ -8,15 +8,12 @@ import argparse
 import json
 import random
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
 from tqdm import tqdm
 
-try:
-    import ollama
-    OLLAMA_AVAILABLE = True
-except ImportError:
-    OLLAMA_AVAILABLE = False
+from cubo.config import config
+from cubo.core import CuboCore
 
 
 DEFAULT_CORPUS_DIR = Path("data/benchmark_corpus")
@@ -40,27 +37,19 @@ Questions:"""
 
 def generate_queries_for_chunk(
     chunk_text: str,
-    model: str = DEFAULT_MODEL,
+    generator: Callable[[str], str],
     n_queries: int = QUERIES_PER_CHUNK,
 ) -> List[str]:
-    """Generate queries for a single chunk using Ollama."""
-    if not OLLAMA_AVAILABLE:
-        raise ImportError("ollama not installed. Run: pip install cubo[ollama]")
-    
+    """Generate queries for a single chunk using CuboCore's generator."""
+
     prompt = QUERY_GENERATION_PROMPT.format(context=chunk_text[:3000], n=n_queries)
-    
+
     try:
-        response = ollama.chat(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.7, "num_predict": 256}
-        )
-        content = response["message"]["content"]
-        
-        # Parse lines as queries
+        content = generator(prompt)
+
         queries = [
-            line.strip().lstrip("0123456789.-) ") 
-            for line in content.split("\n") 
+            line.strip().lstrip("0123456789.-) ")
+            for line in content.split("\n")
             if line.strip() and len(line.strip()) > 10
         ]
         return queries[:n_queries]
@@ -97,6 +86,15 @@ def generate_queries(
     corpus_dir = Path(corpus_dir)
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if model:
+        config.set("llm.model_name", model)
+    core = CuboCore()
+    core.initialize_components()
+
+    def run_prompt(prompt: str) -> str:
+        # Use the configured generator through CuboCore to ensure consistency.
+        return core.generator.generate_text(prompt)
     
     # Find corpus files
     corpus_files = list(corpus_dir.glob("*_corpus.jsonl"))
@@ -125,9 +123,9 @@ def generate_queries(
         
         for chunk in tqdm(sampled, desc=f"  Generating queries"):
             queries = generate_queries_for_chunk(
-                chunk["text"], 
-                model=model, 
-                n_queries=queries_per_chunk
+                chunk["text"],
+                generator=run_prompt,
+                n_queries=queries_per_chunk,
             )
             
             for q in queries:

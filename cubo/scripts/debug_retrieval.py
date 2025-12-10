@@ -8,8 +8,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from cubo.embeddings.model_loader import ModelManager
-from cubo.retrieval.retriever import DocumentRetriever
+from cubo.core import CuboCore
 from cubo.security.security import security_manager
 
 
@@ -19,20 +18,17 @@ def test_retrieval():
     print("RETRIEVAL DEBUG TEST")
     print("=" * 80)
 
-    # Load model
-    print("\n1. Loading embedding model...")
-    model_manager = ModelManager()
-    model = model_manager.load_model()
-    print(f"   Model loaded: {model is not None}")
-
-    # Initialize retriever
-    print("\n2. Initializing retriever...")
-    retriever = DocumentRetriever(model=model, use_sentence_window=True, use_auto_merging=True)
+    # Initialize Cubo core and retriever
+    print("\n1. Loading CuboCore components...")
+    core = CuboCore()
+    core.initialize_components()
+    retriever = core.retriever
+    print(f"   Model loaded: {core.model is not None}")
     print("   Retriever initialized")
     print(f"   Current documents in session: {retriever.current_documents}")
 
     # Check what's in the database
-    print("\n3. Checking database contents...")
+    print("\n2. Checking database contents...")
     try:
         collection_info = retriever.debug_collection_info()
         print(f"   Total chunks in DB: {collection_info.get('total_chunks', 0)}")
@@ -42,7 +38,7 @@ def test_retrieval():
         print(f"   Current session docs: {len(retriever.current_documents)}")
 
     # Get all metadata to see what files are actually in the database
-    print("\n4. Querying all documents in vector store...")
+    print("\n3. Querying all documents in vector store...")
     all_data = retriever.collection.get()
     if all_data and all_data.get("metadatas"):
         filenames_in_db = set()
@@ -64,7 +60,7 @@ def test_retrieval():
         return
 
     # Check auto-merging retriever
-    print("\n5. Checking auto-merging retriever...")
+    print("\n4. Checking auto-merging retriever...")
     if retriever.auto_merging_retriever:
         auto_collection = retriever.auto_merging_retriever.collection.get()
         if auto_collection and auto_collection.get("metadatas"):

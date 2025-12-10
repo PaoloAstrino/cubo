@@ -1,81 +1,57 @@
 """
-Retrieval system constants.
+Retrieval system constants (BRIDGE FILE).
 
-Centralizes all magic numbers and tunable parameters for the retrieval system.
-This makes the codebase more maintainable and parameters easier to discover/tune.
+This file now acts as a compatibility bridge, redirecting old constant
+imports to the new dynamic Pydantic settings.
 """
+
+from cubo.config.settings import settings
 
 # =============================================================================
 # BM25 PARAMETERS
 # =============================================================================
 
-# Okapi BM25 tuning parameters (standard values)
-BM25_K1 = 1.5  # Term frequency saturation parameter
-BM25_B = 0.75  # Length normalization parameter
-
-# Empirical maximum BM25 score for normalization to [0, 1] range.
-# This value was determined through experimentation on typical document corpora.
-BM25_NORMALIZATION_FACTOR = 15.0
-
-# Reciprocal Rank Fusion constant (controls influence of rank position)
-RRF_K = 60
+BM25_K1 = settings.retrieval.bm25_k1
+BM25_B = settings.retrieval.bm25_b
+BM25_NORMALIZATION_FACTOR = settings.retrieval.bm25_normalization_factor
+RRF_K = settings.retrieval.rrf_k
 
 # =============================================================================
 # RETRIEVAL PARAMETERS
 # =============================================================================
 
-# Default number of documents to retrieve
-DEFAULT_TOP_K = 3
-
-# Sentence window size for context expansion
-DEFAULT_WINDOW_SIZE = 3
-
-# Multiplier for initial retrieval before reranking.
-# When using reranking, we retrieve top_k * this value first, then rerank.
-INITIAL_RETRIEVAL_MULTIPLIER = 5
-
-# Query complexity threshold (character length).
-# Queries shorter than this are considered "simple" for routing purposes.
-COMPLEXITY_LENGTH_THRESHOLD = 12
+DEFAULT_TOP_K = settings.retrieval.default_top_k
+DEFAULT_WINDOW_SIZE = settings.retrieval.default_window_size
+INITIAL_RETRIEVAL_MULTIPLIER = settings.retrieval.initial_retrieval_multiplier
+COMPLEXITY_LENGTH_THRESHOLD = settings.retrieval.complexity_length_threshold
 
 # =============================================================================
 # FUSION WEIGHTS
 # =============================================================================
 
-# Default weights for hybrid search (balanced fusion)
-SEMANTIC_WEIGHT_DEFAULT = 0.7
-BM25_WEIGHT_DEFAULT = 0.3
-
-# Weights for detailed/precision queries (favors keyword matching)
-SEMANTIC_WEIGHT_DETAILED = 0.1
-BM25_WEIGHT_DETAILED = 0.9
+SEMANTIC_WEIGHT_DEFAULT = settings.retrieval.semantic_weight_default
+BM25_WEIGHT_DEFAULT = settings.retrieval.bm25_weight_default
+SEMANTIC_WEIGHT_DETAILED = settings.retrieval.semantic_weight_detailed
+BM25_WEIGHT_DETAILED = settings.retrieval.bm25_weight_detailed
 
 # =============================================================================
 # SCORING THRESHOLDS
 # =============================================================================
 
-# Minimum normalized BM25 score to consider for boosting
-MIN_BM25_THRESHOLD = 0.05
-
-# Factor for keyword boost contribution
-KEYWORD_BOOST_FACTOR = 0.3
+MIN_BM25_THRESHOLD = settings.retrieval.min_bm25_threshold
+KEYWORD_BOOST_FACTOR = settings.retrieval.keyword_boost_factor
 
 # =============================================================================
 # CACHE PARAMETERS
 # =============================================================================
 
-# Default cache size (number of entries)
-DEFAULT_CACHE_SIZE = 100
-
-# Default TTL for cached results (seconds)
-DEFAULT_CACHE_TTL = 3600
+DEFAULT_CACHE_SIZE = settings.retrieval.cache_size
+DEFAULT_CACHE_TTL = settings.retrieval.cache_ttl
 
 # =============================================================================
 # BATCH PROCESSING
 # =============================================================================
 
-# Default batch size for document processing
+# Keep these hardcoded for now or add to settings if needed
 DEFAULT_BATCH_SIZE = 100
-
-# Maximum concurrent operations for parallel processing
 MAX_CONCURRENT_OPS = 4

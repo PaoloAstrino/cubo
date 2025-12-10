@@ -4,36 +4,66 @@ Fusion utilities for retrieval: RRF fusion and semantic + BM25 combiner.
 
 from typing import Dict, List
 
-from cubo.retrieval.constants import (
-    BM25_WEIGHT_DETAILED,
-    DEFAULT_TOP_K,
-    RRF_K,
-    SEMANTIC_WEIGHT_DETAILED,
-)
+from cubo.config.settings import settings
 
 
-def rrf_fuse(bm25_results: List[Dict], faiss_results: List[Dict], k: int = RRF_K) -> List[Dict]:
-    """Reciprocal Rank Fusion: combine two ranked lists into fused scores.
-
-    Both lists are expected to follow the shape: [{'doc_id': '...', 'score': float}] or
-    FAISS can have {'id': '...','score': ...}. This function normalizes keys and returns
-    a list of {doc_id, score}.
+def rrf_fuse(
+    bm25_results: List[Dict], 
+    faiss_results: List[Dict], 
+    k: int = None,
+    bm25_weight: float = 1.0,
+    semantic_weight: float = 1.0
+) -> List[Dict]:
     """
+    Reciprocal Rank Fusion (Weighted): combine two ranked lists.
+
+    Score = (weight_a / (k + rank_a)) + (weight_b / (k + rank_b))
+    """
+    if k is None:
+        k = settings.retrieval.rrf_k
+
     fused: Dict[str, Dict] = {}
 
+    # Process BM25
     for i, doc in enumerate(bm25_results):
         rank = i + 1
         doc_id = doc.get("doc_id") or doc.get("id")
+        if not doc_id: 
+            continue
+            
         if doc_id not in fused:
-            fused[doc_id] = {"doc_id": doc_id, "score": 0.0}
-        fused[doc_id]["score"] += 1 / (k + rank)
+            fused[doc_id] = {
+                "id": doc_id, 
+                "document": doc.get("document", doc.get("text", "")),
+                "metadata": doc.get("metadata", {}),
+                "similarity": 0.0,
+                "bm25_score": doc.get("similarity", 0.0) # Normalized score
+            }
+        
+        fused[doc_id]["similarity"] += bm25_weight * (1.0 / (k + rank))
 
+    # Process Semantic
     for i, doc in enumerate(faiss_results):
         rank = i + 1
         doc_id = doc.get("doc_id") or doc.get("id")
+        if not doc_id:
+            continue
+
         if doc_id not in fused:
-            fused[doc_id] = {"doc_id": doc_id, "score": 0.0}
-        fused[doc_id]["score"] += 1 / (k + rank)
+            fused[doc_id] = {
+                "id": doc_id, 
+                "document": doc.get("document", doc.get("text", "")),
+                "metadata": doc.get("metadata", {}),
+                "similarity": 0.0,
+                "semantic_score": doc.get("similarity", 0.0)
+            }
+        else:
+            # Update metadata if missing from BM25 result
+            if not fused[doc_id]["document"]:
+                fused[doc_id]["document"] = doc.get("document", "")
+            fused[doc_id]["semantic_score"] = doc.get("similarity", 0.0)
+
+        fused[doc_id]["similarity"] += semantic_weight * (1.0 / (k + rank))
 
     return list(fused.values())
 
@@ -41,60 +71,31 @@ def rrf_fuse(bm25_results: List[Dict], faiss_results: List[Dict], k: int = RRF_K
 def combine_semantic_and_bm25(
     semantic_candidates: List[Dict],
     bm25_candidates: List[Dict],
-    semantic_weight: float = SEMANTIC_WEIGHT_DETAILED,
-    bm25_weight: float = BM25_WEIGHT_DETAILED,
-    top_k: int = DEFAULT_TOP_K,
+    semantic_weight: float = None,
+    bm25_weight: float = None,
+    top_k: int = None,
 ) -> List[Dict]:
-    """Combine semantic and BM25 candidate lists into a normalized combined ranking.
-
-    Each candidate is expected as {'document': str, 'metadata': dict, 'similarity': float, 'id': str}
     """
-    combined = {}
-    for cand in semantic_candidates:
-        doc_key = cand["document"][:100]
-        if doc_key not in combined:
-            combined[doc_key] = {
-                "id": cand.get("id"),
-                "document": cand["document"],
-                "metadata": cand.get("metadata", {}),
-                "semantic_score": cand.get("similarity", 0.0),
-                "bm25_score": 0.0,
-            }
-        else:
-            combined[doc_key]["semantic_score"] = max(
-                combined[doc_key]["semantic_score"], cand.get("similarity", 0.0)
-            )
+    Combine using Weighted RRF (Reciprocal Rank Fusion).
+    Replaces naive linear combination with robust rank-based fusion.
+    """
+    # Load defaults from settings if not provided
+    if semantic_weight is None:
+        semantic_weight = settings.retrieval.semantic_weight_default
+    if bm25_weight is None:
+        bm25_weight = settings.retrieval.bm25_weight_default
+    if top_k is None:
+        top_k = settings.retrieval.default_top_k
 
-    for cand in bm25_candidates:
-        doc_key = cand["document"][:100]
-        if doc_key not in combined:
-            combined[doc_key] = {
-                "id": cand.get("id"),
-                "document": cand["document"],
-                "metadata": cand.get("metadata", {}),
-                "semantic_score": 0.0,
-                "bm25_score": cand.get("similarity", 0.0),
-            }
-        else:
-            combined[doc_key]["bm25_score"] = max(
-                combined[doc_key]["bm25_score"], cand.get("similarity", 0.0)
-            )
+    # Use RRF
+    fused_results = rrf_fuse(
+        bm25_candidates, 
+        semantic_candidates, 
+        k=settings.retrieval.rrf_k,
+        bm25_weight=bm25_weight,
+        semantic_weight=semantic_weight
+    )
 
-    final_results = []
-    for doc_data in combined.values():
-        combined_score = (
-            semantic_weight * doc_data["semantic_score"] + bm25_weight * doc_data["bm25_score"]
-        )
-        final_results.append(
-            {
-                "id": doc_data.get("id"),
-                "document": doc_data["document"],
-                "metadata": doc_data.get("metadata", {}),
-                "similarity": combined_score,
-                "base_similarity": doc_data["semantic_score"],
-                "bm25_normalized": doc_data["bm25_score"],
-            }
-        )
-
-    final_results.sort(key=lambda x: x["similarity"], reverse=True)
-    return final_results[:top_k]
+    # Sort by fused score
+    fused_results.sort(key=lambda x: x["similarity"], reverse=True)
+    return fused_results[:top_k]

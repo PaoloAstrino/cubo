@@ -21,8 +21,20 @@ from tqdm import tqdm
 
 DEFAULT_DOMAINS = ["legal", "medical"]
 DEFAULT_OUTPUT_DIR = Path("data/benchmark_corpus")
-CHUNK_SIZE = 1200  # tokens, matching LightRAG
+# CHUNK_SIZE/OVERLAP are managed by Cubo config now, but kept for legacy reference or fallback
+CHUNK_SIZE = 1200  
 OVERLAP = 100
+
+# Initialize Cubo Document Loader to access centralized chunking logic
+try:
+    from cubo.ingestion.document_loader import DocumentLoader
+    # Initialize without model (skip_model=True) since we only need the chunker, not embeddings/vision
+    loader = DocumentLoader(skip_model=True)
+    logger_msg = "Initialized Cubo DocumentLoader for benchmarking."
+except ImportError:
+    # Fallback only if running in context where cubo package isn't installed (unlikely)
+    loader = None
+    logger_msg = "Cubo not found. Using naive fallback (SHOULD NOT HAPPEN IN PROD)."
 
 
 def simple_tokenize(text: str) -> List[str]:
@@ -30,19 +42,26 @@ def simple_tokenize(text: str) -> List[str]:
     return text.split()
 
 
+def cubo_chunk_text(text: str) -> List[str]:
+    """
+    Chunk text using the OFFICIAL Cubo pipeline.
+    
+    This ensures benchmarks test the exact same segmentation logic as the app.
+    """
+    if loader and hasattr(loader, "chunker"):
+        # Use the HierarchicalChunker initialized in DocumentLoader
+        # It returns dicts, we extract text for the benchmark corpus
+        chunks = loader.chunker.chunk(text, format_type="auto")
+        return [c["text"] for c in chunks]
+    else:
+        # Fallback (Should be deleted/warned against)
+        print("WARNING: Using naive fallback chunking!")
+        words = text.split()
+        return [" ".join(words[i:i+CHUNK_SIZE]) for i in range(0, len(words), CHUNK_SIZE-OVERLAP)]
+
+# Legacy wrapper for compatibility if needed, but we should switch to cubo_chunk_text
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = OVERLAP) -> List[str]:
-    """Split text into overlapping chunks by token count."""
-    tokens = simple_tokenize(text)
-    chunks = []
-    start = 0
-    while start < len(tokens):
-        end = start + chunk_size
-        chunk_tokens = tokens[start:end]
-        chunks.append(" ".join(chunk_tokens))
-        start = end - overlap
-        if start >= len(tokens):
-            break
-    return chunks
+    return cubo_chunk_text(text)
 
 
 def content_hash(text: str) -> str:

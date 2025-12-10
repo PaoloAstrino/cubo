@@ -222,3 +222,40 @@ export async function getTrace(traceId: string): Promise<{ trace_id: string; eve
   const response = await fetch(`${API_BASE_URL}/api/traces/${traceId}`);
   return handleResponse<{ trace_id: string; events: Array<Record<string, unknown>> }>(response);
 }
+
+// =========================================================================
+// Settings & LLM
+// =========================================================================
+
+export interface LLMModel {
+  name: string;
+  size?: number;
+  digest?: string;
+  family?: string;
+}
+
+export interface Settings {
+  llm_model: string;
+  llm_provider: string;
+}
+
+export async function getLLMModels(): Promise<LLMModel[]> {
+  const response = await fetch(`${API_BASE_URL}/api/llm/models`);
+  return handleResponse<LLMModel[]>(response);
+}
+
+export async function getSettings(): Promise<Settings> {
+  const response = await fetch(`${API_BASE_URL}/api/settings`);
+  return handleResponse<Settings>(response);
+}
+
+export async function updateSettings(settings: Partial<Settings>): Promise<Settings> {
+  const response = await fetch(`${API_BASE_URL}/api/settings`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(settings),
+  });
+  return handleResponse<Settings>(response);
+}

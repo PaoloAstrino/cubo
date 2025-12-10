@@ -198,6 +198,9 @@ bench_full_output
 bench_output
 debug_output
 
+# Generated run results (often large and regeneratable)
+results/
+
 
 paper
 

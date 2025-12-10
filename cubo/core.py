@@ -138,6 +138,23 @@ class CuboCore:
         documents = self._load_all_documents(folder)
         return len(documents)
 
+    def ingest_documents_async(self, data_folder: str = None) -> str:
+        """
+        Start full ingestion (load + remove + index) in background.
+
+        Returns:
+            job_id: ID to track status via get_task_status()
+        """
+        from cubo.processing.background_manager import bg_manager
+        
+        # We submit build_index as the task since it does end-to-end ingestion
+        return bg_manager.submit_task(self.build_index, data_folder)
+
+    def get_task_status(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get status of a background task."""
+        from cubo.processing.background_manager import bg_manager
+        return bg_manager.get_status(job_id)
+
     def query_retrieve(
         self, query: str, top_k: int = None, trace_id: Optional[str] = None, **kwargs
     ) -> List[Dict[str, Any]]:

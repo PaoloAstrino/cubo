@@ -275,6 +275,8 @@ class FaissStore(VectorStore):
         )
         self.index_dir.mkdir(parents=True, exist_ok=True)
 
+        self._write_lock = threading.RLock() # Protects against concurrent SQLite writes
+
         from cubo.indexing.faiss_index import FAISSIndexManager
 
         self._index = FAISSIndexManager(dimension, index_dir=self.index_dir, index_root=index_root)
@@ -346,63 +348,64 @@ class FaissStore(VectorStore):
 
     def _init_document_db(self) -> None:
         """Initialize SQLite database for document storage and collections."""
-        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            conn.execute(
+        with self._write_lock: # Protect init
+            with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS documents (
+                        id TEXT PRIMARY KEY,
+                        content TEXT NOT NULL,
+                        metadata TEXT NOT NULL
+                    )
                 """
-                CREATE TABLE IF NOT EXISTS documents (
-                    id TEXT PRIMARY KEY,
-                    content TEXT NOT NULL,
-                    metadata TEXT NOT NULL
                 )
-            """
-            )
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_id ON documents(id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_id ON documents(id)")
 
-            # Collections table for organizing documents into containers
-            conn.execute(
+                # Collections table for organizing documents into containers
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS collections (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL UNIQUE,
+                        created_at TEXT NOT NULL,
+                        color TEXT DEFAULT '#2563eb'
+                    )
                 """
-                CREATE TABLE IF NOT EXISTS collections (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL UNIQUE,
-                    created_at TEXT NOT NULL,
-                    color TEXT DEFAULT '#2563eb'
                 )
-            """
-            )
 
-            # Junction table linking documents to collections
-            conn.execute(
+                # Junction table linking documents to collections
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS collection_documents (
+                        collection_id TEXT NOT NULL,
+                        document_id TEXT NOT NULL,
+                        added_at TEXT NOT NULL,
+                        PRIMARY KEY (collection_id, document_id),
+                        FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+                        FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+                    )
                 """
-                CREATE TABLE IF NOT EXISTS collection_documents (
-                    collection_id TEXT NOT NULL,
-                    document_id TEXT NOT NULL,
-                    added_at TEXT NOT NULL,
-                    PRIMARY KEY (collection_id, document_id),
-                    FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
-                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
                 )
-            """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_coll_doc_coll ON collection_documents(collection_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_coll_doc_doc ON collection_documents(document_id)"
-            )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_coll_doc_coll ON collection_documents(collection_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_coll_doc_doc ON collection_documents(document_id)"
+                )
 
-            # Vectors table for storing embeddings
-            conn.execute(
+                # Vectors table for storing embeddings
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS vectors (
+                        id TEXT PRIMARY KEY,
+                        vector BLOB NOT NULL,
+                        dtype TEXT NOT NULL,
+                        dim INTEGER NOT NULL,
+                        created_at TEXT NOT NULL
+                    )
                 """
-                CREATE TABLE IF NOT EXISTS vectors (
-                    id TEXT PRIMARY KEY,
-                    vector BLOB NOT NULL,
-                    dtype TEXT NOT NULL,
-                    dim INTEGER NOT NULL,
-                    created_at TEXT NOT NULL
                 )
-            """
-            )
-            conn.commit()
+                conn.commit()
 
     def _serialize_vector(self, vector: Any) -> tuple[bytes, str, int]:
         """Serialize numpy vector to bytes."""
@@ -456,23 +459,24 @@ class FaissStore(VectorStore):
 
         created_at = datetime.utcnow().isoformat()
 
-        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            # Enable WAL mode for better concurrency
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
+        with self._write_lock: # Protect write
+            with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                # Enable WAL mode for better concurrency
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA synchronous=NORMAL")
 
-            data = []
-            for doc_id, vector in zip(ids, vectors):
-                blob, dtype, dim = self._serialize_vector(vector)
-                data.append((doc_id, blob, dtype, dim, created_at))
-                # Update cache
-                self._vector_cache.put(doc_id, vector)
+                data = []
+                for doc_id, vector in zip(ids, vectors):
+                    blob, dtype, dim = self._serialize_vector(vector)
+                    data.append((doc_id, blob, dtype, dim, created_at))
+                    # Update cache
+                    self._vector_cache.put(doc_id, vector)
 
-            conn.executemany(
-                "INSERT OR REPLACE INTO vectors (id, vector, dtype, dim, created_at) VALUES (?, ?, ?, ?, ?)",
-                data,
-            )
-            conn.commit()
+                conn.executemany(
+                    "INSERT OR REPLACE INTO vectors (id, vector, dtype, dim, created_at) VALUES (?, ?, ?, ?, ?)",
+                    data,
+                )
+                conn.commit()
 
     def get_vector(self, doc_id: str) -> Optional[Any]:
         """Get a single vector by ID."""
@@ -636,62 +640,63 @@ class FaissStore(VectorStore):
         if not embeddings or not ids:
             return
 
-        # Phase 1: Build FAISS indexes (in-memory)
-        self._index.build_indexes(embeddings, ids, append=True)
+        with self._write_lock: # Protect add
+            # Phase 1: Build FAISS indexes (in-memory)
+            self._index.build_indexes(embeddings, ids, append=True)
 
-        # Phase 2: Save FAISS indexes to disk BEFORE committing to SQLite
-        # If this fails, we haven't touched SQLite yet
-        try:
-            self._index.save()
-        except Exception as e:
-            from cubo.utils.logger import logger
+            # Phase 2: Save FAISS indexes to disk BEFORE committing to SQLite
+            # If this fails, we haven't touched SQLite yet
+            try:
+                self._index.save()
+            except Exception as e:
+                from cubo.utils.logger import logger
 
-            logger.error(f"FAISS save failed, rolling back: {e}")
-            # Rollback: remove from FAISS index
-            # (rebuild without the new IDs would be expensive, so just log)
-            raise
+                logger.error(f"FAISS save failed, rolling back: {e}")
+                # Rollback: remove from FAISS index
+                # (rebuild without the new IDs would be expensive, so just log)
+                raise
 
-        # Phase 3: Now commit to SQLite (FAISS is safely persisted)
-        conn = sqlite3.connect(str(self._db_path), timeout=30)
-        try:
-            # Store vectors
-            from datetime import datetime
+            # Phase 3: Now commit to SQLite (FAISS is safely persisted)
+            conn = sqlite3.connect(str(self._db_path), timeout=30)
+            try:
+                # Store vectors
+                from datetime import datetime
 
-            created_at = datetime.utcnow().isoformat()
-            for doc_id, vector in zip(ids, embeddings):
-                blob, dtype, dim = self._serialize_vector(vector)
-                conn.execute(
-                    "INSERT OR REPLACE INTO vectors (id, vector, dtype, dim, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (doc_id, blob, dtype, dim, created_at),
-                )
-                # Update cache
-                vec_np = np.asarray(vector, dtype=np.float32)
-                self._vector_cache.put(doc_id, vec_np)
+                created_at = datetime.utcnow().isoformat()
+                for doc_id, vector in zip(ids, embeddings):
+                    blob, dtype, dim = self._serialize_vector(vector)
+                    conn.execute(
+                        "INSERT OR REPLACE INTO vectors (id, vector, dtype, dim, created_at) VALUES (?, ?, ?, ?, ?)",
+                        (doc_id, blob, dtype, dim, created_at),
+                    )
+                    # Update cache
+                    vec_np = np.asarray(vector, dtype=np.float32)
+                    self._vector_cache.put(doc_id, vec_np)
 
-            # Store documents and metadata
-            for i, did in enumerate(ids):
-                doc = documents[i] if documents and i < len(documents) else ""
-                meta = metadatas[i] if metadatas and i < len(metadatas) else {}
-                conn.execute(
-                    "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)",
-                    (did, doc, json.dumps(meta)),
-                )
-                # Update cache
-                self._doc_cache.put(did, doc, meta)
+                # Store documents and metadata
+                for i, did in enumerate(ids):
+                    doc = documents[i] if documents and i < len(documents) else ""
+                    meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+                    conn.execute(
+                        "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)",
+                        (did, doc, json.dumps(meta)),
+                    )
+                    # Update cache
+                    self._doc_cache.put(did, doc, meta)
 
-            # Only commit after all inserts succeed
-            conn.commit()
+                # Only commit after all inserts succeed
+                conn.commit()
 
-        except Exception as e:
-            conn.rollback()
-            from cubo.utils.logger import logger
+            except Exception as e:
+                conn.rollback()
+                from cubo.utils.logger import logger
 
-            logger.error(f"SQLite commit failed after FAISS save: {e}")
-            # Note: FAISS is already saved - this is a partial state
-            # but next startup will rebuild from SQLite if needed
-            raise
-        finally:
-            conn.close()
+                logger.error(f"SQLite commit failed after FAISS save: {e}")
+                # Note: FAISS is already saved - this is a partial state
+                # but next startup will rebuild from SQLite if needed
+                raise
+            finally:
+                conn.close()
 
         # Init access counts
         for did in ids:

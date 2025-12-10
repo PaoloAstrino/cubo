@@ -291,74 +291,29 @@ class HybridScorer:
         bm25_weight: Optional[float] = None,
     ) -> List[Dict]:
         """
-        Combine semantic and BM25 candidate lists.
+        Combine semantic and BM25 candidate lists using RRF.
+
+        Delegates to the robust Weighted RRF implementation in fusion.py.
 
         Args:
             semantic_candidates: Results from semantic search
             bm25_candidates: Results from BM25 search
             top_k: Number of results to return
-            semantic_weight: Weight for semantic scores (default from config)
-            bm25_weight: Weight for BM25 scores (default from config)
+            semantic_weight: Weight for semantic scores
+            bm25_weight: Weight for BM25 scores
 
         Returns:
             Combined and sorted list of candidates
         """
-        semantic_weight = semantic_weight or self.default_semantic_weight
-        bm25_weight = bm25_weight or self.default_bm25_weight
+        from cubo.retrieval.fusion import combine_semantic_and_bm25
 
-        # Build combined map
-        combined: Dict[str, Dict] = {}
-
-        for cand in semantic_candidates:
-            doc_key = cand.get("document", "")[:100]
-            if doc_key not in combined:
-                combined[doc_key] = {
-                    "id": cand.get("id"),
-                    "document": cand.get("document", ""),
-                    "metadata": cand.get("metadata", {}),
-                    "semantic_score": cand.get("similarity", 0.0),
-                    "bm25_score": 0.0,
-                }
-            else:
-                combined[doc_key]["semantic_score"] = max(
-                    combined[doc_key]["semantic_score"], cand.get("similarity", 0.0)
-                )
-
-        for cand in bm25_candidates:
-            doc_key = cand.get("document", "")[:100]
-            if doc_key not in combined:
-                combined[doc_key] = {
-                    "id": cand.get("id"),
-                    "document": cand.get("document", ""),
-                    "metadata": cand.get("metadata", {}),
-                    "semantic_score": 0.0,
-                    "bm25_score": cand.get("similarity", 0.0),
-                }
-            else:
-                combined[doc_key]["bm25_score"] = max(
-                    combined[doc_key]["bm25_score"], cand.get("similarity", 0.0)
-                )
-
-        # Calculate combined scores
-        results = []
-        for doc_data in combined.values():
-            combined_score = (
-                semantic_weight * doc_data["semantic_score"] + bm25_weight * doc_data["bm25_score"]
-            )
-            results.append(
-                {
-                    "id": doc_data.get("id"),
-                    "document": doc_data["document"],
-                    "metadata": doc_data.get("metadata", {}),
-                    "similarity": combined_score,
-                    "base_similarity": doc_data["semantic_score"],
-                    "bm25_normalized": doc_data["bm25_score"],
-                }
-            )
-
-        # Sort and return top_k
-        results.sort(key=lambda x: x["similarity"], reverse=True)
-        return results[:top_k]
+        return combine_semantic_and_bm25(
+            semantic_candidates=semantic_candidates,
+            bm25_candidates=bm25_candidates,
+            top_k=top_k,
+            semantic_weight=semantic_weight,
+            bm25_weight=bm25_weight
+        )
 
 
 class DeduplicationManager:

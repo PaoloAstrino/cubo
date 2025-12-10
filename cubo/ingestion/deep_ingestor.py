@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from cubo.config import config
+from cubo.config.settings import settings
 from cubo.ingestion.document_loader import DocumentLoader
 from cubo.ingestion.ocr_processor import OCRProcessor
 from cubo.storage.metadata_manager import get_metadata_manager
@@ -46,28 +47,22 @@ class DeepIngestor:
         use_file_hash_for_chunk_id: Optional[bool] = None,
         chunk_batch_size: Optional[int] = None,
     ):
-        self.input_folder = Path(input_folder or config.get("data_folder", "./data"))
-        self.output_dir = Path(
-            output_dir
-            or config.get("ingestion.deep.output_dir", config.get("deep_output_dir", "./data/deep"))
-        )
-        self.chunking_config = chunking_config or {}
-        self.csv_rows_per_chunk = csv_rows_per_chunk or config.get(
-            "ingestion.deep.csv_rows_per_chunk", config.get("deep_csv_rows_per_chunk", 25)
-        )
+        self.input_folder = Path(input_folder or settings.paths.data_folder)
+        self.output_dir = Path(output_dir or settings.paths.deep_output_dir)
+        
+        self.chunking_config = chunking_config or {
+            "chunk_size": settings.chunking.chunk_size,
+            "chunk_overlap": settings.chunking.chunk_overlap_sentences * 100, # Approx 100 chars per sentence
+            "min_chunk_size": settings.chunking.min_chunk_size
+        }
+        
+        self.csv_rows_per_chunk = csv_rows_per_chunk or 25
         self.use_file_hash_for_chunk_id = (
-            use_file_hash_for_chunk_id
-            if use_file_hash_for_chunk_id is not None
-            else config.get(
-                "ingestion.deep.use_file_hash_for_chunk_id",
-                config.get("deep_chunk_id_use_file_hash", True),
-            )
+            use_file_hash_for_chunk_id if use_file_hash_for_chunk_id is not None else True
         )
 
         # Streaming save configuration - flush every N chunks to disk
-        self.chunk_batch_size = chunk_batch_size or config.get(
-            "ingestion.deep.chunk_batch_size", 100
-        )
+        self.chunk_batch_size = chunk_batch_size or 100
         self._temp_parquet_files: List[Path] = []
         self._run_id = uuid.uuid4().hex[:8]
 

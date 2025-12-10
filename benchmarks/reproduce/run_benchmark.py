@@ -26,7 +26,10 @@ import psutil
 
 # Add benchmarks to path for sibling imports
 _SCRIPT_DIR = Path(__file__).parent
-sys.path.insert(0, str(_SCRIPT_DIR))
+# Ensure project root (two levels up from benchmarks/reproduce) is on sys.path so we can import 'cubo'
+_PROJECT_ROOT = _SCRIPT_DIR.parent.parent.resolve()
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 
 @dataclass
@@ -85,6 +88,7 @@ def run_full_pipeline(
     skip_query_gen: bool = False,
     skip_ragas: bool = False,
     config_path: Optional[Path] = None,
+    reindex: bool = False,
     seed: int = 42,
 ) -> PipelineStats:
     """
@@ -146,6 +150,21 @@ def run_full_pipeline(
     cubo.initialize_components()
     
     # Step 3: Ingest documents
+    # Optional reindex: if requested, and corpus appears to be BEIR, build FAISS index
+    if reindex and (str(corpus_dir).lower().endswith("/beir") or str(corpus_dir).lower().endswith("beir")):
+        print("\n[STEP] Rebuilding FAISS index from BEIR corpus using CUBO ingestion...")
+        import subprocess
+        builder = Path(__file__).parent.parent / 'scripts' / 'reindex_beir_with_cubo.py'
+        cmd = [sys.executable, str(builder), '--corpus', str(corpus_dir / 'corpus.jsonl'), '--index-dir', str(bench_data_dir)]
+        print(f"  Running: {' '.join(cmd)}")
+        try:
+            subprocess.check_call(cmd)
+            print("  [OK] Rebuilt index using CUBO ingestion")
+        except Exception as e:
+            print(f"  [WARN] Reindex via CUBO failed: {e}. Falling back to FAISS builder.")
+            builder2 = Path(__file__).parent.parent / 'scripts' / 'build_beir_faiss_index.py'
+            cmd2 = [sys.executable, str(builder2), '--corpus', str(corpus_dir / 'corpus.jsonl'), '--index-dir', str(bench_data_dir)]
+            subprocess.check_call(cmd2)
     if not skip_ingest:
         # The corpus files are JSONL, we need to convert them to txt for the doc_loader
         corpus_files = list(Path(corpus_dir).glob("*_corpus.jsonl"))
@@ -256,6 +275,7 @@ def run_full_pipeline(
         output_file=output_file,
         max_queries=max_queries,
         skip_ragas=skip_ragas,
+        force_run=args.force,
     )
     stats.evaluation_sec = elapsed
     stats.queries_run = summary.total_queries
@@ -357,6 +377,8 @@ Examples:
     parser.add_argument("--skip-ingest", action="store_true", help="Skip ingestion/indexing (use existing index)")
     parser.add_argument("--skip-query-gen", action="store_true", help="Skip query generation")
     parser.add_argument("--skip-ragas", action="store_true", help="Skip RAGAS eval")
+    parser.add_argument("--reindex", action="store_true", help="Rebuild index from corpus before running the benchmark")
+    parser.add_argument("--force", action="store_true", help="Force run even if sanity checks fail")
     
     # Config
     parser.add_argument("--config", type=Path, default=None, help="CUBO config path")
@@ -389,6 +411,7 @@ Examples:
             skip_ragas=args.skip_ragas,
             config_path=args.config,
             seed=args.seed,
+            reindex=args.reindex,
         )
     except KeyboardInterrupt:
         print("\n[ABORT] Benchmark interrupted by user")

@@ -66,6 +66,12 @@ class ResponseGenerator:
 
         return assistant_content
 
+    def generate_text(self, prompt: str) -> str:
+        """Generate free-form text from a single prompt without chat templating."""
+
+        conversation_messages = [{"role": "user", "content": prompt}]
+        return self._generate_with_ollama(conversation_messages)
+
     def _prepare_conversation_messages(
         self, messages: List[Dict[str, str]] = None
     ) -> List[Dict[str, str]]:

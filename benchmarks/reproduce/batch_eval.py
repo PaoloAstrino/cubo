@@ -79,7 +79,8 @@ def run_query(cubo_core, query: str) -> tuple[str, List[str], float, float]:
     
     # Run retrieval
     results = cubo_core.query_retrieve(query, top_k=10)
-    contexts = [r.get("text", r.get("content", "")) for r in results]
+    # Retriever returns "document" key, fallback to "text"/"content" for compatibility
+    contexts = [r.get("document", r.get("text", r.get("content", ""))) for r in results]
     context_str = "\n\n".join(contexts)
     
     # Generate response
@@ -92,41 +93,83 @@ def run_query(cubo_core, query: str) -> tuple[str, List[str], float, float]:
 
 
 def evaluate_with_ragas(results: List[EvalResult]) -> List[EvalResult]:
-    """Apply RAGAS metrics to results."""
+    """Apply RAGAS metrics to results using local Ollama."""
     if not RAGAS_AVAILABLE or not DATASETS_AVAILABLE:
         print("Warning: RAGAS not available, skipping metric calculation")
         return results
     
-    # Prepare dataset for RAGAS
+    # Configure RAGAS to use Ollama
+    try:
+        from langchain_ollama import ChatOllama
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.embeddings import LangchainEmbeddingsWrapper
+        from langchain_huggingface import HuggingFaceEmbeddings
+        
+        # Use local Ollama model for RAGAS evaluation
+        llm = ChatOllama(model="llama3.2:latest", temperature=0)
+        ragas_llm = LangchainLLMWrapper(llm)
+        
+        # Use local embeddings
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+        ragas_embeddings = LangchainEmbeddingsWrapper(embeddings)
+        
+    except ImportError as e:
+        print(f"Warning: Could not configure Ollama for RAGAS: {e}")
+        print("Install with: pip install langchain-ollama langchain-huggingface")
+        return results
+    
+    # Truncate contexts to avoid token limits (max ~2000 chars each)
+    MAX_CONTEXT_LEN = 2000
+    truncated_contexts = []
+    for r in results:
+        truncated = [c[:MAX_CONTEXT_LEN] if c else "" for c in r.contexts]
+        truncated_contexts.append(truncated)
+    
+    # Prepare dataset for RAGAS (new column names in recent versions)
     data = {
-        "question": [r.query for r in results],
-        "answer": [r.answer for r in results],
-        "contexts": [r.contexts for r in results],
-        "ground_truth": ["" for _ in results],  # We don't have ground truth
+        "user_input": [r.query for r in results],
+        "response": [r.answer for r in results],
+        "retrieved_contexts": truncated_contexts,
+        "reference": ["N/A" for _ in results],  # We don't have ground truth
     }
     dataset = Dataset.from_dict(data)
     
     try:
-        # Run RAGAS evaluation
+        # Run RAGAS evaluation with local LLM (skip context_precision since it needs reference)
         scores = evaluate(
             dataset,
-            metrics=[faithfulness, answer_relevancy, context_precision],
+            metrics=[faithfulness, answer_relevancy],
+            llm=ragas_llm,
+            embeddings=ragas_embeddings,
         )
+        
+        # Convert to pandas for easier access
+        scores_df = scores.to_pandas()
         
         # Map scores back to results
         for i, r in enumerate(results):
-            r.faithfulness = scores.get("faithfulness", [0])[i] if isinstance(scores.get("faithfulness"), list) else scores.get("faithfulness", 0)
-            r.relevancy = scores.get("answer_relevancy", [0])[i] if isinstance(scores.get("answer_relevancy"), list) else scores.get("answer_relevancy", 0)
-            r.precision = scores.get("context_precision", [0])[i] if isinstance(scores.get("context_precision"), list) else scores.get("context_precision", 0)
+            if i < len(scores_df):
+                r.faithfulness = float(scores_df.iloc[i].get("faithfulness", 0) or 0)
+                r.relevancy = float(scores_df.iloc[i].get("answer_relevancy", 0) or 0)
+                r.precision = 0.0  # context_precision needs ground truth
             
     except Exception as e:
         print(f"Warning: RAGAS evaluation failed: {e}")
+        import traceback
+        traceback.print_exc()
     
     return results
 
 
 def calculate_summary(results: List[EvalResult]) -> BenchmarkSummary:
     """Calculate aggregate statistics."""
+    import math
+    
+    def safe_avg(values):
+        """Calculate average, ignoring NaN values."""
+        valid = [v for v in values if v is not None and not math.isnan(v)]
+        return sum(valid) / len(valid) if valid else 0.0
+    
     latencies = sorted([r.latency_ms for r in results])
     
     return BenchmarkSummary(
@@ -135,10 +178,10 @@ def calculate_summary(results: List[EvalResult]) -> BenchmarkSummary:
         p50_latency_ms=latencies[len(latencies) // 2] if latencies else 0,
         p99_latency_ms=latencies[int(len(latencies) * 0.99)] if latencies else 0,
         peak_ram_mb=max(r.ram_mb for r in results) if results else 0,
-        avg_faithfulness=sum(r.faithfulness or 0 for r in results) / len(results) if results else 0,
-        avg_relevancy=sum(r.relevancy or 0 for r in results) / len(results) if results else 0,
-        avg_precision=sum(r.precision or 0 for r in results) / len(results) if results else 0,
-        avg_recall=sum(r.recall or 0 for r in results) / len(results) if results else 0,
+        avg_faithfulness=safe_avg([r.faithfulness for r in results]),
+        avg_relevancy=safe_avg([r.relevancy for r in results]),
+        avg_precision=safe_avg([r.precision for r in results]),
+        avg_recall=safe_avg([r.recall for r in results]),
     )
 
 
@@ -148,6 +191,7 @@ def run_batch_eval(
     config_path: Optional[Path] = None,
     max_queries: Optional[int] = None,
     skip_ragas: bool = False,
+    force_run: bool = False,
 ) -> BenchmarkSummary:
     """
     Run batch evaluation on queries.
@@ -180,6 +224,65 @@ def run_batch_eval(
     print("Initializing CUBO...")
     cubo = CuboCore()
     cubo.initialize_components()
+
+    # Sanity check the index to detect obvious mismatches (e.g., full docs used as contexts,
+    # or a single doc appearing as top1 for most queries). This helps prevent meaningless runs.
+    def sanity_check_index(cubo, queries, n_samples: int = 30, max_avg_len: int = 10000, max_dup_ratio: float = 0.5):
+        """Run quick retrieval for `n_samples` queries and detect index anomalies.
+
+        Returns a tuple (issues, diagnostics)
+        """
+        if not queries:
+            return [], {}
+
+        n = min(len(queries), n_samples)
+        top1_texts = []
+        lengths = []
+        domains = []
+        for i in range(n):
+            q = queries[i]
+            res = cubo.query_retrieve(q["query"], top_k=1)
+            if not res:
+                top1 = ""
+            else:
+                top1 = res[0].get("document", res[0].get("text", res[0].get("content", "")))
+            top1_texts.append(top1)
+            lengths.append(len(top1))
+            domains.append(res[0].get("metadata", {}).get("domain") if res and res[0].get("metadata") else None)
+
+        unique_top1 = len(set(top1_texts))
+        dup_ratio = 1.0 - (unique_top1 / n)
+        avg_len = sum(lengths) / n
+
+        issues = []
+        if avg_len > max_avg_len:
+            issues.append(f"Avg context length too long ({avg_len:.0f} chars > {max_avg_len})")
+        if dup_ratio > max_dup_ratio:
+            issues.append(f"High top1 duplication ({dup_ratio*100:.0f}% identical top1 contexts)")
+
+        diagnostics = {
+            "sample_n": n,
+            "avg_top1_len": avg_len,
+            "top1_dup_ratio": dup_ratio,
+            "unique_top1": unique_top1,
+            "domains_sample": domains[:10],
+        }
+
+        return issues, diagnostics
+
+    # Run sanity checks unless forcing the run
+    issues, diagnostics = sanity_check_index(cubo, queries)
+    if issues and not force_run:
+        print("\n[ERROR] Index sanity check failed. Aborting benchmark run.")
+        print("  Issues:")
+        for it in issues:
+            print(f"    - {it}")
+        print("  Diagnostics:")
+        for k, v in diagnostics.items():
+            print(f"    - {k}: {v}")
+        print('\n  If you are confident the index is correct, re-run with force_run=True')
+        # Return an empty summary to indicate early abort
+        return BenchmarkSummary(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     
     # Run queries
     results = []
@@ -271,6 +374,11 @@ def main():
         action="store_true",
         help="Skip RAGAS evaluation"
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force run even if sanity checks fail",
+    )
     
     args = parser.parse_args()
     
@@ -280,6 +388,7 @@ def main():
         config_path=args.config,
         max_queries=args.max_queries,
         skip_ragas=args.skip_ragas,
+        force_run=args.force,
     )
 
 
