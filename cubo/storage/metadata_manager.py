@@ -5,6 +5,7 @@ This module provides a lightweight SQLite wrapper; no external dependencies beyo
 import datetime
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -16,7 +17,9 @@ class MetadataManager:
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or config.get("metadata_db_path", "./data/metadata.db"))
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(self.db_path))
+        # Allow cross-thread use with a simple lock guard; set a small timeout to avoid busy errors.
+        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=5.0)
+        self._lock = threading.Lock()
         self._init_tables()
 
     def _init_tables(self) -> None:
@@ -35,6 +38,22 @@ class MetadataManager:
             )
         """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ingestion_files (
+                run_id TEXT,
+                file_path TEXT,
+                status TEXT,
+                error TEXT,
+                attempts INTEGER DEFAULT 0,
+                size_bytes INTEGER,
+                created_at TEXT,
+                updated_at TEXT,
+                PRIMARY KEY (run_id, file_path)
+            )
+        """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_files_run_id ON ingestion_files (run_id)")
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS chunk_mappings (
@@ -92,6 +111,21 @@ class MetadataManager:
             self.conn.commit()
         except Exception:
             # If this fails for any reason, we ignore to keep compatibility
+            pass
+        # Ensure ingestion_files has expected columns
+        try:
+            cur.execute("PRAGMA table_info(ingestion_files)")
+            cols = set(r[1] for r in cur.fetchall())
+            if "attempts" not in cols:
+                cur.execute("ALTER TABLE ingestion_files ADD COLUMN attempts INTEGER DEFAULT 0")
+            if "size_bytes" not in cols:
+                cur.execute("ALTER TABLE ingestion_files ADD COLUMN size_bytes INTEGER")
+            if "created_at" not in cols:
+                cur.execute("ALTER TABLE ingestion_files ADD COLUMN created_at TEXT")
+            if "updated_at" not in cols:
+                cur.execute("ALTER TABLE ingestion_files ADD COLUMN updated_at TEXT")
+            self.conn.commit()
+        except Exception:
             pass
         # Ensure scaffold_runs has expected columns (for older DBs/migrations)
         try:
@@ -154,21 +188,142 @@ class MetadataManager:
         source_folder: str,
         chunks_count: int,
         output_parquet: Optional[str] = None,
+        status: str = "pending",
     ) -> None:
-        cur = self.conn.cursor()
-        # Default status: pending (fast pass not yet completed)
-        cur.execute(
-            """INSERT OR REPLACE INTO ingestion_runs (id, created_at, source_folder, chunks_count, output_parquet, status) VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                run_id,
-                datetime.datetime.utcnow().isoformat(),
-                source_folder,
-                chunks_count,
-                output_parquet,
-                "pending",
-            ),
-        )
-        self.conn.commit()
+        with self._lock:
+            cur = self.conn.cursor()
+            # Default status: pending (fast pass not yet completed)
+            cur.execute(
+                """INSERT OR REPLACE INTO ingestion_runs (id, created_at, source_folder, chunks_count, output_parquet, status) VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    run_id,
+                    datetime.datetime.utcnow().isoformat(),
+                    source_folder,
+                    chunks_count,
+                    output_parquet,
+                    status,
+                ),
+            )
+            self.conn.commit()
+
+    # --- Ingestion file status helpers ---
+    def _ensure_file_row(
+        self,
+        run_id: str,
+        file_path: str,
+        size_bytes: Optional[int] = None,
+        default_status: str = "queued",
+    ) -> None:
+        now = datetime.datetime.utcnow().isoformat()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO ingestion_files (run_id, file_path, status, error, attempts, size_bytes, created_at, updated_at)
+                VALUES (?, ?, ?, NULL, 0, ?, ?, ?)
+                """,
+                (run_id, file_path, default_status, size_bytes, now, now),
+            )
+            self.conn.commit()
+
+    def set_file_status(
+        self,
+        run_id: str,
+        file_path: str,
+        status: str,
+        error: Optional[str] = None,
+        size_bytes: Optional[int] = None,
+        increment_attempt: bool = False,
+    ) -> None:
+        """Upsert or update a file row with status, optionally increment attempts."""
+        self._ensure_file_row(run_id, file_path, size_bytes=size_bytes, default_status=status)
+        now = datetime.datetime.utcnow().isoformat()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                UPDATE ingestion_files
+                SET status = ?,
+                    error = ?,
+                    size_bytes = COALESCE(?, size_bytes),
+                    attempts = attempts + ?,
+                    updated_at = ?
+                WHERE run_id = ? AND file_path = ?
+                """,
+                (status, error, size_bytes, 1 if increment_attempt else 0, now, run_id, file_path),
+            )
+            self.conn.commit()
+
+    def mark_file_processing(self, run_id: str, file_path: str, size_bytes: Optional[int] = None) -> None:
+        self.set_file_status(run_id, file_path, "processing", size_bytes=size_bytes)
+
+    def mark_file_succeeded(self, run_id: str, file_path: str, size_bytes: Optional[int] = None) -> None:
+        self.set_file_status(run_id, file_path, "succeeded", size_bytes=size_bytes)
+
+    def mark_file_failed(
+        self, run_id: str, file_path: str, error: str, size_bytes: Optional[int] = None
+    ) -> None:
+        self.set_file_status(run_id, file_path, "failed", error=error, size_bytes=size_bytes, increment_attempt=True)
+
+    def list_files_for_run(self, run_id: str) -> List[Dict[str, Any]]:
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT file_path, status, error, attempts, size_bytes, created_at, updated_at
+                FROM ingestion_files WHERE run_id = ?
+                ORDER BY file_path
+                """,
+                (run_id,),
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "file_path": r[0],
+                "status": r[1],
+                "error": r[2],
+                "attempts": r[3],
+                "size_bytes": r[4],
+                "created_at": r[5],
+                "updated_at": r[6],
+            }
+            for r in rows
+        ]
+
+    def get_file_status(self, run_id: str, file_path: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT file_path, status, error, attempts, size_bytes, created_at, updated_at
+                FROM ingestion_files WHERE run_id = ? AND file_path = ?
+                """,
+                (run_id, file_path),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "file_path": row[0],
+            "status": row[1],
+            "error": row[2],
+            "attempts": row[3],
+            "size_bytes": row[4],
+            "created_at": row[5],
+            "updated_at": row[6],
+        }
+
+    def get_file_status_counts(self, run_id: str) -> Dict[str, int]:
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT status, COUNT(*) FROM ingestion_files WHERE run_id = ? GROUP BY status
+                """,
+                (run_id,),
+            )
+            rows = cur.fetchall()
+        return {r[0]: r[1] for r in rows}
 
     def update_ingestion_status(
         self,
@@ -177,25 +332,60 @@ class MetadataManager:
         started_at: Optional[str] = None,
         finished_at: Optional[str] = None,
     ) -> None:
-        cur = self.conn.cursor()
-        if started_at is None and finished_at is None:
-            cur.execute("""UPDATE ingestion_runs SET status = ? WHERE id = ?""", (status, run_id))
-        else:
-            cur.execute(
-                """UPDATE ingestion_runs SET status = ?, started_at = ?, finished_at = ? WHERE id = ?""",
-                (status, started_at, finished_at, run_id),
-            )
-        self.conn.commit()
+        with self._lock:
+            cur = self.conn.cursor()
+            if started_at is None and finished_at is None:
+                cur.execute("""UPDATE ingestion_runs SET status = ? WHERE id = ?""", (status, run_id))
+            else:
+                cur.execute(
+                    """UPDATE ingestion_runs SET status = ?, started_at = COALESCE(?, started_at), finished_at = COALESCE(?, finished_at) WHERE id = ?""",
+                    (status, started_at, finished_at, run_id),
+                )
+            self.conn.commit()
+
+    def update_ingestion_run_details(
+        self,
+        run_id: str,
+        chunks_count: Optional[int] = None,
+        output_parquet: Optional[str] = None,
+        status: Optional[str] = None,
+        finished_at: Optional[str] = None,
+    ) -> None:
+        with self._lock:
+            cur = self.conn.cursor()
+            fields = []
+            values = []
+            if chunks_count is not None:
+                fields.append("chunks_count = ?")
+                values.append(chunks_count)
+            if output_parquet is not None:
+                fields.append("output_parquet = ?")
+                values.append(output_parquet)
+            if status is not None:
+                fields.append("status = ?")
+                values.append(status)
+            if finished_at is not None:
+                fields.append("finished_at = ?")
+                values.append(finished_at)
+            
+            if not fields:
+                return
+
+            values.append(run_id)
+            query = f"UPDATE ingestion_runs SET {', '.join(fields)} WHERE id = ?"
+            cur.execute(query, tuple(values))
+            self.conn.commit()
 
     def add_chunk_mapping(
         self, run_id: str, old_id: str, new_id: str, metadata: Dict[str, Any]
     ) -> None:
-        cur = self.conn.cursor()
-        cur.execute(
-            """INSERT OR REPLACE INTO chunk_mappings (run_id, old_id, new_id, metadata) VALUES (?, ?, ?, ?)""",
-            (run_id, old_id, new_id, json.dumps(metadata)),
-        )
-        self.conn.commit()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """INSERT OR REPLACE INTO chunk_mappings (run_id, old_id, new_id, metadata) VALUES (?, ?, ?, ?)""",
+                (run_id, old_id, new_id, json.dumps(metadata)),
+            )
+            self.conn.commit()
 
     def record_scaffold_run(
         self,
@@ -233,11 +423,12 @@ class MetadataManager:
             conn.commit()
 
     def get_latest_scaffold_run(self) -> Optional[Dict[str, Any]]:
-        cur = self.conn.cursor()
-        cur.execute(
-            """SELECT id, scaffold_dir, model_version, scaffold_count, manifest_path, created_at FROM scaffold_runs ORDER BY created_at DESC LIMIT 1"""
-        )
-        row = cur.fetchone()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """SELECT id, scaffold_dir, model_version, scaffold_count, manifest_path, created_at FROM scaffold_runs ORDER BY created_at DESC LIMIT 1"""
+            )
+            row = cur.fetchone()
         if not row:
             return None
         return {
@@ -250,23 +441,25 @@ class MetadataManager:
         }
 
     def list_scaffold_mappings_for_run(self, run_id: str) -> List[Dict[str, Any]]:
-        cur = self.conn.cursor()
-        cur.execute(
-            """SELECT scaffold_id, chunk_id, metadata FROM scaffold_mappings WHERE run_id = ?""",
-            (run_id,),
-        )
-        rows = cur.fetchall()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """SELECT scaffold_id, chunk_id, metadata FROM scaffold_mappings WHERE run_id = ?""",
+                (run_id,),
+            )
+            rows = cur.fetchall()
         return [
             {"scaffold_id": r[0], "chunk_id": r[1], "metadata": json.loads(r[2]) if r[2] else {}}
             for r in rows
         ]
 
     def list_mappings_for_run(self, run_id: str) -> List[Dict[str, Any]]:
-        cur = self.conn.cursor()
-        cur.execute(
-            """SELECT old_id, new_id, metadata FROM chunk_mappings WHERE run_id = ?""", (run_id,)
-        )
-        rows = cur.fetchall()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """SELECT old_id, new_id, metadata FROM chunk_mappings WHERE run_id = ?""", (run_id,)
+            )
+            rows = cur.fetchall()
         return [
             {"old_id": r[0], "new_id": r[1], "metadata": json.loads(r[2]) if r[2] else {}}
             for r in rows
@@ -307,12 +500,13 @@ class MetadataManager:
         return [{"id": r[0], "index_dir": r[1], "created_at": r[2]} for r in rows]
 
     def get_ingestion_run(self, run_id: str) -> Optional[Dict[str, Any]]:
-        cur = self.conn.cursor()
-        cur.execute(
-            """SELECT id, created_at, source_folder, chunks_count, output_parquet, status, started_at, finished_at FROM ingestion_runs WHERE id = ?""",
-            (run_id,),
-        )
-        row = cur.fetchone()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """SELECT id, created_at, source_folder, chunks_count, output_parquet, status, started_at, finished_at FROM ingestion_runs WHERE id = ?""",
+                (run_id,),
+            )
+            row = cur.fetchone()
         if not row:
             return None
         return {
@@ -327,10 +521,12 @@ class MetadataManager:
         }
 
     def list_runs_by_status(self, status: str) -> List[Dict[str, Any]]:
-        cur = self.conn.cursor()
-        cur.execute("""SELECT id FROM ingestion_runs WHERE status = ?""", (status,))
-        rows = cur.fetchall()
-        return [self.get_ingestion_run(r[0]) for r in rows]
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute("""SELECT id FROM ingestion_runs WHERE status = ?""", (status,))
+            rows = cur.fetchall()
+            ids = [r[0] for r in rows]
+        return [self.get_ingestion_run(run_id) for run_id in ids]
 
 
 # Expose a module-level manager instance for simple use

@@ -5,6 +5,7 @@ pytest>=7.0.0  # For unit testing
 pytest-cov>=4.0.0  # For test coverage
 pytest-asyncio>=0.21.0  # For async test fixtures
 pytest-mock>=3.10.0  # For mocking in tests
+hypothesis>=6.0.0  # Property-based testing for robustness
 requests>=2.28.0
 
 # E2E Testing (new)

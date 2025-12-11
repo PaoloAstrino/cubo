@@ -90,7 +90,12 @@ class IngestionManager:
             run_id, "deep_started", started_at=datetime.utcnow().isoformat()
         )
         try:
-            dee = DeepIngestor(input_folder=folder, output_dir=output_dir)
+            dee = DeepIngestor(
+                input_folder=folder,
+                output_dir=output_dir,
+                run_id=run_id,
+                metadata_manager=self.metadata,
+            )
             result = dee.ingest()
             if result:
                 self.metadata.record_ingestion_run(

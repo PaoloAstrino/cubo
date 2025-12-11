@@ -25,6 +25,7 @@ from cubo.config import config
 from cubo.core import CuboCore
 from cubo.security.security import security_manager
 from cubo.services.service_manager import ServiceManager
+from cubo.storage.metadata_manager import get_metadata_manager
 from cubo.utils.exceptions import (
     CUBOError,
     DatabaseError,
@@ -285,6 +286,8 @@ class IngestRequest(BaseModel):
 
     data_path: Optional[str] = None
     fast_pass: bool = Field(True, description="Use fast-pass mode")
+    background: bool = Field(False, description="Run ingestion in background and return immediately")
+    background: bool = Field(False, description="Run ingestion in background")
 
 
 class IngestResponse(BaseModel):
@@ -292,8 +295,29 @@ class IngestResponse(BaseModel):
 
     status: str
     documents_processed: int  # Actually chunks count
+    run_id: Optional[str] = None
     trace_id: str
     message: str
+
+
+class IngestRunStatus(BaseModel):
+    """Run-level ingestion status."""
+
+    run_id: str
+    status: Optional[str] = None
+    source_folder: Optional[str] = None
+    chunks_count: Optional[int] = None
+    output_parquet: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    file_status_counts: Dict[str, int] = Field(default_factory=dict)
+
+
+class IngestFilesStatus(BaseModel):
+    """Per-file ingestion status."""
+
+    run_id: str
+    files: List[Dict[str, Any]]
 
 
 class BuildIndexRequest(BaseModel):
@@ -716,6 +740,36 @@ async def ingest_documents(
     # Use DeepIngestor for proper document processing and run in threadpool
     from cubo.ingestion.deep_ingestor import DeepIngestor
 
+    # If background mode is requested, start task and return immediately
+    if request_data.background:
+        import uuid
+        run_id = f"deep_bg_{uuid.uuid4().hex[:8]}"
+        
+        # Record run immediately as pending
+        manager = get_metadata_manager()
+        manager.record_ingestion_run(run_id, str(data_path), 0, None, status="pending")
+        
+        def run_ingestor_bg(rid: str):
+            try:
+                ingestor = DeepIngestor(
+                    input_folder=str(data_path),
+                    output_dir=config.get("ingestion.deep.output_dir", "./data/deep"),
+                    run_id=rid,
+                )
+                ingestor.ingest()
+            except Exception as e:
+                logger.error(f"Background ingestion failed: {e}")
+
+        background_tasks.add_task(run_ingestor_bg, run_id)
+        
+        return IngestResponse(
+            status="started",
+            documents_processed=0,
+            run_id=run_id,
+            trace_id=request.state.trace_id,
+            message="Ingestion started in background",
+        )
+
     def run_ingestor():
         ingestor = DeepIngestor(
             input_folder=str(data_path),
@@ -736,6 +790,7 @@ async def ingest_documents(
 
     chunks_count = result.get("chunks_count", 0)
     parquet_path = result.get("chunks_parquet", "")
+    run_id = result.get("run_id")
 
     logger.info(
         "Document ingestion completed",
@@ -751,9 +806,39 @@ async def ingest_documents(
     return IngestResponse(
         status="completed",
         documents_processed=chunks_count,
+        run_id=run_id,
         trace_id=request.state.trace_id,
         message="Ingestion completed successfully",
     )
+
+
+@app.get("/api/ingest/{run_id}", response_model=IngestRunStatus)
+async def get_ingest_run_status(run_id: str, request: Request):
+    manager = get_metadata_manager()
+    run = manager.get_ingestion_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Ingestion run not found")
+
+    file_counts = manager.get_file_status_counts(run_id)
+    return IngestRunStatus(
+        run_id=run.get("id", run_id),
+        status=run.get("status"),
+        source_folder=run.get("source_folder"),
+        chunks_count=run.get("chunks_count"),
+        output_parquet=run.get("output_parquet"),
+        started_at=run.get("started_at"),
+        finished_at=run.get("finished_at"),
+        file_status_counts=file_counts,
+    )
+
+
+@app.get("/api/ingest/{run_id}/files", response_model=IngestFilesStatus)
+async def get_ingest_files_status(run_id: str, request: Request):
+    manager = get_metadata_manager()
+    files = manager.list_files_for_run(run_id)
+    if not files and not manager.get_ingestion_run(run_id):
+        raise HTTPException(status_code=404, detail="Ingestion run not found")
+    return IngestFilesStatus(run_id=run_id, files=files)
 
 
 @app.post("/api/build-index", response_model=BuildIndexResponse)

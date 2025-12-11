@@ -46,6 +46,8 @@ class DeepIngestor:
         csv_rows_per_chunk: Optional[int] = None,
         use_file_hash_for_chunk_id: Optional[bool] = None,
         chunk_batch_size: Optional[int] = None,
+        run_id: Optional[str] = None,
+        metadata_manager=None,
     ):
         self.input_folder = Path(input_folder or settings.paths.data_folder)
         self.output_dir = Path(output_dir or settings.paths.deep_output_dir)
@@ -65,6 +67,9 @@ class DeepIngestor:
         self.chunk_batch_size = chunk_batch_size or 100
         self._temp_parquet_files: List[Path] = []
         self._run_id = uuid.uuid4().hex[:8]
+        self._run_id_override = run_id
+        self._manage_run = run_id is None
+        self._metadata_manager = metadata_manager
 
         self.loader = DocumentLoader(skip_model=True)
         self.ocr_processor = OCRProcessor(config)  # Initialize OCR processor
@@ -91,13 +96,28 @@ class DeepIngestor:
         except Exception as e:
             logger.warning(f"Failed to flush chunk batch: {e}")
 
-    def _merge_temp_parquets(self, final_path: Path) -> None:
-        """Merge all temporary parquet files into the final output."""
+    def _merge_temp_parquets(self, final_path: Path, resume: bool = False) -> None:
+        """Merge all temporary parquet files into the final output.
+        
+        Args:
+            final_path: Path to the final parquet file.
+            resume: If True, append to existing file instead of overwriting.
+        """
         if not self._temp_parquet_files:
             return
 
         try:
             all_dfs = []
+            
+            # If resuming, load existing data first
+            if resume and final_path.exists():
+                try:
+                    existing_df = pd.read_parquet(final_path)
+                    all_dfs.append(existing_df)
+                    logger.info(f"Loaded existing parquet with {len(existing_df)} rows for append")
+                except Exception as e:
+                    logger.warning(f"Failed to read existing parquet for resume: {e}")
+
             for temp_file in self._temp_parquet_files:
                 if temp_file.exists():
                     all_dfs.append(pd.read_parquet(temp_file))
@@ -151,56 +171,116 @@ class DeepIngestor:
         current_batch: List[Dict[str, Any]] = []
         total_chunks = 0
 
+        manager = self._metadata_manager or get_metadata_manager()
+        run_id = self._run_id_override or f"deep_{os.path.basename(str(self.input_folder))}_{int(pd.Timestamp.utcnow().timestamp())}"
+
+        if self._manage_run:
+            try:
+                manager.record_ingestion_run(run_id, str(self.input_folder), 0, None)
+            except Exception:
+                logger.warning("Failed to record deep ingestion run (auto)")
+
+        # Update status to running
+        try:
+            manager.update_ingestion_status(
+                run_id, "running", started_at=pd.Timestamp.utcnow().isoformat()
+            )
+        except Exception:
+            logger.warning(f"Failed to update run status to running for {run_id}")
+
         # Reset temp files for this run
         self._temp_parquet_files = []
         self._run_id = uuid.uuid4().hex[:8]
 
-        for path in files:
-            if resume and str(path) in processed_set:
-                continue
-            chunks = self._process_file(path)
-            if chunks:
-                current_batch.extend(chunks)
-                processed_files.append(str(path))
-
-                # Flush to disk when batch size reached (streaming save)
-                if len(current_batch) >= self.chunk_batch_size:
-                    self._flush_chunk_batch(current_batch)
-                    total_chunks += len(current_batch)
-                    current_batch = []  # Clear to free memory
-
-        # Flush any remaining chunks
-        if current_batch:
-            self._flush_chunk_batch(current_batch)
-            total_chunks += len(current_batch)
-
-        if total_chunks == 0 and not self._temp_parquet_files:
-            logger.warning("Deep ingest produced no chunks")
-            return {}
-
-        # Merge temp files into final parquet
-        parquet_path = self.output_dir / "chunks_deep.parquet"
-        if self._temp_parquet_files:
-            self._merge_temp_parquets(parquet_path)
-
-        manifest_path = self._write_manifest(total_chunks, processed_files)
-
-        # Record ingestion run
         try:
-            manager = get_metadata_manager()
-            run_id = f"deep_{os.path.basename(str(self.input_folder))}_{int(pd.Timestamp.utcnow().timestamp())}"
-            manager.record_ingestion_run(
-                run_id, str(self.input_folder), total_chunks, str(parquet_path)
-            )
-        except Exception:
-            logger.warning("Failed to record deep ingestion run to metadata DB")
+            for path in files:
+                if resume and str(path) in processed_set:
+                    continue
+                size_bytes = None
+                try:
+                    size_bytes = path.stat().st_size
+                except Exception:
+                    pass
 
-        return {
-            "chunks_parquet": str(parquet_path),
-            "manifest": str(manifest_path),
-            "chunks_count": total_chunks,
-            "processed_files": processed_files,
-        }
+                try:
+                    manager.mark_file_processing(run_id, str(path), size_bytes=size_bytes)
+                except Exception:
+                    logger.debug("Unable to mark file processing; continuing")
+
+                try:
+                    chunks = self._process_file(path)
+                    if chunks:
+                        current_batch.extend(chunks)
+                    processed_files.append(str(path))
+
+                    # Flush to disk when batch size reached (streaming save)
+                    if len(current_batch) >= self.chunk_batch_size:
+                        self._flush_chunk_batch(current_batch)
+                        total_chunks += len(current_batch)
+                        current_batch = []  # Clear to free memory
+
+                    try:
+                        manager.mark_file_succeeded(run_id, str(path), size_bytes=size_bytes)
+                    except Exception:
+                        logger.debug("Unable to mark file succeeded; continuing")
+                except Exception as exc:
+                    logger.warning(f"Failed processing file {path}: {exc}")
+                    try:
+                        manager.mark_file_failed(run_id, str(path), error=str(exc), size_bytes=size_bytes)
+                    except Exception:
+                        logger.debug("Unable to mark file failed; continuing")
+                    continue
+
+            # Flush any remaining chunks
+            if current_batch:
+                self._flush_chunk_batch(current_batch)
+                total_chunks += len(current_batch)
+
+            if total_chunks == 0 and not self._temp_parquet_files:
+                logger.warning("Deep ingest produced no chunks")
+                # Mark as completed even if empty? Or failed?
+                # Let's mark as completed with 0 chunks.
+                manager.update_ingestion_status(
+                    run_id, "completed", finished_at=pd.Timestamp.utcnow().isoformat()
+                )
+                return {}
+
+            # Merge temp files into final parquet
+            parquet_path = self.output_dir / "chunks_deep.parquet"
+            if self._temp_parquet_files:
+                self._merge_temp_parquets(parquet_path, resume=resume)
+
+            manifest_path = self._write_manifest(total_chunks, processed_files)
+
+            # Update ingestion run details
+            try:
+                manager.update_ingestion_run_details(
+                    run_id,
+                    chunks_count=total_chunks,
+                    output_parquet=str(parquet_path),
+                    status="completed",
+                    finished_at=pd.Timestamp.utcnow().isoformat(),
+                )
+            except Exception:
+                logger.warning("Failed to update deep ingestion run details")
+
+            return {
+                "run_id": run_id,
+                "chunks_parquet": str(parquet_path),
+                "manifest": str(manifest_path),
+                "chunks_count": total_chunks,
+                "processed_files": processed_files,
+            }
+
+        except Exception as e:
+            logger.error(f"Ingestion failed: {e}")
+            try:
+                manager.update_ingestion_status(
+                    run_id, "failed", finished_at=pd.Timestamp.utcnow().isoformat()
+                )
+            except Exception:
+                pass
+            raise e
 
     def _discover_files(self) -> List[Path]:
         """Return every supported file path under the input folder."""
