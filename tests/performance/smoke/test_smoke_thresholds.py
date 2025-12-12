@@ -60,11 +60,16 @@ def test_retrieval_latency_and_recall_constraints(
     threshold_ms = LATENCY_THRESHOLDS.get(env, 200)
 
     # Latency check with environment-aware threshold
-    overall_latency_p50 = metadata.get("avg_retrieval_latency_p50_ms", 0)
-    if overall_latency_p50 and overall_latency_p50 > 0:
-        assert (
-            overall_latency_p50 < threshold_ms
-        ), f"P50 latency {overall_latency_p50}ms exceeds {env} threshold {threshold_ms}ms"
+    overall_latency_p50 = metadata.get("avg_retrieval_latency_p50_ms")
+    assert overall_latency_p50 is not None and overall_latency_p50 > 0, (
+        "Expected retrieval latency metric avg_retrieval_latency_p50_ms to be present and > 0"
+    )
+    assert (
+        overall_latency_p50 < threshold_ms
+    ), f"P50 latency {overall_latency_p50}ms exceeds {env} threshold {threshold_ms}ms"
 
-    # Check recall at k present and > 0
-    assert metadata.get("avg_recall_at_k_5", 0) >= 0
+    # Recall should be present and non-trivial for the smoke dataset
+    recall_at_5 = metadata.get("avg_recall_at_k_5")
+    assert recall_at_5 is not None, "Expected avg_recall_at_k_5 to be present in metadata"
+    assert 0.0 <= recall_at_5 <= 1.0
+    assert recall_at_5 > 0.0, "Smoke retrieval produced zero recall@5"

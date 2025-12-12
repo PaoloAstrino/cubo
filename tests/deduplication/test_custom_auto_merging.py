@@ -7,15 +7,15 @@ pytest.importorskip("torch")
 
 import unittest
 
-from cubo.deduplication.custom_auto_merging import HierarchicalChunker
+from cubo.deduplication.custom_auto_merging import AutoMergingChunker
 
 
 class TestHierarchicalChunker(unittest.TestCase):
     def setUp(self):
-        self.chunker = HierarchicalChunker(chunk_sizes=[100, 50])
+        self.chunker = AutoMergingChunker(chunk_sizes=[100, 50])
 
     def test_initialization(self):
-        self.assertIsInstance(self.chunker, HierarchicalChunker)
+        self.assertIsInstance(self.chunker, AutoMergingChunker)
 
     def test_create_hierarchical_chunks(self):
         text = "This is a test document. " * 20

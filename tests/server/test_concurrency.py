@@ -39,7 +39,7 @@ def test_concurrent_build_and_query():
             t = threading.Thread(target=lambda: client.post("/api/build-index", json={"force_rebuild": True}),)
             t.start()
 
-            # While build runs, perform multiple queries
+            # While build runs, perform multiple queries; expect only 503/200 during build
             statuses = []
             for _ in range(5):
                 resp = client.post("/api/query", json={"query": "test", "top_k": 1})
@@ -48,8 +48,13 @@ def test_concurrent_build_and_query():
 
             t.join()
 
-            # Ensure none of the calls returned 500
+            # Ensure none of the calls returned 500 and all are in expected set
             assert not any(s == 500 for s in statuses)
+            assert set(statuses) <= {200, 503}, f"Unexpected statuses during build: {statuses}"
+
+            # After build completes, queries should succeed (200)
+            post_build = client.post("/api/query", json={"query": "test", "top_k": 1})
+            assert post_build.status_code == 200
 
 
 def test_build_index_crash_while_adding(tmp_path):

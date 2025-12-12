@@ -8,6 +8,7 @@ from pypdf import PdfReader
 from cubo.config import config
 from cubo.utils.logger import logger
 from cubo.utils.utils import Utils
+from cubo.ingestion.chunkers import ChunkerFactory
 
 
 class DocumentLoader:
@@ -32,13 +33,11 @@ class DocumentLoader:
             except Exception as e:
                 logger.warning(f"Enhanced processor not available: {e}")
 
-        # Initialize standard chunker
-        from .hierarchical_chunker import HierarchicalChunker
-        self.chunker = HierarchicalChunker(
-            max_chunk_size=config.get("chunk_size", 1000),
-            min_chunk_size=config.get("min_chunk_size", 100),
-            overlap_sentences=config.get("chunk_overlap_sentences", 1)
+        # Initialize chunker via factory (defaults to structure-preserving)
+        self.chunker_factory = ChunkerFactory(
+            default_window_size=config.get("chunk_window_size", 3),
         )
+        self.chunker = self.chunker_factory.for_text()
 
     def load_single_document(self, file_path: str, chunking_config: dict = None) -> List[dict]:
         """Load and process a single document file with automatic enhanced processing when available."""

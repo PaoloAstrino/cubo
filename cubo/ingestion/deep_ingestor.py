@@ -19,6 +19,7 @@ import pandas as pd
 from cubo.config import config
 from cubo.config.settings import settings
 from cubo.ingestion.document_loader import DocumentLoader
+from cubo.ingestion.chunkers import ChunkerFactory
 from cubo.ingestion.ocr_processor import OCRProcessor
 from cubo.storage.metadata_manager import get_metadata_manager
 from cubo.utils.logger import logger
@@ -72,6 +73,10 @@ class DeepIngestor:
         self._metadata_manager = metadata_manager
 
         self.loader = DocumentLoader(skip_model=True)
+        self.chunker_factory = ChunkerFactory(
+            default_window_size=self.chunking_config.get("window_size", 3),
+            table_rows_per_chunk=self.chunking_config.get("rows_per_chunk", csv_rows_per_chunk or 25),
+        )
         self.ocr_processor = OCRProcessor(config)  # Initialize OCR processor
         self.input_folder.mkdir(parents=True, exist_ok=True)  # Ensure input folder exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -428,9 +433,8 @@ class DeepIngestor:
                         has_text = True
                         # Use sentence window chunking across page content if it's large
                         # We'll call Utils.create_sentence_window_chunks for more granular matching
-                        from cubo.utils.utils import Utils
-
-                        s_chunks = Utils.create_sentence_window_chunks(
+                        pdf_chunker = self.chunker_factory.for_pdf()
+                        s_chunks = pdf_chunker.chunk(
                             text, window_size=self.chunking_config.get("window_size", 3)
                         )
                         for c in s_chunks:
@@ -481,9 +485,8 @@ class DeepIngestor:
             ocr_text = self.ocr_processor.extract_text(str(path))
             if ocr_text:
                 # Chunk the OCR text using sentence window chunking
-                from cubo.utils.utils import Utils
-
-                s_chunks = Utils.create_sentence_window_chunks(
+                pdf_chunker = self.chunker_factory.for_pdf()
+                s_chunks = pdf_chunker.chunk(
                     ocr_text, window_size=self.chunking_config.get("window_size", 3)
                 )
                 for c in s_chunks:

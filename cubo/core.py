@@ -15,6 +15,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from cubo.config import config
+from cubo.config.settings import settings
 from cubo.embeddings.model_loader import model_manager
 from cubo.ingestion.document_loader import DocumentLoader
 from cubo.processing.generator import create_response_generator
@@ -76,7 +77,15 @@ class CuboCore:
         # Initialize components - protect state mutation
         with self._state_lock:
             self.doc_loader = DocumentLoader()
-            self.retriever = DocumentRetriever(self.model)
+            # Inject settings directly from Pydantic models
+            self.retriever = DocumentRetriever(
+                self.model,
+                top_k=settings.retrieval.default_top_k,
+                window_size=settings.retrieval.default_window_size,
+                # TODO: Migrate these flags to RetrievalSettings in a future refactor
+                use_sentence_window=config.get("chunking.use_sentence_window", True),
+                use_reranker=config.get("retrieval.use_reranker", True),
+            )
             self.generator = create_response_generator()
             # Expose vector store from retriever for collection management
             if hasattr(self.retriever, "collection"):

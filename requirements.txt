@@ -31,6 +31,7 @@ python-json-logger
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
+aiofiles>=23.2.0
 huggingface_hub>=0.20.0
 datasets>=2.14.0
 

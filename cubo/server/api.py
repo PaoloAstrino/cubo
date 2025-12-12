@@ -5,10 +5,13 @@ import datetime
 import hashlib
 import io
 import json
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import aiofiles
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -489,7 +492,7 @@ async def initialize_components(request: Request):
     logger.info("Initializing heavyweight CUBO components on demand")
 
     # Trigger initialize_components which loads the model and sets up retriever/generator
-    success = cubo_app.initialize_components()
+    success = await run_in_threadpool(cubo_app.initialize_components)
     if not success:
         raise HTTPException(status_code=500, detail="Initialization failed")
 
@@ -544,26 +547,45 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
         raise HTTPException(status_code=400, detail="No filename provided")
 
     data_dir = Path("data")
-    data_dir.mkdir(exist_ok=True)
+    # Use run_in_threadpool for blocking mkdir
+    await run_in_threadpool(data_dir.mkdir, exist_ok=True)
 
-    file_path = data_dir / file.filename
-    content = await file.read()
+    # Sanitize filename
+    safe_filename = Path(file.filename).name
+    file_path = data_dir / safe_filename
+    
+    # Use a temporary file
+    temp_path = file_path.with_suffix(file_path.suffix + ".tmp")
 
-    with open(file_path, "wb") as f:
-        f.write(content)
+    try:
+        size = 0
+        async with aiofiles.open(temp_path, "wb") as f:
+            while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                await f.write(chunk)
+                size += len(chunk)
+        
+        # Atomic rename (using run_in_threadpool for os.replace)
+        await run_in_threadpool(os.replace, temp_path, file_path)
+        
+    except Exception as e:
+        # Cleanup temp file if it exists
+        if await run_in_threadpool(temp_path.exists):
+            await run_in_threadpool(os.remove, temp_path)
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
     logger.info(
         "File uploaded successfully",
         extra={
             "uploaded_filename": file.filename,
-            "size": len(content),
+            "size": size,
             "path": str(file_path),
         },
     )
 
     return UploadResponse(
         filename=file.filename,
-        size=len(content),
+        size=size,
         trace_id=request.state.trace_id,
         message=f"File {file.filename} uploaded successfully",
     )
@@ -573,23 +595,30 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
 async def list_documents(request: Request):
     """List uploaded documents."""
     data_dir = Path("data")
-    if not data_dir.exists():
+    
+    # Check existence in threadpool
+    exists = await run_in_threadpool(data_dir.exists)
+    if not exists:
         return []
 
-    documents = []
-    for file_path in data_dir.glob("*"):
-        if file_path.is_file():
-            stats = file_path.stat()
-            documents.append(
-                DocumentResponse(
-                    name=file_path.name,
-                    size=f"{stats.st_size / 1024 / 1024:.2f} MB",
-                    uploadDate=datetime.datetime.fromtimestamp(stats.st_mtime).strftime(
-                        "%Y-%m-%d"
-                    ),
+    def get_docs_info():
+        docs = []
+        # glob is blocking
+        for file_path in data_dir.glob("*"):
+            if file_path.is_file():
+                stats = file_path.stat()
+                docs.append(
+                    DocumentResponse(
+                        name=file_path.name,
+                        size=f"{stats.st_size / 1024 / 1024:.2f} MB",
+                        uploadDate=datetime.datetime.fromtimestamp(stats.st_mtime).strftime(
+                            "%Y-%m-%d"
+                        ),
+                    )
                 )
-            )
+        return docs
 
+    documents = await run_in_threadpool(get_docs_info)
     return documents
 
 
@@ -1139,51 +1168,64 @@ async def export_audit(
 
     # Read JSONL log files
     log_dir = Path(config.get("log_dir", "./logs"))
-    audit_entries = []
+    
+    # List files in threadpool
+    jsonl_files = await run_in_threadpool(lambda: sorted(list(log_dir.glob("*.jsonl*"))))
+    
+    async def audit_generator():
+        # Yield header for CSV
+        if format.lower() != "json":
+             output = io.StringIO()
+             writer = csv.DictWriter(output, fieldnames=["timestamp", "trace_id", "query_hash", "level", "component", "action"])
+             writer.writeheader()
+             yield output.getvalue()
 
-    # Look for JSONL logs
-    jsonl_files = list(log_dir.glob("*.jsonl*"))
-    for log_file in jsonl_files:
-        try:
-            with open(log_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        entry = json.loads(line)
-
-                        # Extract timestamp
-                        ts_str = entry.get("asctime", "")
-                        if not ts_str:
+        if format.lower() == "json":
+            yield '{"audit_entries": ['
+        
+        first_entry = True
+        
+        for log_file in jsonl_files:
+            try:
+                async with aiofiles.open(log_file, "r", encoding="utf-8") as f:
+                    async for line in f:
+                        line = line.strip()
+                        if not line:
                             continue
-
-                        try:
-                            ts = datetime.datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
-                        except ValueError:
-                            continue
-
-                        # Apply date filters
-                        if start_dt and ts < start_dt:
-                            continue
-                        if end_dt and ts > end_dt:
-                            continue
-
-                        # Extract relevant info for audit
-                        trace = entry.get("trace_id", "")
-                        message = entry.get("message", "")
-
-                        # Hash query for privacy (GDPR)
-                        query_text = ""
                         
-                        # Try to extract query from structured message
-                        if isinstance(message, str) and "query" in message.lower():
-                            # Hash any query text found
-                            query_hash = hashlib.sha256(message.encode()).hexdigest()[:16]
-                            query_text = f"[hashed:{query_hash}]"
+                        try:
+                            entry = json.loads(line)
 
-                        audit_entries.append(
-                            {
+                            # Extract timestamp
+                            ts_str = entry.get("asctime", "")
+                            if not ts_str:
+                                continue
+
+                            try:
+                                ts = datetime.datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S,%f")
+                            except ValueError:
+                                continue
+
+                            # Apply date filters
+                            if start_dt and ts < start_dt:
+                                continue
+                            if end_dt and ts > end_dt:
+                                continue
+
+                            # Extract relevant info for audit
+                            trace = entry.get("trace_id", "")
+                            message = entry.get("message", "")
+
+                            # Hash query for privacy (GDPR)
+                            query_text = ""
+                            
+                            # Try to extract query from structured message
+                            if isinstance(message, str) and "query" in message.lower():
+                                # Hash any query text found
+                                query_hash = hashlib.sha256(message.encode()).hexdigest()[:16]
+                                query_text = f"[hashed:{query_hash}]"
+
+                            audit_entry = {
                                 "timestamp": ts.isoformat(),
                                 "trace_id": trace,
                                 "query_hash": query_text,
@@ -1195,49 +1237,31 @@ async def export_audit(
                                     else str(message)[:200]
                                 ),
                             }
-                        )
+                        
+                            if format.lower() == "json":
+                                if not first_entry:
+                                    yield ", "
+                                yield json.dumps(audit_entry)
+                                first_entry = False
+                            else:
+                                output = io.StringIO()
+                                writer = csv.DictWriter(output, fieldnames=["timestamp", "trace_id", "query_hash", "level", "component", "action"])
+                                writer.writerow(audit_entry)
+                                yield output.getvalue()
 
-                    except json.JSONDecodeError:
-                        continue
-        except Exception as e:
-            logger.warning(f"Failed to read log file {log_file}: {e}")
+                        except json.JSONDecodeError:
+                            continue
+                            
+            except Exception as e:
+                logger.warning(f"Failed to read log file {log_file}: {e}")
 
-    # Sort by timestamp
-    audit_entries.sort(key=lambda x: x["timestamp"])
+        if format.lower() == "json":
+            yield '], "count": null}'
 
-    if format.lower() == "json":
-        # Return JSON
-        content = json.dumps(
-            {"audit_entries": audit_entries, "count": len(audit_entries)}, indent=2
-        )
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8")),
-            media_type="application/json",
-            headers={
-                "Content-Disposition": f"attachment; filename=cubo_audit_{datetime.date.today().isoformat()}.json"
-            },
-        )
-    else:
-        # Return CSV
-        output = io.StringIO()
-        writer = csv.DictWriter(
-            output,
-            fieldnames=[
-                "timestamp",
-                "trace_id",
-                "query_hash",
-                "level",
-                "component",
-                "action",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(audit_entries)
-
-        return StreamingResponse(
-            io.BytesIO(output.getvalue().encode("utf-8")),
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename=cubo_audit_{datetime.date.today().isoformat()}.csv"
-            },
-        )
+    return StreamingResponse(
+        audit_generator(),
+        media_type="application/json" if format.lower() == "json" else "text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=cubo_audit_{datetime.date.today().isoformat()}.{'json' if format.lower() == 'json' else 'csv'}"
+        },
+    )

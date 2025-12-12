@@ -18,8 +18,8 @@ from cubo.retrieval.vector_store import create_vector_store
 from cubo.utils.logger import logger
 
 
-class HierarchicalChunker:
-    """Creates hierarchical chunks at multiple levels."""
+class AutoMergingChunker:
+    """Creates hierarchical chunks at multiple levels for auto-merging retrieval."""
 
     def __init__(self, chunk_sizes: List[int] = None):
         if chunk_sizes is None:
@@ -392,7 +392,7 @@ class AutoMergingRetriever:
                 "AutoMergingRetriever requires 'sentence_transformers' to be installed and a model instance to be provided."
             )
         self.model = model
-        self.chunker = HierarchicalChunker()
+        self.chunker = AutoMergingChunker()
         self.collection_name = "cubo_auto_merging"
         self.loaded_documents = set()
 

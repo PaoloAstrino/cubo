@@ -60,7 +60,7 @@ class LocalResponseGenerator:
             # relying on what's passed is safer for now.
 
         # Add current user query with context
-        user_content = f"Context: {context}\n\nQuestion: {query}"
+        user_content = self.chat_template_manager.format_user_message(context, query)
         convo.append({"role": "user", "content": user_content})
 
         # Use ChatTemplateManager to format

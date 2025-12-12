@@ -1,6 +1,5 @@
 import pytest
 from cubo.ingestion.document_loader import DocumentLoader
-from cubo.utils.exceptions import FileAccessError
 
 def test_corrupted_pdf_handling(tmp_path):
     """
@@ -41,5 +40,5 @@ def test_huge_file_limit(tmp_path):
     # We want to verify it doesn't try to read 15MB into RAM if we intended to block it.
     
     docs = loader.load_documents_from_folder(str(tmp_path))
-    # Depending on implementation, this might return [] or fail validation
-    # We just ensure no crash.
+    # DocumentLoader validates size and returns [] on failure.
+    assert docs == [], "Expected oversized file to be skipped (no chunks returned)"

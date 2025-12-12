@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- Refactored file I/O in API to be fully async using `aiofiles` and threadpools for high concurrency.
+- Updated `/api/upload` to support streaming uploads with atomic writes.
+- Updated `/api/export-audit` to stream large logs efficiently.
 - Removed all ChromaDB references and defaulted vector store to FAISS.
 - Converted root-level script tests to proper pytest tests in tests/api/.
 - Updated requirements-dev.txt to include 'requests' for test dependencies.
