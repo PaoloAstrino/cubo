@@ -136,7 +136,7 @@ export function LLMSettings() {
                                                 <CommandItem
                                                     key={model.name}
                                                     value={model.name}
-                                                    onSelect={(currentValue) => handleSelect(model.name)} 
+                                                    onSelect={() => handleSelect(model.name)} 
                                                 >
                                                     <Check
                                                         className={cn(
