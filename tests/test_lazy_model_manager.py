@@ -215,6 +215,9 @@ class TestLazyModelManager(unittest.TestCase):
         orig_dim = _cfg.get("index_dimension", None)
 
         try:
+            # Ensure the setUp manager is loaded (without network calls) so we can validate it remains loaded
+            from cubo.embeddings.lazy_model_manager import _LightweightModel
+            self.manager._model = _LightweightModel(dim=int(_cfg.get("index_dimension", 64) or 64))
             # Force laptop mode and set index dim to a test value
             _cfg.set("index_dimension", 128)
             _cfg.set("laptop_mode", True)
@@ -235,7 +238,7 @@ class TestLazyModelManager(unittest.TestCase):
         time.sleep(1)
 
         # Model should still be loaded
-        self.assertTrue(manager.is_loaded())
+        self.assertTrue(self.manager.is_loaded())
 
 
 class TestLazyModelManagerIntegration(unittest.TestCase):

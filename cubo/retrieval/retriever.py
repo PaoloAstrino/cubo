@@ -905,6 +905,13 @@ class FaissHybridRetriever:
         query_embedding = self.embedding_generator.encode([query])[0]
         faiss_results = self.faiss_manager.search(query_embedding, k=top_k)
         fused = rrf_fuse(bm25_results, faiss_results)
+        # Ensure fused entries have unified keys expected by downstream code
+        for r in fused:
+            if "doc_id" not in r and "id" in r:
+                r["doc_id"] = r["id"]
+            if "score" not in r:
+                # score should be the fused 'similarity' if present
+                r["score"] = r.get("similarity", r.get("bm25_score", 0) + r.get("semantic_score", 0))
         fused.sort(key=lambda x: x.get("score", 0), reverse=True)
         results = [
             self.documents[r["doc_id"]] for r in fused[:top_k] if r.get("doc_id") in self.documents

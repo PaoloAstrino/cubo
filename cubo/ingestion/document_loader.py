@@ -9,6 +9,7 @@ from cubo.config import config
 from cubo.utils.logger import logger
 from cubo.utils.utils import Utils
 from cubo.ingestion.chunkers import ChunkerFactory
+from cubo.ingestion.pdf_parser import AdvancedPDFParser
 
 
 class DocumentLoader:
@@ -20,6 +21,16 @@ class DocumentLoader:
         )
         self.enhanced_processor = None
         self.skip_model = skip_model
+        
+        # Initialize advanced parser if configured
+        self.parser_type = config.get("parser", "basic")
+        self.advanced_parser = None
+        if self.parser_type == "advanced":
+            try:
+                self.advanced_parser = AdvancedPDFParser()
+            except Exception as e:
+                logger.warning(f"Failed to initialize AdvancedPDFParser: {e}. Falling back to basic.")
+                self.parser_type = "basic"
 
         # Try to load enhanced processor if Dolphin is enabled
         if not self.skip_model and config.get("dolphin", {}).get("enabled", False):
@@ -96,6 +107,14 @@ class DocumentLoader:
             doc = Document(file_path)
             return "\n".join([para.text for para in doc.paragraphs])
         elif file_ext == ".pdf":
+            # Use advanced parser if configured
+            if self.parser_type == "advanced" and self.advanced_parser:
+                try:
+                    return self.advanced_parser.parse(file_path)
+                except Exception as e:
+                    logger.error(f"Advanced parsing failed for {file_path}: {e}. Falling back to basic.")
+            
+            # Basic parsing (pypdf)
             # Open file in binary mode to avoid leaving handles open on Windows
             text = ""
             with open(file_path, "rb") as fh:
@@ -124,12 +143,14 @@ class DocumentLoader:
         """
         text = Utils.clean_text(text)
         
-        # Use HierarchicalChunker
-        # If specific config overrides are needed, we could re-init chunker, 
-        # but for now we rely on the instance initialized with config.
-        # Future: apply chunking_config overrides here if strict requirement.
-        
-        chunks = self.chunker.chunk(text, format_type="auto")
+        # Select chunker based on file type: PDFs and docx prefer sentence-window chunking
+        _, ext = os.path.splitext(file_path)
+        ext = ext.lower()
+        if ext in {".pdf", ".docx"}:
+            chunker = self.chunker_factory.for_pdf()
+        else:
+            chunker = self.chunker_factory.for_text()
+        chunks = chunker.chunk(text, format_type="auto")
 
         self._embed_file_metadata(chunks, file_path)
         self._log_chunking_results(file_path, chunks, {"method": "hierarchical"})

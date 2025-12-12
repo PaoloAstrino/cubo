@@ -109,9 +109,14 @@ class ModelInferenceThreading:
         self.inference_stats["embeddings_generated"] += len(texts)
         self.inference_stats["total_embedding_time"] += total_time
 
+        # Avoid division by zero when execution was extremely fast
+        if total_time > 0:
+            rate = f"{len(texts)/total_time:.1f}"
+        else:
+            rate = "N/A"
         logger.info(
             f"Threaded embedding completed: {len(all_embeddings)} embeddings "
-            f"in {total_time:.2f}s ({len(texts)/total_time:.1f} texts/sec)"
+            f"in {total_time:.2f}s ({rate} texts/sec)"
         )
 
         return all_embeddings

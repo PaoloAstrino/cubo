@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 from cubo.retrieval.bm25_store import BM25Store
 from cubo.retrieval.constants import BM25_B, BM25_K1, BM25_NORMALIZATION_FACTOR
 from cubo.retrieval.multilingual_tokenizer import MultilingualTokenizer
+from cubo.utils.lemmatizer import SimplemmaLemmatizer
 
 
 class BM25PythonStore(BM25Store):
@@ -40,15 +41,17 @@ class BM25PythonStore(BM25Store):
     K1 = BM25_K1  # Term frequency saturation parameter
     B = BM25_B  # Document length normalization parameter
 
-    def __init__(self, index_dir: Optional[str] = None, **kwargs):
+    def __init__(self, index_dir: Optional[str] = None, use_lemmatization: bool = False, **kwargs):
         """Initialize empty BM25 index.
 
         Args:
             index_dir: Optional directory for persisting index stats.
                        Currently stored for reference but not auto-loaded.
+            use_lemmatization: Whether to use simplemma for lemmatization instead of stemming.
             **kwargs: Additional arguments (ignored for forward compatibility).
         """
         self.index_dir = index_dir
+        self.use_lemmatization = use_lemmatization
         self.docs = []
         self.doc_lengths = {}
         self.avg_doc_length = 0.0
@@ -57,9 +60,14 @@ class BM25PythonStore(BM25Store):
         self.postings = defaultdict(list)  # term -> list of doc_ids (posting lists)
         self.docs_map = {}  # doc_id -> doc dict
 
+        # Initialize lemmatizer if requested
+        self.lemmatizer = None
+        if self.use_lemmatization:
+            self.lemmatizer = SimplemmaLemmatizer()
+
         # Initialize multilingual tokenizer
         try:
-            self.tokenizer = MultilingualTokenizer(use_stemming=True, min_token_length=2)
+            self.tokenizer = MultilingualTokenizer(use_stemming=not self.use_lemmatization, min_token_length=2)
             self.use_multilingual = True
         except ImportError:
             # Fallback to naive tokenization if dependencies not available
@@ -143,6 +151,15 @@ class BM25PythonStore(BM25Store):
         Returns:
             List of stemmed tokens (or lowercase tokens if multilingual disabled).
         """
+        if self.use_lemmatization and self.lemmatizer and self.lemmatizer.is_available():
+            # Use MultilingualTokenizer for language detection if available
+            if language == "auto" and self.tokenizer:
+                language = self.tokenizer.detect_language(text)
+            
+            # Use simplemma for lemmatization
+            # Note: simplemma.text_lemmatizer handles tokenization too
+            return self.lemmatizer.lemmatize_text(text, lang=language)
+
         if self.use_multilingual and self.tokenizer:
             # Use multilingual tokenizer with stemming
             return self.tokenizer.tokenize(text, language=language)

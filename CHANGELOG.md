@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - Refactored file I/O in API to be fully async using `aiofiles` and threadpools for high concurrency.
+- Added `simplemma` integration for multilingual lemmatization in BM25 retrieval (configurable via `bm25.use_lemmatization`).
+- Introduced `AdvancedPDFParser` using PyMuPDF (fitz) and EasyOCR for handling complex layouts and scanned documents.
+- Added `parser` configuration option (default: `basic`, set to `advanced` to enable PyMuPDF/EasyOCR).
 - Updated `/api/upload` to support streaming uploads with atomic writes.
 - Updated `/api/export-audit` to stream large logs efficiently.
 - Removed all ChromaDB references and defaulted vector store to FAISS.

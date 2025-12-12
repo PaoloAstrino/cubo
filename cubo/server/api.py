@@ -643,9 +643,13 @@ async def create_collection(collection_data: CollectionCreate, request: Request)
     if not cubo_app or not cubo_app.vector_store:
         raise HTTPException(status_code=503, detail="CUBO app not initialized")
 
-    collection = cubo_app.vector_store.create_collection(
-        name=collection_data.name, color=collection_data.color
-    )
+    try:
+        collection = cubo_app.vector_store.create_collection(
+            name=collection_data.name, color=collection_data.color
+        )
+    except ValueError as e:
+        # Map ValueError from store to HTTP 409 for duplicate collections
+        raise HTTPException(status_code=409, detail=str(e))
     logger.info(f"Created collection: {collection['name']}")
     return CollectionResponse(**collection)
 

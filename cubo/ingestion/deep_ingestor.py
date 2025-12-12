@@ -101,7 +101,7 @@ class DeepIngestor:
         except Exception as e:
             logger.warning(f"Failed to flush chunk batch: {e}")
 
-    def _merge_temp_parquets(self, final_path: Path, resume: bool = False) -> None:
+    def _merge_temp_parquets(self, final_path: Path, resume: bool = False) -> Path | None:
         """Merge all temporary parquet files into the final output.
         
         Args:
@@ -130,6 +130,18 @@ class DeepIngestor:
             if all_dfs:
                 merged_df = pd.concat(all_dfs, ignore_index=True)
                 merged_df.to_parquet(final_path, index=False, engine="pyarrow")
+                # If resuming, also write appended-only parquet containing only new temp files
+                if resume:
+                    try:
+                        appended_dfs = [pd.read_parquet(f) for f in self._temp_parquet_files if f.exists()]
+                        if appended_dfs:
+                            appended_df = pd.concat(appended_dfs, ignore_index=True)
+                            appended_path = final_path.with_name(f"chunks_deep_appended_{self._run_id}.parquet")
+                            appended_df.to_parquet(appended_path, index=False, engine="pyarrow")
+                            logger.info(f"Saved appended chunks parquet to {appended_path}")
+                            return appended_path
+                    except Exception:
+                        logger.warning("Failed to save appended-only parquet for resume")
                 logger.info(
                     f"Merged {len(self._temp_parquet_files)} temp files into {final_path.name}"
                 )
@@ -252,8 +264,9 @@ class DeepIngestor:
 
             # Merge temp files into final parquet
             parquet_path = self.output_dir / "chunks_deep.parquet"
+            appended_parquet = None
             if self._temp_parquet_files:
-                self._merge_temp_parquets(parquet_path, resume=resume)
+                appended_parquet = self._merge_temp_parquets(parquet_path, resume=resume)
 
             manifest_path = self._write_manifest(total_chunks, processed_files)
 
@@ -269,13 +282,18 @@ class DeepIngestor:
             except Exception:
                 logger.warning("Failed to update deep ingestion run details")
 
-            return {
+            result = {
                 "run_id": run_id,
                 "chunks_parquet": str(parquet_path),
                 "manifest": str(manifest_path),
                 "chunks_count": total_chunks,
                 "processed_files": processed_files,
             }
+            if appended_parquet:
+                result["appended_parquet"] = str(appended_parquet)
+                # Keep `chunks_parquet` pointing to the merged final parquet file
+                # so callers receive the combined output when resuming.
+            return result
 
         except Exception as e:
             logger.error(f"Ingestion failed: {e}")

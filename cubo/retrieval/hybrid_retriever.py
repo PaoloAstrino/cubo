@@ -52,6 +52,16 @@ class HybridRetriever:
 
         # 3. Fuse results (naive fusion)
         fused_results = self._fuse_results(bm25_results, faiss_results)
+        # Ensure compatibility with other retriever outputs: provide a unified 'score' and 'doc_id'
+        for res in fused_results:
+            if "score" not in res:
+                if "similarity" in res:
+                    res["score"] = res["similarity"]
+                elif "bm25_score" in res or "semantic_score" in res:
+                    # fallback: sum of available scores
+                    res["score"] = res.get("bm25_score", 0.0) + res.get("semantic_score", 0.0)
+            if "doc_id" not in res and "id" in res:
+                res["doc_id"] = res["id"]
 
         # 4. Sort and return top-k
         fused_results.sort(key=lambda x: x["score"], reverse=True)

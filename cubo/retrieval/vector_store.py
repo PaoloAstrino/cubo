@@ -677,9 +677,21 @@ class FaissStore(VectorStore):
                 for i, did in enumerate(ids):
                     doc = documents[i] if documents and i < len(documents) else ""
                     meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+                    # Prepare metadata for JSON storage: convert numpy arrays/ndarrays to lists
+                    def _prepare(obj):
+                        if isinstance(obj, np.ndarray):
+                            return obj.tolist()
+                        if isinstance(obj, (np.floating, np.integer, np.bool_)):
+                            return obj.item()
+                        if isinstance(obj, dict):
+                            return {k: _prepare(v) for k, v in obj.items()}
+                        if isinstance(obj, list):
+                            return [_prepare(x) for x in obj]
+                        return obj
+                    meta_jsonable = _prepare(meta)
                     conn.execute(
                         "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)",
-                        (did, doc, json.dumps(meta)),
+                        (did, doc, json.dumps(meta_jsonable)),
                     )
                     # Update cache
                     self._doc_cache.put(did, doc, meta)

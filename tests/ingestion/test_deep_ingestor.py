@@ -91,7 +91,7 @@ def test_deep_ingestor_resume(tmp_path: Path):
     # Add a new file and resume
     (folder / "b.txt").write_text("This is a test file B with different content.")
     res2 = DeepIngestor(input_folder=str(folder), output_dir=str(output)).ingest(resume=True)
-    parquet2 = res2.get("chunks_parquet")
+    parquet2 = res2.get("appended_parquet")
     # New parquet should exist and only contain new files
     assert parquet2
     df2 = pd.read_parquet(parquet2)

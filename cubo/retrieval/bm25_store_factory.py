@@ -14,6 +14,11 @@ def get_bm25_store(backend: Optional[str] = None, **kwargs):
     """
     backend = backend or config.get("bm25.backend", "python")
     backend = backend.lower() if isinstance(backend, str) else "python"
+
+    # Inject lemmatization config if not provided
+    if "use_lemmatization" not in kwargs:
+        kwargs["use_lemmatization"] = config.get("bm25.use_lemmatization", False)
+
     # Default to Python-based BM25 store implementation
     if backend == "python":
         from cubo.retrieval.bm25_python_store import BM25PythonStore
