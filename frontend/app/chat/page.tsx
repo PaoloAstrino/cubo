@@ -336,15 +336,17 @@ function ChatContent() {
               placeholder={
                 hasDocuments === false 
                   ? "Upload documents first..." 
-                  : activeCollection 
-                    ? `Ask about "${activeCollection.name}"...`
-                    : "Ask a question about your documents..."
+                  : (activeCollection && activeCollection.document_count === 0)
+                    ? "This collection is empty..."
+                    : activeCollection 
+                      ? `Ask about "${activeCollection.name}"...`
+                      : "Ask a question about your documents..."
               }
               aria-label="Ask a question about your documents"
-              disabled={isLoading || hasDocuments === false || !isReady}
+              disabled={isLoading || hasDocuments === false || !isReady || (activeCollection?.document_count === 0)}
               className="flex-1"
             />
-            <Button type="submit" disabled={isLoading || !inputValue.trim() || hasDocuments === false}>
+            <Button type="submit" disabled={isLoading || !inputValue.trim() || hasDocuments === false || (activeCollection?.document_count === 0)}>
               Send
             </Button>
           </form>

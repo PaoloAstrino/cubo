@@ -56,9 +56,35 @@ async def lifespan(app: FastAPI):
     print(">>> LIFESPAN: Starting", flush=True)
     logger.info("Initializing CUBO application")
     try:
+        # Preload Ollama model (fire-and-forget to warm up the LLM)
+        try:
+            import requests
+            model_name = config.get("llm_model")
+            if model_name:
+                logger.info(f"Preloading Ollama model: {model_name}")
+                requests.post(
+                    "http://localhost:11434/api/generate",
+                    json={"model": model_name, "prompt": "", "keep_alive": "60m"},
+                    timeout=0.1
+                )
+        except Exception:
+            # Ignore errors here (e.g. timeout, connection refused, missing requests)
+            # The app should still start even if preloading fails
+            pass
+
         try:
             cubo_app = CuboCore()
             service_manager = ServiceManager()
+            
+            # Auto-initialize components in background to ensure readiness without blocking startup
+            import threading
+            def _auto_init():
+                logger.info("Auto-initializing RAG components in background...")
+                cubo_app.initialize_components()
+                logger.info("Auto-initialization complete.")
+            
+            threading.Thread(target=_auto_init, daemon=True).start()
+            
             logger.info("CUBO application initialized successfully")
         except Exception as init_error:
             logger.warning(f"CUBOApp initialization failed: {init_error}")
@@ -965,6 +991,10 @@ async def query(request_data: QueryRequest, request: Request):
             )
         else:
             logger.warning(f"Collection {request_data.collection_id} has no documents")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Collection '{request_data.collection_id}' has no documents. Please add documents to this collection before querying.",
+            )
 
     # Retrieve documents using the correct method
     retrieve_kwargs = {
