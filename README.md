@@ -55,31 +55,46 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - 🔧 **Architecture**: Added postprocessor module for enhanced retrieval with WindowReplacementPostProcessor and LocalReranker
 - 🐛 **Bug Fixes**: Resolved circular import issues and improved error handling
 
-## Quick Start
+## Getting Started
 
-### Web Interface (Recommended)
+Choose the installation method that matches your needs:
 
-```bash
-# Install with all features (recommended for first-time users)
-pip install -e ".[full]"
-cd frontend && pnpm install && cd ..
+### 1. "Low-Spec" / Native User (Recommended for Windows)
+**Goal:** Zero Setup. "I have a Windows laptop. I don't know what Docker is."
 
-# Start both backend and frontend
-python scripts/start_fullstack.py
-```
+Just double-click `start.bat` in the root folder.
+This script will automatically:
+1. Create a virtual environment (`.venv`)
+2. Install all dependencies
+3. Launch the full stack (Backend + Frontend)
 
-Visit:
-- Frontend: http://localhost:3000
-- API Docs: http://localhost:8000/docs
-
-See [API Integration Guide](docs/API_INTEGRATION.md) for details.
-
-### Desktop GUI
+### 2. Developer Library
+**Goal:** Integration. "I want to add RAG to my Python script."
 
 ```bash
-pip install -e ".[full,gui]"
-python launch_gui.py
+pip install cubo
 ```
+
+Usage:
+```python
+from cubo import CuboCore
+
+# Initialize RAG system
+rag = CuboCore()
+rag.initialize_components()
+
+# Query your documents
+response = rag.query("What is the invoice total?")
+print(response)
+```
+
+### 3. Docker User
+**Goal:** Enterprise/Server Deployment. "I want to host this on my server."
+
+```bash
+docker-compose up --build
+```
+The system will be available at `http://localhost:3000`.
 
 ## Installation Options
 

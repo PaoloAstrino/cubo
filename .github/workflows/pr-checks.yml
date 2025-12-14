@@ -104,26 +104,24 @@ jobs:
           pytest tests/smoke -q
         env:
           PYTHONPATH: ${{ github.workspace }}
+  frontend-audit:
+    name: Frontend dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-    frontend-audit:
-      name: Frontend dependency audit
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-        - name: Set up Node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: '20'
-            cache: 'npm'
-
-        - name: Install frontend dependencies
-          run: |
-            cd frontend
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
           npm install
-            cd frontend
-            npm audit --audit-level=high || true
-          continue-on-error: false
+          npm audit --audit-level=high || true
+        continue-on-error: false
 
   pr-summary:
     name: PR Check Summary

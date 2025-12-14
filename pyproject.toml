@@ -47,6 +47,7 @@ dependencies = [
     "python-docx>=1.0.0",
     "pypdf>=3.0.0",
     "pdfplumber>=0.10.3",
+    "nltk>=3.8.1",
     "simplemma>=0.9.0",
     "pymupdf>=1.23.0",
     "easyocr>=1.7.0",
@@ -162,10 +163,10 @@ cubo-server = "cubo.server.run:main"
 cubo-gui = "cubo.gui.main:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
 include = ["cubo*"]
 namespaces = false
 

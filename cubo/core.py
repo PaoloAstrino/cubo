@@ -205,6 +205,20 @@ class CuboCore:
         with self._state_lock:
             return self.generator.generate_response(query=query, context=context, trace_id=trace_id)
 
+    def query(self, query: str, top_k: int = None) -> str:
+        """
+        Simple query interface for developers.
+        
+        Args:
+            query: User's question
+            top_k: Number of context documents to retrieve
+            
+        Returns:
+            Generated answer string.
+        """
+        result = self.query_and_generate(query, top_k)
+        return result["answer"]
+
     def query_and_generate(
         self, query: str, top_k: int = None, trace_id: Optional[str] = None
     ) -> Dict[str, Any]:

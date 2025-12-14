@@ -21,7 +21,7 @@ except Exception:
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from cubo.config import setup_logging
+# from cubo.config import setup_logging
 
 logger = logging.getLogger("cubo.fullstack")
 
@@ -218,7 +218,7 @@ def initialize_rag_system(backend_url: str) -> bool:
 )
 @click.option(
     "--backend-path",
-    default="src/cubo/server/run.py",
+    default="cubo/server/run.py",
     help="Path to backend run.py script.",
     show_default=True,
 )
@@ -256,7 +256,7 @@ def main(
 ):
     """Start CUBO full stack (backend + frontend)."""
     # Setup logging
-    setup_logging(level=log_level)
+    logging.basicConfig(level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("=" * 60)
     logger.info("Starting CUBO Full Stack")

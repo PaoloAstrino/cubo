@@ -49,7 +49,7 @@ class ModelInferenceThreading:
         }
 
     def generate_embeddings_threaded(
-        self, texts: List[str], embedding_model, batch_size: int = 8, timeout_per_batch: int = 60
+        self, texts: List[str], embedding_model, batch_size: int = 8, timeout_per_batch: int = 600
     ) -> List[List[float]]:
         """
         Generate embeddings using threaded batching.

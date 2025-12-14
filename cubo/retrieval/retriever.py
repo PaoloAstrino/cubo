@@ -483,14 +483,15 @@ class DocumentRetriever:
             else:
                 results = self._retrieve_sentence_window(query, top_k, strategy, trace_id)
 
-            if trace_id:
-                self._record_trace(trace_id, results)
-
             # Normalize metadata shape for backward compatibility
             try:
                 self._normalize_result_metadata(results)
             except Exception:
                 pass
+
+            # Record trace AFTER normalization to avoid metadata type errors
+            if trace_id:
+                self._record_trace(trace_id, results)
 
             # Ensure we always return up to 'top_k' results when there are enough
             # documents in the collection. Some pipelines can produce fewer
@@ -714,8 +715,12 @@ class DocumentRetriever:
                     "method": "hybrid" if self.use_auto_merging else "sentence_window",
                     "candidates": [
                         {
-                            "id": r.get("metadata", {}).get("id", ""),
-                            "similarity": r.get("similarity", 0),
+                            "id": (
+                                (r.get("metadata") or {}).get("id")
+                                if isinstance(r, dict)
+                                else None
+                            ),
+                            "similarity": (r.get("similarity", 0) if isinstance(r, dict) else 0),
                         }
                         for r in results[:10]
                     ],
@@ -731,7 +736,19 @@ class DocumentRetriever:
         If metadata is a list (e.g., merged/auto-merged candidates), pick a best
         single metadata dict to preserve backward compatibility.
         """
-        for r in results:
+        for idx, r in enumerate(results):
+            # If the result itself is not a dict, coerce to a dict to maintain downstream
+            # expectations (e.g., .get on metadata) and provide stable fields.
+            if not isinstance(r, dict):
+                results[idx] = {
+                    "document": str(r) if r is not None else "",
+                    "metadata": {},
+                    "similarity": 0.0,
+                    "base_similarity": 0.0,
+                    "id": None,
+                }
+                continue
+
             try:
                 md = r.get("metadata")
                 if isinstance(md, dict):

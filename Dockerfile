@@ -52,6 +52,9 @@ COPY --chown=cubo:cubo . .
 # Switch to non-root user
 USER cubo
 
+# Pre-download models (NLTK, EasyOCR) to avoid runtime timeouts
+RUN python scripts/download_models.py
+
 # Expose API port
 EXPOSE 8000
 

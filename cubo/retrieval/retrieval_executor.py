@@ -24,6 +24,29 @@ from cubo.utils.logger import logger
 from cubo.config import config
 
 
+def extract_chunk_id(candidate: Any) -> Optional[str]:
+    """Utility to extract a stable chunk/document id from a retrieval candidate.
+
+    Many parts of the codebase expect a consistent callable for deduplication.
+    This helper mirrors the common access pattern in result dicts.
+    """
+    if not isinstance(candidate, dict):
+        return None
+    # Top-level fields
+    for k in ("id", "doc_id", "chunk_id"):
+        val = candidate.get(k)
+        if val:
+            return str(val)
+    # Fallback to metadata id
+    meta = candidate.get("metadata") or {}
+    if isinstance(meta, dict):
+        for k in ("id", "doc_id", "chunk_id"):
+            val = meta.get(k)
+            if val:
+                return str(val)
+    return None
+
+
 class RetrievalExecutor:
     """
     Executes retrieval operations against vector stores and BM25 indexes.

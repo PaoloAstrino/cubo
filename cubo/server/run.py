@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-project_root = Path(__file__).parent.parent.parent.parent
+project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
 import uvicorn
@@ -27,7 +27,7 @@ def run_server(
 
     # Use loop="asyncio" and limit_max_requests to avoid Windows signal issues
     config = uvicorn.Config(
-        "src.cubo.server.api:app",
+        "cubo.server.api:app",
         host=host,
         port=port,
         reload=reload,
