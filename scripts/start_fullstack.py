@@ -31,7 +31,8 @@ def main():
     print(">>> Starting Backend (http://localhost:8000)...")
     backend_env = os.environ.copy()
     backend_env["PYTHONPATH"] = str(ROOT)
-    backend_cmd = [sys.executable, "cubo/server/run.py"]
+    # Enable reload by default for dev experience
+    backend_cmd = [sys.executable, "cubo/server/run.py", "--reload"]
     
     backend = subprocess.Popen(
         backend_cmd,

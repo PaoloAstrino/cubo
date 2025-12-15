@@ -170,6 +170,13 @@ def main():
         sys.exit(1)
     
     index_dir = Path(args.index_dir)
+    
+    # CRITICAL: Delete existing index completely to prevent stale FAISS index files
+    if index_dir.exists():
+        logger.info(f"Removing existing index at {index_dir}")
+        import shutil
+        shutil.rmtree(index_dir, ignore_errors=True)
+    
     index_dir.mkdir(parents=True, exist_ok=True)
     
     # Load corpus

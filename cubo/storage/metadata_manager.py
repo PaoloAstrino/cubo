@@ -141,6 +141,34 @@ class MetadataManager:
         except Exception:
             # Ignore failures; older DBs may not have scaffold_runs table and we'll rely on CREATE TABLE IF NOT EXISTS
             pass
+        
+        # --- Chat Persistence Schema ---
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY,
+                created_at TEXT,
+                updated_at TEXT,
+                title TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT,
+                role TEXT,
+                content TEXT,
+                created_at TEXT,
+                metadata TEXT,
+                FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id)")
+        self.conn.commit()
+
         # Ensure scaffold_mappings has expected columns (for older DBs/migrations)
         try:
             cur.execute("PRAGMA table_info(scaffold_mappings)")
@@ -527,6 +555,129 @@ class MetadataManager:
             rows = cur.fetchall()
             ids = [r[0] for r in rows]
         return [self.get_ingestion_run(run_id) for run_id in ids]
+
+    # --- Chat Persistence Methods ---
+
+    def create_conversation(self, title: str = "New Chat") -> str:
+        """Create a new conversation and return its ID."""
+        import uuid
+        conv_id = str(uuid.uuid4())
+        now = datetime.datetime.utcnow().isoformat()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """INSERT INTO conversations (id, created_at, updated_at, title) VALUES (?, ?, ?, ?)""",
+                (conv_id, now, now, title),
+            )
+            self.conn.commit()
+        return conv_id
+
+    def add_message(
+        self, conversation_id: str, role: str, content: str, metadata: Dict[str, Any] = None
+    ) -> str:
+        """Add a message to a conversation."""
+        import uuid
+        msg_id = str(uuid.uuid4())
+        now = datetime.datetime.utcnow().isoformat()
+        metadata_json = json.dumps(metadata) if metadata else "{}"
+        
+        with self._lock:
+            cur = self.conn.cursor()
+            # Verify conversation exists first
+            cur.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
+            if not cur.fetchone():
+                # Auto-create if not exists (resilience) or raise error. 
+                # Ideally we create it, but let's stick to explicit creation or error.
+                # For robustness, we'll try to insert the conversation if missing, or error.
+                # Let's assume it must exist for now, or the caller handles it.
+                # Actually, raising an error is safer to detect logic bugs.
+                raise ValueError(f"Conversation {conversation_id} does not exist")
+
+            cur.execute(
+                """INSERT INTO messages (id, conversation_id, role, content, created_at, metadata) 
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (msg_id, conversation_id, role, content, now, metadata_json),
+            )
+            # Update conversation updated_at
+            cur.execute(
+                """UPDATE conversations SET updated_at = ? WHERE id = ?""",
+                (now, conversation_id)
+            )
+            self.conn.commit()
+        return msg_id
+
+    def get_conversation_messages(self, conversation_id: str) -> List[Dict[str, Any]]:
+        """Get all messages for a conversation, ordered by creation time."""
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """SELECT id, role, content, created_at, metadata FROM messages 
+                   WHERE conversation_id = ? ORDER BY created_at ASC""",
+                (conversation_id,),
+            )
+            rows = cur.fetchall()
+        
+        return [
+            {
+                "id": r[0],
+                "role": r[1],
+                "content": r[2],
+                "created_at": r[3],
+                "metadata": json.loads(r[4]) if r[4] else {}
+            }
+            for r in rows
+        ]
+
+    def list_conversations(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """List recent conversations."""
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """SELECT id, title, created_at, updated_at FROM conversations 
+                   ORDER BY updated_at DESC LIMIT ?""",
+                (limit,),
+            )
+            rows = cur.fetchall()
+            
+        return [
+            {
+                "id": r[0],
+                "title": r[1],
+                "created_at": r[2],
+                "updated_at": r[3]
+            }
+            for r in rows
+        ]
+    
+    def get_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        """Get details of a specific conversation."""
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """SELECT id, title, created_at, updated_at FROM conversations WHERE id = ?""",
+                (conversation_id,),
+            )
+            row = cur.fetchone()
+            
+        if not row:
+            return None
+            
+        return {
+            "id": row[0],
+            "title": row[1],
+            "created_at": row[2],
+            "updated_at": row[3]
+        }
+
+    def delete_conversation(self, conversation_id: str) -> bool:
+        """Delete a conversation and all its messages."""
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+            cur.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+            rows_deleted = cur.rowcount
+            self.conn.commit()
+            return rows_deleted > 0
 
 
 # Expose a module-level manager instance for simple use

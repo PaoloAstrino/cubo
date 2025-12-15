@@ -439,15 +439,23 @@ async def list_llm_models(request: Request):
         try:
             import ollama
             models_response = ollama.list()
-            models_data = models_response.get('models', [])
-            return [
-                LLMModel(
-                    name=m.get('name'),
-                    size=m.get('size'),
-                    digest=m.get('digest'),
-                    family=m.get('details', {}).get('family')
-                ) for m in models_data
-            ]
+            # Support both object attribute and dict access
+            models_data = getattr(models_response, 'models', None) or models_response.get('models', [])
+            
+            results = []
+            for m in models_data:
+                # Convert Pydantic models to dict if needed
+                d = m.model_dump() if hasattr(m, 'model_dump') else (m.dict() if hasattr(m, 'dict') else m)
+                if not isinstance(d, dict):
+                    continue
+                    
+                results.append(LLMModel(
+                    name=d.get('model') or d.get('name'),
+                    size=d.get('size'),
+                    digest=d.get('digest'),
+                    family=d.get('details', {}).get('family')
+                ))
+            return results
         except ImportError:
             logger.warning("Ollama python package not installed")
             return []
