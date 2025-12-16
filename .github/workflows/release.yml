@@ -1,0 +1,98 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - "v*.*.*"  # Trigger on semantic version tags (e.g., v1.0.0)
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # 1. Build & Push Docker Image
+  docker-release:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # 2. Build Binaries (Windows & Linux)
+  build-binaries:
+    name: Build Binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      
+      - name: Install Dependencies
+        run: |
+          pip install -e .
+          pip install pyinstaller
+      
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --onefile --name cubo-win-x64 --clean src/cubo/main.py
+      
+      - name: Build with PyInstaller (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          pyinstaller --onefile --name cubo-linux-x64 --clean src/cubo/main.py
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.os }}
+          path: dist/*
+
+  # 3. Create GitHub Release
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [docker-release, build-binaries]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release-artifacts/binary-windows-latest/cubo-win-x64.exe
+            release-artifacts/binary-ubuntu-latest/cubo-linux-x64
+          generate_release_notes: true
+          draft: false
+          prerelease: false

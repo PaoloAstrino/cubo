@@ -351,7 +351,7 @@ class FAISSIndexManager:
     def load(self, path: Optional[Path] = None) -> None:
         # If a root is configured check for a pointer file; allow explicit path to override
         if path is not None:
-            load_dir = path
+            load_dir = Path(path)
         elif self.index_root is not None:
             published = get_current_index_dir(self.index_root)
             if published:

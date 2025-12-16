@@ -1,141 +1,55 @@
-name: PR Checks (Fast)
+name: PR Checks
 
 on:
   pull_request:
     branches: [main, master]
-  workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  lint:
-    name: Lint & Format Check
+  # 1. Backend Quality Gate (Reusable)
+  backend-quality:
+    uses: ./.github/workflows/reusable-quality.yml
+    with:
+      python-version: "3.11"
+
+  # 2. Frontend Quality Gate
+  frontend-quality:
+    name: Frontend Check
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-lint-${{ hashFiles('**/requirements-dev.txt') }}
-      
-      - name: Install linting tools
-        run: pip install -r requirements-lint.txt
-      
-      - name: Run Ruff
-        run: ruff check cubo/ --select=E9,F63,F7,F82
-      
-      - name: Run Black
-        run: black --check cubo/
-      
-      - name: Run isort
-        run: isort --check-only cubo/
-      
-      - name: Bandit Security Scan (High severity only)
-        run: bandit -r cubo/ -ll -q
-        continue-on-error: true
-
-  unit-tests:
-    name: Unit Tests (Fast)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
-      
-      - name: Install dependencies
-        run: |
-          # Core + dev dependencies for fast PR checks (no heavy ML deps)
-          pip install -e ".[dev]"
-      
-      - name: Run fast unit tests
-        run: |
-          # Show which tests are collected for debug purposes
-          pytest --collect-only -q -m "not slow and not integration"
-
-          # Run a short smoke test suite first to ensure the job reports a test run
-          pytest tests/smoke -q
-
-          # Run fast unit tests; keep filters to avoid long/integration tests
-          pytest tests/ \
-            -m "not slow and not integration" \
-            --maxfail=5 \
-            --tb=short \
-            -q
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-
-  import-check:
-    name: Import & Smoke Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      
-      - name: Install core dependencies
-        run: pip install -e "."
-      
-      - name: Test core imports and smoke test
-        run: |
-          python -c "
-          from cubo.config import config
-          from cubo.ingestion.document_loader import DocumentLoader
-          from cubo.retrieval.retriever import DocumentRetriever
-          print('✓ Core imports successful')
-          "
-          # Run smoke tests as well
-          pytest tests/smoke -q
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-  frontend-audit:
-    name: Frontend dependency audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install Dependencies
+        run: npm ci
+      
+      - name: Linting
+        run: npm run lint
+        
+      - name: Type Checking
+        run: npx tsc --noEmit
+      
+      - name: Build Check
+        run: npm run build
 
-      - name: Install frontend dependencies
-        run: |
-          cd frontend
-          npm install
-          npm audit --audit-level=high || true
-        continue-on-error: false
-
-  pr-summary:
-    name: PR Check Summary
+  # 3. Quick Integration Smoke Test
+  smoke-test:
+    name: Smoke Test
     runs-on: ubuntu-latest
-    needs: [lint, unit-tests, import-check]
-    if: always()
+    needs: [backend-quality]
     steps:
-      - name: Check results
-        run: |
-          if [ "${{ needs.lint.result }}" = "failure" ] || \
-             [ "${{ needs.unit-tests.result }}" = "failure" ] || \
-             [ "${{ needs.import-check.result }}" = "failure" ]; then
-            echo "❌ PR checks failed"
-            exit 1
-          else
-            echo "✅ All PR checks passed"
-          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - name: Run Smoke Tests
+        run: pytest tests/smoke -v

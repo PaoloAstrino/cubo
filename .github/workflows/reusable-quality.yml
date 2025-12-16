@@ -1,0 +1,57 @@
+name: Quality Checks (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.11"
+
+jobs:
+  quality-gate:
+    name: Code Quality & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -r requirements-lint.txt
+          pip install -e .
+      
+      - name: Linting (Ruff)
+        run: ruff check cubo/ --select=E9,F63,F7,F82
+      
+      - name: Formatting Check (Black)
+        run: black --check cubo/
+      
+      - name: Import Sorting (Isort)
+        run: isort --check-only cubo/
+      
+      - name: Security Scan (Bandit)
+        run: bandit -r cubo/ -ll -q
+      
+      - name: Unit Tests
+        run: |
+          pytest tests/unit \
+            -v \
+            --cov=cubo \
+            --cov-report=xml \
+            --tb=short
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import time
 from logging.handlers import (
     QueueHandler,
@@ -28,6 +29,60 @@ try:
     JSONLOGGER_AVAILABLE = True
 except Exception:
     JSONLOGGER_AVAILABLE = False
+
+
+class WindowsSafeRotatingFileHandler(RotatingFileHandler):
+    """Windows-safe rotating file handler that handles file locking issues."""
+    
+    def doRollover(self):
+        """Override to handle Windows file locking gracefully."""
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        
+        # Try rotation with retry logic
+        import time
+        for attempt in range(3):
+            try:
+                super().doRollover()
+                break
+            except (OSError, PermissionError):
+                if attempt < 2:
+                    time.sleep(0.1)
+                else:
+                    # If rotation fails, just continue writing to current file
+                    pass
+        
+        # Reopen stream
+        if not self.stream:
+            self.stream = self._open()
+
+
+class WindowsSafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """Windows-safe timed rotating file handler that handles file locking issues."""
+    
+    def doRollover(self):
+        """Override to handle Windows file locking gracefully."""
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        
+        # Try rotation with retry logic
+        import time
+        for attempt in range(3):
+            try:
+                super().doRollover()
+                break
+            except (OSError, PermissionError):
+                if attempt < 2:
+                    time.sleep(0.1)
+                else:
+                    # If rotation fails, just continue writing to current file
+                    pass
+        
+        # Reopen stream
+        if not self.stream:
+            self.stream = self._open()
 
 
 def _ensure_log_dir(path: str):
@@ -114,12 +169,21 @@ class Logger:
         retention_days = int(_cfg_logging_or("retention_days", 30))
         compress_rotated = bool(_cfg_logging_or("compress_rotated", True))
 
+        # Use Windows-safe rotation handlers
         if rotate_method == "size":
             size = int(_cfg_logging_or("rotate_size", 100 * 1024 * 1024))
-            handler = RotatingFileHandler(path, maxBytes=size, backupCount=10, encoding="utf-8")
+            if sys.platform == "win32":
+                # Use Windows-safe rotating handler with delay to avoid file locking
+                handler = WindowsSafeRotatingFileHandler(path, maxBytes=size, backupCount=10, encoding="utf-8", delay=True)
+            else:
+                handler = RotatingFileHandler(path, maxBytes=size, backupCount=10, encoding="utf-8")
         elif rotate_method == "time" or rotate_method == "midnight":
             when = _cfg_logging_or("rotate_when", "midnight")
-            handler = TimedRotatingFileHandler(path, when=when, backupCount=10, encoding="utf-8")
+            if sys.platform == "win32":
+                # Use Windows-safe timed rotating handler with delay to avoid file locking
+                handler = WindowsSafeTimedRotatingFileHandler(path, when=when, backupCount=10, encoding="utf-8", delay=True)
+            else:
+                handler = TimedRotatingFileHandler(path, when=when, backupCount=10, encoding="utf-8")
         else:
             handler = logging.FileHandler(path, encoding="utf-8")
 
