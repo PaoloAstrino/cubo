@@ -1,5 +1,7 @@
 # CUBO - Assistente Documentale AI v1.3.0
 
+**Nota (2025-12-17):** Pulizia della documentazione — versione allineata, esempi `src`→`cubo` corretti, rimosse sezioni dipendenze duplicate e aggiornati i flag di coverage di pytest.
+
 🌍 **[English](README.md)** | **Italiano** | **[中文](README.zh.md)**
 
 [![CI/CD](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml)
@@ -186,7 +188,7 @@ export CUBO_LAPTOP_MODE=1
 python -m pytest -q
 
 # Test con coverage
-python -m pytest --cov=src --cov-report=html
+python -m pytest --cov=cubo --cov-report=html
 ```
 
 ## Sicurezza
