@@ -485,6 +485,13 @@ class FaissStore(VectorStore):
         if cached is not None:
             return cached
 
+        # Check FAISS index reconstruction (fastest after cache)
+        if self._index:
+            reconstructed = self._index.get_vector(doc_id)
+            if reconstructed is not None:
+                self._vector_cache.put(doc_id, reconstructed)
+                return reconstructed
+
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             row = conn.execute(
                 "SELECT vector, dtype, dim FROM vectors WHERE id = ?", (doc_id,)
@@ -507,6 +514,13 @@ class FaissStore(VectorStore):
             if cached is not None:
                 results[doc_id] = cached
             else:
+                # Try reconstruction
+                if self._index:
+                    reconstructed = self._index.get_vector(doc_id)
+                    if reconstructed is not None:
+                        results[doc_id] = reconstructed
+                        self._vector_cache.put(doc_id, reconstructed)
+                        continue
                 uncached_ids.append(doc_id)
 
         if not uncached_ids:
@@ -948,57 +962,39 @@ class FaissStore(VectorStore):
                 self._promotion_in_progress = False
 
     def _promote_batch_to_hot(self, doc_ids: List[str]) -> None:
-        """Promote a batch of documents to hot index.
-
-        Args:
-            doc_ids: List of document IDs to promote
+        """Promote a batch of documents to hot index incrementally.
+        
+        This method uses incremental addition to the hot index and relies on
+        search-time deduplication to handle overlap with the cold index.
+        This avoids rebuilding the entire index (RAM bottleneck).
         """
         if not doc_ids:
             return
 
-        # Filter to only valid IDs that exist in DB
-        # We fetch them all to verify and get data
+        # 1. Fetch vectors (will use cache/reconstruct/DB)
         vectors_map = self.get_vectors(doc_ids)
-        valid_ids = list(vectors_map.keys())
+        
+        valid_ids = []
+        valid_vectors = []
+        
+        for did in doc_ids:
+            if did in vectors_map:
+                valid_ids.append(did)
+                valid_vectors.append(vectors_map[did])
 
         if not valid_ids:
             return
 
-        # Rebuild index with promoted docs at the front (ensures they're in hot set)
-        # We need ALL IDs to rebuild. This is expensive.
-        # Ideally we only rebuild the hot index or use FAISS move.
-        # But current logic rebuilds everything.
+        # 2. Add to hot index incrementally
+        # This avoids the massive rebuild of the entire index
+        self._index.add_to_hot(valid_vectors, valid_ids)
 
-        # Get all IDs from DB
-        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            rows = conn.execute("SELECT id FROM vectors").fetchall()
-        all_ids = [r[0] for r in rows]
-
-        for did in valid_ids:
-            if did in all_ids:
-                all_ids.remove(did)
-        new_ids = valid_ids + all_ids
-
-        # We need all vectors to rebuild.
-        # This is the bottleneck for massive datasets.
-        # For now, we fetch them all.
-        # TODO: Optimize to only update hot index or use on-disk index
-
-        # Fetch in batches
-        vectors = []
-        batch_size = 1000
-        for i in range(0, len(new_ids), batch_size):
-            chunk_ids = new_ids[i : i + batch_size]
-            chunk_vecs = self.get_vectors(chunk_ids)
-            for did in chunk_ids:
-                if did in chunk_vecs:
-                    vectors.append(chunk_vecs[did])
-
-        self._index.build_indexes(vectors, new_ids, append=False)
-
-        # Reset access counts for promoted docs
+        # 3. Reset access counts for promoted docs
         for did in valid_ids:
             self._access_counts[did] = 0
+            
+        from cubo.utils.logger import logger
+        logger.info(f"Promoted {len(valid_ids)} docs to hot index incrementally")
 
     def promote_to_hot(self, doc_id: str) -> None:
         """Promote a cold doc into the hot set (sync version for backward compatibility).
@@ -1357,7 +1353,6 @@ class FaissStore(VectorStore):
                     pass
             # Clear caches
             self._doc_cache.clear()
-            self._embeddings.clear()
             self._access_counts.clear()
             # Release index references so GC can collect them
             try:

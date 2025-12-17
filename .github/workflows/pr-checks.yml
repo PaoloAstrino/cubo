@@ -21,24 +21,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
       
       - name: Install Dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       
       - name: Linting
-        run: npm run lint
+        run: pnpm run lint
         
       - name: Type Checking
-        run: npx tsc --noEmit
+        run: pnpm exec tsc --noEmit
       
       - name: Build Check
-        run: npm run build
+        run: pnpm run build
 
   # 3. Quick Integration Smoke Test
   smoke-test:
@@ -50,6 +54,11 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev]"
+      - name: Install Dependencies (Minimal)
+        run: |
+          pip install --no-cache-dir -r requirements-ci.txt
+          pip install --no-cache-dir -r requirements-dev.txt
+          pip install --no-cache-dir -e .
+          # Using requirements-ci.txt: skips heavy ML packages
       - name: Run Smoke Tests
         run: pytest tests/smoke -v

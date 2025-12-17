@@ -48,7 +48,7 @@ class TestCuboBeirAdapter(unittest.TestCase):
         # Verify
         self.assertEqual(count, 2)
         mock_faiss_cls.assert_called()
-        mock_faiss_instance.add_vectors.assert_called()
+        mock_faiss_instance.build_indexes.assert_called()
         mock_faiss_instance.save.assert_called_with(str(Path(self.index_dir)))
         
         # Verify DB interaction

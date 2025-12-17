@@ -65,6 +65,18 @@ def rrf_fuse(
 
         fused[doc_id]["similarity"] += semantic_weight * (1.0 / (k + rank))
 
+    # Backward/forward compatibility:
+    # - Some call sites expect `similarity` (this module's historical output)
+    # - Others expect `score`/`rrf_score` and `doc_id` (strategy.combine_results_rrf)
+    for v in fused.values():
+        if "doc_id" not in v:
+            v["doc_id"] = v.get("id")
+        # Use the fused similarity as the canonical RRF score
+        if "score" not in v:
+            v["score"] = v.get("similarity", 0.0)
+        if "rrf_score" not in v:
+            v["rrf_score"] = v.get("score", 0.0)
+
     return list(fused.values())
 
 

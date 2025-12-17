@@ -15,6 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Free Disk Space (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -23,10 +33,10 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install -r requirements-lint.txt
-          pip install -e .
+          pip install --no-cache-dir -r requirements-ci.txt
+          pip install --no-cache-dir -r requirements-lint.txt
+          pip install --no-cache-dir -e .
+          # Using requirements-ci.txt: ~500MB vs ~5GB (skips torch, transformers)
       
       - name: Linting (Ruff)
         run: ruff check cubo/ --select=E9,F63,F7,F82

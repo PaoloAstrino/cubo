@@ -54,7 +54,6 @@ class CuboBeirAdapter:
         # 1. Load Model (if not provided)
         if not self.embedding_generator:
             self.embedding_generator = EmbeddingGenerator()
-            self.embedding_generator._load_model()
             
         # 2. Initialize Retriever
         # We use the settings from config/settings.py to match production
@@ -86,8 +85,20 @@ class CuboBeirAdapter:
             # Ideally, DocumentRetriever should accept a path.
             # Since it doesn't, we might need to hack it or rely on standard paths.
             # BUT: FaissStore has a load() method.
-            if hasattr(self.retriever, "collection") and hasattr(self.retriever.collection, "load"):
-                 self.retriever.collection.load(self.index_dir)
+            if hasattr(self.retriever, "collection"):
+                 # Update index_dir and db_path to point to the benchmark index
+                 if self.index_dir:
+                     new_path = Path(self.index_dir)
+                     if hasattr(self.retriever.collection, "index_dir"):
+                         self.retriever.collection.index_dir = new_path
+                     if hasattr(self.retriever.collection, "_db_path"):
+                         self.retriever.collection._db_path = new_path / "documents.db"
+                     
+                     # Reload if possible
+                     if hasattr(self.retriever.collection, "load") and (new_path / "metadata.json").exists():
+                         self.retriever.collection.load(new_path)
+                     else:
+                         logger.warning(f"Index directory {self.index_dir} exists but no metadata.json found. Skipping load.")
 
     def index_corpus(
         self, 
@@ -134,9 +145,8 @@ class CuboBeirAdapter:
         index_path.mkdir(parents=True, exist_ok=True)
         
         faiss_manager = FAISSIndexManager(
-            dimension=self.embedding_generator.dimension,
-            index_type="hnsw", 
-            metric="cosine"
+            dimension=self.embedding_generator.model.get_sentence_embedding_dimension(),
+            index_dir=index_path
         )
         
         db_path = index_path / "documents.db"
@@ -177,7 +187,7 @@ class CuboBeirAdapter:
             count += len(batch_docs)
             
         logger.info("Saving FAISS index...")
-        faiss_manager.save(str(index_path))
+        faiss_manager.save(index_path)
         conn.commit()
         conn.close()
         
@@ -195,7 +205,10 @@ class CuboBeirAdapter:
         if normalize:
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
             embeddings = embeddings / (norms + 1e-10)
-        faiss_manager.add_vectors(ids, embeddings)
+        
+        # Use build_indexes with append=True to add to existing index
+        faiss_manager.build_indexes(embeddings, ids, append=True)
+        
         c = conn.cursor()
         data = []
         for doc_id, text in zip(ids, texts):
