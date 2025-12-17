@@ -1,6 +1,8 @@
-# CUBO - AI Document Assistant v1.2.0
+# CUBO - AI Document Assistant v1.3.0
 
-🌍 **English** | **[Italiano](README.it.md)** | **[中文](README.zh.md)**
+**Note (2025-12-17):** Documentation cleanup — aligned versioning, fixed `src`→`cubo` examples, removed duplicate Dependencies section, and updated pytest coverage flags.
+
+🌍 **English** | **[Italiano](README.it.md)** | **[中文](README.zh.md)
 
 [![CI/CD](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml)
 [![E2E Tests](https://github.com/your-username/cubo/actions/workflows/e2e.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/e2e.yml)
@@ -254,12 +256,12 @@ Migration helpers are provided to convert NDJSON/JSONL chunks into a simple BM25
 
 Convert chunks to a BM25 representation:
 ```pwsh
-python -c "from src.cubo.retrieval.bm25_migration import convert_json_stats_to_bm25; convert_json_stats_to_bm25('data/bm25_stats.json', 'data/fastpass/chunks.jsonl', 'data/bm25_dir')"
+python -c "from cubo.retrieval.bm25_migration import convert_json_stats_to_bm25; convert_json_stats_to_bm25('data/bm25_stats.json', 'data/fastpass/chunks.jsonl', 'data/bm25_dir')"
 ```
 
 Export a BM25 representation to JSON lines for compatibility:
 ```pwsh
-python -c "from src.cubo.retrieval.bm25_migration import export_bm25_to_json; export_bm25_to_json('data/bm25_dir', 'data/fastpass/chunks_from_bm25.jsonl')"
+python -c "from cubo.retrieval.bm25_migration import export_bm25_to_json; export_bm25_to_json('data/bm25_dir', 'data/fastpass/chunks_from_bm25.jsonl')"
 ```
 
 Note: The `FastPassIngestor` takes `bm25.backend` from `config.json` and will attempt to build the configured backend during fast-pass ingestion; if you prefer to keep JSON stats (compatibility), set `bm25.preserve_bm25_stats_json` to true.
@@ -324,8 +326,8 @@ How it integrates with retrievers
 Example (programmatic):
 
 ```python
-from src.cubo.retrieval.retriever import FaissHybridRetriever
-from src.cubo.rerank.reranker import CrossEncoderReranker
+from cubo.retrieval.retriever import FaissHybridRetriever
+from cubo.rerank.reranker import CrossEncoderReranker
 
 reranker = CrossEncoderReranker(model_name='cross-encoder/ms-marco-MiniLM-L-6-v2')
 hybrid = FaissHybridRetriever(bm25, faiss_manager, embedding_generator, documents=docs, reranker=reranker)
@@ -380,7 +382,7 @@ Testing markers & CI notes
 
 ```
 cubo/
-├── src/                    # Source code
+├── cubo/                    # Package source
 │   ├── __init__.py        # Package initialization
 │   ├── config.py          # Configuration management
 │   ├── logger.py          # Logging setup
@@ -452,7 +454,7 @@ cubo/
 5. **Run Setup Wizard**:
 
    ```bash
-   python src/main.py
+   python -m cubo.main
    ```
 
    Follow the prompts to verify paths and models.
@@ -556,19 +558,19 @@ python launch_gui.py
 ### Interactive CLI Mode
 
 ```bash
-python -m src.main
+python -m cubo.main
 ```
 
 ### Command Line Mode
 
 ```bash
-python -m src.main --data_folder ./data --query "Your question here"
+python -m cubo.main --data_folder ./data --query "Your question here"
 ```
 
 ### From Python
 
 ```python
-from src.main import CUBOApp
+from cubo.main import CUBOApp
 
 # Initialize app
 app = CUBOApp()
@@ -712,27 +714,6 @@ CUBO is designed for privacy-conscious organizations needing secure, offline AI 
 - `colorama`: Cross-platform colored terminal output
 - `psutil`: System monitoring and resource management
 - `numpy`: Numerical computing for similarity calculations
-- PySide6 (for GUI interface)
-
-### Dependencies
-
-**Core Dependencies:**
-
-- `sentence-transformers`: For document embedding and semantic search
-- `torch`: PyTorch for model inference
-- `transformers`: Hugging Face transformers for model loading
-- `ollama`: Python client for Ollama LLM API
-- `faiss` (preferred): Local vector index for document storage and retrieval (FAISS)
-- `tokenizers`: Fast tokenization for text processing
-
-**Document Processing:**
-
-- `python-docx`: Microsoft Word document support
-- `pypdf`: PDF document processing
-
-**GUI Interface:**
-
-- `PySide6`: Qt6-based desktop application framework
 
 **Security & Utilities:**
 
@@ -797,7 +778,7 @@ python -m pytest tests/
 python -m pytest tests/test_retriever.py -v
 
 # Run with coverage
-python -m pytest tests/ --cov=src --cov-report=html
+python -m pytest tests/ --cov=cubo --cov-report=html
 ```
 
 ### CI/CD

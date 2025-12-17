@@ -1,5 +1,7 @@
 # CUBO - AI 文档助手 v1.3.0
 
+**注 (2025-12-17):** 文档清理 — 对齐版本信息，修正 `src`→`cubo` 示例，移除重复的依赖部分，并更新 pytest 覆盖标志。
+
 🌍 **[English](README.md)** | **[Italiano](README.it.md)** | **中文**
 
 [![CI/CD](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-username/cubo/actions/workflows/ci-cd.yml)
@@ -186,7 +188,7 @@ export CUBO_LAPTOP_MODE=1
 python -m pytest -q
 
 # 带覆盖率的测试
-python -m pytest --cov=src --cov-report=html
+python -m pytest --cov=cubo --cov-report=html
 ```
 
 ## 安全性
