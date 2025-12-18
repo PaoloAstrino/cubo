@@ -12,10 +12,7 @@ import pandas as pd
 
 from cubo.config import config
 from cubo.deduplication.deduplicator import Deduplicator
-from cubo.deduplication.semantic_deduplicator import (
-    DeduplicationResult,
-    HybridDeduplicator,
-)
+from cubo.deduplication.semantic_deduplicator import DeduplicationResult, HybridDeduplicator
 from cubo.utils.logger import logger
 
 

@@ -189,6 +189,13 @@ exclude = '''
 )/
 '''
 
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["cubo"]
+multi_line_output = 3
+
+
 # Ruff configuration (modern Python linter)
 [tool.ruff]
 line-length = 100
