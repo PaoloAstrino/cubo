@@ -5,11 +5,12 @@ This manager wraps ThreadPoolExecutor to allow fire-and-forget tasks
 (like long ingestion) while providing a mechanism to poll for status.
 """
 
-import uuid
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, Callable, Optional
 from enum import Enum
+from typing import Any, Callable, Dict, Optional
+
 from cubo.utils.logger import logger
 
 

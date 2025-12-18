@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 import numpy as np
 
+from cubo.config import config
 from cubo.retrieval.constants import (
     BM25_NORMALIZATION_FACTOR,
     BM25_WEIGHT_DETAILED,
@@ -21,7 +22,6 @@ from cubo.retrieval.constants import (
 )
 from cubo.utils.exceptions import DatabaseError
 from cubo.utils.logger import logger
-from cubo.config import config
 
 
 def extract_chunk_id(candidate: Any) -> Optional[str]:

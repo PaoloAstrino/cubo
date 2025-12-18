@@ -8,8 +8,8 @@ Provides language-aware tokenization for BM25 retrieval, supporting:
 """
 
 import re
-from typing import List, Optional, Dict
 from functools import lru_cache
+from typing import Dict, List, Optional
 
 try:
     import nltk
@@ -21,7 +21,7 @@ except ImportError:
     NLTK_AVAILABLE = False
 
 try:
-    from langdetect import detect, LangDetectException
+    from langdetect import LangDetectException, detect
 
     LANGDETECT_AVAILABLE = True
 except ImportError:

@@ -4,8 +4,8 @@ Wraps simplemma functionality to provide easy lemmatization for
 supported languages (IT, EN, DE, FR, ES, etc.).
 """
 
-from typing import List, Optional, Union
 import logging
+from typing import List, Optional, Union
 
 try:
     import simplemma

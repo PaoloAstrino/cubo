@@ -5,9 +5,9 @@ to enable structure-aware chunking that preserves semantic boundaries.
 """
 
 import re
-from typing import List, Dict, Optional, Tuple
-from pathlib import Path
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 
 class StructureNode:

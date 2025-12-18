@@ -3,10 +3,12 @@ Configuration management using Pydantic.
 Provides validation and type safety for application settings.
 """
 
-from typing import Optional, Dict, Any, List
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pathlib import Path
+
 from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
 
 

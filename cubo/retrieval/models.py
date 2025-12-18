@@ -8,7 +8,7 @@ patterns throughout the retrieval code.
 
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ScoreBreakdown(BaseModel):
