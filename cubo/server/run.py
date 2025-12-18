@@ -13,8 +13,13 @@ from cubo.utils.logger import logger
 
 
 def run_server(
-    host: str = "0.0.0.0", port: int = 8000, reload: bool = False, log_level: str = "info"
+    host: str = "127.0.0.1", port: int = 8000, reload: bool = False, log_level: str = "info"
 ):
+    if host == "0.0.0.0":  # nosec B104
+        logger.warning(
+            "Binding the server to 0.0.0.0 exposes it to all network interfaces. "
+            "Prefer using 127.0.0.1 for local development or explicitly opt-in when containerizing."
+        )
     """Run the FastAPI server with uvicorn.
 
     Args:
@@ -53,7 +58,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Run CUBO API server")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: localhost)")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     parser.add_argument("--log-level", default="info", help="Log level")
