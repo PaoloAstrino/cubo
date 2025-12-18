@@ -252,7 +252,25 @@ class VectorStore:
         raise NotImplementedError()
 
 
+import re
+
 class FaissStore(VectorStore):
+    ID_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
+
+    def _validate_ids(self, ids: List[str]) -> None:
+        """Validate a list of ids to ensure they contain only safe characters.
+
+        Raises ValueError if any id contains unexpected characters which could
+        be used to attempt SQL injection via crafted IDs.
+        """
+        if not ids:
+            return
+        for i in ids:
+            if not isinstance(i, (str, bytes)):
+                raise ValueError("Invalid id type; expected str or bytes")
+            s = i.decode() if isinstance(i, bytes) else i
+            if not self.ID_RE.match(s):
+                raise ValueError(f"Invalid id value detected: {s}")
     """FAISS-backed vector store with async hot/cold index promotion.
 
     The hot/cold architecture keeps frequently accessed vectors in a fast
@@ -532,13 +550,26 @@ class FaissStore(VectorStore):
         chunk_size = 900  # SQLite limit is usually 999 vars
         for i in range(0, len(uncached_ids), chunk_size):
             chunk = uncached_ids[i : i + chunk_size]
-            placeholders = ",".join("?" * len(chunk))
 
+            # Validate IDs to prevent injection via unexpected characters
+            self._validate_ids(chunk)
+
+            # Use a temporary table to avoid dynamic SQL in IN() clause and prevent injection
             with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-                rows = conn.execute(
-                    f"SELECT id, vector, dtype, dim FROM vectors WHERE id IN ({placeholders})",
-                    chunk,
-                ).fetchall()
+                cur = conn.cursor()
+                cur.execute("CREATE TEMP TABLE IF NOT EXISTS _tmp_ids(id TEXT PRIMARY KEY)")
+                try:
+                    cur.executemany(
+                        "INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)",
+                        ((i,) for i in chunk),
+                    )
+                    cur.execute(
+                        "SELECT id, vector, dtype, dim FROM vectors WHERE id IN (SELECT id FROM _tmp_ids)"
+                    )
+                    rows = cur.fetchall()
+                finally:
+                    cur.execute("DELETE FROM _tmp_ids")
+                    conn.commit()
 
             for row in rows:
                 doc_id = row[0]
@@ -624,12 +655,23 @@ class FaissStore(VectorStore):
 
         # Fetch uncached from DB
         if uncached_ids:
-            placeholders = ",".join("?" * len(uncached_ids))
+            # Use temporary table to safely pass many IDs without building dynamic SQL
+            self._validate_ids(uncached_ids)
             with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-                rows = conn.execute(
-                    f"SELECT id, content, metadata FROM documents WHERE id IN ({placeholders})",
-                    uncached_ids,
-                ).fetchall()
+                cur = conn.cursor()
+                cur.execute("CREATE TEMP TABLE IF NOT EXISTS _tmp_ids(id TEXT PRIMARY KEY)")
+                try:
+                    cur.executemany(
+                        "INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)",
+                        ((i,) for i in uncached_ids),
+                    )
+                    cur.execute(
+                        "SELECT id, content, metadata FROM documents WHERE id IN (SELECT id FROM _tmp_ids)"
+                    )
+                    rows = cur.fetchall()
+                finally:
+                    cur.execute("DELETE FROM _tmp_ids")
+                    conn.commit()
             for row in rows:
                 doc_id, content, metadata_json = row
                 metadata = json.loads(metadata_json)
@@ -1200,13 +1242,22 @@ class FaissStore(VectorStore):
             Number of documents removed
         """
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            placeholders = ",".join("?" * len(document_ids))
-            cursor = conn.execute(
-                f"DELETE FROM collection_documents WHERE collection_id = ? AND document_id IN ({placeholders})",
-                [collection_id] + list(document_ids),
-            )
-            conn.commit()
-            return cursor.rowcount
+            # Use temporary table to safely delete multiple document ids
+            self._validate_ids(document_ids)
+            cur = conn.cursor()
+            cur.execute("CREATE TEMP TABLE IF NOT EXISTS _tmp_ids(id TEXT PRIMARY KEY)")
+            try:
+                cur.executemany("INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)", ((i,) for i in document_ids))
+                cur.execute(
+                    "DELETE FROM collection_documents WHERE collection_id = ? AND document_id IN (SELECT id FROM _tmp_ids)",
+                    (collection_id,)
+                )
+                rowcount = cur.rowcount
+                conn.commit()
+                return rowcount
+            finally:
+                cur.execute("DELETE FROM _tmp_ids")
+                conn.commit()
 
     def get_collection_documents(self, collection_id: str) -> List[str]:
         """Get all document IDs in a collection.
@@ -1320,10 +1371,18 @@ class FaissStore(VectorStore):
 
         # Remove from SQLite (documents and vectors)
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            placeholders = ",".join("?" * len(ids))
-            conn.execute(f"DELETE FROM documents WHERE id IN ({placeholders})", list(ids))
-            conn.execute(f"DELETE FROM vectors WHERE id IN ({placeholders})", list(ids))
-            conn.commit()
+            # Use a temporary table to safely delete many ids without building dynamic SQL
+            self._validate_ids(ids)
+            cur = conn.cursor()
+            cur.execute("CREATE TEMP TABLE IF NOT EXISTS _tmp_ids(id TEXT PRIMARY KEY)")
+            try:
+                cur.executemany("INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)", ((i,) for i in ids))
+                cur.execute("DELETE FROM documents WHERE id IN (SELECT id FROM _tmp_ids)")
+                cur.execute("DELETE FROM vectors WHERE id IN (SELECT id FROM _tmp_ids)")
+                conn.commit()
+            finally:
+                cur.execute("DELETE FROM _tmp_ids")
+                conn.commit()
 
         # Remove from cache and in-memory stores
         for did in ids:

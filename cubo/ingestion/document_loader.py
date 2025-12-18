@@ -178,16 +178,21 @@ class DocumentLoader:
             )
 
     def _compute_file_hash(self, file_path: str) -> str:
-        """Compute a stable MD5 hash for the file contents."""
-        hash_md5 = hashlib.md5()
+        """Compute a stable SHA-256 hash for the file contents.
+
+        Note: SHA-256 is used for collision-resistance. If you previously stored
+        MD5 hashes externally and rely on their value, be aware this will change
+        the resulting digest.
+        """
+        hasher = hashlib.sha256()
         try:
             with open(file_path, "rb") as f:
                 for chunk in iter(lambda: f.read(8192), b""):
-                    hash_md5.update(chunk)
+                    hasher.update(chunk)
         except Exception as e:
             logger.warning(f"Unable to hash {file_path}: {e}")
             return ""
-        return hash_md5.hexdigest()
+        return hasher.hexdigest()
 
     def _log_chunking_results(self, file_path: str, chunks: List[dict], cfg: dict):
         """Log the results of the chunking process."""

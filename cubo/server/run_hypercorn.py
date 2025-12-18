@@ -15,8 +15,13 @@ from hypercorn.config import Config
 from cubo.utils.logger import logger
 
 
-async def run_server_async(host: str = "0.0.0.0", port: int = 8000):
+async def run_server_async(host: str = "127.0.0.1", port: int = 8000):
     """Run the FastAPI server with hypercorn."""
+    if host == "0.0.0.0":  # nosec B104
+        logger.warning(
+            "Binding the server to 0.0.0.0 exposes it to all network interfaces. "
+            "Prefer using 127.0.0.1 for local development or explicitly opt-in when containerizing."
+        )
     config = Config()
     config.bind = [f"{host}:{port}"]
     config.accesslog = "-"  # Log to stdout
@@ -30,8 +35,13 @@ async def run_server_async(host: str = "0.0.0.0", port: int = 8000):
     await serve(app, config)
 
 
-def run_server(host: str = "0.0.0.0", port: int = 8000):
+def run_server(host: str = "127.0.0.1", port: int = 8000):
     """Synchronous wrapper for async server."""
+    if host == "0.0.0.0":  # nosec B104
+        logger.warning(
+            "Binding the server to 0.0.0.0 exposes it to all network interfaces. "
+            "Prefer using 127.0.0.1 for local development or explicitly opt-in when containerizing."
+        )
     try:
         asyncio.run(run_server_async(host, port))
     except KeyboardInterrupt:
@@ -45,7 +55,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run CUBO API server with hypercorn")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: localhost)")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
 
     args = parser.parse_args()

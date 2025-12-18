@@ -181,8 +181,27 @@ class Utils:
                 try:
                     # Lazy import of transformers locally to avoid module-level import cost
                     from transformers import AutoTokenizer as _AutoTokenizer
+                    import os
+                    from pathlib import Path
 
-                    tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                    # If tokenizer_name is a local path, load it directly
+                    if Path(tokenizer_name).exists():
+                        tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                    else:
+                        # Remote HF repo - require pinned revision or explicit opt-in
+                        rev = os.getenv("HF_PINNED_REVISION")
+                        allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
+                        if rev:
+                            tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, revision=rev, use_fast=True)
+                        elif allow_unpinned:
+                            logger.warning(
+                                f"Loading tokenizer {tokenizer_name} without pinned revision because HF_ALLOW_UNPINNED_HF_DOWNLOADS=1."
+                            )
+                            tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                        else:
+                            raise RuntimeError(
+                                "Attempted to download tokenizer without pinned HF revision. Set HF_PINNED_REVISION or HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to proceed."
+                            )
                 except Exception as e:
                     logger.warning(f"Could not load tokenizer {tokenizer_name}: {e}")
 

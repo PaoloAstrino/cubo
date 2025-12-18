@@ -40,18 +40,48 @@ def _setup_directories():
     return dolphin_dir
 
 
+def _resolve_hf_revision():
+    """Resolve a pinned HF revision from env var or enforce explicit opt-in.
+
+    Behavior:
+      - If HF_PINNED_REVISION is set, return it and use it for `revision`.
+      - If HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 is set, allow unpinned downloads (warning).
+      - Otherwise raise a RuntimeError to force explicit pinning or opt-in.
+    """
+    import os
+
+    rev = os.getenv("HF_PINNED_REVISION")
+    allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
+    if rev:
+        return rev
+    if allow_unpinned:
+        logger.warning(
+            "Hugging Face downloads are unpinned (HF_ALLOW_UNPINNED_HF_DOWNLOADS=1)."
+            " For security, prefer pinning via HF_PINNED_REVISION."
+        )
+        return None
+    raise RuntimeError(
+        "Hugging Face downloads must be pinned. Set HF_PINNED_REVISION or set HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to opt-in."
+    )
+
+
 def _download_model_components(dolphin_dir):
     """Download tokenizer, processor, and model components."""
     print("📥 Downloading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained("ByteDance/Dolphin", cache_dir=str(dolphin_dir))
+    revision = _resolve_hf_revision()
+    kwargs = {"cache_dir": str(dolphin_dir)}
+    if revision:
+        kwargs["revision"] = revision
+    tokenizer = AutoTokenizer.from_pretrained("ByteDance/Dolphin", **kwargs)
 
     print("📥 Downloading processor...")
-    processor = AutoProcessor.from_pretrained("ByteDance/Dolphin", cache_dir=str(dolphin_dir))
+    processor = AutoProcessor.from_pretrained("ByteDance/Dolphin", **kwargs)
 
     print("📥 Downloading model (400MB)...")
-    model = AutoModelForVision2Seq.from_pretrained(
-        "ByteDance/Dolphin", cache_dir=str(dolphin_dir), torch_dtype="auto"
-    )
+    model_kwargs = {"cache_dir": str(dolphin_dir), "torch_dtype": "auto"}
+    if revision:
+        model_kwargs["revision"] = revision
+    model = AutoModelForVision2Seq.from_pretrained("ByteDance/Dolphin", **model_kwargs)
 
     return tokenizer, processor, model
 

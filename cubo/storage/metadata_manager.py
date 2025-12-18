@@ -412,7 +412,16 @@ class MetadataManager:
                 return
 
             values.append(run_id)
-            query = f"UPDATE ingestion_runs SET {', '.join(fields)} WHERE id = ?"
+            # Whitelist columns to avoid SQL injection via dynamic field names
+            allowed = {"chunks_count", "output_parquet", "status", "finished_at"}
+            # Each item in `fields` looks like "<column> = ?" - ensure column is allowed
+            for f in fields:
+                col = f.split("=")[0].strip()
+                if col not in allowed:
+                    raise ValueError(f"Unexpected field in update: {col}")
+
+            set_clause = ", ".join(fields)
+            query = "UPDATE ingestion_runs SET " + set_clause + " WHERE id = ?"  # nosec B608
             cur.execute(query, tuple(values))
             self.conn.commit()
 
