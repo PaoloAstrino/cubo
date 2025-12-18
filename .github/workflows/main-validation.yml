@@ -77,17 +77,21 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
 
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
       - name: Debug Node / pnpm cache
         run: |
           node -v
           npm -v || true
           echo "npm cache: $(npm config get cache)" || true
-          echo "pnpm version: $(pnpm -v)" || true
-          echo "pnpm store path: $(pnpm store path)" || true
-
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 10
+          if command -v pnpm >/dev/null 2>&1; then
+            echo "pnpm version: $(pnpm -v)"
+            echo "pnpm store path: $(pnpm store path)"
+          else
+            echo "pnpm is not installed yet"
+          fi
 
       - name: Cache pnpm store
         uses: actions/cache@v4
