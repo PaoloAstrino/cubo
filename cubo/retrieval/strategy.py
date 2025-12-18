@@ -91,7 +91,7 @@ class RetrievalStrategy:
         fused_scores = rrf_fuse(bm25_candidates, semantic_candidates, k=rrf_k)
 
         # Sort by RRF score descending
-        fused_scores.sort(key=lambda x: x.get("score", 0), reverse=True)
+        fused_scores.sort(key=lambda x: x.get("score", x.get("similarity", 0)), reverse=True)
 
         # Map fused scores back to full candidate data
         # Build lookup from candidates
@@ -104,11 +104,12 @@ class RetrievalStrategy:
         # Build result list with RRF scores
         results = []
         for fused in fused_scores[:top_k]:
-            doc_id = fused.get("doc_id")
+            doc_id = fused.get("doc_id") or fused.get("id")
+            fused_score = fused.get("score", fused.get("similarity", 0))
             if doc_id in candidate_lookup:
                 result = candidate_lookup[doc_id].copy()
-                result["similarity"] = fused.get("score", 0)
-                result["rrf_score"] = fused.get("score", 0)
+                result["similarity"] = fused_score
+                result["rrf_score"] = fused_score
                 results.append(result)
             else:
                 # Fallback: create minimal result
@@ -116,8 +117,8 @@ class RetrievalStrategy:
                     {
                         "id": doc_id,
                         "doc_id": doc_id,
-                        "similarity": fused.get("score", 0),
-                        "rrf_score": fused.get("score", 0),
+                        "similarity": fused_score,
+                        "rrf_score": fused_score,
                         "document": "",
                         "metadata": {},
                     }

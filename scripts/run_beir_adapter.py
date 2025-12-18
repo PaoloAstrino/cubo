@@ -20,10 +20,13 @@ def load_queries(queries_path: str) -> Dict[str, str]:
     """Load queries from BEIR queries.jsonl"""
     queries = {}
     with open(queries_path, 'r', encoding='utf-8') as f:
-        for line in f:
+        for i, line in enumerate(f):
             try:
                 item = json.loads(line)
-                queries[item['_id']] = item['text']
+                qid = item.get('_id', str(i))
+                text = item.get('text', item.get('query', ''))
+                if text:
+                    queries[qid] = text
             except json.JSONDecodeError:
                 continue
     return queries

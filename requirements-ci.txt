@@ -1,0 +1,52 @@
+    # CI/CD Pipeline Requirements (Minimal - ~500MB vs ~5GB)
+# For linting, testing, and quality checks without heavy ML dependencies
+# Note: Frontend uses pnpm (not npm) - see .github/workflows/
+
+# === Web Server (for testing) ===
+fastapi>=0.104.0,<0.116.0
+uvicorn[standard]>=0.24.0,<0.33.0
+python-multipart>=0.0.6
+aiofiles>=23.2.0
+
+# === Document Processing (lightweight) ===
+python-docx>=1.0.0
+pypdf>=3.0.0
+pdfplumber>=0.10.3
+Pillow>=10.0.0
+openpyxl>=3.1.0
+
+# === Vector Store (CPU-only, small) ===
+faiss-cpu==1.7.4
+numpy>=1.21.0,<2.0.0
+
+# === LLM Integration (no heavy deps) ===
+ollama>=0.3.0,<0.5.0
+
+# === Clustering (minimal) ===
+datasketch
+networkx
+scikit-learn>=1.3.0,<1.6.0
+
+# === Logging ===
+structlog
+python-json-logger
+colorama>=0.4.0
+tqdm>=4.64.0
+
+# === NLP (lightweight) ===
+nltk>=3.8.1
+simplemma>=0.9.0
+
+# === Utilities ===
+psutil>=5.9.0
+pandas>=1.3.0
+cryptography>=40.0.0
+
+# NOTE: Heavy packages EXCLUDED for CI:
+# - torch (~2GB)
+# - torchvision (~500MB)
+# - transformers (~500MB)
+# - sentence-transformers
+# - easyocr
+# - pymupdf
+# These are only needed for production runtime, not CI testing

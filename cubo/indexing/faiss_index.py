@@ -60,10 +60,69 @@ class FAISSIndexManager:
 
         self._lock = threading.Lock()
 
+    def add_to_hot(self, vectors: List[List[float]], ids: List[str]) -> None:
+        """Add vectors to the hot index without rebuilding."""
+        if not vectors or not ids:
+            return
+        
+        array = np.asarray(vectors, dtype="float32")
+        if len(array) != len(ids):
+            raise ValueError("Embeddings and ids must have the same length")
+
+        # Normalize if needed
+        if self.normalize:
+            try:
+                faiss.normalize_L2(array)
+            except Exception as e:
+                logger.warning(f"Failed to normalize vectors: {e}")
+
+        # Initialize hot index if it doesn't exist
+        if self.hot_index is None:
+            logger.info(f"Initializing hot index (HNSW M={self.hnsw_m})")
+            self.hot_index = faiss.IndexHNSWFlat(self.dimension, self.hnsw_m)
+            self.hot_index.hnsw.efConstruction = max(40, self.hnsw_m * 2)
+            self.hot_index.hnsw.efSearch = self.hnsw_ef
+
+        # Add to FAISS index
+        self.hot_index.add(array)
+        
+        # Update ID tracking
+        self.hot_ids.extend(ids)
+        
+        try:
+            trace_collector.record(
+                "",
+                "faiss",
+                "faiss.hot_added",
+                {"count": len(ids), "total_hot": len(self.hot_ids)},
+            )
+        except Exception:
+            pass
+
+    def get_vector(self, doc_id: str) -> Optional[np.ndarray]:
+        """Reconstruct vector from existing indexes if available."""
+        # Check hot index first
+        if self.hot_index and doc_id in self.hot_ids:
+            try:
+                idx = self.hot_ids.index(doc_id)
+                return self.hot_index.reconstruct(idx)
+            except Exception:
+                pass
+        
+        # Check cold index
+        if self.cold_index and doc_id in self.cold_ids:
+            try:
+                idx = self.cold_ids.index(doc_id)
+                return self.cold_index.reconstruct(idx)
+            except Exception:
+                pass
+                
+        return None
+
     def build_indexes(
         self, vectors: List[List[float]], ids: List[str], append: bool = False
     ) -> None:
-        if not vectors:
+        if vectors is None or len(vectors) == 0:
             raise ValueError("Cannot build FAISS indexes without embeddings")
         array = np.asarray(vectors, dtype="float32")
         if len(array) != len(ids):
@@ -267,30 +326,43 @@ class FAISSIndexManager:
             # Normalize query to match indexed vectors
             if self.normalize:
                 faiss.normalize_L2(query_vec)
+            
             results: List[Dict[str, Any]] = []
+            seen_ids = set()
+
             if self.hot_index and self.hot_ids:
                 dists, labels = self.hot_index.search(query_vec, k)
                 for idx, dist in zip(labels[0], dists[0]):
                     if idx == -1:
                         continue
-                    result = {
-                        "id": self.hot_ids[int(idx)],
-                        "distance": float(dist),
-                        "source": "hot",
-                    }
-                    results.append(result)
+                    # Safety check for index bounds
+                    if idx < len(self.hot_ids):
+                        doc_id = self.hot_ids[int(idx)]
+                        if doc_id not in seen_ids:
+                            result = {
+                                "id": doc_id,
+                                "distance": float(dist),
+                                "source": "hot",
+                            }
+                            results.append(result)
+                            seen_ids.add(doc_id)
 
             if self.cold_index and self.cold_ids:
                 dists, labels = self.cold_index.search(query_vec, k)
                 for idx, dist in zip(labels[0], dists[0]):
                     if idx == -1:
                         continue
-                    result = {
-                        "id": self.cold_ids[int(idx)],
-                        "distance": float(dist),
-                        "source": "cold",
-                    }
-                    results.append(result)
+                    # Safety check for index bounds
+                    if idx < len(self.cold_ids):
+                        doc_id = self.cold_ids[int(idx)]
+                        if doc_id not in seen_ids:
+                            result = {
+                                "id": doc_id,
+                                "distance": float(dist),
+                                "source": "cold",
+                            }
+                            results.append(result)
+                            seen_ids.add(doc_id)
 
             results.sort(key=lambda r: r["distance"])
             return results[:k]
