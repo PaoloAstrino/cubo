@@ -37,12 +37,24 @@ jobs:
           python-version: "3.11"
           cache: 'pip'
       
-      - name: Install Dependencies
+      - name: Install Dependencies (minimal for CI)
         run: |
+          # Disk and pip diagnostics
+          df -h || true
+          pip --version || true
+
+          # Install minimal CI dependencies only (avoid heavy optional dev packages)
           pip install --no-cache-dir -r requirements-ci.txt
-          pip install --no-cache-dir -r requirements-dev.txt
+          pip install --no-cache-dir -r requirements-lint.txt
           pip install --no-cache-dir -e .
-          # Using requirements-ci.txt: minimal install for integration tests
+
+          # Cleanup pip cache (safeguard to free space if any wheels were cached)
+          pip cache purge || true
+          # NOTE: We intentionally skip installing `requirements-dev.txt` here because
+          # it contains heavy optional packages (torch, torchvision, hdbscan, umap-learn, etc.)
+          # which can cause "No space left on device" on hosted runners. If you need
+          # those packages for specific workflows, add a targeted job that runs on a
+          # runner with more disk or installs only those packages explicitly.
       
       - name: Run Integration Tests
         run: pytest integration_tests/ -v
@@ -59,16 +71,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 8
-      
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
-      
+
+      - name: Debug Node / pnpm cache
+        run: |
+          node -v
+          npm -v || true
+          echo "npm cache: $(npm config get cache)" || true
+          echo "pnpm version: $(pnpm -v)" || true
+          echo "pnpm store path: $(pnpm store path)" || true
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            ~/.pnpm-store/v3
+            node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 

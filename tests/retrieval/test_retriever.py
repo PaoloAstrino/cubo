@@ -108,6 +108,8 @@ def test_retrieve_success(mock_model, temp_db_path):
     config.set("collection_name", "test_retrieve_success")
     config.set("vector_store_backend", "faiss")
     config.set("index_dimension", 768)
+    # Ensure mock returns 768-dim embeddings to match index
+    mock_model.get_sentence_embedding_dimension.return_value = 768
     retriever = DocumentRetriever(mock_model)
     docs = ["Relevant document"]
     retriever.add_documents(docs)

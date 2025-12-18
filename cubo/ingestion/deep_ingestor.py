@@ -52,13 +52,14 @@ class DeepIngestor:
     ):
         self.input_folder = Path(input_folder or settings.paths.data_folder)
         self.output_dir = Path(output_dir or settings.paths.deep_output_dir)
-        
+
         self.chunking_config = chunking_config or {
             "chunk_size": settings.chunking.chunk_size,
-            "chunk_overlap": settings.chunking.chunk_overlap_sentences * 100, # Approx 100 chars per sentence
-            "min_chunk_size": settings.chunking.min_chunk_size
+            "chunk_overlap": settings.chunking.chunk_overlap_sentences
+            * 100,  # Approx 100 chars per sentence
+            "min_chunk_size": settings.chunking.min_chunk_size,
         }
-        
+
         self.csv_rows_per_chunk = csv_rows_per_chunk or 25
         self.use_file_hash_for_chunk_id = (
             use_file_hash_for_chunk_id if use_file_hash_for_chunk_id is not None else True
@@ -75,7 +76,9 @@ class DeepIngestor:
         self.loader = DocumentLoader(skip_model=True)
         self.chunker_factory = ChunkerFactory(
             default_window_size=self.chunking_config.get("window_size", 3),
-            table_rows_per_chunk=self.chunking_config.get("rows_per_chunk", csv_rows_per_chunk or 25),
+            table_rows_per_chunk=self.chunking_config.get(
+                "rows_per_chunk", csv_rows_per_chunk or 25
+            ),
         )
         self.ocr_processor = OCRProcessor(config)  # Initialize OCR processor
         self.input_folder.mkdir(parents=True, exist_ok=True)  # Ensure input folder exists
@@ -103,7 +106,7 @@ class DeepIngestor:
 
     def _merge_temp_parquets(self, final_path: Path, resume: bool = False) -> Path | None:
         """Merge all temporary parquet files into the final output.
-        
+
         Args:
             final_path: Path to the final parquet file.
             resume: If True, append to existing file instead of overwriting.
@@ -113,7 +116,7 @@ class DeepIngestor:
 
         try:
             all_dfs = []
-            
+
             # If resuming, load existing data first
             if resume and final_path.exists():
                 try:
@@ -133,10 +136,14 @@ class DeepIngestor:
                 # If resuming, also write appended-only parquet containing only new temp files
                 if resume:
                     try:
-                        appended_dfs = [pd.read_parquet(f) for f in self._temp_parquet_files if f.exists()]
+                        appended_dfs = [
+                            pd.read_parquet(f) for f in self._temp_parquet_files if f.exists()
+                        ]
                         if appended_dfs:
                             appended_df = pd.concat(appended_dfs, ignore_index=True)
-                            appended_path = final_path.with_name(f"chunks_deep_appended_{self._run_id}.parquet")
+                            appended_path = final_path.with_name(
+                                f"chunks_deep_appended_{self._run_id}.parquet"
+                            )
                             appended_df.to_parquet(appended_path, index=False, engine="pyarrow")
                             logger.info(f"Saved appended chunks parquet to {appended_path}")
                             return appended_path
@@ -189,7 +196,10 @@ class DeepIngestor:
         total_chunks = 0
 
         manager = self._metadata_manager or get_metadata_manager()
-        run_id = self._run_id_override or f"deep_{os.path.basename(str(self.input_folder))}_{int(pd.Timestamp.utcnow().timestamp())}"
+        run_id = (
+            self._run_id_override
+            or f"deep_{os.path.basename(str(self.input_folder))}_{int(pd.Timestamp.utcnow().timestamp())}"
+        )
 
         if self._manage_run:
             try:
@@ -243,7 +253,9 @@ class DeepIngestor:
                 except Exception as exc:
                     logger.warning(f"Failed processing file {path}: {exc}")
                     try:
-                        manager.mark_file_failed(run_id, str(path), error=str(exc), size_bytes=size_bytes)
+                        manager.mark_file_failed(
+                            run_id, str(path), error=str(exc), size_bytes=size_bytes
+                        )
                     except Exception:
                         logger.debug("Unable to mark file failed; continuing")
                     continue

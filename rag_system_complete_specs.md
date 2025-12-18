@@ -1788,8 +1788,14 @@ class ResponseGenerator:
         return attributed_response
 
     def _create_prompt(self, query, context):
-        """Create prompt for LLM"""
-        prompt = f"""<|system|>You are a helpful assistant that answers questions based on provided context. Always cite your sources using [Source N] notation. If the answer is not in the context, say so.<|end|>
+        """Create prompt for LLM using canonical system prompt.
+        
+        Note: In production code, this uses the DEFAULT_SYSTEM_PROMPT from
+        cubo.config.prompt_defaults for consistency across all LLM providers.
+        """
+        # This example shows the expected format - actual implementation uses:
+        # from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
+        prompt = f"""<|system|>You are a helpful assistant that answers questions based on the provided context. Always cite sources using [Source N] notation when referencing specific information. If the answer is not in the provided context, reply 'Not in provided context.' Use only the provided context to answer - do not use external knowledge, assumptions, or invented information. Be concise and accurate.<|end|>
 <|user|>Context:
 {context}
 

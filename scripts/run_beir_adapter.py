@@ -17,9 +17,20 @@ logger = Logger()
 log = logging.getLogger("beir_adapter")
 
 def load_queries(queries_path: str) -> Dict[str, str]:
-    """Load queries from BEIR queries.jsonl"""
+    """Load queries from BEIR queries.jsonl or queries.json"""
     queries = {}
     with open(queries_path, 'r', encoding='utf-8') as f:
+        # Try loading as JSON first (dict format)
+        try:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            # Not JSON, try JSONL
+            pass
+        
+        # Reset file pointer and try JSONL
+        f.seek(0)
         for i, line in enumerate(f):
             try:
                 item = json.loads(line)

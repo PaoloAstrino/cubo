@@ -53,7 +53,9 @@ class MetadataManager:
             )
         """
         )
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_files_run_id ON ingestion_files (run_id)")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ingestion_files_run_id ON ingestion_files (run_id)"
+        )
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS chunk_mappings (
@@ -141,7 +143,7 @@ class MetadataManager:
         except Exception:
             # Ignore failures; older DBs may not have scaffold_runs table and we'll rely on CREATE TABLE IF NOT EXISTS
             pass
-        
+
         # --- Chat Persistence Schema ---
         cur.execute(
             """
@@ -166,7 +168,9 @@ class MetadataManager:
             )
             """
         )
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id)")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id)"
+        )
         self.conn.commit()
 
         # Ensure scaffold_mappings has expected columns (for older DBs/migrations)
@@ -282,16 +286,22 @@ class MetadataManager:
             )
             self.conn.commit()
 
-    def mark_file_processing(self, run_id: str, file_path: str, size_bytes: Optional[int] = None) -> None:
+    def mark_file_processing(
+        self, run_id: str, file_path: str, size_bytes: Optional[int] = None
+    ) -> None:
         self.set_file_status(run_id, file_path, "processing", size_bytes=size_bytes)
 
-    def mark_file_succeeded(self, run_id: str, file_path: str, size_bytes: Optional[int] = None) -> None:
+    def mark_file_succeeded(
+        self, run_id: str, file_path: str, size_bytes: Optional[int] = None
+    ) -> None:
         self.set_file_status(run_id, file_path, "succeeded", size_bytes=size_bytes)
 
     def mark_file_failed(
         self, run_id: str, file_path: str, error: str, size_bytes: Optional[int] = None
     ) -> None:
-        self.set_file_status(run_id, file_path, "failed", error=error, size_bytes=size_bytes, increment_attempt=True)
+        self.set_file_status(
+            run_id, file_path, "failed", error=error, size_bytes=size_bytes, increment_attempt=True
+        )
 
     def list_files_for_run(self, run_id: str) -> List[Dict[str, Any]]:
         with self._lock:
@@ -363,7 +373,9 @@ class MetadataManager:
         with self._lock:
             cur = self.conn.cursor()
             if started_at is None and finished_at is None:
-                cur.execute("""UPDATE ingestion_runs SET status = ? WHERE id = ?""", (status, run_id))
+                cur.execute(
+                    """UPDATE ingestion_runs SET status = ? WHERE id = ?""", (status, run_id)
+                )
             else:
                 cur.execute(
                     """UPDATE ingestion_runs SET status = ?, started_at = COALESCE(?, started_at), finished_at = COALESCE(?, finished_at) WHERE id = ?""",
@@ -395,7 +407,7 @@ class MetadataManager:
             if finished_at is not None:
                 fields.append("finished_at = ?")
                 values.append(finished_at)
-            
+
             if not fields:
                 return
 
@@ -485,7 +497,8 @@ class MetadataManager:
         with self._lock:
             cur = self.conn.cursor()
             cur.execute(
-                """SELECT old_id, new_id, metadata FROM chunk_mappings WHERE run_id = ?""", (run_id,)
+                """SELECT old_id, new_id, metadata FROM chunk_mappings WHERE run_id = ?""",
+                (run_id,),
             )
             rows = cur.fetchall()
         return [
@@ -561,6 +574,7 @@ class MetadataManager:
     def create_conversation(self, title: str = "New Chat") -> str:
         """Create a new conversation and return its ID."""
         import uuid
+
         conv_id = str(uuid.uuid4())
         now = datetime.datetime.utcnow().isoformat()
         with self._lock:
@@ -577,16 +591,17 @@ class MetadataManager:
     ) -> str:
         """Add a message to a conversation."""
         import uuid
+
         msg_id = str(uuid.uuid4())
         now = datetime.datetime.utcnow().isoformat()
         metadata_json = json.dumps(metadata) if metadata else "{}"
-        
+
         with self._lock:
             cur = self.conn.cursor()
             # Verify conversation exists first
             cur.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
             if not cur.fetchone():
-                # Auto-create if not exists (resilience) or raise error. 
+                # Auto-create if not exists (resilience) or raise error.
                 # Ideally we create it, but let's stick to explicit creation or error.
                 # For robustness, we'll try to insert the conversation if missing, or error.
                 # Let's assume it must exist for now, or the caller handles it.
@@ -600,8 +615,7 @@ class MetadataManager:
             )
             # Update conversation updated_at
             cur.execute(
-                """UPDATE conversations SET updated_at = ? WHERE id = ?""",
-                (now, conversation_id)
+                """UPDATE conversations SET updated_at = ? WHERE id = ?""", (now, conversation_id)
             )
             self.conn.commit()
         return msg_id
@@ -616,14 +630,14 @@ class MetadataManager:
                 (conversation_id,),
             )
             rows = cur.fetchall()
-        
+
         return [
             {
                 "id": r[0],
                 "role": r[1],
                 "content": r[2],
                 "created_at": r[3],
-                "metadata": json.loads(r[4]) if r[4] else {}
+                "metadata": json.loads(r[4]) if r[4] else {},
             }
             for r in rows
         ]
@@ -638,17 +652,9 @@ class MetadataManager:
                 (limit,),
             )
             rows = cur.fetchall()
-            
-        return [
-            {
-                "id": r[0],
-                "title": r[1],
-                "created_at": r[2],
-                "updated_at": r[3]
-            }
-            for r in rows
-        ]
-    
+
+        return [{"id": r[0], "title": r[1], "created_at": r[2], "updated_at": r[3]} for r in rows]
+
     def get_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         """Get details of a specific conversation."""
         with self._lock:
@@ -658,16 +664,11 @@ class MetadataManager:
                 (conversation_id,),
             )
             row = cur.fetchone()
-            
+
         if not row:
             return None
-            
-        return {
-            "id": row[0],
-            "title": row[1],
-            "created_at": row[2],
-            "updated_at": row[3]
-        }
+
+        return {"id": row[0], "title": row[1], "created_at": row[2], "updated_at": row[3]}
 
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation and all its messages."""

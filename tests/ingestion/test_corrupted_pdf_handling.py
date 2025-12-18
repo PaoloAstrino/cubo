@@ -5,20 +5,20 @@ import pytest
 
 # Skip the test gracefully if Hypothesis is not installed in the environment.
 pytest.importorskip("hypothesis")
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings, strategies as st, HealthCheck
 
 from cubo.ingestion.deep_ingestor import DeepIngestor
 from cubo.storage.metadata_manager import MetadataManager
 
 
-@settings(max_examples=5, deadline=None)
+@settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(bad_bytes=st.binary(min_size=1, max_size=2048))
 def test_corrupted_pdf_is_handled_without_crash(tmp_path: Path, bad_bytes: bytes):
     """Random PDF-like bytes should not crash ingestion and should produce a file status entry."""
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "out"
-    input_dir.mkdir()
-    output_dir.mkdir()
+    input_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(exist_ok=True)
 
     bad_pdf = input_dir / "bad.pdf"
     bad_pdf.write_bytes(bad_bytes)

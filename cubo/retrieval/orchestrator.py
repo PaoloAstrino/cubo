@@ -312,7 +312,7 @@ class HybridScorer:
             bm25_candidates=bm25_candidates,
             top_k=top_k,
             semantic_weight=semantic_weight,
-            bm25_weight=bm25_weight
+            bm25_weight=bm25_weight,
         )
 
 

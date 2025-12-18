@@ -36,14 +36,23 @@ class ModelManager:
             self._lazy_manager = None
 
     def _detect_device(self) -> str:
-        """Detect available device (CUDA GPU or CPU)."""
-        if torch.cuda.is_available():
-            device = "cuda"
-            logger.info(f"CUDA available. Using GPU: {torch.cuda.get_device_name(0)}")
+        """Detect available device (CUDA GPU, MPS, or CPU)."""
+        # Check config first (e.g. set by apply_laptop_mode)
+        config_device = config.get("embeddings.device")
+        if config_device:
+            logger.info(f"Using configured device: {config_device}")
+            return config_device
+
+        from cubo.utils.hardware import detect_hardware
+
+        hw = detect_hardware()
+
+        if hw.device != "cpu":
+            logger.info(f"Hardware acceleration detected. Using: {hw.device}")
         else:
-            device = "cpu"
-            logger.info("CUDA not available. Using CPU.")
-        return device
+            logger.info("No hardware acceleration detected. Using CPU.")
+
+        return hw.device
 
     def load_model(self):
         """Load the embedding model with GPU fallback."""

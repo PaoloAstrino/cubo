@@ -64,7 +64,7 @@ class FAISSIndexManager:
         """Add vectors to the hot index without rebuilding."""
         if not vectors or not ids:
             return
-        
+
         array = np.asarray(vectors, dtype="float32")
         if len(array) != len(ids):
             raise ValueError("Embeddings and ids must have the same length")
@@ -85,10 +85,10 @@ class FAISSIndexManager:
 
         # Add to FAISS index
         self.hot_index.add(array)
-        
+
         # Update ID tracking
         self.hot_ids.extend(ids)
-        
+
         try:
             trace_collector.record(
                 "",
@@ -108,7 +108,7 @@ class FAISSIndexManager:
                 return self.hot_index.reconstruct(idx)
             except Exception:
                 pass
-        
+
         # Check cold index
         if self.cold_index and doc_id in self.cold_ids:
             try:
@@ -116,7 +116,7 @@ class FAISSIndexManager:
                 return self.cold_index.reconstruct(idx)
             except Exception:
                 pass
-                
+
         return None
 
     def build_indexes(
@@ -326,7 +326,7 @@ class FAISSIndexManager:
             # Normalize query to match indexed vectors
             if self.normalize:
                 faiss.normalize_L2(query_vec)
-            
+
             results: List[Dict[str, Any]] = []
             seen_ids = set()
 

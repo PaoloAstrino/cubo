@@ -716,9 +716,7 @@ class DocumentRetriever:
                     "candidates": [
                         {
                             "id": (
-                                (r.get("metadata") or {}).get("id")
-                                if isinstance(r, dict)
-                                else None
+                                (r.get("metadata") or {}).get("id") if isinstance(r, dict) else None
                             ),
                             "similarity": (r.get("similarity", 0) if isinstance(r, dict) else 0),
                         }
@@ -928,7 +926,9 @@ class FaissHybridRetriever:
                 r["doc_id"] = r["id"]
             if "score" not in r:
                 # score should be the fused 'similarity' if present
-                r["score"] = r.get("similarity", r.get("bm25_score", 0) + r.get("semantic_score", 0))
+                r["score"] = r.get(
+                    "similarity", r.get("bm25_score", 0) + r.get("semantic_score", 0)
+                )
         fused.sort(key=lambda x: x.get("score", 0), reverse=True)
         results = [
             self.documents[r["doc_id"]] for r in fused[:top_k] if r.get("doc_id") in self.documents

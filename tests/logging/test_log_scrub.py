@@ -26,18 +26,21 @@ def test_query_scrubbed_in_logs(tmp_path):
     app = CUBOApp()
     # Use the command line display helper to log the query
     app._display_command_line_results(query, top_docs=["doc1"], response="ok")
+    # Flush logs to ensure they're written
+    logger_instance.shutdown()
 
     with open(log_file, encoding="utf-8") as f:
         lines = f.readlines()
 
-    assert any("Query:" in l for l in lines)
+    assert any("Query:" in l for l in lines), f"No Query log found in {lines}"
     # Find the last Query line
     qlines = [l for l in lines if "Query:" in l]
     qline = qlines[-1]
     # When scrub enabled, ensure full query is not in logs
-    assert query not in qline
+    assert query not in qline, f"Raw query '{query}' found in log when scrubbing enabled"
     # And hash representation is present
-    assert security_manager.hash_sensitive_data(query) in qline
+    expected_hash = security_manager.hash_sensitive_data(query)
+    assert expected_hash in qline, f"Hash {expected_hash} not found in log: {qline}"
 
     # Test when scrub_queries = False
     config.set("logging.scrub_queries", False)
@@ -47,6 +50,7 @@ def test_query_scrubbed_in_logs(tmp_path):
     cubomain.logger = logger_instance.get_logger()
 
     app._display_command_line_results(query, top_docs=["doc1"], response="ok")
+    logger_instance.shutdown()
 
     with open(log_file, encoding="utf-8") as f:
         lines = f.readlines()

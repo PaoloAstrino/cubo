@@ -155,13 +155,14 @@ class CuboCore:
             job_id: ID to track status via get_task_status()
         """
         from cubo.processing.background_manager import bg_manager
-        
+
         # We submit build_index as the task since it does end-to-end ingestion
         return bg_manager.submit_task(self.build_index, data_folder)
 
     def get_task_status(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get status of a background task."""
         from cubo.processing.background_manager import bg_manager
+
         return bg_manager.get_status(job_id)
 
     def query_retrieve(
@@ -208,11 +209,11 @@ class CuboCore:
     def query(self, query: str, top_k: int = None) -> str:
         """
         Simple query interface for developers.
-        
+
         Args:
             query: User's question
             top_k: Number of context documents to retrieve
-            
+
         Returns:
             Generated answer string.
         """
