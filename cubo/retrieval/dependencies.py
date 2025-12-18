@@ -181,9 +181,7 @@ def get_scaffold_retriever(scaffold_dir: str, embedding_generator: Any) -> Optio
 
     if _scaffold_retriever_factory is None:
         try:
-            from cubo.retrieval.scaffold_retriever import (
-                create_scaffold_retriever_from_directory,
-            )
+            from cubo.retrieval.scaffold_retriever import create_scaffold_retriever_from_directory
 
             _scaffold_retriever_factory = create_scaffold_retriever_from_directory
         except ImportError as e:
