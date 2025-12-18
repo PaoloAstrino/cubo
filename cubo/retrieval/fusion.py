@@ -8,11 +8,11 @@ from cubo.config.settings import settings
 
 
 def rrf_fuse(
-    bm25_results: List[Dict], 
-    faiss_results: List[Dict], 
+    bm25_results: List[Dict],
+    faiss_results: List[Dict],
     k: int = None,
     bm25_weight: float = 1.0,
-    semantic_weight: float = 1.0
+    semantic_weight: float = 1.0,
 ) -> List[Dict]:
     """
     Reciprocal Rank Fusion (Weighted): combine two ranked lists.
@@ -28,18 +28,18 @@ def rrf_fuse(
     for i, doc in enumerate(bm25_results):
         rank = i + 1
         doc_id = doc.get("doc_id") or doc.get("id")
-        if not doc_id: 
+        if not doc_id:
             continue
-            
+
         if doc_id not in fused:
             fused[doc_id] = {
-                "id": doc_id, 
+                "id": doc_id,
                 "document": doc.get("document", doc.get("text", "")),
                 "metadata": doc.get("metadata", {}),
                 "similarity": 0.0,
-                "bm25_score": doc.get("similarity", 0.0) # Normalized score
+                "bm25_score": doc.get("similarity", 0.0),  # Normalized score
             }
-        
+
         fused[doc_id]["similarity"] += bm25_weight * (1.0 / (k + rank))
 
     # Process Semantic
@@ -51,11 +51,11 @@ def rrf_fuse(
 
         if doc_id not in fused:
             fused[doc_id] = {
-                "id": doc_id, 
+                "id": doc_id,
                 "document": doc.get("document", doc.get("text", "")),
                 "metadata": doc.get("metadata", {}),
                 "similarity": 0.0,
-                "semantic_score": doc.get("similarity", 0.0)
+                "semantic_score": doc.get("similarity", 0.0),
             }
         else:
             # Update metadata if missing from BM25 result
@@ -101,11 +101,11 @@ def combine_semantic_and_bm25(
 
     # Use RRF
     fused_results = rrf_fuse(
-        bm25_candidates, 
-        semantic_candidates, 
+        bm25_candidates,
+        semantic_candidates,
         k=settings.retrieval.rrf_k,
         bm25_weight=bm25_weight,
-        semantic_weight=semantic_weight
+        semantic_weight=semantic_weight,
     )
 
     # Sort by fused score

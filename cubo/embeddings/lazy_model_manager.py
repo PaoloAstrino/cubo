@@ -56,11 +56,10 @@ class LazyModelManager:
         # Record how this instance was created to allow reinit if config changes
         try:
             from cubo.config import config as _config
+
             self._created_with_laptop_mode = bool(_config.get("laptop_mode", False))
             # Track the index dimension at creation so we can re-create if changed
-            self._created_with_index_dimension = int(
-                _config.get("index_dimension", 0) or 0
-            )
+            self._created_with_index_dimension = int(_config.get("index_dimension", 0) or 0)
         except Exception:
             self._created_with_laptop_mode = False
             self._created_with_index_dimension = 0
@@ -325,9 +324,13 @@ def get_lazy_model_manager() -> LazyModelManager:
         # the manager was created, recreate it to honor the new mode and avoid
         # loading a heavy model for tests that expect the laptop-mode stub.
         try:
-            if bool(_config.get("laptop_mode", False)) != _lazy_model_manager._created_with_laptop_mode or int(
+            if bool(
+                _config.get("laptop_mode", False)
+            ) != _lazy_model_manager._created_with_laptop_mode or int(
                 _config.get("index_dimension", 0) or 0
-            ) != getattr(_lazy_model_manager, "_created_with_index_dimension", 0):
+            ) != getattr(
+                _lazy_model_manager, "_created_with_index_dimension", 0
+            ):
                 # If a model is loaded, unload it before re-creating manager
                 if _lazy_model_manager.is_loaded():
                     _lazy_model_manager.force_unload()

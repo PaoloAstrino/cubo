@@ -33,15 +33,16 @@ except Exception:
 
 class WindowsSafeRotatingFileHandler(RotatingFileHandler):
     """Windows-safe rotating file handler that handles file locking issues."""
-    
+
     def doRollover(self):
         """Override to handle Windows file locking gracefully."""
         if self.stream:
             self.stream.close()
             self.stream = None
-        
+
         # Try rotation with retry logic
         import time
+
         for attempt in range(3):
             try:
                 super().doRollover()
@@ -52,7 +53,7 @@ class WindowsSafeRotatingFileHandler(RotatingFileHandler):
                 else:
                     # If rotation fails, just continue writing to current file
                     pass
-        
+
         # Reopen stream
         if not self.stream:
             self.stream = self._open()
@@ -60,15 +61,16 @@ class WindowsSafeRotatingFileHandler(RotatingFileHandler):
 
 class WindowsSafeTimedRotatingFileHandler(TimedRotatingFileHandler):
     """Windows-safe timed rotating file handler that handles file locking issues."""
-    
+
     def doRollover(self):
         """Override to handle Windows file locking gracefully."""
         if self.stream:
             self.stream.close()
             self.stream = None
-        
+
         # Try rotation with retry logic
         import time
+
         for attempt in range(3):
             try:
                 super().doRollover()
@@ -79,7 +81,7 @@ class WindowsSafeTimedRotatingFileHandler(TimedRotatingFileHandler):
                 else:
                     # If rotation fails, just continue writing to current file
                     pass
-        
+
         # Reopen stream
         if not self.stream:
             self.stream = self._open()
@@ -174,16 +176,22 @@ class Logger:
             size = int(_cfg_logging_or("rotate_size", 100 * 1024 * 1024))
             if sys.platform == "win32":
                 # Use Windows-safe rotating handler with delay to avoid file locking
-                handler = WindowsSafeRotatingFileHandler(path, maxBytes=size, backupCount=10, encoding="utf-8", delay=True)
+                handler = WindowsSafeRotatingFileHandler(
+                    path, maxBytes=size, backupCount=10, encoding="utf-8", delay=True
+                )
             else:
                 handler = RotatingFileHandler(path, maxBytes=size, backupCount=10, encoding="utf-8")
         elif rotate_method == "time" or rotate_method == "midnight":
             when = _cfg_logging_or("rotate_when", "midnight")
             if sys.platform == "win32":
                 # Use Windows-safe timed rotating handler with delay to avoid file locking
-                handler = WindowsSafeTimedRotatingFileHandler(path, when=when, backupCount=10, encoding="utf-8", delay=True)
+                handler = WindowsSafeTimedRotatingFileHandler(
+                    path, when=when, backupCount=10, encoding="utf-8", delay=True
+                )
             else:
-                handler = TimedRotatingFileHandler(path, when=when, backupCount=10, encoding="utf-8")
+                handler = TimedRotatingFileHandler(
+                    path, when=when, backupCount=10, encoding="utf-8"
+                )
         else:
             handler = logging.FileHandler(path, encoding="utf-8")
 

@@ -44,13 +44,14 @@ class ModelManager:
             return config_device
 
         from cubo.utils.hardware import detect_hardware
+
         hw = detect_hardware()
-        
+
         if hw.device != "cpu":
             logger.info(f"Hardware acceleration detected. Using: {hw.device}")
         else:
             logger.info("No hardware acceleration detected. Using CPU.")
-            
+
         return hw.device
 
     def load_model(self):

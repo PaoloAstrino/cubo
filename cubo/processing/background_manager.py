@@ -1,7 +1,7 @@
 """
 BackgroundTaskManager - Handles async task execution for non-blocking UI.
 
-This manager wraps ThreadPoolExecutor to allow fire-and-forget tasks 
+This manager wraps ThreadPoolExecutor to allow fire-and-forget tasks
 (like long ingestion) while providing a mechanism to poll for status.
 """
 
@@ -12,11 +12,13 @@ from typing import Dict, Any, Callable, Optional
 from enum import Enum
 from cubo.utils.logger import logger
 
+
 class TaskStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
 
 class BackgroundTaskManager:
     def __init__(self, max_workers: int = 2):
@@ -28,14 +30,14 @@ class BackgroundTaskManager:
     def submit_task(self, func: Callable, *args, **kwargs) -> str:
         """Submit a function to run in the background. Returns a Job ID."""
         job_id = str(uuid.uuid4())
-        
+
         with self._lock:
-             self._tasks[job_id] = {
-                 "status": TaskStatus.PENDING.value,
-                 "result": None,
-                 "error": None, 
-                 "progress": 0.0
-             }
+            self._tasks[job_id] = {
+                "status": TaskStatus.PENDING.value,
+                "result": None,
+                "error": None,
+                "progress": 0.0,
+            }
 
         self.executor.submit(self._run_task, job_id, func, *args, **kwargs)
         return job_id
@@ -74,6 +76,7 @@ class BackgroundTaskManager:
     def shutdown(self):
         """Shutdown the executor."""
         self.executor.shutdown(wait=True)
+
 
 # Global singleton
 bg_manager = BackgroundTaskManager(max_workers=2)

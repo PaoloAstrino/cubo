@@ -17,7 +17,16 @@ import aiofiles
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,13 +68,14 @@ async def lifespan(app: FastAPI):
         # Preload Ollama model (fire-and-forget to warm up the LLM)
         try:
             import requests
+
             model_name = config.get("llm_model")
             if model_name:
                 logger.info(f"Preloading Ollama model: {model_name}")
                 requests.post(
                     "http://localhost:11434/api/generate",
                     json={"model": model_name, "prompt": "", "keep_alive": "60m"},
-                    timeout=0.1
+                    timeout=0.1,
                 )
         except Exception:
             # Ignore errors here (e.g. timeout, connection refused, missing requests)
@@ -75,16 +85,17 @@ async def lifespan(app: FastAPI):
         try:
             cubo_app = CuboCore()
             service_manager = ServiceManager()
-            
+
             # Auto-initialize components in background to ensure readiness without blocking startup
             import threading
+
             def _auto_init():
                 logger.info("Auto-initializing RAG components in background...")
                 cubo_app.initialize_components()
                 logger.info("Auto-initialization complete.")
-            
+
             threading.Thread(target=_auto_init, daemon=True).start()
-            
+
             logger.info("CUBO application initialized successfully")
         except Exception as init_error:
             logger.warning(f"CUBOApp initialization failed: {init_error}")
@@ -120,7 +131,7 @@ app.add_middleware(
 async def trace_id_middleware(request: Request, call_next):
     """Add trace_id to all requests and responses."""
     trace_id = request.headers.get("x-trace-id") or generate_trace_id()
-    
+
     # Store trace_id in request state for easy access in handlers
     request.state.trace_id = trace_id
 
@@ -159,8 +170,10 @@ async def trace_id_middleware(request: Request, call_next):
 # Error Handling
 # =========================================================================
 
+
 class ErrorResponse(BaseModel):
     """Standardized error response."""
+
     error_code: str
     message: str
     details: Optional[Dict[str, Any]] = None
@@ -171,7 +184,7 @@ class ErrorResponse(BaseModel):
 async def cubo_exception_handler(request: Request, exc: CUBOError):
     """Handle custom CUBO exceptions and map to HTTP status codes."""
     trace_id = getattr(request.state, "trace_id", generate_trace_id())
-    
+
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     error_code = exc.error_code or "INTERNAL_ERROR"
 
@@ -187,17 +200,16 @@ async def cubo_exception_handler(request: Request, exc: CUBOError):
     elif isinstance(exc, ModelLoadError):
         status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         error_code = "MODEL_UNAVAILABLE"
-    
-    logger.error(f"{exc.__class__.__name__}: {exc.message}", extra={"trace_id": trace_id}, exc_info=False)
+
+    logger.error(
+        f"{exc.__class__.__name__}: {exc.message}", extra={"trace_id": trace_id}, exc_info=False
+    )
 
     return JSONResponse(
         status_code=status_code,
         content=ErrorResponse(
-            error_code=error_code,
-            message=exc.message,
-            details=exc.details,
-            trace_id=trace_id
-        ).model_dump()
+            error_code=error_code, message=exc.message, details=exc.details, trace_id=trace_id
+        ).model_dump(),
     )
 
 
@@ -206,15 +218,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Handle Pydantic validation errors."""
     trace_id = getattr(request.state, "trace_id", generate_trace_id())
     logger.warning(f"Validation error: {exc}", extra={"trace_id": trace_id})
-    
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=ErrorResponse(
             error_code="INVALID_REQUEST",
             message="Request validation failed",
             details={"errors": exc.errors()},
-            trace_id=trace_id
-        ).model_dump()
+            trace_id=trace_id,
+        ).model_dump(),
     )
 
 
@@ -222,24 +234,25 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def generic_exception_handler(request: Request, exc: Exception):
     """Catch-all for unhandled exceptions."""
     trace_id = getattr(request.state, "trace_id", generate_trace_id())
-    
+
     # Log full traceback for unexpected errors
     logger.error(f"Unhandled exception: {exc}", extra={"trace_id": trace_id}, exc_info=True)
-    
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
             error_code="INTERNAL_SERVER_ERROR",
             message="An unexpected error occurred. Please check logs for trace_id.",
-            details={"original_error": str(exc)}, # Included for "easy debugging" as requested
-            trace_id=trace_id
-        ).model_dump()
+            details={"original_error": str(exc)},  # Included for "easy debugging" as requested
+            trace_id=trace_id,
+        ).model_dump(),
     )
 
 
 # =========================================================================
 # Request/Response Models
 # =========================================================================
+
 
 class QueryRequest(BaseModel):
     """Query request model."""
@@ -315,7 +328,9 @@ class IngestRequest(BaseModel):
 
     data_path: Optional[str] = None
     fast_pass: bool = Field(True, description="Use fast-pass mode")
-    background: bool = Field(False, description="Run ingestion in background and return immediately")
+    background: bool = Field(
+        False, description="Run ingestion in background and return immediately"
+    )
     background: bool = Field(False, description="Run ingestion in background")
 
 
@@ -412,6 +427,7 @@ class AddDocumentsResponse(BaseModel):
 
 class LLMModel(BaseModel):
     """Model representing an available LLM."""
+
     name: str
     size: Optional[int] = None
     digest: Optional[str] = None
@@ -420,6 +436,7 @@ class LLMModel(BaseModel):
 
 class SettingsResponse(BaseModel):
     """Response model for system settings."""
+
     llm_model: str
     llm_provider: str
     # Add other settings as needed
@@ -427,6 +444,7 @@ class SettingsResponse(BaseModel):
 
 class SettingsUpdate(BaseModel):
     """Request model for updating settings."""
+
     llm_model: Optional[str] = None
     llm_provider: Optional[str] = None
 
@@ -435,26 +453,36 @@ class SettingsUpdate(BaseModel):
 @app.get("/api/llm/models", response_model=List[LLMModel])
 async def list_llm_models(request: Request):
     """List available LLM models from Ollama."""
+
     def _get_models():
         try:
             import ollama
+
             models_response = ollama.list()
             # Support both object attribute and dict access
-            models_data = getattr(models_response, 'models', None) or models_response.get('models', [])
-            
+            models_data = getattr(models_response, "models", None) or models_response.get(
+                "models", []
+            )
+
             results = []
             for m in models_data:
                 # Convert Pydantic models to dict if needed
-                d = m.model_dump() if hasattr(m, 'model_dump') else (m.dict() if hasattr(m, 'dict') else m)
+                d = (
+                    m.model_dump()
+                    if hasattr(m, "model_dump")
+                    else (m.dict() if hasattr(m, "dict") else m)
+                )
                 if not isinstance(d, dict):
                     continue
-                    
-                results.append(LLMModel(
-                    name=d.get('model') or d.get('name'),
-                    size=d.get('size'),
-                    digest=d.get('digest'),
-                    family=d.get('details', {}).get('family')
-                ))
+
+                results.append(
+                    LLMModel(
+                        name=d.get("model") or d.get("name"),
+                        size=d.get("size"),
+                        digest=d.get("digest"),
+                        family=d.get("details", {}).get("family"),
+                    )
+                )
             return results
         except ImportError:
             logger.warning("Ollama python package not installed")
@@ -470,8 +498,11 @@ async def list_llm_models(request: Request):
 async def get_settings(request: Request):
     """Get current system settings."""
     return SettingsResponse(
-        llm_model=config.get("llm.model_name") or config.get("selected_llm_model") or config.get("llm_model") or "llama3",
-        llm_provider=config.get("llm.provider", "ollama")
+        llm_model=config.get("llm.model_name")
+        or config.get("selected_llm_model")
+        or config.get("llm_model")
+        or "llama3",
+        llm_provider=config.get("llm.provider", "ollama"),
     )
 
 
@@ -481,17 +512,17 @@ async def update_settings(settings: SettingsUpdate, request: Request):
     updates = {}
     if settings.llm_model:
         config.set("llm.model_name", settings.llm_model)
-        config.set("llm_model", settings.llm_model) 
+        config.set("llm_model", settings.llm_model)
         updates["llm.model_name"] = settings.llm_model
-    
+
     if settings.llm_provider:
         config.set("llm.provider", settings.llm_provider)
         updates["llm.provider"] = settings.llm_provider
-    
+
     if updates:
         config.save()
         logger.info(f"Settings updated: {updates}")
-    
+
     return await get_settings(request)
 
 
@@ -541,14 +572,10 @@ async def readiness_check(request: Request):
         "app": cubo_app is not None,
         "service_manager": service_manager is not None,
         "retriever": (
-            hasattr(cubo_app, "retriever") and cubo_app.retriever is not None
-            if cubo_app
-            else False
+            hasattr(cubo_app, "retriever") and cubo_app.retriever is not None if cubo_app else False
         ),
         "generator": (
-            hasattr(cubo_app, "generator") and cubo_app.generator is not None
-            if cubo_app
-            else False
+            hasattr(cubo_app, "generator") and cubo_app.generator is not None if cubo_app else False
         ),
         "doc_loader": (
             hasattr(cubo_app, "doc_loader") and cubo_app.doc_loader is not None
@@ -560,9 +587,7 @@ async def readiness_check(request: Request):
 
     try:
         if cubo_app and hasattr(cubo_app, "retriever") and cubo_app.retriever:
-            components["vector_store"] = (
-                getattr(cubo_app.retriever, "collection", None) is not None
-            )
+            components["vector_store"] = getattr(cubo_app.retriever, "collection", None) is not None
     except Exception:
         components["vector_store"] = False
 
@@ -587,7 +612,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
     # Sanitize filename
     safe_filename = Path(file.filename).name
     file_path = data_dir / safe_filename
-    
+
     # Use a temporary file
     temp_path = file_path.with_suffix(file_path.suffix + ".tmp")
 
@@ -597,10 +622,10 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
             while chunk := await file.read(1024 * 1024):  # 1MB chunks
                 await f.write(chunk)
                 size += len(chunk)
-        
+
         # Atomic rename (using run_in_threadpool for os.replace)
         await run_in_threadpool(os.replace, temp_path, file_path)
-        
+
     except Exception as e:
         # Cleanup temp file if it exists
         if await run_in_threadpool(temp_path.exists):
@@ -629,7 +654,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
 async def list_documents(request: Request):
     """List uploaded documents."""
     data_dir = Path("data")
-    
+
     # Check existence in threadpool
     exists = await run_in_threadpool(data_dir.exists)
     if not exists:
@@ -810,12 +835,13 @@ async def ingest_documents(
     # If background mode is requested, start task and return immediately
     if request_data.background:
         import uuid
+
         run_id = f"deep_bg_{uuid.uuid4().hex[:8]}"
-        
+
         # Record run immediately as pending
         manager = get_metadata_manager()
         manager.record_ingestion_run(run_id, str(data_path), 0, None, status="pending")
-        
+
         def run_ingestor_bg(rid: str):
             try:
                 ingestor = DeepIngestor(
@@ -828,7 +854,7 @@ async def ingest_documents(
                 logger.error(f"Background ingestion failed: {e}")
 
         background_tasks.add_task(run_ingestor_bg, run_id)
-        
+
         return IngestResponse(
             status="started",
             documents_processed=0,
@@ -1014,9 +1040,7 @@ async def query(request_data: QueryRequest, request: Request):
         retrieve_kwargs["where"] = where_filter
 
     # Use CUBOApp query_retrieve wrapper which guards access to the retriever
-    retrieved_docs = await run_in_threadpool(
-        lambda: cubo_app.query_retrieve(**retrieve_kwargs)
-    )
+    retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
 
     logger.info(f"Retrieved {len(retrieved_docs)} documents")
 
@@ -1035,10 +1059,7 @@ async def query(request_data: QueryRequest, request: Request):
         # Fallback: return retrieved documents as context
         answer = "Retrieved documents (no generator available):\n\n"
         answer += "\n\n".join(
-            [
-                doc.get("document", doc.get("content", ""))[:200]
-                for doc in retrieved_docs[:3]
-            ]
+            [doc.get("document", doc.get("content", ""))[:200] for doc in retrieved_docs[:3]]
         )
 
     # Format sources - handle both 'document' and 'content' keys
@@ -1112,10 +1133,14 @@ async def delete_document(doc_id: str, request: Request):
     if not cubo_app:
         raise HTTPException(status_code=503, detail="CUBO app not initialized")
 
-    logger.info(f"Document deletion requested", extra={"doc_id": doc_id, "trace_id": request.state.trace_id})
+    logger.info(
+        f"Document deletion requested", extra={"doc_id": doc_id, "trace_id": request.state.trace_id}
+    )
 
     # Record deletion request in trace for GDPR audit
-    trace_collector.record(request.state.trace_id, "api", "document.delete.requested", {"doc_id": doc_id})
+    trace_collector.record(
+        request.state.trace_id, "api", "document.delete.requested", {"doc_id": doc_id}
+    )
 
     chunks_removed = 0
     deleted = False
@@ -1196,37 +1221,36 @@ async def export_audit(
         try:
             start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD"
-            )
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
     if end_date:
         try:
             end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d")
             end_dt = end_dt.replace(hour=23, minute=59, second=59)
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD"
-            )
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
 
     # Read JSONL log files
     log_dir = Path(config.get("log_dir", "./logs"))
-    
+
     # List files in threadpool
     jsonl_files = await run_in_threadpool(lambda: sorted(list(log_dir.glob("*.jsonl*"))))
-    
+
     async def audit_generator():
         # Yield header for CSV
         if format.lower() != "json":
-             output = io.StringIO()
-             writer = csv.DictWriter(output, fieldnames=["timestamp", "trace_id", "query_hash", "level", "component", "action"])
-             writer.writeheader()
-             yield output.getvalue()
+            output = io.StringIO()
+            writer = csv.DictWriter(
+                output,
+                fieldnames=["timestamp", "trace_id", "query_hash", "level", "component", "action"],
+            )
+            writer.writeheader()
+            yield output.getvalue()
 
         if format.lower() == "json":
             yield '{"audit_entries": ['
-        
+
         first_entry = True
-        
+
         for log_file in jsonl_files:
             try:
                 async with aiofiles.open(log_file, "r", encoding="utf-8") as f:
@@ -1234,7 +1258,7 @@ async def export_audit(
                         line = line.strip()
                         if not line:
                             continue
-                        
+
                         try:
                             entry = json.loads(line)
 
@@ -1260,7 +1284,7 @@ async def export_audit(
 
                             # Hash query for privacy (GDPR)
                             query_text = ""
-                            
+
                             # Try to extract query from structured message
                             if isinstance(message, str) and "query" in message.lower():
                                 # Hash any query text found
@@ -1279,7 +1303,7 @@ async def export_audit(
                                     else str(message)[:200]
                                 ),
                             }
-                        
+
                             if format.lower() == "json":
                                 if not first_entry:
                                     yield ", "
@@ -1287,13 +1311,23 @@ async def export_audit(
                                 first_entry = False
                             else:
                                 output = io.StringIO()
-                                writer = csv.DictWriter(output, fieldnames=["timestamp", "trace_id", "query_hash", "level", "component", "action"])
+                                writer = csv.DictWriter(
+                                    output,
+                                    fieldnames=[
+                                        "timestamp",
+                                        "trace_id",
+                                        "query_hash",
+                                        "level",
+                                        "component",
+                                        "action",
+                                    ],
+                                )
                                 writer.writerow(audit_entry)
                                 yield output.getvalue()
 
                         except json.JSONDecodeError:
                             continue
-                            
+
             except Exception as e:
                 logger.warning(f"Failed to read log file {log_file}: {e}")
 

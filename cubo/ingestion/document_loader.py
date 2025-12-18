@@ -21,7 +21,7 @@ class DocumentLoader:
         )
         self.enhanced_processor = None
         self.skip_model = skip_model
-        
+
         # Initialize advanced parser if configured
         self.parser_type = config.get("parser", "basic")
         self.advanced_parser = None
@@ -29,7 +29,9 @@ class DocumentLoader:
             try:
                 self.advanced_parser = AdvancedPDFParser()
             except Exception as e:
-                logger.warning(f"Failed to initialize AdvancedPDFParser: {e}. Falling back to basic.")
+                logger.warning(
+                    f"Failed to initialize AdvancedPDFParser: {e}. Falling back to basic."
+                )
                 self.parser_type = "basic"
 
         # Try to load enhanced processor if Dolphin is enabled
@@ -112,8 +114,10 @@ class DocumentLoader:
                 try:
                     return self.advanced_parser.parse(file_path)
                 except Exception as e:
-                    logger.error(f"Advanced parsing failed for {file_path}: {e}. Falling back to basic.")
-            
+                    logger.error(
+                        f"Advanced parsing failed for {file_path}: {e}. Falling back to basic."
+                    )
+
             # Basic parsing (pypdf)
             # Open file in binary mode to avoid leaving handles open on Windows
             text = ""
@@ -142,7 +146,7 @@ class DocumentLoader:
                 List of chunk dictionaries with processed text content
         """
         text = Utils.clean_text(text)
-        
+
         # Select chunker based on file type: PDFs and docx prefer sentence-window chunking
         _, ext = os.path.splitext(file_path)
         ext = ext.lower()

@@ -3,6 +3,7 @@
 Provides thin wrappers around existing chunking strategies so callers can
 select strategies by name or content type without duplicating logic.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,8 +20,7 @@ except Exception:  # pragma: no cover - optional
 
 
 class BaseChunker(Protocol):
-    def chunk(self, text: str, **kwargs) -> List[Dict[str, Any]]:
-        ...
+    def chunk(self, text: str, **kwargs) -> List[Dict[str, Any]]: ...
 
 
 class StructureChunker:
@@ -67,7 +67,9 @@ class TableChunker:
     def __init__(self, rows_per_chunk: int = 25):
         self.rows_per_chunk = rows_per_chunk
 
-    def chunk(self, dataframe, chunk_type: str = "table", metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def chunk(
+        self, dataframe, chunk_type: str = "table", metadata: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
         # dataframe expected to be pandas DataFrame
         import pandas as pd  # local import to avoid hard dependency at module import time
 
@@ -106,7 +108,9 @@ class AutoMergingChunkerWrapper:
     """Optional wrapper for the auto-merging multi-level chunker (dedup)."""
 
     def __init__(self, chunk_sizes: Optional[List[int]] = None):
-        self._chunker = _AutoMergingChunker(chunk_sizes=chunk_sizes) if _AutoMergingChunker else None
+        self._chunker = (
+            _AutoMergingChunker(chunk_sizes=chunk_sizes) if _AutoMergingChunker else None
+        )
 
     def chunk(self, text: str, filename: str = "unknown", **kwargs) -> List[Dict[str, Any]]:
         if not self._chunker:

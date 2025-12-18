@@ -2,16 +2,18 @@ import torch
 from dataclasses import dataclass
 from typing import Literal
 
+
 @dataclass
 class HardwareProfile:
     device: Literal["cuda", "mps", "cpu"]
     n_gpu_layers: int
     vram_gb: float
 
+
 def detect_hardware() -> HardwareProfile:
     """
     Detects available hardware acceleration (CUDA, MPS) and returns a profile.
-    
+
     Returns:
         HardwareProfile with device type, recommended gpu layers (-1 for all), and VRAM.
     """

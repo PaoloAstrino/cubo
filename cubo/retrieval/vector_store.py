@@ -275,7 +275,7 @@ class FaissStore(VectorStore):
         )
         self.index_dir.mkdir(parents=True, exist_ok=True)
 
-        self._write_lock = threading.RLock() # Protects against concurrent SQLite writes
+        self._write_lock = threading.RLock()  # Protects against concurrent SQLite writes
 
         from cubo.indexing.faiss_index import FAISSIndexManager
 
@@ -348,7 +348,7 @@ class FaissStore(VectorStore):
 
     def _init_document_db(self) -> None:
         """Initialize SQLite database for document storage and collections."""
-        with self._write_lock: # Protect init
+        with self._write_lock:  # Protect init
             with sqlite3.connect(str(self._db_path), timeout=30) as conn:
                 conn.execute(
                     """
@@ -459,7 +459,7 @@ class FaissStore(VectorStore):
 
         created_at = datetime.utcnow().isoformat()
 
-        with self._write_lock: # Protect write
+        with self._write_lock:  # Protect write
             with sqlite3.connect(str(self._db_path), timeout=30) as conn:
                 # Enable WAL mode for better concurrency
                 conn.execute("PRAGMA journal_mode=WAL")
@@ -654,7 +654,7 @@ class FaissStore(VectorStore):
         if not embeddings or not ids:
             return
 
-        with self._write_lock: # Protect add
+        with self._write_lock:  # Protect add
             # Phase 1: Build FAISS indexes (in-memory)
             self._index.build_indexes(embeddings, ids, append=True)
 
@@ -691,6 +691,7 @@ class FaissStore(VectorStore):
                 for i, did in enumerate(ids):
                     doc = documents[i] if documents and i < len(documents) else ""
                     meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+
                     # Prepare metadata for JSON storage: convert numpy arrays/ndarrays to lists
                     def _prepare(obj):
                         if isinstance(obj, np.ndarray):
@@ -702,6 +703,7 @@ class FaissStore(VectorStore):
                         if isinstance(obj, list):
                             return [_prepare(x) for x in obj]
                         return obj
+
                     meta_jsonable = _prepare(meta)
                     conn.execute(
                         "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)",
@@ -963,7 +965,7 @@ class FaissStore(VectorStore):
 
     def _promote_batch_to_hot(self, doc_ids: List[str]) -> None:
         """Promote a batch of documents to hot index incrementally.
-        
+
         This method uses incremental addition to the hot index and relies on
         search-time deduplication to handle overlap with the cold index.
         This avoids rebuilding the entire index (RAM bottleneck).
@@ -973,10 +975,10 @@ class FaissStore(VectorStore):
 
         # 1. Fetch vectors (will use cache/reconstruct/DB)
         vectors_map = self.get_vectors(doc_ids)
-        
+
         valid_ids = []
         valid_vectors = []
-        
+
         for did in doc_ids:
             if did in vectors_map:
                 valid_ids.append(did)
@@ -992,8 +994,9 @@ class FaissStore(VectorStore):
         # 3. Reset access counts for promoted docs
         for did in valid_ids:
             self._access_counts[did] = 0
-            
+
         from cubo.utils.logger import logger
+
         logger.info(f"Promoted {len(valid_ids)} docs to hot index incrementally")
 
     def promote_to_hot(self, doc_id: str) -> None:

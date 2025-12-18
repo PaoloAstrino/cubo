@@ -67,7 +67,9 @@ class BM25PythonStore(BM25Store):
 
         # Initialize multilingual tokenizer
         try:
-            self.tokenizer = MultilingualTokenizer(use_stemming=not self.use_lemmatization, min_token_length=2)
+            self.tokenizer = MultilingualTokenizer(
+                use_stemming=not self.use_lemmatization, min_token_length=2
+            )
             self.use_multilingual = True
         except ImportError:
             # Fallback to naive tokenization if dependencies not available
@@ -155,7 +157,7 @@ class BM25PythonStore(BM25Store):
             # Use MultilingualTokenizer for language detection if available
             if language == "auto" and self.tokenizer:
                 language = self.tokenizer.detect_language(text)
-            
+
             # Use simplemma for lemmatization
             # Note: simplemma.text_lemmatizer handles tokenization too
             return self.lemmatizer.lemmatize_text(text, lang=language)
