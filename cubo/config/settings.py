@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
-
+from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
 class Paths(BaseSettings):
     """Path configuration."""
     data_folder: Path = Field(default=Path("./data"), description="Root data directory")
@@ -71,7 +71,7 @@ class LLMSettings(BaseSettings):
     provider: str = Field(default="ollama", description="LLM provider (ollama, local)")
     model_name: str = Field(default="llama3.2:latest", description="Model name to use")
     system_prompt: str = Field(
-        default="You are an AI assistant that answers queries strictly based on the provided context from documents. Do not use any external knowledge, assumptions, or invented information.",
+        default=DEFAULT_SYSTEM_PROMPT,
         description="Default system prompt"
     )
     

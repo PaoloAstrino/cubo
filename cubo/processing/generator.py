@@ -12,6 +12,7 @@ except Exception:
 from colorama import Fore, Style
 
 from cubo.config import config
+from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
 from cubo.processing.chat_template_manager import ChatTemplateManager
 from cubo.services.service_manager import get_service_manager
 from cubo.utils.logger import logger
@@ -25,13 +26,8 @@ class ResponseGenerator:
         self.messages = []
         self.service_manager = get_service_manager()
         self.chat_template_manager = ChatTemplateManager()
-        # Load system prompt from config, with fallback to default
-        self.system_prompt = config.get(
-            "llm.system_prompt",
-            "You are an AI assistant that answers queries strictly based on the "
-            "provided context from documents. Do not use any external knowledge, "
-            "assumptions, or invented information.",
-        )
+        # Load system prompt from config, with fallback to canonical default
+        self.system_prompt = config.get("llm.system_prompt", DEFAULT_SYSTEM_PROMPT)
 
     def initialize_conversation(self):
         """Initialize the conversation with system prompt."""

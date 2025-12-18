@@ -49,7 +49,12 @@ class TestCuboBeirAdapter(unittest.TestCase):
         self.assertEqual(count, 2)
         mock_faiss_cls.assert_called()
         mock_faiss_instance.build_indexes.assert_called()
-        mock_faiss_instance.save.assert_called_with(str(Path(self.index_dir)))
+        # save() is called with a Path object, not a string
+        mock_faiss_instance.save.assert_called()
+        args, _ = mock_faiss_instance.save.call_args
+        # Compare as Path objects to handle Windows/Unix differences
+        from pathlib import Path as PathType
+        self.assertEqual(PathType(str(args[0])).resolve(), PathType(self.index_dir).resolve())
         
         # Verify DB interaction
         mock_sqlite.connect.assert_called()

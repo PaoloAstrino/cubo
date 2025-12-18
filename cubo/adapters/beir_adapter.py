@@ -201,7 +201,23 @@ class CuboBeirAdapter:
 
     def _process_batch(self, texts, ids, conn, normalize, faiss_manager):
         """Helper to embed and add batch to FAISS and DB."""
-        embeddings = self.embedding_generator.encode(texts)
+        # Use direct model.encode() for bulk indexing to avoid threading timeout issues
+        # Use smaller internal batch size to avoid GPU OOM
+        try:
+            embeddings = self.embedding_generator.model.encode(
+                texts, 
+                batch_size=8,  # Small batch to avoid GPU OOM
+                show_progress_bar=False,
+                convert_to_numpy=True
+            )
+        except TypeError:
+            # Fallback for models that don't support all parameters
+            embeddings = self.embedding_generator.model.encode(texts, batch_size=8)
+        
+        # Convert to numpy if needed
+        if hasattr(embeddings, 'cpu'):
+            embeddings = embeddings.cpu().numpy()
+        
         if normalize:
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
             embeddings = embeddings / (norms + 1e-10)

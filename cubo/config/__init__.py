@@ -191,6 +191,20 @@ class Config(ConfigAdapter):
 		if self.is_laptop_mode() and not force:
 			return False
 		self.update(self.get_laptop_mode_config())
+
+		# Universal GPU Acceleration: Check for hardware even in laptop mode
+		try:
+			from cubo.utils.hardware import detect_hardware
+			hw = detect_hardware()
+			if hw.device in ("cuda", "mps"):
+				# Enable GPU layers for LLM (offload all)
+				self.set("llm.n_gpu_layers", hw.n_gpu_layers)
+				# Set device for embeddings
+				self.set("embeddings.device", hw.device)
+		except Exception:
+			# Fallback if hardware detection fails
+			pass
+
 		self.set("laptop_mode", True)
 		return True
 

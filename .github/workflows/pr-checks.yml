@@ -21,17 +21,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 8
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
-      
+
+      - name: Debug Node / pnpm cache
+        run: |
+          node -v
+          npm -v || true
+          echo "npm cache: $(npm config get cache)" || true
+          echo "pnpm version: $(pnpm -v)" || true
+          echo "pnpm store path: $(pnpm store path)" || true
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+            ~/.pnpm-store/v3
+            node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
       

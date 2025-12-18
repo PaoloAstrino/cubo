@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 from cubo.processing.chat_template_manager import ChatTemplateManager
 from cubo.config import config
+from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
 from cubo.services.service_manager import get_service_manager
 from cubo.utils.logger import logger
 
@@ -29,7 +30,8 @@ class LocalResponseGenerator:
             # Import lazily to avoid crash if llama_cpp is missing
             from llama_cpp import Llama  # type: ignore
 
-            self._llm = Llama(model_path=self.model_path, n_ctx=2048)
+            gpu_layers = config.get("llm.n_gpu_layers", 0)
+            self._llm = Llama(model_path=self.model_path, n_ctx=2048, n_gpu_layers=gpu_layers)
         except Exception as e:
             logger.warning("Failed to initialize local llama model: %s", e)
             self._llm = None
@@ -49,10 +51,7 @@ class LocalResponseGenerator:
         convo = []
         if messages is None:
             # Basic system prompt if no history provided
-            system_prompt = config.get(
-                "llm.system_prompt",
-                "You are an AI assistant that answers queries strictly based on the provided context.",
-            )
+            system_prompt = config.get("llm.system_prompt", DEFAULT_SYSTEM_PROMPT)
             convo.append({"role": "system", "content": system_prompt})
         else:
             convo = messages.copy()
