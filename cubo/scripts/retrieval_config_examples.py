@@ -5,7 +5,6 @@ Examples of different retrieval configurations in CUBO
 
 from cubo.retrieval.retriever import DocumentRetriever
 
-
 if __name__ == "__main__":
     # Example 1: Dual retrieval (automatic switching)
     model = None  # Placeholder model for examples; replace with real model in real configuration

@@ -18,8 +18,8 @@ import pandas as pd
 
 from cubo.config import config
 from cubo.config.settings import settings
-from cubo.ingestion.document_loader import DocumentLoader
 from cubo.ingestion.chunkers import ChunkerFactory
+from cubo.ingestion.document_loader import DocumentLoader
 from cubo.ingestion.ocr_processor import OCRProcessor
 from cubo.storage.metadata_manager import get_metadata_manager
 from cubo.utils.logger import logger

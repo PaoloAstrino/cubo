@@ -13,7 +13,7 @@ Usage:
         results = retriever.retrieve(query)
 """
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from cubo.utils.logger import logger
 

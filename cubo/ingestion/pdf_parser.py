@@ -21,9 +21,10 @@ try:
 except ImportError:
     EASYOCR_AVAILABLE = False
 
+import io
+
 import numpy as np
 from PIL import Image
-import io
 
 logger = logging.getLogger(__name__)
 

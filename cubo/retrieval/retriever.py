@@ -891,10 +891,11 @@ class DocumentRetriever:
         self.bm25.load_stats(input_path)
 
 
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
+from cubo.indexing.faiss_index import FAISSIndexManager
+
 # Keep FaissHybridRetriever for backwards compatibility
 from cubo.retrieval.fusion import rrf_fuse
-from cubo.indexing.faiss_index import FAISSIndexManager
-from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 
 class FaissHybridRetriever:

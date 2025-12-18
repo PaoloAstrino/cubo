@@ -17,7 +17,6 @@ from cubo.config import config
 from cubo.retrieval.retriever import DocumentRetriever
 from cubo.utils.logger import logger
 
-
 #!/usr/bin/env python3
 """Migration tool to migrate chunk IDs from filename-based to file-hash-based IDs.
 

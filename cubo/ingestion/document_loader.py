@@ -6,10 +6,10 @@ from docx import Document
 from pypdf import PdfReader
 
 from cubo.config import config
-from cubo.utils.logger import logger
-from cubo.utils.utils import Utils
 from cubo.ingestion.chunkers import ChunkerFactory
 from cubo.ingestion.pdf_parser import AdvancedPDFParser
+from cubo.utils.logger import logger
+from cubo.utils.utils import Utils
 
 
 class DocumentLoader:

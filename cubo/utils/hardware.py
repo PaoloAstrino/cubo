@@ -1,6 +1,7 @@
-import torch
 from dataclasses import dataclass
 from typing import Literal
+
+import torch
 
 
 @dataclass

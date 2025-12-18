@@ -9,9 +9,9 @@ from __future__ import annotations
 import time
 from typing import Dict, List, Optional
 
-from cubo.processing.chat_template_manager import ChatTemplateManager
 from cubo.config import config
 from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
+from cubo.processing.chat_template_manager import ChatTemplateManager
 from cubo.services.service_manager import get_service_manager
 from cubo.utils.logger import logger
 

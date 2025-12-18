@@ -4,7 +4,8 @@ Chunks documents while respecting structural boundaries (articles, sections, par
 and preserving hierarchy metadata for better context preservation.
 """
 
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+
 from cubo.ingestion.structure_detector import StructureNode, detect_document_structure
 
 

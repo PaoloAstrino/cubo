@@ -12,7 +12,9 @@ warnings.warn(
     stacklevel=2,
 )
 
-from cubo.retrieval.retriever import HybridRetriever  # re-export canonical implementation
+from cubo.retrieval.retriever import (
+    HybridRetriever,  # re-export canonical implementation
+)
 
 __all__ = ["HybridRetriever"]
 """

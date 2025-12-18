@@ -424,8 +424,9 @@ class FaissStore(VectorStore):
 
     def _migrate_embeddings_if_needed(self) -> None:
         """Migrate embeddings from .npz to SQLite if needed."""
-        import numpy as np
         from datetime import datetime
+
+        import numpy as np
 
         emb_path = self.index_dir / "embeddings.npz"
         if not emb_path.exists():

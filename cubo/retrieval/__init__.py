@@ -16,12 +16,7 @@ from . import retriever
 # Export main classes for convenience
 from .cache import RetrievalCacheService, SemanticCache
 from .document_store import DocumentStore
-from .models import (
-    ChunkMetadata,
-    RetrievalCandidate,
-    RetrievalResult,
-    ScoreBreakdown,
-)
+from .models import ChunkMetadata, RetrievalCandidate, RetrievalResult, ScoreBreakdown
 from .orchestrator import (
     DeduplicationManager,
     HybridScorer,

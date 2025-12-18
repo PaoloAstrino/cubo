@@ -3,8 +3,9 @@ import os
 from pathlib import Path
 from typing import Tuple
 
-from cubo.config.settings import Settings, settings
 from pydantic import BaseModel as _PydanticBaseModel
+
+from cubo.config.settings import Settings, settings
 
 
 class ConfigAdapter:

@@ -259,7 +259,9 @@ class BatchDocumentProcessor:
     def _process_single_file_enhanced(self, file_path: str) -> List[Dict[str, Any]]:
         """Process single file with enhanced processing."""
         try:
-            from cubo.ingestion.enhanced_document_processor import EnhancedDocumentProcessor
+            from cubo.ingestion.enhanced_document_processor import (
+                EnhancedDocumentProcessor,
+            )
 
             processor = EnhancedDocumentProcessor()
             return processor.process_document(file_path)

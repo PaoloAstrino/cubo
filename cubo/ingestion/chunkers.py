@@ -14,7 +14,9 @@ from cubo.utils.utils import Utils
 
 try:
     # Optional dependency: used only for dedup/auto-merge path
-    from cubo.deduplication.custom_auto_merging import AutoMergingChunker as _AutoMergingChunker
+    from cubo.deduplication.custom_auto_merging import (
+        AutoMergingChunker as _AutoMergingChunker,
+    )
 except Exception:  # pragma: no cover - optional
     _AutoMergingChunker = None
 

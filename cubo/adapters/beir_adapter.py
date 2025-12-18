@@ -1,17 +1,18 @@
-import os
 import json
 import logging
-import sqlite3
+import os
 import shutil
-from typing import List, Tuple, Dict, Optional, Union
+import sqlite3
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 
+from cubo.config import config
+from cubo.config.settings import settings
 from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.indexing.faiss_index import FAISSIndexManager
 from cubo.retrieval.retriever import DocumentRetriever
-from cubo.config import config
-from cubo.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
