@@ -104,6 +104,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
+      - name: Ensure pnpm installed (fallback)
+        run: |
+          if ! command -v pnpm >/dev/null 2>&1; then
+            echo "pnpm not found — installing via npm"
+            npm i -g pnpm@10
+          else
+            echo "pnpm is already installed: $(pnpm -v)"
+          fi
+        shell: bash
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
