@@ -192,7 +192,20 @@ class Config(ConfigAdapter):
         """
         if self.is_laptop_mode() and not force:
             return False
-        self.update(self.get_laptop_mode_config())
+        
+        laptop_config = self.get_laptop_mode_config()
+        
+        # Dynamic worker count based on physical cores
+        try:
+            from cubo.utils.hardware import detect_hardware
+            hw = detect_hardware()
+            # Leave 1 core for system/UI
+            n_workers = max(1, hw.physical_cores - 1)
+            laptop_config["ingestion"]["deep"]["n_workers"] = n_workers
+        except Exception:
+            pass # Fallback to default 1
+            
+        self.update(laptop_config)
 
         # Universal GPU Acceleration: Check for hardware even in laptop mode
         try:

@@ -136,18 +136,69 @@ class Utils:
 
     @staticmethod
     def _split_into_sentences(text: str) -> List[str]:
-        """Lightweight sentence splitter using regex."""
+        """
+        Robust sentence splitter using NLTK with fallback to improved regex.
+        Handles abbreviations and common edge cases.
+        """
         text = re.sub(r"\s+", " ", text.strip())
-        # Split after terminal punctuation followed by space
-        sentences = re.split(r"(?<=[.!?])\s+", text)
-        return [s.strip() for s in sentences if s.strip()]
+        
+        # Try NLTK first
+        try:
+            import nltk
+            try:
+                return nltk.sent_tokenize(text)
+            except LookupError:
+                # Attempt to download punkt if missing
+                try:
+                    nltk.download('punkt', quiet=True)
+                    return nltk.sent_tokenize(text)
+                except Exception:
+                    pass
+        except ImportError:
+            pass
+
+        # Fallback: Improved Regex
+        # Protect common abbreviations
+        abbreviations = {
+            "Mr.", "Mrs.", "Dr.", "Ms.", "Prof.", "Sr.", "Jr.", 
+            "vs.", "v.", "e.g.", "i.e.", "etc.", "U.S.", "U.K.", "U.S.A.",
+            "Art.", "No.", "Fig.", "Vol."
+        }
+        
+        # Sort by length descending to handle nested abbreviations (e.g. U.S.A. before U.S.)
+        sorted_abbreviations = sorted(abbreviations, key=len, reverse=True)
+        
+        processed_text = text
+        for abbr in sorted_abbreviations:
+            # Replace "Mr." with "Mr<PRD>"
+            # Use \b to ensure we match whole words (e.g. don't match "start." in "restart.")
+            # But "Art." might be at start of sentence.
+            pattern = r"\b" + re.escape(abbr[:-1]) + r"\."
+            replacement = abbr[:-1] + "<PRD>"
+            processed_text = re.sub(pattern, replacement, processed_text, flags=re.IGNORECASE)
+            
+        # Split on terminal punctuation followed by space
+        sentences = re.split(r"(?<=[.!?])\s+", processed_text)
+        
+        # Restore dots
+        final_sentences = []
+        for s in sentences:
+            s = s.replace("<PRD>", ".")
+            if s.strip():
+                final_sentences.append(s.strip())
+                
+        return final_sentences
 
     @staticmethod
     def _token_count(text: str, tokenizer=None) -> int:
         """Return approximate token count; use HF tokenizer if provided, else fallback to word count."""
         if tokenizer:
             try:
-                return len(tokenizer.encode(text, add_special_tokens=False))
+                # Handle HF tokenizer or tiktoken
+                if hasattr(tokenizer, "encode"):
+                    return len(tokenizer.encode(text, add_special_tokens=False))
+                elif hasattr(tokenizer, "encode_ordinary"): # tiktoken
+                    return len(tokenizer.encode_ordinary(text))
             except Exception:
                 pass
         # Fallback: approximate by words
@@ -156,7 +207,7 @@ class Utils:
     @staticmethod
     @log_errors("Sentence window chunks created successfully")
     def create_sentence_window_chunks(
-        text: str, window_size: int = 3, tokenizer_name: Optional[str] = None
+        text: str, window_size: int = 3, tokenizer_name: Optional[str] = None, add_window_text: bool = True
     ) -> List[dict]:
         """
         Create sentence window chunks: single sentences with window metadata.
@@ -166,9 +217,11 @@ class Utils:
             text: Input text to chunk
             window_size: Number of sentences in the context window (odd numbers work best)
             tokenizer_name: Path to HF tokenizer for accurate token counting
+            add_window_text: Whether to include the full window text in the chunk (materialized).
+                             Set to False for 'pointer' mode (requires separate doc storage).
 
         Returns:
-            List of dicts with 'text', 'window', and metadata
+            List of dicts with 'text', 'window' (optional), and metadata
         """
         try:
             sentences = Utils._split_into_sentences(text)
@@ -222,17 +275,19 @@ class Utils:
                 sentence_tokens = Utils._token_count(sentence, tokenizer)
                 window_tokens = Utils._token_count(window_text, tokenizer)
 
-                chunks.append(
-                    {
-                        "text": sentence,  # Single sentence for embedding/matching
-                        "window": window_text,  # Full window for context
-                        "sentence_index": i,
-                        "window_start": start,
-                        "window_end": end - 1,
-                        "sentence_token_count": sentence_tokens,
-                        "window_token_count": window_tokens,
-                    }
-                )
+                chunk = {
+                    "text": sentence,  # Single sentence for embedding/matching
+                    "sentence_index": i,
+                    "window_start": start,
+                    "window_end": end - 1,
+                    "sentence_token_count": sentence_tokens,
+                    "window_token_count": window_tokens,
+                }
+                
+                if add_window_text:
+                    chunk["window"] = window_text
+
+                chunks.append(chunk)
 
             logger.info(
                 f"Created {len(chunks)} sentence window chunks with window_size={window_size}"

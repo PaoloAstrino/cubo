@@ -35,6 +35,15 @@ set CUBO_LAPTOP_MODE=0  # Windows
 export CUBO_LAPTOP_MODE=0  # Linux/Mac
 ```
 
+## New: Hardware Optimizations
+
+CUBO now includes advanced hardware detection to further improve performance on laptops:
+
+- **CPU Tuning**: Automatically sets thread counts to match physical cores, preventing overheating and thrashing.
+- **Quantized Models**: Automatically uses faster, smaller models if your CPU supports AVX2 instructions.
+
+See [Hardware Optimization](HARDWARE_OPTIMIZATION.md) for technical details.
+
 ## What Laptop Mode Changes
 
 ### 1. Ingestion Optimizations

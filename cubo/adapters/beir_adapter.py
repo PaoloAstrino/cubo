@@ -154,6 +154,10 @@ class CuboBeirAdapter:
         faiss_manager = FAISSIndexManager(
             dimension=self.embedding_generator.model.get_sentence_embedding_dimension(),
             index_dir=index_path,
+            # Use 100% hot index (HNSW) for benchmarks - no IVF clustering needed
+            hot_fraction=1.0,
+            # Smaller nlist as fallback if cold index is ever used
+            nlist=16,
         )
 
         db_path = index_path / "documents.db"
@@ -182,7 +186,7 @@ class CuboBeirAdapter:
                     break
                 try:
                     doc = json.loads(line)
-                    doc_id = f"beir_{doc.get('_id')}"
+                    doc_id = str(doc.get('_id'))
                     text = (doc.get("title", "") + " " + doc.get("text", "")).strip()
                     if not text:
                         continue
@@ -274,7 +278,152 @@ class CuboBeirAdapter:
         # Convert to (doc_id, score) tuples for BEIR
         return [(r["id"], r["similarity"]) for r in results]
 
+    def retrieve_bulk_optimized(
+        self, 
+        queries: Dict[str, str], 
+        top_k: int = 100, 
+        skip_reranker: bool = True,
+        batch_size: int = 32
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Optimized bulk retrieval for benchmarking.
+        
+        This method is significantly faster than retrieve_bulk() because it:
+        1. Batches query embeddings (6000+ queries in ~30s vs 6000+ individual calls)
+        2. Optionally skips reranking (saves ~8s per query)
+        3. Uses direct FAISS batch search instead of the full production pipeline
+        
+        Args:
+            queries: Dict mapping query_id -> query_text
+            top_k: Number of results per query
+            skip_reranker: If True, skip reranking (much faster, recommended for benchmarking)
+            batch_size: Batch size for embedding generation
+            
+        Returns:
+            Dict mapping query_id -> {doc_id: score}
+        """
+        if not self.retriever:
+            raise ValueError("Retriever not initialized.")
+            
+        query_ids = list(queries.keys())
+        query_texts = [queries[qid] for qid in query_ids]
+        total = len(query_ids)
+        
+        logger.info(f"Optimized retrieval for {total} queries (skip_reranker={skip_reranker})...")
+        
+        # Step 1: Batch generate embeddings for all queries
+        logger.info("Generating query embeddings in batches...")
+        query_embeddings = []
+        for i in range(0, len(query_texts), batch_size):
+            batch = query_texts[i:i + batch_size]
+            try:
+                batch_embs = self.embedding_generator.model.encode(
+                    batch,
+                    batch_size=batch_size,
+                    show_progress_bar=False,
+                    convert_to_numpy=True,
+                )
+                if hasattr(batch_embs, "cpu"):
+                    batch_embs = batch_embs.cpu().numpy()
+                query_embeddings.extend(batch_embs)
+                
+                if (i + len(batch)) % 1000 == 0:
+                    logger.info(f"Embedded {i + len(batch)}/{total} queries")
+            except Exception as e:
+                logger.error(f"Error embedding batch {i}: {e}")
+                # Fallback to individual embeddings for this batch
+                for q in batch:
+                    try:
+                        emb = self.embedding_generator.model.encode([q], convert_to_numpy=True)
+                        if hasattr(emb, "cpu"):
+                            emb = emb.cpu().numpy()
+                        query_embeddings.append(emb[0])
+                    except Exception:
+                        # Use zero vector as last resort
+                        query_embeddings.append(np.zeros(self.embedding_generator.model.get_sentence_embedding_dimension()))
+        
+        query_embeddings = np.array(query_embeddings)
+        logger.info(f"Generated {len(query_embeddings)} query embeddings")
+        
+        # Step 2: Batch FAISS search
+        logger.info("Performing batch FAISS search...")
+        results = {}
+        
+        # Load FAISS index directly from disk
+        try:
+            import faiss
+            index_path = Path(self.index_dir) / "hot.index"
+            if not index_path.exists():
+                logger.error(f"FAISS index not found at {index_path}")
+                return {qid: {} for qid in query_ids}
+            
+            logger.info(f"Loading FAISS index from {index_path}")
+            faiss_index = faiss.read_index(str(index_path))
+            logger.info(f"Loaded FAISS index with {faiss_index.ntotal} vectors")
+            
+            # Normalize embeddings for cosine similarity
+            norms = np.linalg.norm(query_embeddings, axis=1, keepdims=True)
+            query_embeddings = query_embeddings / (norms + 1e-10)
+            
+            # Batch search
+            distances, indices = faiss_index.search(query_embeddings, top_k)
+            
+            # Convert FAISS results to BEIR format
+            # Get document IDs from the metadata.json which contains the index-to-ID mapping
+            metadata_path = Path(self.index_dir) / "metadata.json"
+            if metadata_path.exists():
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                # Use hot_ids since we're using hot index (100% hot fraction for benchmarks)
+                all_doc_ids = metadata.get("hot_ids", [])
+                if not all_doc_ids:
+                    # Fallback to cold_ids if hot_ids is empty
+                    all_doc_ids = metadata.get("cold_ids", [])
+                logger.info(f"Loaded {len(all_doc_ids)} document IDs from metadata.json")
+            else:
+                # Fallback to database query
+                logger.warning("metadata.json not found, falling back to database query")
+                if hasattr(collection, '_db_path'):
+                    # SQLite-backed collection
+                    import sqlite3
+                    conn = sqlite3.connect(str(collection._db_path))
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT id FROM documents")
+                    all_doc_ids = [row[0] for row in cursor.fetchall()]
+                    conn.close()
+                else:
+                    # In-memory collection
+                    all_data = collection.get(include=["ids"])
+                    all_doc_ids = all_data.get("ids", [])
+                logger.info(f"Retrieved {len(all_doc_ids)} document IDs from database")
+            
+            # Map indices to doc_ids and distances to scores
+            for i, (qid, dists, idxs) in enumerate(zip(query_ids, distances, indices)):
+                query_results = {}
+                for dist, idx in zip(dists, idxs):
+                    if idx >= 0 and idx < len(all_doc_ids):
+                        doc_id = all_doc_ids[idx]
+                        # Convert distance to similarity (cosine similarity)
+                        # FAISS returns L2 distance for normalized vectors, convert to cosine
+                        similarity = 1.0 - (dist / 2.0)  # L2 to cosine for normalized vectors
+                        query_results[doc_id] = float(similarity)
+                
+                results[qid] = query_results
+                
+                if (i + 1) % 1000 == 0:
+                    logger.info(f"Processed {i + 1}/{total} queries")
+                    
+        except Exception as e:
+            logger.error(f"Batch FAISS search failed: {e}")
+            # Fallback to sequential retrieval
+            logger.warning("Falling back to sequential retrieval...")
+            return self.retrieve_bulk(queries, top_k=top_k)
+        
+        logger.info(f"Completed optimized retrieval for {total} queries")
+        return results
+
     def retrieve_bulk(
+
         self, queries: Dict[str, str], top_k: int = 100, batch_size: int = 128
     ) -> Dict[str, Dict[str, float]]:
         """

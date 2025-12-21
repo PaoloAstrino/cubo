@@ -13,6 +13,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
 
@@ -49,9 +50,11 @@ class DeepIngestor:
         chunk_batch_size: Optional[int] = None,
         run_id: Optional[str] = None,
         metadata_manager=None,
+        n_workers: Optional[int] = None,
     ):
         self.input_folder = Path(input_folder or settings.paths.data_folder)
         self.output_dir = Path(output_dir or settings.paths.deep_output_dir)
+        self.n_workers = n_workers or config.get("ingestion.deep.n_workers", 1)
 
         self.chunking_config = chunking_config or {
             "chunk_size": settings.chunking.chunk_size,
@@ -84,6 +87,15 @@ class DeepIngestor:
         self.input_folder.mkdir(parents=True, exist_ok=True)  # Ensure input folder exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._supported_extensions = set(self.loader.supported_extensions) | {".csv", ".xlsx"}
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove unpicklable objects (database connections)
+        state["_metadata_manager"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def _flush_chunk_batch(self, chunks: List[Dict[str, Any]]) -> None:
         """Flush a batch of chunks to a temporary parquet file.
@@ -219,46 +231,81 @@ class DeepIngestor:
         self._temp_parquet_files = []
         self._run_id = uuid.uuid4().hex[:8]
 
+        files_to_process = [p for p in files if not (resume and str(p) in processed_set)]
+
         try:
-            for path in files:
-                if resume and str(path) in processed_set:
-                    continue
-                size_bytes = None
-                try:
-                    size_bytes = path.stat().st_size
-                except Exception:
-                    pass
-
-                try:
-                    manager.mark_file_processing(run_id, str(path), size_bytes=size_bytes)
-                except Exception:
-                    logger.debug("Unable to mark file processing; continuing")
-
-                try:
-                    chunks = self._process_file(path)
-                    if chunks:
-                        current_batch.extend(chunks)
-                    processed_files.append(str(path))
-
-                    # Flush to disk when batch size reached (streaming save)
-                    if len(current_batch) >= self.chunk_batch_size:
-                        self._flush_chunk_batch(current_batch)
-                        total_chunks += len(current_batch)
-                        current_batch = []  # Clear to free memory
+            if self.n_workers > 1:
+                logger.info(f"Ingesting {len(files_to_process)} files with {self.n_workers} workers")
+                with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+                    future_to_path = {executor.submit(self._process_file, p): p for p in files_to_process}
+                    
+                    for future in as_completed(future_to_path):
+                        path = future_to_path[future]
+                        size_bytes = None
+                        try:
+                            size_bytes = path.stat().st_size
+                        except Exception:
+                            pass
+                            
+                        try:
+                            chunks = future.result()
+                            if chunks:
+                                current_batch.extend(chunks)
+                            processed_files.append(str(path))
+                            
+                            if len(current_batch) >= self.chunk_batch_size:
+                                self._flush_chunk_batch(current_batch)
+                                total_chunks += len(current_batch)
+                                current_batch = []
+                                
+                            try:
+                                manager.mark_file_succeeded(run_id, str(path), size_bytes=size_bytes)
+                            except Exception:
+                                pass
+                        except Exception as exc:
+                            logger.warning(f"Failed processing file {path}: {exc}")
+                            try:
+                                manager.mark_file_failed(run_id, str(path), error=str(exc), size_bytes=size_bytes)
+                            except Exception:
+                                pass
+            else:
+                for path in files_to_process:
+                    size_bytes = None
+                    try:
+                        size_bytes = path.stat().st_size
+                    except Exception:
+                        pass
 
                     try:
-                        manager.mark_file_succeeded(run_id, str(path), size_bytes=size_bytes)
+                        manager.mark_file_processing(run_id, str(path), size_bytes=size_bytes)
                     except Exception:
-                        logger.debug("Unable to mark file succeeded; continuing")
-                except Exception as exc:
-                    logger.warning(f"Failed processing file {path}: {exc}")
+                        logger.debug("Unable to mark file processing; continuing")
+
                     try:
-                        manager.mark_file_failed(
-                            run_id, str(path), error=str(exc), size_bytes=size_bytes
-                        )
-                    except Exception:
-                        logger.debug("Unable to mark file failed; continuing")
-                    continue
+                        chunks = self._process_file(path)
+                        if chunks:
+                            current_batch.extend(chunks)
+                        processed_files.append(str(path))
+
+                        # Flush to disk when batch size reached (streaming save)
+                        if len(current_batch) >= self.chunk_batch_size:
+                            self._flush_chunk_batch(current_batch)
+                            total_chunks += len(current_batch)
+                            current_batch = []  # Clear to free memory
+
+                        try:
+                            manager.mark_file_succeeded(run_id, str(path), size_bytes=size_bytes)
+                        except Exception:
+                            logger.debug("Unable to mark file succeeded; continuing")
+                    except Exception as exc:
+                        logger.warning(f"Failed processing file {path}: {exc}")
+                        try:
+                            manager.mark_file_failed(
+                                run_id, str(path), error=str(exc), size_bytes=size_bytes
+                            )
+                        except Exception:
+                            logger.debug("Unable to mark file failed; continuing")
+                        continue
 
             # Flush any remaining chunks
             if current_batch:

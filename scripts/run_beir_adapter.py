@@ -11,10 +11,46 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cubo.adapters.beir_adapter import CuboBeirAdapter
 from cubo.utils.logger import Logger
+from cubo.config import config
+from cubo.config.settings import settings
+from datetime import datetime
 
 # Setup logging
 logger = Logger()
 log = logging.getLogger("beir_adapter")
+
+
+def collect_benchmark_metadata(args, use_optimized: bool) -> Dict:
+    """Collect all configuration details for reproducibility."""
+    metadata = {
+        "_benchmark_metadata": {
+            "timestamp": datetime.now().isoformat(),
+            "embedding_model": config.get("model_path", "unknown"),
+            "top_k": args.top_k,
+            "batch_size": args.batch_size,
+            "index_dir": args.index_dir,
+            "queries_file": args.queries,
+            "retrieval_mode": "optimized_batch" if use_optimized else "full_production",
+            "laptop_mode": config.is_laptop_mode(),
+            "features": {
+                "dense_search": True,
+                "bm25_hybrid": not use_optimized,  # Only in full production mode
+                "rrf_fusion": not use_optimized,   # Only in full production mode
+                "reranking": not use_optimized,    # Skipped in optimized mode
+                "sentence_window": not use_optimized,
+            },
+            "hyperparameters": {
+                "bm25_k1": settings.retrieval.bm25_k1,
+                "bm25_b": settings.retrieval.bm25_b,
+                "rrf_k": settings.retrieval.rrf_k,
+                "semantic_weight": settings.retrieval.semantic_weight_default,
+                "bm25_weight": settings.retrieval.bm25_weight_default,
+                "chunk_size": settings.chunking.chunk_size,
+                "chunk_overlap_sentences": settings.chunking.chunk_overlap_sentences,
+            },
+        }
+    }
+    return metadata
 
 def load_queries(queries_path: str) -> Dict[str, str]:
     """Load queries from BEIR queries.jsonl or queries.json"""
@@ -54,8 +90,15 @@ def main():
     parser.add_argument("--limit", type=int, help="Limit number of documents to index (for testing)")
     parser.add_argument("--evaluate", action="store_true", help="Run BEIR evaluation metrics (requires beir package)")
     parser.add_argument("--qrels", type=str, help="Path to qrels file (required if --evaluate is set)")
+    parser.add_argument("--use-optimized", action="store_true", help="Use optimized batch retrieval (much faster, recommended)")
+    parser.add_argument("--laptop-mode", action="store_true", help="Enable laptop mode (lazy loading, no reranking, etc)")
+    parser.add_argument("--query-limit", type=int, help="Limit number of queries to process")
     
     args = parser.parse_args()
+    
+    if args.laptop_mode:
+        log.info("Enabling laptop mode configuration...")
+        config.apply_laptop_mode(force=True)
     
     # Validate args
     if args.reindex and not args.corpus:
@@ -80,14 +123,36 @@ def main():
         
     log.info(f"Loading queries from {args.queries}...")
     queries = load_queries(args.queries)
+    if args.query_limit:
+        log.info(f"Limiting to first {args.query_limit} queries...")
+        queries = dict(list(queries.items())[:args.query_limit])
     log.info(f"Loaded {len(queries)} queries")
     
-    log.info(f"Running retrieval (top_k={args.top_k})...")
-    results = adapter.export_beir_run(
-        queries=queries,
-        output_file=args.output,
-        top_k=args.top_k
-    )
+    log.info(f"Running retrieval (top_k={args.top_k}, optimized={args.use_optimized})...")
+    
+    # Collect benchmark metadata for reproducibility
+    metadata = collect_benchmark_metadata(args, args.use_optimized)
+    
+    # Use optimized retrieval if requested
+    if args.use_optimized:
+        results = adapter.retrieve_bulk_optimized(
+            queries=queries,
+            top_k=args.top_k,
+            skip_reranker=True,
+            batch_size=args.batch_size
+        )
+    else:
+        results = adapter.retrieve_bulk(
+            queries=queries,
+            top_k=args.top_k
+        )
+    
+    # Merge metadata with results (metadata first for visibility)
+    output_data = {**metadata, **results}
+    
+    log.info(f"Saving run to {args.output}")
+    with open(args.output, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, indent=2)
     
     if args.evaluate:
         try:

@@ -117,19 +117,30 @@ class TestLaptopModeConfig(unittest.TestCase):
     def test_apply_laptop_mode(self):
         """Test apply_laptop_mode updates config correctly."""
         from cubo.config import Config
+        from unittest.mock import patch
+        from cubo.utils.hardware import HardwareProfile
 
         config = Config()
 
-        # Force laptop mode
-        result = config.apply_laptop_mode(force=True)
+        # Mock hardware to ensure deterministic n_workers
+        mock_hw = HardwareProfile(
+            device="cpu", n_gpu_layers=0, vram_gb=0,
+            physical_cores=2, logical_cores=4, total_ram_gb=8,
+            cpu_flags=[], blas_backend="openblas", allocator="libc"
+        )
 
-        self.assertTrue(result)
-        self.assertTrue(config.is_laptop_mode())
+        with patch("cubo.utils.hardware.detect_hardware", return_value=mock_hw):
+            # Force laptop mode
+            result = config.apply_laptop_mode(force=True)
 
-        # Verify specific settings were applied
-        self.assertFalse(config.get("ingestion.deep.enrich_enabled"))
-        self.assertEqual(config.get("ingestion.deep.n_workers"), 1)
-        self.assertIsNone(config.get("retrieval.reranker_model"))
+            self.assertTrue(result)
+            self.assertTrue(config.is_laptop_mode())
+
+            # Verify specific settings were applied
+            self.assertFalse(config.get("ingestion.deep.enrich_enabled"))
+            # With 2 cores, n_workers should be max(1, 2-1) = 1
+            self.assertEqual(config.get("ingestion.deep.n_workers"), 1)
+            self.assertIsNone(config.get("retrieval.reranker_model"))
 
     def test_is_laptop_mode(self):
         """Test is_laptop_mode returns correct state."""

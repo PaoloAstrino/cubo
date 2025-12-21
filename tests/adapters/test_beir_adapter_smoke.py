@@ -48,6 +48,6 @@ def test_beir_adapter_smoke_indexes_and_retrieves(tmp_path):
     assert "q1" in res
     hits = res["q1"]
     # All keys should be non-null strings
-    assert all(isinstance(k, str) and k.startswith("beir_") for k in hits.keys())
+    assert all(isinstance(k, str) and len(k) > 0 for k in hits.keys())
     # All values should be floats
     assert all(isinstance(v, float) for v in hits.values())

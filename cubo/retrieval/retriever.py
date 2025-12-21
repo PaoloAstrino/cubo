@@ -571,6 +571,22 @@ class DocumentRetriever:
             query, top_k // 2 + top_k % 2, strategy, trace_id
         )
         auto_results = self._retrieve_auto_merging(query, top_k // 2)
+
+        # Normalize heterogeneous score scales before combining.
+        # This prevents auto-merging results (which may lack scores) from
+        # dominating due to incompatible raw ranges.
+        norm_method = str(config.get("retrieval.score_normalization", "minmax") or "minmax")
+        try:
+            from cubo.retrieval.normalization import normalize_candidates
+            from cubo.monitoring import metrics
+
+            normalize_candidates(sentence_results, method=norm_method, source="sentence_window")
+            normalize_candidates(auto_results, method=norm_method, source="auto_merging")
+            metrics.record("retrieval_score_normalization_applied", 1)
+        except Exception:
+            # If normalization fails for any reason, fall back to legacy behavior.
+            pass
+
         combined = sentence_results + auto_results
         unique = self.orchestrator.deduplicate_results(combined, extract_chunk_id)
         unique.sort(key=lambda x: x.get("similarity", 0.0), reverse=True)
@@ -698,7 +714,14 @@ class DocumentRetriever:
                 {
                     "document": r.get("document", ""),
                     "metadata": r.get("metadata", {}),
-                    "similarity": r.get("similarity", 1.0),
+                    # Do NOT default missing scores to 1.0.
+                    # Missing raw scores are treated as 0.0 and may be normalized.
+                    "raw_similarity": r.get("similarity", None),
+                    "similarity": (float(r.get("similarity")) if r.get("similarity") is not None else 0.0),
+                    "base_similarity": (
+                        float(r.get("similarity")) if r.get("similarity") is not None else 0.0
+                    ),
+                    "source": "auto_merging",
                 }
                 for r in results
             ]
@@ -719,6 +742,13 @@ class DocumentRetriever:
                                 (r.get("metadata") or {}).get("id") if isinstance(r, dict) else None
                             ),
                             "similarity": (r.get("similarity", 0) if isinstance(r, dict) else 0),
+                            "raw_similarity": (
+                                r.get("raw_similarity") if isinstance(r, dict) else None
+                            ),
+                            "normalized_similarity": (
+                                r.get("normalized_similarity") if isinstance(r, dict) else None
+                            ),
+                            "source": (r.get("source") if isinstance(r, dict) else None),
                         }
                         for r in results[:10]
                     ],
