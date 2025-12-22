@@ -17,9 +17,9 @@ import { X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { query, getTrace, type Collection, type ReadinessResponse } from "@/lib/api"
+import { query, queryStream, getTrace, type Collection, type ReadinessResponse } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { useChatHistory } from "@/hooks/useChatHistory"
+import { useChatHistory, type Message } from "@/hooks/useChatHistory"
 import { SourcesList } from "@/components/sources-list"
 import useSWR from "swr"
 
@@ -68,6 +68,8 @@ function ChatContent() {
     }
   }, [messages])
 
+  const abortControllerRef = React.useRef<AbortController | null>(null)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -92,47 +94,75 @@ function ChatContent() {
     setInputValue("")
     setIsLoading(true)
 
+    // Create placeholder assistant message
+    const assistantMessageId = (Date.now() + 1).toString()
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+    }
+    setMessages((prev) => [...prev, assistantMessage])
+
+    // Abort previous request if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
+
     try {
-      const response = await query({
+      await queryStream({
         query: inputValue,
         top_k: 5,
         use_reranker: true,
         collection_id: collectionId ?? undefined,
-      })
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: response.answer,
-        sources: response.sources,
-        trace_id: response.trace_id,
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
-
-      if (response.query_scrubbed) {
-        toast({
-          title: "Privacy Notice",
-          description: "Your query was scrubbed for privacy in logs.",
-          variant: "default",
-        })
-      }
+      }, (event) => {
+        if (event.type === 'token' && event.delta) {
+          setMessages((prev) => prev.map(msg => 
+            msg.id === assistantMessageId 
+              ? { ...msg, content: msg.content + event.delta }
+              : msg
+          ))
+        } else if (event.type === 'source' && event.content) {
+           setMessages((prev) => prev.map(msg => {
+             if (msg.id !== assistantMessageId) return msg;
+             const sources = msg.sources || [];
+             return { 
+               ...msg, 
+               sources: [...sources, { 
+                 content: event.content!, 
+                 score: event.score || 0, 
+                 metadata: event.metadata || {} 
+               }] 
+             }
+           }))
+        } else if (event.type === 'done') {
+           setMessages((prev) => prev.map(msg => 
+            msg.id === assistantMessageId 
+              ? { ...msg, content: event.answer || msg.content, trace_id: event.trace_id }
+              : msg
+          ))
+        } else if (event.type === 'error') {
+           throw new Error(event.message || "Stream error")
+        }
+      }, abortControllerRef.current.signal)
+      
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to process query",
         variant: "destructive",
       })
 
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "Sorry, I encountered an error processing your request. Please make sure documents are uploaded and indexed.",
-      }
-
-      setMessages((prev) => [...prev, errorMessage])
+      setMessages((prev) => prev.map(msg => 
+        msg.id === assistantMessageId
+          ? { ...msg, content: "Sorry, I encountered an error processing your request. Please make sure documents are uploaded and indexed." }
+          : msg
+      ))
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -268,17 +298,7 @@ function ChatContent() {
                   </div>
                 </div>
               ))}
-              {isLoading && (
-                <div className="flex gap-4">
-                  <div className="size-8 shrink-0 rounded-full overflow-hidden">
-                    <CuboLogo size={32} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-4 w-64" />
-                  </div>
-                </div>
-              )}
+
             </div>
           </ScrollArea>
         </CardContent>

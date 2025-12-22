@@ -103,6 +103,9 @@ class LLMSettings(BaseSettings):
     provider: str = Field(default="ollama", description="LLM provider (ollama, local)")
     model_name: str = Field(default="llama3.2:latest", description="Model name to use")
     system_prompt: str = Field(default=DEFAULT_SYSTEM_PROMPT, description="Default system prompt")
+    enable_streaming: bool = Field(
+        default=False, description="Enable incremental token streaming (opt-in)"
+    )
 
     model_config = SettingsConfigDict(env_prefix="CUBO_LLM_")
 

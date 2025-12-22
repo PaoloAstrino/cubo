@@ -12,7 +12,7 @@ For CLI usage, see cubo.main.CuboCLI which wraps this class.
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from cubo.config import config
 from cubo.config.settings import settings
@@ -205,6 +205,36 @@ class CuboCore:
         """
         with self._state_lock:
             return self.generator.generate_response(query=query, context=context, trace_id=trace_id)
+
+    def generate_response_stream(
+        self, query: str, context: str, trace_id: Optional[str] = None
+    ) -> Iterator[Dict[str, Any]]:
+        """
+        Generate a streaming response using the LLM.
+
+        Args:
+            query: User's question
+            context: Document context to include
+            trace_id: Optional trace ID for logging
+
+        Yields:
+            NDJSON events (token, done, error).
+
+        Thread-safe: Uses _state_lock.
+        """
+        with self._state_lock:
+            if not hasattr(self.generator, "generate_response_stream"):
+                # Fallback for generators without streaming support
+                logger.warning("Generator does not support streaming; falling back")
+                answer = self.generator.generate_response(
+                    query=query, context=context, trace_id=trace_id
+                )
+                yield {"type": "done", "answer": answer, "trace_id": trace_id}
+                return
+            
+            yield from self.generator.generate_response_stream(
+                query=query, context=context, trace_id=trace_id
+            )
 
     def query(self, query: str, top_k: int = None) -> str:
         """

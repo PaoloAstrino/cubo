@@ -6,8 +6,9 @@ implements a synchronous generation via the service_manager to keep parity with 
 
 from __future__ import annotations
 
+import json
 import time
-from typing import Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from cubo.config import config
 from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
@@ -97,3 +98,87 @@ class LocalResponseGenerator:
         result = self.service_manager.execute_sync("llm_generation", _generate_operation)
         logger.info("Local LLM generated response in %.2fs", time.time() - start)
         return result
+
+    def generate_response_stream(
+        self,
+        query: str,
+        context: str,
+        messages: List[Dict[str, str]] = None,
+        trace_id: Optional[str] = None,
+    ) -> Iterator[Dict[str, any]]:
+        """Generate a streaming response with local LLM.
+        
+        Yields NDJSON events:
+        - {'type': 'token', 'delta': '...', 'trace_id': '...'}
+        - {'type': 'done', 'answer': '...', 'trace_id': '...', 'duration_ms': 123}
+        """
+        convo = []
+        if messages is None:
+            system_prompt = config.get("llm.system_prompt", DEFAULT_SYSTEM_PROMPT)
+            convo.append({"role": "system", "content": system_prompt})
+        else:
+            convo = messages.copy()
+
+        user_content = self.chat_template_manager.format_user_message(context, query)
+        convo.append({"role": "user", "content": user_content})
+
+        model_name = self.model_path or config.get("llm_model") or "llama3"
+        prompt = self.chat_template_manager.format_chat(convo, model_name=model_name)
+
+        start_time = time.time()
+        
+        if not self._llm:
+            logger.error("Local LLM not initialized")
+            yield {
+                "type": "error",
+                "message": "Local LLM not initialized; check model path and dependencies",
+                "trace_id": trace_id,
+            }
+            return
+
+        try:
+            # Try streaming via create_completion with stream=True
+            if hasattr(self._llm, "create_completion"):
+                accumulated = []
+                try:
+                    stream = self._llm.create_completion(prompt=prompt, max_tokens=512, stream=True)
+                    for chunk in stream:
+                        if isinstance(chunk, dict):
+                            delta = chunk.get("choices", [{}])[0].get("text", "")
+                            if delta:
+                                accumulated.append(delta)
+                                yield {"type": "token", "delta": delta, "trace_id": trace_id}
+                    
+                    answer = "".join(accumulated)
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    yield {
+                        "type": "done",
+                        "answer": answer,
+                        "trace_id": trace_id,
+                        "duration_ms": duration_ms,
+                    }
+                    logger.info("Local LLM streamed response in %.2fs", time.time() - start_time)
+                    return
+                except Exception as stream_err:
+                    logger.warning(f"Streaming failed, falling back: {stream_err}")
+            
+            # Fallback: generate synchronously and chunk the result
+            answer = self.generate_response(query, context, messages)
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Chunk answer into tokens for streaming UX
+            chunk_size = 10
+            for i in range(0, len(answer), chunk_size):
+                delta = answer[i : i + chunk_size]
+                yield {"type": "token", "delta": delta, "trace_id": trace_id}
+            
+            yield {
+                "type": "done",
+                "answer": answer,
+                "trace_id": trace_id,
+                "duration_ms": duration_ms,
+            }
+            
+        except Exception as e:
+            logger.error(f"Local LLM streaming error: {e}")
+            yield {"type": "error", "message": str(e), "trace_id": trace_id}

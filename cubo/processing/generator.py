@@ -1,5 +1,6 @@
+import json
 import time
-from typing import Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 try:
     import ollama
@@ -105,6 +106,81 @@ class ResponseGenerator:
             return response["message"]["content"]
 
         return self.service_manager.execute_sync("llm_generation", _generate_operation)
+
+    def generate_response_stream(
+        self,
+        query: str,
+        context: str,
+        messages: List[Dict[str, str]] = None,
+        trace_id: Optional[str] = None,
+    ) -> Iterator[Dict[str, any]]:
+        """Generate a streaming response using the LLM.
+        
+        Yields NDJSON events:
+        - {'type': 'token', 'delta': '...', 'trace_id': '...'}
+        - {'type': 'done', 'answer': '...', 'trace_id': '...', 'duration_ms': 123}
+        """
+        conversation_messages = self._prepare_conversation_messages(messages)
+        self._add_user_message(conversation_messages, query, context)
+
+        start_time = time.time()
+        print(Fore.BLUE + "Generating streaming response..." + Style.RESET_ALL)
+
+        model_name = (
+            config.get("llm.model_name")
+            or config.get("selected_llm_model")
+            or config.get("llm_model")
+            or "llama3"
+        )
+
+        if not OLLAMA_AVAILABLE or ollama is None:
+            # Fallback: yield single final event
+            logger.warning("Ollama not available; falling back to non-streaming")
+            answer = self._generate_with_ollama(conversation_messages)
+            duration_ms = int((time.time() - start_time) * 1000)
+            yield {
+                "type": "done",
+                "answer": answer,
+                "trace_id": trace_id,
+                "duration_ms": duration_ms,
+            }
+            return
+
+        # Use Ollama streaming
+        try:
+            accumulated = []
+            for chunk in ollama.chat(model=model_name, messages=conversation_messages, stream=True):
+                delta = chunk.get("message", {}).get("content", "")
+                if delta:
+                    accumulated.append(delta)
+                    yield {"type": "token", "delta": delta, "trace_id": trace_id}
+
+            assistant_content = "".join(accumulated)
+            self._update_conversation_history(conversation_messages, assistant_content, messages)
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            if trace_id:
+                try:
+                    trace_collector.record(
+                        trace_id,
+                        "generator",
+                        "generator.stream_completed",
+                        {"duration_ms": duration_ms, "tokens": len(accumulated)},
+                    )
+                except Exception:
+                    pass
+
+            yield {
+                "type": "done",
+                "answer": assistant_content,
+                "trace_id": trace_id,
+                "duration_ms": duration_ms,
+            }
+            self._log_generation_time(start_time)
+
+        except Exception as e:
+            logger.error(f"Streaming generation failed: {e}")
+            yield {"type": "error", "message": str(e), "trace_id": trace_id}
 
     def _update_conversation_history(
         self,

@@ -490,6 +490,8 @@ class QueryRequest(BaseModel):
     )
     # Collection filtering
     collection_id: Optional[str] = Field(None, description="Filter results to specific collection")
+    # Streaming
+    stream: bool = Field(False, description="Enable streaming response (opt-in)")
 
 
 class Citation(BaseModel):
@@ -1237,12 +1239,105 @@ async def build_index(
     )
 
 
+async def _query_stream_generator(request_data: QueryRequest, request: Request):
+    """Generate streaming NDJSON events for query response."""
+    try:
+        # Scrub query for logging
+        scrubbed_query = security_manager.scrub(request_data.query)
+        query_scrubbed = scrubbed_query != request_data.query
+
+        logger.info("Streaming query received", extra={"query": scrubbed_query})
+        
+        # Check retriever initialization
+        if not hasattr(cubo_app, "retriever") or not cubo_app.retriever:
+            yield (json.dumps({"type": "error", "message": "Retriever not initialized"}) + "\n").encode()
+            return
+
+        # Check collection count
+        try:
+            collection_count = cubo_app.retriever.collection.count()
+        except Exception:
+            collection_count = 0
+
+        if collection_count == 0:
+            yield (json.dumps({"type": "error", "message": "Vector index empty"}) + "\n").encode()
+            return
+
+        # Build where filter for collection if specified
+        where_filter = None
+        if request_data.collection_id and cubo_app.vector_store:
+            filenames = cubo_app.vector_store.get_document_filenames_in_collection(
+                request_data.collection_id
+            )
+            if filenames:
+                where_filter = {"filename": {"$in": filenames}}
+            else:
+                yield (json.dumps({"type": "error", "message": f"Collection has no documents"}) + "\n").encode()
+                return
+
+        # Retrieve documents
+        retrieve_kwargs = {
+            "query": request_data.query,
+            "top_k": request_data.top_k,
+            "trace_id": request.state.trace_id,
+        }
+        if where_filter:
+            retrieve_kwargs["where"] = where_filter
+
+        retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
+        
+        # Emit source events
+        for idx, doc in enumerate(retrieved_docs):
+            metadata = doc.get("metadata", {})
+            content = doc.get("document", doc.get("content", ""))
+            score = doc.get("similarity", doc.get("score", 0.0))
+            
+            source_event = {
+                "type": "source",
+                "index": idx,
+                "content": content[:500],
+                "metadata": metadata,
+                "score": float(score) if score else 0.0,
+                "trace_id": request.state.trace_id,
+            }
+            yield (json.dumps(source_event) + "\n").encode()
+
+        # Build context and stream generation
+        context = "\n\n".join([doc.get("document", doc.get("content", "")) for doc in retrieved_docs])
+        
+        def _stream_generator():
+            return cubo_app.generate_response_stream(
+                query=request_data.query,
+                context=context,
+                trace_id=request.state.trace_id,
+            )
+
+        # Stream tokens from generator
+        for event in await run_in_threadpool(_stream_generator):
+            yield (json.dumps(event) + "\n").encode()
+            
+    except Exception as e:
+        logger.error(f"Streaming query error: {e}")
+        yield (json.dumps({"type": "error", "message": str(e), "trace_id": request.state.trace_id}) + "\n").encode()
+
+
 @app.post("/api/query", response_model=QueryResponse)
 async def query(request_data: QueryRequest, request: Request):
     """Query the RAG system."""
     if not cubo_app:
         raise HTTPException(status_code=503, detail="CUBO app not initialized")
 
+    # Check if streaming is requested and enabled
+    streaming_enabled = config.get("llm.enable_streaming", False)
+    if request_data.stream and streaming_enabled:
+        # Return streaming response
+        return StreamingResponse(
+            _query_stream_generator(request_data, request),
+            media_type="application/x-ndjson",
+            headers={"X-Trace-ID": request.state.trace_id},
+        )
+
+    # Non-streaming path (existing logic)
     # Scrub query for logging
     scrubbed_query = security_manager.scrub(request_data.query)
     query_scrubbed = scrubbed_query != request_data.query

@@ -175,6 +175,83 @@ export async function query(params: {
   }>(response);
 }
 
+export interface StreamEvent {
+  type: 'token' | 'source' | 'done' | 'error';
+  delta?: string;
+  answer?: string;
+  index?: number;
+  content?: string;
+  metadata?: Record<string, unknown>;
+  score?: number;
+  message?: string;
+  trace_id?: string;
+  duration_ms?: number;
+}
+
+export async function queryStream(
+  params: {
+    query: string;
+    top_k?: number;
+    use_reranker?: boolean;
+    collection_id?: string;
+  },
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const { query: queryText, top_k = 5, use_reranker = true, collection_id } = params;
+  
+  const response = await fetch(`${API_BASE_URL}/api/query`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ 
+      query: queryText, 
+      top_k, 
+      use_reranker,
+      stream: true,
+      ...(collection_id && { collection_id })
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Query failed: ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('Response body is null');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const event = JSON.parse(line) as StreamEvent;
+            onEvent(event);
+          } catch (e) {
+            console.error('Failed to parse NDJSON line:', line, e);
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function getDocuments(): Promise<Array<{ name: string; size: string; uploadDate: string }>> {
   const response = await fetch(`${API_BASE_URL}/api/documents`);
   return handleResponse<Array<{ name: string; size: string; uploadDate: string }>>(response);
