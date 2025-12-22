@@ -17,103 +17,46 @@ import { X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { query, getDocuments, getReadiness, getTrace, getCollection, type Collection } from "@/lib/api"
+import { query, getTrace, type Collection, type ReadinessResponse } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { useChatHistory } from "@/hooks/useChatHistory"
 import { SourcesList } from "@/components/sources-list"
-import { type Source } from "@/components/source-card"
-
-interface QueryResponse {
-  answer: string;
-  sources: Source[];
-  trace_id: string;
-  query_scrubbed: boolean;
-}
-
-interface Message {
-  id: string
-  role: "user" | "assistant"
-  content: string
-  sources?: QueryResponse['sources']
-  trace_id?: string
-}
+import useSWR from "swr"
 
 function ChatContent() {
   const searchParams = useSearchParams()
   const collectionId = searchParams.get('collection')
   
-  const [messages, setMessages] = React.useState<Message[]>([])
+  const { messages, setMessages, isHistoryLoaded } = useChatHistory(collectionId)
   const [isLoading, setIsLoading] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
-  const [hasDocuments, setHasDocuments] = React.useState<boolean | null>(null)
-  const [documentCount, setDocumentCount] = React.useState<number>(0)
-  const [isReady, setIsReady] = React.useState<boolean>(false)
-  const [activeCollection, setActiveCollection] = React.useState<Collection | null>(null)
   const { toast } = useToast()
   const scrollAreaRef = React.useRef<HTMLDivElement>(null)
 
-  // Fetch collection details if filtering by collection
-  React.useEffect(() => {
-    const fetchCollection = async () => {
-      if (collectionId) {
-        try {
-          const coll = await getCollection(collectionId)
-          setActiveCollection(coll)
-        } catch (error) {
-          console.error('Error fetching collection:', error)
-          setActiveCollection(null)
-        }
-      } else {
-        setActiveCollection(null)
-      }
-    }
-    fetchCollection()
-  }, [collectionId])
+  // SWR: Fetch collection details
+  const { data: activeCollection } = useSWR<Collection>(
+    collectionId ? `/api/collections/${collectionId}` : null
+  )
 
-  // Check if documents are available
-  React.useEffect(() => {
-    const checkDocuments = async () => {
-      try {
-        const data = await getDocuments()
-        const docsExist = Array.isArray(data) && data.length > 0
-        setHasDocuments(docsExist)
-        setDocumentCount(Array.isArray(data) ? data.length : 0)
-      } catch (error) {
-        console.error('Error checking documents:', error)
-        setHasDocuments(false)
-        setDocumentCount(0)
-      }
-    }
-    checkDocuments()
-  }, [])
+  type DocumentItem = { name: string; size: string; uploadDate: string }
 
-  // Poll readiness (retriever/generator) so we don't query until the RAG system is ready
-  React.useEffect(() => {
-    let mounted = true
-    let pollInterval: ReturnType<typeof setInterval> | undefined
-    const startPolling = async () => {
-      try {
-        const r = await getReadiness()
-        if (!mounted) return
-        const ready = r.components && r.components.retriever && r.components.generator
-        setIsReady(Boolean(ready))
-        if (!ready) {
-          // Poll every 2 seconds until ready
-          pollInterval = setInterval(async () => {
-            const rr = await getReadiness()
-            const ready2 = rr.components && rr.components.retriever && rr.components.generator
-            setIsReady(Boolean(ready2))
-            if (ready2 && pollInterval) {
-              clearInterval(pollInterval)
-            }
-          }, 2000)
-        }
-      } catch {
-        // Ignore errors - we'll try again
-      }
+  // SWR: Check documents
+  const { data: documentsData } = useSWR<DocumentItem[]>('/api/documents')
+  const hasDocuments = Array.isArray(documentsData) && documentsData.length > 0
+  const documentCount = Array.isArray(documentsData) ? documentsData.length : 0
+
+  // SWR: Poll readiness
+  const { data: readinessData } = useSWR<ReadinessResponse>('/api/ready', {
+    refreshInterval: (latestData?: ReadinessResponse) => {
+      const isSystemReady = Boolean(latestData?.components?.retriever && latestData?.components?.generator)
+      return isSystemReady ? 0 : 2000
     }
-    startPolling()
-    return () => { mounted = false; if (pollInterval) clearInterval(pollInterval) }
-  }, [])
+  })
+  
+  const isReady = Boolean(
+    readinessData?.components?.retriever &&
+    readinessData?.components?.generator
+  )
 
   // Auto-scroll to bottom when new messages arrive
   React.useEffect(() => {
@@ -201,6 +144,17 @@ function ChatContent() {
       console.error('Failed to fetch trace:', err)
       toast({ title: 'Trace fetch error', description: 'Unable to fetch trace details', variant: 'destructive' })
     }
+  }
+
+  if (!isHistoryLoaded) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <CuboLogo size={48} className="animate-pulse opacity-50" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+      </div>
+    )
   }
 
   return (

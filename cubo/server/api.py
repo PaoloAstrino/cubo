@@ -1,5 +1,6 @@
 """FastAPI server for CUBO RAG system."""
 
+import asyncio
 import csv
 import datetime
 import hashlib
@@ -9,7 +10,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import aiofiles
 
@@ -23,6 +24,7 @@ from fastapi import (
     File,
     HTTPException,
     Query,
+    Response,
     Request,
     UploadFile,
     status,
@@ -57,6 +59,167 @@ cubo_app: Optional[CuboCore] = None
 service_manager: Optional[ServiceManager] = None
 
 
+class _ReadinessSnapshot:
+    def __init__(self):
+        self._lock = asyncio.Lock()
+        self._components: Dict[str, bool] = {
+            "api": True,
+            "app": False,
+            "service_manager": False,
+            "retriever": False,
+            "generator": False,
+            "doc_loader": False,
+            "vector_store": False,
+        }
+        self._updated_at: float = 0.0
+
+    async def set_components(self, components: Dict[str, bool]) -> None:
+        async with self._lock:
+            # Make a shallow copy to avoid accidental mutation by callers.
+            self._components = dict(components)
+            self._updated_at = asyncio.get_running_loop().time()
+
+    async def get_components(self) -> Dict[str, bool]:
+        async with self._lock:
+            return dict(self._components)
+
+
+class _DocumentsCache:
+    def __init__(self, data_dir: Path, ttl_seconds: float = 1.0):
+        self._data_dir = data_dir
+        self._ttl_seconds = ttl_seconds
+        self._lock = asyncio.Lock()
+        self._documents: List["DocumentResponse"] = []
+        self._etag: str = 'W/"empty"'
+        self._updated_at: float = 0.0
+        self._resolved_dir: Optional[Path] = None
+
+    def invalidate(self) -> None:
+        self._updated_at = 0.0
+
+    def _is_fresh(self) -> bool:
+        now = asyncio.get_running_loop().time()
+        return (now - self._updated_at) <= self._ttl_seconds
+
+    @staticmethod
+    def _compute_docs_etag(items: List[Tuple[str, int, int]]) -> str:
+        # Weak ETag: stable across equivalent directory states.
+        # items is a sorted list of (name, mtime_ns, size)
+        h = hashlib.sha1()
+        for name, mtime_ns, size in items:
+            h.update(name.encode("utf-8", errors="ignore"))
+            h.update(b"\0")
+            h.update(str(mtime_ns).encode("ascii"))
+            h.update(b"\0")
+            h.update(str(size).encode("ascii"))
+            h.update(b"\n")
+        return f'W/"{h.hexdigest()}"'
+
+    async def get(self) -> Tuple[List["DocumentResponse"], str]:
+        async with self._lock:
+            # If the underlying working directory changes (common in tests that chdir
+            # into a tmp dir), a relative Path("data") points at a different folder.
+            # Detect that and force refresh.
+            try:
+                resolved_dir = self._data_dir.resolve()
+            except Exception:
+                resolved_dir = None
+
+            if resolved_dir is not None and self._resolved_dir != resolved_dir:
+                self._resolved_dir = resolved_dir
+                self._updated_at = 0.0
+
+            if self._is_fresh():
+                return self._documents, self._etag
+
+            # Refresh in threadpool to avoid blocking the event loop.
+            exists = await run_in_threadpool(self._data_dir.exists)
+            if not exists:
+                self._documents = []
+                self._etag = 'W/"empty"'
+                self._updated_at = asyncio.get_running_loop().time()
+                return self._documents, self._etag
+
+            def _scan_docs() -> Tuple[List["DocumentResponse"], str]:
+                items: List[Tuple[str, int, int]] = []
+                docs: List[DocumentResponse] = []
+
+                for file_path in self._data_dir.glob("*"):
+                    if file_path.is_file():
+                        stats = file_path.stat()
+                        items.append((file_path.name, stats.st_mtime_ns, stats.st_size))
+
+                items.sort(key=lambda x: x[0])
+                for name, mtime_ns, size in items:
+                    docs.append(
+                        DocumentResponse(
+                            name=name,
+                            size=f"{size / 1024 / 1024:.2f} MB",
+                            uploadDate=datetime.datetime.fromtimestamp(mtime_ns / 1e9).strftime(
+                                "%Y-%m-%d"
+                            ),
+                        )
+                    )
+
+                return docs, _DocumentsCache._compute_docs_etag(items)
+
+            documents, etag = await run_in_threadpool(_scan_docs)
+            self._documents = documents
+            self._etag = etag
+            self._updated_at = asyncio.get_running_loop().time()
+            return self._documents, self._etag
+
+
+class _CollectionsCache:
+    def __init__(self, ttl_seconds: float = 2.0):
+        self._ttl_seconds = ttl_seconds
+        self._lock = asyncio.Lock()
+        self._collections: List["CollectionResponse"] = []
+        self._etag: str = 'W/"empty"'
+        self._updated_at: float = 0.0
+        self._store_id: Optional[int] = None
+
+    def invalidate(self) -> None:
+        self._updated_at = 0.0
+
+    def _is_fresh(self) -> bool:
+        now = asyncio.get_running_loop().time()
+        return (now - self._updated_at) <= self._ttl_seconds
+
+    @staticmethod
+    def _compute_etag(collections: List[Dict[str, Any]]) -> str:
+        h = hashlib.sha1(json.dumps(collections, sort_keys=True).encode("utf-8"))
+        return f'W/"{h.hexdigest()}"'
+
+    async def get(self, vector_store: Any) -> Tuple[List["CollectionResponse"], str]:
+        async with self._lock:
+            store_id = id(vector_store)
+            if self._store_id != store_id:
+                self._store_id = store_id
+                self._updated_at = 0.0
+
+            if self._is_fresh():
+                return self._collections, self._etag
+
+            raw = await run_in_threadpool(vector_store.list_collections)
+            etag = _CollectionsCache._compute_etag(raw)
+            self._collections = [CollectionResponse(**c) for c in raw]
+            self._etag = etag
+            self._updated_at = asyncio.get_running_loop().time()
+            return self._collections, self._etag
+
+
+def _ensure_api_caches(app: FastAPI) -> None:
+    # NOTE: Some test setups (e.g. httpx ASGITransport) may not run lifespan.
+    # Lazily initialize caches so endpoints remain functional.
+    if not hasattr(app.state, "documents_cache"):
+        app.state.documents_cache = _DocumentsCache(data_dir=Path("data"), ttl_seconds=1.0)
+    if not hasattr(app.state, "collections_cache"):
+        app.state.collections_cache = _CollectionsCache(ttl_seconds=2.0)
+    if not hasattr(app.state, "readiness"):
+        app.state.readiness = _ReadinessSnapshot()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
@@ -82,16 +245,69 @@ async def lifespan(app: FastAPI):
             # The app should still start even if preloading fails
             pass
 
+        readiness = _ReadinessSnapshot()
+        documents_cache = _DocumentsCache(data_dir=Path("data"), ttl_seconds=1.0)
+        collections_cache = _CollectionsCache(ttl_seconds=2.0)
+        app.state.readiness = readiness
+        app.state.documents_cache = documents_cache
+        app.state.collections_cache = collections_cache
+
+        async def _refresh_readiness_forever():
+            while True:
+                components = {
+                    "api": True,
+                    "app": cubo_app is not None,
+                    "service_manager": service_manager is not None,
+                    "retriever": (
+                        hasattr(cubo_app, "retriever") and cubo_app.retriever is not None
+                        if cubo_app
+                        else False
+                    ),
+                    "generator": (
+                        hasattr(cubo_app, "generator") and cubo_app.generator is not None
+                        if cubo_app
+                        else False
+                    ),
+                    "doc_loader": (
+                        hasattr(cubo_app, "doc_loader") and cubo_app.doc_loader is not None
+                        if cubo_app
+                        else False
+                    ),
+                    "vector_store": (
+                        hasattr(cubo_app, "vector_store") and cubo_app.vector_store is not None
+                        if cubo_app
+                        else False
+                    ),
+                }
+                try:
+                    await readiness.set_components(components)
+                except Exception:
+                    pass
+                await asyncio.sleep(0.5)
+
+        readiness_task = None
+
         try:
             cubo_app = CuboCore()
             service_manager = ServiceManager()
+
+            # Start readiness snapshot refresher (O(1) for /api/ready)
+            readiness_task = asyncio.create_task(_refresh_readiness_forever())
 
             # Auto-initialize components in background to ensure readiness without blocking startup
             import threading
 
             def _auto_init():
                 logger.info("Auto-initializing RAG components in background...")
-                cubo_app.initialize_components()
+                try:
+                    cubo_app.initialize_components()
+                finally:
+                    # Ensure caches reflect initialization as soon as possible
+                    try:
+                        documents_cache.invalidate()
+                        collections_cache.invalidate()
+                    except Exception:
+                        pass
                 logger.info("Auto-initialization complete.")
 
             threading.Thread(target=_auto_init, daemon=True).start()
@@ -100,7 +316,11 @@ async def lifespan(app: FastAPI):
         except Exception as init_error:
             logger.warning(f"CUBOApp initialization failed: {init_error}")
 
-        yield
+        try:
+            yield
+        finally:
+            if readiness_task is not None:
+                readiness_task.cancel()
     except Exception as e:
         logger.error(f"Lifespan error: {e}", exc_info=True)
         raise
@@ -561,36 +781,71 @@ async def initialize_components(request: Request):
     if not success:
         raise HTTPException(status_code=500, detail="Initialization failed")
 
+    # Nudge caches so subsequent calls reflect latest state.
+    try:
+        if hasattr(request.app.state, "documents_cache"):
+            request.app.state.documents_cache.invalidate()
+        if hasattr(request.app.state, "collections_cache"):
+            request.app.state.collections_cache.invalidate()
+    except Exception:
+        pass
+
     return {"status": "initialized", "trace_id": request.state.trace_id}
 
 
 @app.get("/api/ready")
 async def readiness_check(request: Request):
     """Readiness endpoint."""
-    components = {
-        "api": True,
-        "app": cubo_app is not None,
-        "service_manager": service_manager is not None,
-        "retriever": (
-            hasattr(cubo_app, "retriever") and cubo_app.retriever is not None if cubo_app else False
-        ),
-        "generator": (
-            hasattr(cubo_app, "generator") and cubo_app.generator is not None if cubo_app else False
-        ),
-        "doc_loader": (
-            hasattr(cubo_app, "doc_loader") and cubo_app.doc_loader is not None
-            if cubo_app
-            else False
-        ),
-        "vector_store": False,
-    }
+    _ensure_api_caches(request.app)
+    readiness = getattr(request.app.state, "readiness", None)
+    if readiness is None:
+        # Fallback (should not happen in normal startup)
+        components = {
+            "api": True,
+            "app": cubo_app is not None,
+            "service_manager": service_manager is not None,
+            "retriever": bool(cubo_app and getattr(cubo_app, "retriever", None)),
+            "generator": bool(cubo_app and getattr(cubo_app, "generator", None)),
+            "doc_loader": bool(cubo_app and getattr(cubo_app, "doc_loader", None)),
+            "vector_store": bool(cubo_app and getattr(cubo_app, "vector_store", None)),
+        }
+        return {"components": components, "trace_id": request.state.trace_id}
 
+    # If lifespan isn't running, the snapshot may never get refreshed.
+    # Populate it once from in-memory state (still O(1), no I/O).
     try:
-        if cubo_app and hasattr(cubo_app, "retriever") and cubo_app.retriever:
-            components["vector_store"] = getattr(cubo_app.retriever, "collection", None) is not None
+        if getattr(readiness, "_updated_at", 0.0) == 0.0:
+            await readiness.set_components(
+                {
+                    "api": True,
+                    "app": cubo_app is not None,
+                    "service_manager": service_manager is not None,
+                    "retriever": (
+                        hasattr(cubo_app, "retriever") and cubo_app.retriever is not None
+                        if cubo_app
+                        else False
+                    ),
+                    "generator": (
+                        hasattr(cubo_app, "generator") and cubo_app.generator is not None
+                        if cubo_app
+                        else False
+                    ),
+                    "doc_loader": (
+                        hasattr(cubo_app, "doc_loader") and cubo_app.doc_loader is not None
+                        if cubo_app
+                        else False
+                    ),
+                    "vector_store": (
+                        hasattr(cubo_app, "vector_store") and cubo_app.vector_store is not None
+                        if cubo_app
+                        else False
+                    ),
+                }
+            )
     except Exception:
-        components["vector_store"] = False
+        pass
 
+    components = await readiness.get_components()
     return {"components": components, "trace_id": request.state.trace_id}
 
 
@@ -642,6 +897,13 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
         },
     )
 
+    # Invalidate document listing cache (new file).
+    try:
+        if request is not None and hasattr(request.app.state, "documents_cache"):
+            request.app.state.documents_cache.invalidate()
+    except Exception:
+        pass
+
     return UploadResponse(
         filename=file.filename,
         size=size,
@@ -651,34 +913,29 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
 
 
 @app.get("/api/documents", response_model=List[DocumentResponse])
-async def list_documents(request: Request):
-    """List uploaded documents."""
-    data_dir = Path("data")
+async def list_documents(
+    request: Request,
+    response: Response,
+    skip: int = Query(0, ge=0),
+    limit: Optional[int] = Query(None, ge=1),
+):
+    """List uploaded documents (cached) with optional pagination.
 
-    # Check existence in threadpool
-    exists = await run_in_threadpool(data_dir.exists)
-    if not exists:
+    Supports conditional requests via ETag/If-None-Match.
+    """
+    _ensure_api_caches(request.app)
+    documents_cache = getattr(request.app.state, "documents_cache", None)
+    if documents_cache is None:
         return []
 
-    def get_docs_info():
-        docs = []
-        # glob is blocking
-        for file_path in data_dir.glob("*"):
-            if file_path.is_file():
-                stats = file_path.stat()
-                docs.append(
-                    DocumentResponse(
-                        name=file_path.name,
-                        size=f"{stats.st_size / 1024 / 1024:.2f} MB",
-                        uploadDate=datetime.datetime.fromtimestamp(stats.st_mtime).strftime(
-                            "%Y-%m-%d"
-                        ),
-                    )
-                )
-        return docs
+    documents, etag = await documents_cache.get()
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": etag})
 
-    documents = await run_in_threadpool(get_docs_info)
-    return documents
+    sliced = documents[skip : (skip + limit) if limit is not None else None]
+    response.headers["ETag"] = etag
+    return sliced
 
 
 # =========================================================================
@@ -687,13 +944,24 @@ async def list_documents(request: Request):
 
 
 @app.get("/api/collections", response_model=List[CollectionResponse])
-async def list_collections(request: Request):
+async def list_collections(request: Request, response: Response):
     """List all document collections with their document counts."""
     if not cubo_app or not cubo_app.vector_store:
         return []
 
-    collections = cubo_app.vector_store.list_collections()
-    return [CollectionResponse(**c) for c in collections]
+    _ensure_api_caches(request.app)
+    collections_cache = getattr(request.app.state, "collections_cache", None)
+    if collections_cache is None:
+        raw = await run_in_threadpool(cubo_app.vector_store.list_collections)
+        return [CollectionResponse(**c) for c in raw]
+
+    collections, etag = await collections_cache.get(cubo_app.vector_store)
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": etag})
+
+    response.headers["ETag"] = etag
+    return collections
 
 
 @app.post("/api/collections", response_model=CollectionResponse)
@@ -710,6 +978,11 @@ async def create_collection(collection_data: CollectionCreate, request: Request)
         # Map ValueError from store to HTTP 409 for duplicate collections
         raise HTTPException(status_code=409, detail=str(e))
     logger.info(f"Created collection: {collection['name']}")
+    try:
+        if hasattr(request.app.state, "collections_cache"):
+            request.app.state.collections_cache.invalidate()
+    except Exception:
+        pass
     return CollectionResponse(**collection)
 
 
@@ -737,6 +1010,11 @@ async def delete_collection(collection_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Collection not found")
 
     logger.info(f"Deleted collection: {collection_id}")
+    try:
+        if hasattr(request.app.state, "collections_cache"):
+            request.app.state.collections_cache.invalidate()
+    except Exception:
+        pass
     return {"status": "deleted", "collection_id": collection_id}
 
 

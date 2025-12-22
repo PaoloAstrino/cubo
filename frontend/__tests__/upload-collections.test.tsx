@@ -6,6 +6,14 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+// Mock SWR
+jest.mock('swr', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  mutate: jest.fn(),
+}))
+import useSWR from 'swr'
+
 // Mock the API module
 jest.mock('@/lib/api', () => ({
   getDocuments: jest.fn(),
@@ -61,8 +69,11 @@ describe('UploadPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockPush.mockClear()
-    ;(api.getDocuments as jest.Mock).mockResolvedValue(mockDocuments)
-    ;(api.getCollections as jest.Mock).mockResolvedValue(mockCollections)
+    ;(useSWR as jest.Mock).mockImplementation((key) => {
+      if (key === '/api/documents') return { data: mockDocuments, isLoading: false }
+      if (key === '/api/collections') return { data: mockCollections, isLoading: false }
+      return { data: undefined, isLoading: false }
+    })
   })
 
   describe('Collections Display', () => {
@@ -85,7 +96,11 @@ describe('UploadPage', () => {
     })
 
     it('should show empty state when no collections exist', async () => {
-      ;(api.getCollections as jest.Mock).mockResolvedValue([])
+      ;(useSWR as jest.Mock).mockImplementation((key) => {
+        if (key === '/api/documents') return { data: mockDocuments, isLoading: false }
+        if (key === '/api/collections') return { data: [], isLoading: false }
+        return { data: undefined, isLoading: false }
+      })
 
       render(<UploadPage />)
 
@@ -159,23 +174,29 @@ describe('UploadPage', () => {
 describe('Collection Card Colors', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(api.getDocuments as jest.Mock).mockResolvedValue([])
-    ;(api.getCollections as jest.Mock).mockResolvedValue([
-      {
-        id: 'coll-1',
-        name: 'Blue Collection',
-        color: '#2563eb',
-        created_at: '2025-11-29T10:00:00',
-        document_count: 0,
-      },
-      {
-        id: 'coll-2',
-        name: 'Red Collection',
-        color: '#dc2626',
-        created_at: '2025-11-29T11:00:00',
-        document_count: 0,
-      },
-    ])
+    ;(useSWR as jest.Mock).mockImplementation((key) => {
+      if (key === '/api/documents') return { data: [], isLoading: false }
+      if (key === '/api/collections') return {
+        data: [
+          {
+            id: 'coll-1',
+            name: 'Blue Collection',
+            color: '#2563eb',
+            created_at: '2025-11-29T10:00:00',
+            document_count: 0,
+          },
+          {
+            id: 'coll-2',
+            name: 'Red Collection',
+            color: '#dc2626',
+            created_at: '2025-11-29T11:00:00',
+            document_count: 0,
+          },
+        ],
+        isLoading: false
+      }
+      return { data: undefined, isLoading: false }
+    })
   })
 
   it('should display collection cards', async () => {

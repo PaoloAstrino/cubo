@@ -8,6 +8,11 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json();
 }
 
+export const fetcher = async <T>(url: string): Promise<T> => {
+  const res = await fetch(`${API_BASE_URL}${url}`);
+  return handleResponse<T>(res);
+};
+
 // =========================================================================
 // Collection Types
 // =========================================================================

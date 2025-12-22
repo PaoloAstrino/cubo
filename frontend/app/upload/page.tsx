@@ -25,13 +25,12 @@ import {
     uploadFile,
     ingestDocuments,
     buildIndex,
-    getDocuments,
-    getCollections,
     createCollection,
     deleteCollection,
     type Collection,
 } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import useSWR, { mutate } from "swr"
 
 interface Document {
     name: string
@@ -52,34 +51,16 @@ const COLLECTION_COLORS = [
 
 export default function UploadPage() {
     const router = useRouter()
-    const [documents, setDocuments] = React.useState<Document[]>([])
-    const [collections, setCollections] = React.useState<Collection[]>([])
-    const [isLoading, setIsLoading] = React.useState(true)
+    const { data: documents = [], isLoading: isDocsLoading } = useSWR<Document[]>('/api/documents')
+    const { data: collections = [], isLoading: isCollsLoading } = useSWR<Collection[]>('/api/collections')
+    const isLoading = isDocsLoading || isCollsLoading
+    
     const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
     const [newCollectionName, setNewCollectionName] = React.useState("")
     const [selectedColor, setSelectedColor] = React.useState(COLLECTION_COLORS[0])
     const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
     const [isCreating, setIsCreating] = React.useState(false)
     const { toast } = useToast()
-
-    const fetchData = React.useCallback(async () => {
-        try {
-            const [docsData, collectionsData] = await Promise.all([
-                getDocuments(),
-                getCollections(),
-            ])
-            setDocuments(docsData)
-            setCollections(collectionsData)
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [])
-
-    React.useEffect(() => {
-        fetchData()
-    }, [fetchData])
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -91,6 +72,7 @@ export default function UploadPage() {
             // Step 1: Upload
             await uploadFile(file)
             setUploadProgress(33)
+            mutate('/api/documents') // Refresh documents list
 
             // Step 2: Ingest
             await ingestDocuments({ fast_pass: true })
@@ -99,13 +81,13 @@ export default function UploadPage() {
             // Step 3: Build Index
             await buildIndex()
             setUploadProgress(100)
+            mutate('/api/documents') // Refresh again just in case
+            mutate('/api/ready') // Trigger readiness check update if needed
 
             toast({
                 title: "Ready!",
                 description: `${file.name} indexed. You can now query it in the chat.`,
             })
-
-            fetchData()
         } catch (error) {
             toast({
                 title: "Processing Failed",
@@ -124,6 +106,7 @@ export default function UploadPage() {
         setIsCreating(true)
         try {
             await createCollection({ name: newCollectionName, color: selectedColor })
+            mutate('/api/collections') // Refresh collections list
             toast({
                 title: "Collection Created",
                 description: `"${newCollectionName}" is ready for documents.`,
@@ -131,7 +114,6 @@ export default function UploadPage() {
             setNewCollectionName("")
             setSelectedColor(COLLECTION_COLORS[0])
             setIsCreateDialogOpen(false)
-            fetchData()
         } catch (error) {
             toast({
                 title: "Failed to Create",
@@ -146,11 +128,11 @@ export default function UploadPage() {
     const handleDeleteCollection = async (id: string, name: string) => {
         try {
             await deleteCollection(id)
+            mutate('/api/collections') // Refresh collections list
             toast({
                 title: "Collection Deleted",
                 description: `"${name}" has been removed.`,
             })
-            fetchData()
         } catch (error) {
             toast({
                 title: "Failed to Delete",

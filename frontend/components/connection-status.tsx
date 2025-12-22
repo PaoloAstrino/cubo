@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { CheckCircle2, Loader2, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getReadiness, getHealth } from '@/lib/api'
+import useSWR from 'swr'
 
 type ConnectionState = 'connecting' | 'connected' | 'error' | 'initializing'
 
@@ -12,56 +12,42 @@ interface ConnectionStatusProps {
 }
 
 export function ConnectionStatus({ className }: ConnectionStatusProps) {
-  const [state, setState] = React.useState<ConnectionState>('connecting')
-  const [message, setMessage] = React.useState<string>('')
   const [isVisible, setIsVisible] = React.useState(true)
 
+  // SWR: Poll health and readiness
+  const { data: health, error: healthError } = useSWR('/api/health', { refreshInterval: 3000 })
+  const { data: readiness, error: readinessError } = useSWR('/api/ready', { refreshInterval: 3000 })
+
+  const state: ConnectionState = React.useMemo(() => {
+    if (healthError || readinessError) return 'error'
+    if (!health || !readiness) return 'connecting'
+    
+    const { retriever, generator } = readiness.components || {}
+    if (retriever && generator) return 'connected'
+    
+    return 'initializing'
+  }, [health, readiness, healthError, readinessError])
+
+  const message = React.useMemo(() => {
+    if (state === 'error') return 'Cannot connect to backend'
+    if (state === 'connecting') return 'Connecting to backend...'
+    if (state === 'connected') return 'System ready'
+    
+    const { retriever, generator } = readiness?.components || {}
+    const waiting: string[] = []
+    if (!retriever) waiting.push('retriever')
+    if (!generator) waiting.push('AI model')
+    return `Initializing ${waiting.join(' & ')}...`
+  }, [state, readiness])
+
   React.useEffect(() => {
-    let mounted = true
-    let pollInterval: NodeJS.Timeout | null = null
-
-    const checkConnection = async () => {
-      try {
-        // First check basic health
-        await getHealth()
-        
-        // Then check component readiness
-        const readiness = await getReadiness()
-        
-        if (!mounted) return
-
-        const { retriever, generator } = readiness.components || {}
-        
-        if (retriever && generator) {
-          setState('connected')
-          setMessage('System ready')
-          // Hide banner after connection is stable
-          setTimeout(() => {
-            if (mounted) setIsVisible(false)
-          }, 2000)
-        } else {
-          setState('initializing')
-          const waiting: string[] = []
-          if (!retriever) waiting.push('retriever')
-          if (!generator) waiting.push('AI model')
-          setMessage(`Initializing ${waiting.join(' & ')}...`)
-        }
-      } catch {
-        if (!mounted) return
-        setState('error')
-        setMessage('Cannot connect to backend')
-        setIsVisible(true)
-      }
+    if (state === 'connected') {
+      const timer = setTimeout(() => setIsVisible(false), 2000)
+      return () => clearTimeout(timer)
+    } else {
+      setIsVisible(true)
     }
-
-    checkConnection()
-    pollInterval = setInterval(checkConnection, 3000)
-
-    return () => {
-      mounted = false
-      if (pollInterval) clearInterval(pollInterval)
-    }
-  }, [])
+  }, [state])
 
   // Don't render if fully connected and hidden
   if (!isVisible && state === 'connected') {

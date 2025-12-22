@@ -202,9 +202,16 @@ class Config(ConfigAdapter):
             # Leave 1 core for system/UI
             n_workers = max(1, hw.physical_cores - 1)
             laptop_config["ingestion"]["deep"]["n_workers"] = n_workers
-        except Exception:
-            pass # Fallback to default 1
             
+            # Intelligent Reranker Activation:
+            # If we have AVX-512 (huge boost for CPU transformers) or enough cores,
+            # we can afford a lightweight reranker instead of disabling it completely.
+            has_avx512 = any("avx512" in f for f in hw.cpu_flags)
+            if has_avx512 or hw.physical_cores >= 6:
+                laptop_config["retrieval"]["reranker_model"] = "cross-encoder/ms-marco-TinyBERT-L-2-v2"
+        except Exception:
+            pass # Fallback to default 1 and no reranker
+
         self.update(laptop_config)
 
         # Universal GPU Acceleration: Check for hardware even in laptop mode

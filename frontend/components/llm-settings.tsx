@@ -28,35 +28,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { getLLMModels, getSettings, updateSettings, type LLMModel } from "@/lib/api"
+import { updateSettings, type LLMModel, type Settings } from "@/lib/api"
+import useSWR, { mutate } from "swr"
 
 export function LLMSettings() {
     const [open, setOpen] = useState(false)
     const [value, setValue] = useState("")
-    const [models, setModels] = useState<LLMModel[]>([])
-    const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
+    const { data: models = [], isLoading: loadingModels } = useSWR<LLMModel[]>('/api/llm/models')
+    const { data: settings, isLoading: loadingSettings } = useSWR<Settings>('/api/settings')
+    const loading = loadingModels || loadingSettings
+
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [modelsData, settingsData] = await Promise.all([
-                    getLLMModels(),
-                    getSettings()
-                ])
-                setModels(modelsData)
-                if (settingsData.llm_model) {
-                    setValue(settingsData.llm_model)
-                }
-            } catch (error) {
-                console.error("Failed to load data", error)
-                toast.error("Failed to load LLM settings")
-            } finally {
-                setLoading(false)
-            }
+        if (settings?.llm_model) {
+            setValue(settings.llm_model)
         }
-        fetchData()
-    }, [])
+    }, [settings])
 
     const handleSelect = async (currentValue: string) => {
         // If the model name contains a colon (e.g. llama3:latest), cmdk might strip it in value prop
@@ -70,6 +58,7 @@ export function LLMSettings() {
                 llm_model: currentValue,
                 llm_provider: 'ollama'
             })
+            mutate('/api/settings') // Refresh settings
             toast.success("LLM model updated successfully")
         } catch (error) {
             console.error(error)

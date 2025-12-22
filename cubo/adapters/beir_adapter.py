@@ -383,18 +383,28 @@ class CuboBeirAdapter:
             else:
                 # Fallback to database query
                 logger.warning("metadata.json not found, falling back to database query")
-                if hasattr(collection, '_db_path'):
-                    # SQLite-backed collection
-                    import sqlite3
-                    conn = sqlite3.connect(str(collection._db_path))
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT id FROM documents")
-                    all_doc_ids = [row[0] for row in cursor.fetchall()]
-                    conn.close()
+                # Use the retriever's collection if available
+                coll = getattr(self.retriever, "collection", None)
+                if coll is None:
+                    logger.error("No collection available on retriever to extract document IDs")
+                    all_doc_ids = []
                 else:
-                    # In-memory collection
-                    all_data = collection.get(include=["ids"])
-                    all_doc_ids = all_data.get("ids", [])
+                    if hasattr(coll, "_db_path"):
+                        # SQLite-backed collection
+                        import sqlite3
+                        conn = sqlite3.connect(str(coll._db_path))
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id FROM documents")
+                        all_doc_ids = [row[0] for row in cursor.fetchall()]
+                        conn.close()
+                    else:
+                        # In-memory collection
+                        try:
+                            all_data = coll.get(include=["ids"])
+                            all_doc_ids = all_data.get("ids", [])
+                        except Exception:
+                            logger.exception("Failed to get IDs from in-memory collection")
+                            all_doc_ids = []
                 logger.info(f"Retrieved {len(all_doc_ids)} document IDs from database")
             
             # Map indices to doc_ids and distances to scores
