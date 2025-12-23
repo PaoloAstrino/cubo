@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Free Disk Space (Ubuntu)
         if: runner.os == 'Linux'
         run: |
@@ -30,13 +30,13 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
           df -h
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
           cache: 'pip'
-      
+
       - name: Install Dependencies (minimal for CI)
         run: |
           # Disk and pip diagnostics
@@ -55,7 +55,7 @@ jobs:
           # which can cause "No space left on device" on hosted runners. If you need
           # those packages for specific workflows, add a targeted job that runs on a
           # runner with more disk or installs only those packages explicitly.
-      
+
       - name: Run Integration Tests
         run: pytest integration_tests/ -v
         env:
@@ -70,7 +70,7 @@ jobs:
         working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

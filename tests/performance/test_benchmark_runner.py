@@ -4,7 +4,6 @@ import shutil
 from pathlib import Path
 
 import pytest
-
 from benchmarks.runner import BenchmarkRunner
 
 

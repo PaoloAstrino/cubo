@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 from pathlib import Path
@@ -21,8 +22,8 @@ def test_faiss_store_add_and_promote(tmp_path: Path):
 
     # Query near doc3 vector and ensure we get results and a mixture of hot/cold
     q = vectors[3]
-    res = store.query(query_embeddings=[q], n_results=3)
-    assert "documents" in res and res["documents"]
+    _res = store.query(query_embeddings=[q], n_results=3)
+    assert "documents" in _res and _res["documents"]
 
     # Promote doc3 explicitly (synchronously to make test deterministic)
     store.promote_to_hot_sync("doc3")

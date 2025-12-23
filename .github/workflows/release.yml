@@ -16,20 +16,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-      
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -47,22 +47,22 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-      
+
       - name: Install Dependencies
         run: |
           pip install -e .
           pip install pyinstaller
-      
+
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
           pyinstaller --onefile --name cubo-win-x64 --clean src/cubo/main.py
-      
+
       - name: Build with PyInstaller (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -81,12 +81,12 @@ jobs:
     needs: [docker-release, build-binaries]
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
-      
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:

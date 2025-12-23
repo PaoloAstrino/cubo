@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.config import config

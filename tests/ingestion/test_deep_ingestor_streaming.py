@@ -97,7 +97,7 @@ class TestStreamingSaves:
             input_folder=str(input_dir), output_dir=str(output_dir), chunk_batch_size=5
         )
         result1 = ingestor1.ingest()
-        initial_count = result1["chunks_count"]
+        result1["chunks_count"]
 
         # Add more files
         for i in range(3, 6):

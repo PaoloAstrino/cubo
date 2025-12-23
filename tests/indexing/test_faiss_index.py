@@ -72,7 +72,7 @@ def test_faiss_with_opq(tmp_path: Path):
     reloaded.load()
 
     # Verify OPQ config was loaded
-    assert reloaded.use_opq == True
+    assert reloaded.use_opq
     assert reloaded.opq_m == 16
 
     # Test search on reloaded index

@@ -3,6 +3,7 @@ Tests for HierarchicalChunker in CustomAutoMerging.
 """
 
 import pytest
+
 pytest.importorskip("torch")
 
 import unittest

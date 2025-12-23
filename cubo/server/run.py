@@ -7,6 +7,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
+# ruff: noqa: E402
 import uvicorn
 
 from cubo.utils.logger import logger

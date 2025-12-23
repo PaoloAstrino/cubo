@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+
 pytest.importorskip("torch")
 
 from sentence_transformers import SentenceTransformer
@@ -32,9 +33,11 @@ def test_hybrid_normalization_missing_auto_score_does_not_dominate(mock_model, t
     ]
 
     # Provide sentence results with a real score.
-    retriever._retrieve_sentence_window = MagicMock(return_value=[
-        {"document": "sent", "metadata": {"id": "s1"}, "similarity": 0.95},
-    ])
+    retriever._retrieve_sentence_window = MagicMock(
+        return_value=[
+            {"document": "sent", "metadata": {"id": "s1"}, "similarity": 0.95},
+        ]
+    )
 
     # Bypass dedup complexity for this test.
     retriever.orchestrator.deduplicate_results = MagicMock(side_effect=lambda xs, *_: xs)
@@ -60,9 +63,11 @@ def test_hybrid_normalization_adds_fields(mock_model, tmp_path):
     retriever.auto_merging_retriever.retrieve.return_value = [
         {"document": "auto", "metadata": {"id": "a1"}, "similarity": 100.0}
     ]
-    retriever._retrieve_sentence_window = MagicMock(return_value=[
-        {"document": "sent", "metadata": {"id": "s1"}, "similarity": 0.1},
-    ])
+    retriever._retrieve_sentence_window = MagicMock(
+        return_value=[
+            {"document": "sent", "metadata": {"id": "s1"}, "similarity": 0.1},
+        ]
+    )
     retriever.orchestrator.deduplicate_results = MagicMock(side_effect=lambda xs, *_: xs)
 
     out = retriever._hybrid_retrieval("q", top_k=2, strategy=None, trace_id=None)

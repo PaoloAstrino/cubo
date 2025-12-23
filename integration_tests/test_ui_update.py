@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 def test_ui_update():
     """Test if UI updates work properly."""
     import pytest
+
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication
 

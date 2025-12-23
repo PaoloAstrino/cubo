@@ -60,30 +60,30 @@ def check_index_norms(
     verbose: bool,
 ) -> bool:
     """Check vector norms in a FAISS index.
-    
+
     Returns:
         True if all sampled vectors are within tolerance of expected norm.
     """
     if index is None or index.ntotal == 0:
         print(f"  {index_name}: Empty or None index, skipping")
         return True
-    
+
     total = index.ntotal
     n_check = min(sample_size, total)
-    
+
     # Sample indices evenly distributed across the index
     if n_check < total:
         indices = np.linspace(0, total - 1, n_check, dtype=int)
     else:
         indices = np.arange(total)
-    
+
     # Check if we can reconstruct vectors
     try:
-        vectors = index.reconstruct_n(0, min(10, total))
+        index.reconstruct_n(0, min(10, total))
     except RuntimeError as e:
         print(f"  {index_name}: Cannot reconstruct vectors ({e})")
         return True  # Can't validate, assume OK
-    
+
     # Compute norms for sampled vectors
     norms = []
     for i in indices:
@@ -93,21 +93,21 @@ def check_index_norms(
             norms.append(norm)
         except RuntimeError:
             continue
-    
+
     if not norms:
         print(f"  {index_name}: Could not reconstruct any vectors")
         return False
-    
+
     norms = np.array(norms)
     min_norm = norms.min()
     max_norm = norms.max()
     mean_norm = norms.mean()
     std_norm = norms.std()
-    
+
     # Check if norms are within tolerance
     within_tolerance = np.abs(norms - expected_norm) <= tolerance
     pct_ok = within_tolerance.sum() / len(norms) * 100
-    
+
     # Report
     print(f"  {index_name}: {total} vectors")
     if verbose:
@@ -115,7 +115,7 @@ def check_index_norms(
         print(f"    Norm range: [{min_norm:.4f}, {max_norm:.4f}]")
         print(f"    Norm mean±std: {mean_norm:.4f} ± {std_norm:.4f}")
         print(f"    Within tolerance ({expected_norm}±{tolerance}): {pct_ok:.1f}%")
-    
+
     if pct_ok < 99.0:  # Allow 1% tolerance for floating point
         print(f"    ⚠️  WARNING: Only {pct_ok:.1f}% of vectors within expected norm range")
         return False
@@ -126,22 +126,22 @@ def check_index_norms(
 
 def main():
     args = parse_args()
-    
+
     index_dir = args.index_dir
     if not index_dir.exists():
         print(f"Error: Index directory not found: {index_dir}")
         sys.exit(1)
-    
+
     # Load metadata
     metadata_path = index_dir / "metadata.json"
     if not metadata_path.exists():
         print(f"Error: metadata.json not found in {index_dir}")
         sys.exit(1)
-    
+
     with open(metadata_path) as f:
         metadata = json.load(f)
-    
-    print(f"\n=== FAISS Index Validation ===")
+
+    print("\n=== FAISS Index Validation ===")
     print(f"Index directory: {index_dir}")
     print(f"Dimension: {metadata.get('dimension', 'unknown')}")
     print(f"Normalize flag: {metadata.get('normalize', 'not set')}")
@@ -149,7 +149,7 @@ def main():
     print(f"Hot IDs: {len(metadata.get('hot_ids', []))}")
     print(f"Cold IDs: {len(metadata.get('cold_ids', []))}")
     print()
-    
+
     # Determine expected norm based on metadata
     if metadata.get("normalize", False):
         expected_norm = 1.0
@@ -157,10 +157,10 @@ def main():
     else:
         expected_norm = args.expected_norm
         print(f"Using expected norm from args: {expected_norm}")
-    
+
     print()
     all_ok = True
-    
+
     # Check hot index
     hot_path = index_dir / "hot.index"
     if hot_path.exists():
@@ -177,9 +177,9 @@ def main():
         all_ok = all_ok and ok
     else:
         print("Hot index not found, skipping")
-    
+
     print()
-    
+
     # Check cold index
     cold_path = index_dir / "cold.index"
     if cold_path.exists():
@@ -196,9 +196,9 @@ def main():
         all_ok = all_ok and ok
     else:
         print("Cold index not found, skipping")
-    
+
     print()
-    
+
     if all_ok:
         print("✓ Index validation PASSED")
         sys.exit(0)

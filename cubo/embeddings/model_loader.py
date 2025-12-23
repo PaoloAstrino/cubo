@@ -1,5 +1,3 @@
-import torch
-
 from cubo.config import config
 from cubo.utils.logger import logger
 
@@ -79,8 +77,9 @@ class ModelManager:
     def _load_model_on_device(self, device: str):
         """Load the SentenceTransformer model on the specified device."""
         from sentence_transformers import SentenceTransformer
-        from cubo.utils.hardware import detect_hardware
+
         from cubo.monitoring import metrics
+        from cubo.utils.hardware import detect_hardware
 
         model_name = config.get("model_path")
 

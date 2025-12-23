@@ -3,6 +3,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 pytest.importorskip("torch")
 
 from sentence_transformers import SentenceTransformer
@@ -174,7 +175,7 @@ def test_retrieve_uses_router_strategy(mock_model, temp_db_path):
         return []
 
     retriever._retrieve_sentence_window = fake_retrieve_sentence_window
-    res = retriever.retrieve_top_documents("Test query", top_k=5)
+    retriever.retrieve_top_documents("Test query", top_k=5)
     close_fn = getattr(retriever, "close", None)
     if callable(close_fn):
         close_fn()
@@ -229,13 +230,9 @@ def test_apply_reranking_called_when_enabled(mock_model, temp_db_path):
     fake = FakeReranker()
     retriever.reranker = fake
     candidates = [{"document": "a"}, {"document": "b"}, {"document": "c"}]
-    out = retriever._apply_reranking_if_available(
-        candidates, top_k=2, query="test", use_reranker=False
-    )
+    retriever._apply_reranking_if_available(candidates, top_k=2, query="test", use_reranker=False)
     assert fake.called is False
-    out = retriever._apply_reranking_if_available(
-        candidates, top_k=2, query="test", use_reranker=True
-    )
+    retriever._apply_reranking_if_available(candidates, top_k=2, query="test", use_reranker=True)
     assert fake.called is True
     close_fn = getattr(retriever, "close", None)
     if callable(close_fn):

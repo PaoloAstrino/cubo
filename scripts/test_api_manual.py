@@ -17,7 +17,7 @@ for i in range(10):
         if response.status_code == 200:
             print("✓ Server is ready!")
             break
-    except:
+    except Exception:
         if i < 9:
             time.sleep(1)
         else:

@@ -1,10 +1,9 @@
 import json
 import logging
-import os
 import shutil
 import sqlite3
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 

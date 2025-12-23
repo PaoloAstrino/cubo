@@ -7,12 +7,13 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import numpy as np
-from llama_index.core import Document
+# ruff: noqa: E402
 
 import tempfile
 from pathlib import Path
+
+import numpy as np
+from llama_index.core import Document
 
 from cubo.config import config
 

@@ -15,5 +15,5 @@ def test_searcher_loads_chunks(tmp_path: Path):
             f.write(json.dumps(r) + "\n")
     bs = BM25Searcher(chunks_jsonl=str(chunks_path))
     assert len(bs.docs) == 2
-    res = bs.search("apples")
-    assert res and res[0]["doc_id"].endswith("_0")
+    _res = bs.search("apples")
+    assert _res and _res[0]["doc_id"].endswith("_0")

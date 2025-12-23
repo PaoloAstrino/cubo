@@ -109,10 +109,10 @@ def publish_version(
     with acquire_publish_lock(index_root):
         # Verify artifacts
         if verify:
-            metadata = _verify_index_dir(version_dir)
+            _metadata = _verify_index_dir(version_dir)
         else:
             with open(version_dir / "metadata.json", encoding="utf-8") as fh:
-                metadata = json.load(fh)
+                _metadata = json.load(fh)
 
         # Form the published path: keep version_dir as-is; pointer file references it
         published_dir = version_dir

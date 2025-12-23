@@ -54,7 +54,7 @@ export default function UploadPage() {
     const { data: documents = [], isLoading: isDocsLoading } = useSWR<Document[]>('/api/documents')
     const { data: collections = [], isLoading: isCollsLoading } = useSWR<Collection[]>('/api/collections')
     const isLoading = isDocsLoading || isCollsLoading
-    
+
     const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
     const [newCollectionName, setNewCollectionName] = React.useState("")
     const [selectedColor, setSelectedColor] = React.useState(COLLECTION_COLORS[0])

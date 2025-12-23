@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.config import config
@@ -228,5 +229,5 @@ def test_cli_build_faiss_and_retrieve(tmp_path: Path):
     import numpy as np
 
     query = np.zeros((payload.get("dimension", 3),), dtype=np.float32).tolist()
-    res = manager.search(query, k=5)
-    assert res, "Expected at least one search result from FAISS index"
+    _res = manager.search(query, k=5)
+    assert _res, "Expected at least one search result from FAISS index"

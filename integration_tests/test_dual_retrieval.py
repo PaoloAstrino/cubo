@@ -7,11 +7,13 @@ import sys
 from pathlib import Path
 
 import pytest
+
 pytest.importorskip("sentence_transformers")
 
 ROOT = Path(__file__).parent.parent.resolve()
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+    # ruff: noqa: E402
 
 from sentence_transformers import SentenceTransformer
 
@@ -104,7 +106,7 @@ def test_dual_retrieval():
                 # Show first result preview
                 if retrieved_docs:
                     first_doc = retrieved_docs[0]["document"][:100]
-                    similarity = retrieved_docs[0].get("similarity", 0)
+                    _similarity = retrieved_docs[0].get("similarity", 0)
                     print(".3f")
                     print(f'      "{first_doc}..."')
 

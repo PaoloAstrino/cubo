@@ -49,7 +49,7 @@ export function AppSidebar() {
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const activeCollectionId = searchParams.get('collection')
-    
+
     const [collections, setCollections] = React.useState<Collection[]>([])
     const [isLoading, setIsLoading] = React.useState(true)
 
@@ -123,14 +123,14 @@ export function AppSidebar() {
                                     return (
                                         <SidebarMenuItem key={collection.id}>
                                             <SidebarMenuButton asChild size="lg">
-                                                <Link 
+                                                <Link
                                                     href={`/chat?collection=${collection.id}`}
                                                     className={cn(
                                                         "flex items-center gap-3 group",
                                                         isActive && "bg-accent"
                                                     )}
                                                 >
-                                                    <div 
+                                                    <div
                                                         className="w-6 h-6 rounded flex items-center justify-center shrink-0 transition-transform group-hover:scale-110"
                                                         style={{ backgroundColor: collection.color }}
                                                     >

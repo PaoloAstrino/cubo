@@ -1,17 +1,19 @@
-import os
 from pathlib import Path
 
 import pytest
 
 # Skip the test gracefully if Hypothesis is not installed in the environment.
 pytest.importorskip("hypothesis")
-from hypothesis import given, settings, strategies as st, HealthCheck
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from cubo.ingestion.deep_ingestor import DeepIngestor
 from cubo.storage.metadata_manager import MetadataManager
 
 
-@settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(
+    max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
+)
 @given(bad_bytes=st.binary(min_size=1, max_size=2048))
 def test_corrupted_pdf_is_handled_without_crash(tmp_path: Path, bad_bytes: bytes):
     """Random PDF-like bytes should not crash ingestion and should produce a file status entry."""
@@ -34,8 +36,8 @@ def test_corrupted_pdf_is_handled_without_crash(tmp_path: Path, bad_bytes: bytes
     )
 
     # Should not raise even if PDF is corrupt
-    res = ingestor.ingest()
-    assert res is not None
+    _res = ingestor.ingest()
+    assert _res is not None
 
     status = manager.get_file_status(run_id, str(bad_pdf))
     assert status is not None

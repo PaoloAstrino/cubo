@@ -10,11 +10,10 @@ This module handles document lifecycle operations including:
 
 import hashlib
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from cubo.config import config
 from cubo.utils.exceptions import (
-    DatabaseError,
     DocumentAlreadyExistsError,
     EmbeddingGenerationError,
     FileAccessError,

@@ -343,7 +343,7 @@ class DatasetDownloader:
         """Download dataset from HuggingFace Hub."""
         self._print_status(f"Downloading from HuggingFace: {repo_id}", Colors.OKCYAN)
 
-        dataset_dir = self.output_dir / dataset_name
+        self.output_dir / dataset_name
 
         # For RAGBench specifically, use snapshot download since it's a dataset repo
         if "ragbench" in dataset_name.lower():
@@ -361,7 +361,7 @@ class DatasetDownloader:
     ) -> bool:
         """Download dataset using huggingface_hub snapshot_download."""
         try:
-            from huggingface_hub import HfFileSystem, snapshot_download
+            from huggingface_hub import snapshot_download
         except ImportError:
             self._print_status(
                 "huggingface_hub not installed. Install with: pip install huggingface_hub",
@@ -428,7 +428,6 @@ class DatasetDownloader:
         )
 
         try:
-            import concurrent.futures
             import time
 
             from huggingface_hub import HfFileSystem, hf_hub_download
@@ -495,7 +494,7 @@ class DatasetDownloader:
                     max_retries = 3
                     for attempt in range(max_retries):
                         try:
-                            local_path = hf_hub_download(
+                            hf_hub_download(
                                 repo_id=repo_id,
                                 repo_type="dataset",
                                 filename=file_path,
@@ -574,7 +573,6 @@ class DatasetDownloader:
         self._print_status(f"Using datasets library for {repo_id} with subsets", Colors.OKCYAN)
 
         try:
-            import pandas as pd
             from datasets import DownloadMode, load_dataset
         except ImportError:
             self._print_status(

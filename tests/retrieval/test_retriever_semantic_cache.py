@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.retrieval.cache import SemanticCache
@@ -13,9 +14,9 @@ def test_retriever_uses_semantic_cache():
     )
     # Set up semantic cache in both places (retriever and executor)
     retriever.semantic_cache = semantic_cache
-    if hasattr(retriever, 'executor'):
+    if hasattr(retriever, "executor"):
         retriever.executor.semantic_cache = semantic_cache
-    
+
     # Add a pre-cached result
     embedding = [1.0, 0.0, 0.0]
     cached_results = [

@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.config import config
@@ -32,9 +33,9 @@ def test_query_scrubbed_in_logs(tmp_path):
     with open(log_file, encoding="utf-8") as f:
         lines = f.readlines()
 
-    assert any("Query:" in l for l in lines), f"No Query log found in {lines}"
+    assert any("Query:" in line for line in lines), f"No Query log found in {lines}"
     # Find the last Query line
-    qlines = [l for l in lines if "Query:" in l]
+    qlines = [line for line in lines if "Query:" in line]
     qline = qlines[-1]
     # When scrub enabled, ensure full query is not in logs
     assert query not in qline, f"Raw query '{query}' found in log when scrubbing enabled"
@@ -55,6 +56,6 @@ def test_query_scrubbed_in_logs(tmp_path):
     with open(log_file, encoding="utf-8") as f:
         lines = f.readlines()
 
-    qlines = [l for l in lines if "Query:" in l]
+    qlines = [line for line in lines if "Query:" in line]
     qline = qlines[-1]
     assert query in qline

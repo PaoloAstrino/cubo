@@ -1,7 +1,6 @@
 import os
 
 import pytest
-
 from benchmarks.retrieval.rag_benchmark import RAGTester
 
 
@@ -61,9 +60,9 @@ def test_retrieval_latency_and_recall_constraints(
 
     # Latency check with environment-aware threshold
     overall_latency_p50 = metadata.get("avg_retrieval_latency_p50_ms")
-    assert overall_latency_p50 is not None and overall_latency_p50 > 0, (
-        "Expected retrieval latency metric avg_retrieval_latency_p50_ms to be present and > 0"
-    )
+    assert (
+        overall_latency_p50 is not None and overall_latency_p50 > 0
+    ), "Expected retrieval latency metric avg_retrieval_latency_p50_ms to be present and > 0"
     assert (
         overall_latency_p50 < threshold_ms
     ), f"P50 latency {overall_latency_p50}ms exceeds {env} threshold {threshold_ms}ms"

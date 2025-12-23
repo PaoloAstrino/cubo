@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.embeddings.lazy_model_manager import LazyModelManager, get_lazy_model_manager
@@ -186,7 +187,7 @@ class TestLazyModelManager(unittest.TestCase):
         manager = LazyModelManager(idle_timeout=2)
 
         # Should fallback to CPU and succeed
-        model = manager.get_model()
+        manager.get_model()
 
         # Should have tried twice (GPU then CPU)
         self.assertEqual(mock_transformer.call_count, 2)
@@ -210,6 +211,7 @@ class TestLazyModelManager(unittest.TestCase):
     def test_laptop_mode_stub_dimension_respects_config(self):
         """Test that the lightweight laptop-mode stub uses configured index_dimension."""
         from cubo.config import config as _cfg
+
         # Save original values
         orig_laptop = _cfg.get("laptop_mode", False)
         orig_dim = _cfg.get("index_dimension", None)
@@ -217,6 +219,7 @@ class TestLazyModelManager(unittest.TestCase):
         try:
             # Ensure the setUp manager is loaded (without network calls) so we can validate it remains loaded
             from cubo.embeddings.lazy_model_manager import _LightweightModel
+
             self.manager._model = _LightweightModel(dim=int(_cfg.get("index_dimension", 64) or 64))
             # Force laptop mode and set index dim to a test value
             _cfg.set("index_dimension", 128)

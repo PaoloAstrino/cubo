@@ -16,8 +16,8 @@ def test_reindex_parquet_with_wipe(tmp_path: Path):
 
     out = tmp_path / "deep"
     ing = DeepIngestor(input_folder=str(folder), output_dir=str(out))
-    res = ing.ingest()
-    parquet = res["chunks_parquet"]
+    _res = ing.ingest()
+    parquet = _res["chunks_parquet"]
     df = pd.read_parquet(parquet)
 
     # Setup temp FAISS index path

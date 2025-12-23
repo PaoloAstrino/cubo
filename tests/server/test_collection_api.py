@@ -1,10 +1,9 @@
 """Integration tests for collection API endpoints."""
 
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
@@ -22,9 +21,10 @@ def mock_cubo_app():
 def client(mock_cubo_app):
     """Create test client with mocked CUBO app."""
     mock_app, mock_vector_store = mock_cubo_app
-    
+
     with patch("cubo.server.api.cubo_app", mock_app):
         from cubo.server.api import app
+
         yield TestClient(app), mock_vector_store
 
 
@@ -35,9 +35,9 @@ class TestListCollections:
         """Test listing collections when none exist."""
         test_client, mock_store = client
         mock_store.list_collections.return_value = []
-        
+
         response = test_client.get("/api/collections")
-        
+
         assert response.status_code == 200
         assert response.json() == []
         mock_store.list_collections.assert_called_once()
@@ -51,19 +51,19 @@ class TestListCollections:
                 "name": "Research Papers",
                 "color": "#2563eb",
                 "created_at": "2025-11-29T10:00:00",
-                "document_count": 5
+                "document_count": 5,
             },
             {
                 "id": "coll-2",
                 "name": "Project Docs",
                 "color": "#10b981",
                 "created_at": "2025-11-29T11:00:00",
-                "document_count": 3
-            }
+                "document_count": 3,
+            },
         ]
-        
+
         response = test_client.get("/api/collections")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -82,23 +82,19 @@ class TestCreateCollection:
             "name": "New Collection",
             "color": "#ff0000",
             "created_at": "2025-11-29T12:00:00",
-            "document_count": 0
+            "document_count": 0,
         }
-        
+
         response = test_client.post(
-            "/api/collections",
-            json={"name": "New Collection", "color": "#ff0000"}
+            "/api/collections", json={"name": "New Collection", "color": "#ff0000"}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "New Collection"
         assert data["color"] == "#ff0000"
         assert data["id"] == "new-coll-id"
-        mock_store.create_collection.assert_called_once_with(
-            name="New Collection",
-            color="#ff0000"
-        )
+        mock_store.create_collection.assert_called_once_with(name="New Collection", color="#ff0000")
 
     def test_create_collection_default_color(self, client):
         """Test collection creation with default color."""
@@ -108,39 +104,32 @@ class TestCreateCollection:
             "name": "Default Color",
             "color": "#2563eb",
             "created_at": "2025-11-29T12:00:00",
-            "document_count": 0
+            "document_count": 0,
         }
-        
-        response = test_client.post(
-            "/api/collections",
-            json={"name": "Default Color"}
-        )
-        
+
+        response = test_client.post("/api/collections", json={"name": "Default Color"})
+
         assert response.status_code == 200
         assert response.json()["color"] == "#2563eb"
 
     def test_create_duplicate_collection_fails(self, client):
         """Test that duplicate collection names return 409."""
         test_client, mock_store = client
-        mock_store.create_collection.side_effect = ValueError("Collection 'Duplicate' already exists")
-        
-        response = test_client.post(
-            "/api/collections",
-            json={"name": "Duplicate"}
+        mock_store.create_collection.side_effect = ValueError(
+            "Collection 'Duplicate' already exists"
         )
-        
+
+        response = test_client.post("/api/collections", json={"name": "Duplicate"})
+
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
     def test_create_collection_empty_name_fails(self, client):
         """Test that empty name is rejected."""
         test_client, _ = client
-        
-        response = test_client.post(
-            "/api/collections",
-            json={"name": ""}
-        )
-        
+
+        response = test_client.post("/api/collections", json={"name": ""})
+
         assert response.status_code == 422  # Validation error
 
 
@@ -155,11 +144,11 @@ class TestGetCollection:
             "name": "Specific Collection",
             "color": "#2563eb",
             "created_at": "2025-11-29T12:00:00",
-            "document_count": 10
+            "document_count": 10,
         }
-        
+
         response = test_client.get("/api/collections/coll-123")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == "coll-123"
@@ -170,9 +159,9 @@ class TestGetCollection:
         """Test getting a non-existent collection."""
         test_client, mock_store = client
         mock_store.get_collection.return_value = None
-        
+
         response = test_client.get("/api/collections/nonexistent")
-        
+
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
@@ -184,9 +173,9 @@ class TestDeleteCollection:
         """Test successful collection deletion."""
         test_client, mock_store = client
         mock_store.delete_collection.return_value = True
-        
+
         response = test_client.delete("/api/collections/coll-to-delete")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "deleted"
@@ -196,9 +185,9 @@ class TestDeleteCollection:
         """Test deleting non-existent collection."""
         test_client, mock_store = client
         mock_store.delete_collection.return_value = False
-        
+
         response = test_client.delete("/api/collections/nonexistent")
-        
+
         assert response.status_code == 404
 
 
@@ -211,14 +200,13 @@ class TestAddDocumentsToCollection:
         mock_store.get_collection.return_value = {"id": "coll-1", "name": "Test"}
         mock_store.add_documents_to_collection.return_value = {
             "added_count": 3,
-            "already_in_collection": 0
+            "already_in_collection": 0,
         }
-        
+
         response = test_client.post(
-            "/api/collections/coll-1/documents",
-            json={"document_ids": ["doc1", "doc2", "doc3"]}
+            "/api/collections/coll-1/documents", json={"document_ids": ["doc1", "doc2", "doc3"]}
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["added_count"] == 3
@@ -228,12 +216,11 @@ class TestAddDocumentsToCollection:
         """Test adding documents to non-existent collection."""
         test_client, mock_store = client
         mock_store.get_collection.return_value = None
-        
+
         response = test_client.post(
-            "/api/collections/nonexistent/documents",
-            json={"document_ids": ["doc1"]}
+            "/api/collections/nonexistent/documents", json={"document_ids": ["doc1"]}
         )
-        
+
         assert response.status_code == 404
 
 
@@ -245,13 +232,11 @@ class TestRemoveDocumentsFromCollection:
         test_client, mock_store = client
         mock_store.get_collection.return_value = {"id": "coll-1", "name": "Test"}
         mock_store.remove_documents_from_collection.return_value = 2
-        
+
         response = test_client.request(
-            "DELETE",
-            "/api/collections/coll-1/documents",
-            json={"document_ids": ["doc1", "doc2"]}
+            "DELETE", "/api/collections/coll-1/documents", json={"document_ids": ["doc1", "doc2"]}
         )
-        
+
         assert response.status_code == 200
         assert response.json()["removed_count"] == 2
 
@@ -264,9 +249,9 @@ class TestGetCollectionDocuments:
         test_client, mock_store = client
         mock_store.get_collection.return_value = {"id": "coll-1", "name": "Test"}
         mock_store.get_collection_documents.return_value = ["doc1", "doc2", "doc3"]
-        
+
         response = test_client.get("/api/collections/coll-1/documents")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["collection_id"] == "coll-1"
@@ -277,7 +262,7 @@ class TestGetCollectionDocuments:
         """Test getting documents from non-existent collection."""
         test_client, mock_store = client
         mock_store.get_collection.return_value = None
-        
+
         response = test_client.get("/api/collections/nonexistent/documents")
-        
+
         assert response.status_code == 404

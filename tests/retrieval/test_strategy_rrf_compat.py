@@ -1,5 +1,3 @@
-import pytest
-
 from cubo.retrieval.strategy import RetrievalStrategy
 
 

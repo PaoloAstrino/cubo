@@ -1,9 +1,9 @@
-import os
 import logging
-from typing import Dict, Optional
+import os
+from typing import Dict
 
-from cubo.utils.hardware import HardwareProfile
 from cubo.monitoring import metrics
+from cubo.utils.hardware import HardwareProfile
 
 logger = logging.getLogger(__name__)
 

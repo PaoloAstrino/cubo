@@ -34,7 +34,7 @@ def test_retrieval():
         print(f"   Total chunks in DB: {collection_info.get('total_chunks', 0)}")
         print(f"   Current session docs: {collection_info.get('current_session_docs', 0)}")
         print(f"   Filenames in session: {collection_info.get('current_session_filenames', [])}")
-    except:
+    except Exception:
         print(f"   Current session docs: {len(retriever.current_documents)}")
 
     # Get all metadata to see what files are actually in the database

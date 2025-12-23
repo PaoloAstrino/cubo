@@ -10,8 +10,8 @@ def test_sample_latency_simple():
     def fast_fn(x):
         return x
 
-    res = sample_latency(fast_fn, "test", samples=3)
-    assert "p50_ms" in res and res["p50_ms"] >= 0
+    _res = sample_latency(fast_fn, "test", samples=3)
+    assert "p50_ms" in _res and _res["p50_ms"] >= 0
 
 
 def test_sample_memory_snapshot():

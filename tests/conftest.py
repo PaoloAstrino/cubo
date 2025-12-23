@@ -1,3 +1,4 @@
+import os
 import shutil
 import sqlite3
 import sys
@@ -5,7 +6,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-import os
 
 ROOT = Path(__file__).parent.parent.resolve()
 if str(ROOT) not in sys.path:
@@ -23,6 +23,7 @@ except Exception:
 # Optional: Determine if torch is present; many embedding/retrieval tests require torch.
 try:
     import torch  # noqa: F401
+
     _TORCH_PRESENT = True
 except ImportError:
     _TORCH_PRESENT = False
@@ -35,6 +36,7 @@ except ImportError:
 # the `cubo.evaluation` modules which may be optional in lightweight dev setups.
 try:
     import cubo.evaluation  # noqa: F401
+
     _EVALUATION_PRESENT = True
 except Exception:
     _EVALUATION_PRESENT = False
@@ -72,7 +74,9 @@ def pytest_collectreport(report):
         # Check if the failure is due to missing torch
         for longrepr in [report.longrepr] if report.longrepr else []:
             longrepr_str = str(longrepr)
-            if "ModuleNotFoundError" in longrepr_str and ("torch" in longrepr_str or "No module named 'torch'" in longrepr_str):
+            if "ModuleNotFoundError" in longrepr_str and (
+                "torch" in longrepr_str or "No module named 'torch'" in longrepr_str
+            ):
                 # Convert to xfail to avoid hard failure
                 report.outcome = "passed"
                 report.wasxfail = "torch not installed"
@@ -137,12 +141,12 @@ def fast_pass_result(mini_data, tmp_path_factory):
     manager = IngestionManager()
     output_dir = tmp_path_factory.mktemp("fast_pass_output")
     output_dir.mkdir(parents=True, exist_ok=True)
-    res = manager.start_fast_pass(
+    _res = manager.start_fast_pass(
         str(mini_data), output_dir=str(output_dir), skip_model=True, auto_deep=False
     )
-    assert "run_id" in res
-    assert "result" in res and res["result"] is not None
-    yield res["result"]
+    assert "run_id" in _res
+    assert "result" in _res and _res["result"] is not None
+    yield _res["result"]
 
 
 @pytest.fixture(scope="module")

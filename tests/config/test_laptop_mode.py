@@ -116,17 +116,24 @@ class TestLaptopModeConfig(unittest.TestCase):
 
     def test_apply_laptop_mode(self):
         """Test apply_laptop_mode updates config correctly."""
-        from cubo.config import Config
         from unittest.mock import patch
+
+        from cubo.config import Config
         from cubo.utils.hardware import HardwareProfile
 
         config = Config()
 
         # Mock hardware to ensure deterministic n_workers
         mock_hw = HardwareProfile(
-            device="cpu", n_gpu_layers=0, vram_gb=0,
-            physical_cores=2, logical_cores=4, total_ram_gb=8,
-            cpu_flags=[], blas_backend="openblas", allocator="libc"
+            device="cpu",
+            n_gpu_layers=0,
+            vram_gb=0,
+            physical_cores=2,
+            logical_cores=4,
+            total_ram_gb=8,
+            cpu_flags=[],
+            blas_backend="openblas",
+            allocator="libc",
         )
 
         with patch("cubo.utils.hardware.detect_hardware", return_value=mock_hw):

@@ -1,9 +1,11 @@
 import asyncio
 import os
+
 import pytest
-from httpx import AsyncClient, ASGITransport
-from pathlib import Path
+from httpx import ASGITransport, AsyncClient
+
 from cubo.server.api import app
+
 
 @pytest.fixture
 def mock_data_dir(tmp_path):
@@ -12,6 +14,7 @@ def mock_data_dir(tmp_path):
     (tmp_path / "data").mkdir()
     yield tmp_path
     os.chdir(original_cwd)
+
 
 @pytest.mark.asyncio
 async def test_list_documents_concurrency(mock_data_dir):

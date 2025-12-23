@@ -30,19 +30,19 @@ def test_trace_id_propagation(tmp_path):
         return True
 
     fut = svc.execute_async("document_processing", op, "dummy.txt", with_retry=False)
-    res = fut.result(timeout=5)
-    assert res
+    _res = fut.result(timeout=5)
+    assert _res
     # Allow logger to flush
     time.sleep(0.1)
     with open(log_file, encoding="utf-8") as f:
-        lines = [l.strip() for l in f.readlines() if l.strip()]
+        lines = [line.strip() for line in f.readlines() if line.strip()]
     assert lines, "Log file should contain entries"
     print(f"DEBUG: Captured lines: {lines}")
 
     found = False
-    for l in lines:
+    for line in lines:
         try:
-            rec = json.loads(l)
+            rec = json.loads(line)
         except Exception:
             continue
         # Extract the actual message text (handle double‑encoded JSON)

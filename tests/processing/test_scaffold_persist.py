@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 import json
@@ -58,7 +59,7 @@ def test_save_scaffold_run_and_db(tmp_path: Path):
     # Save scaffold run
     output_root = tmp_path / "scaffolds"
     run_id = "scaffold_test_1"
-    res = save_scaffold_run(
+    _res = save_scaffold_run(
         run_id,
         scaffolds_result,
         output_root=output_root,
@@ -67,8 +68,8 @@ def test_save_scaffold_run_and_db(tmp_path: Path):
         id_column="chunk_id",
     )
 
-    run_dir = Path(res["run_dir"])
-    manifest_path = Path(res["manifest"])
+    run_dir = Path(_res["run_dir"])
+    manifest_path = Path(_res["manifest"])
 
     # Files exist
     assert (run_dir / "scaffold_metadata.parquet").exists()

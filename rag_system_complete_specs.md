@@ -1789,7 +1789,7 @@ class ResponseGenerator:
 
     def _create_prompt(self, query, context):
         """Create prompt for LLM using canonical system prompt.
-        
+
         Note: In production code, this uses the DEFAULT_SYSTEM_PROMPT from
         cubo.config.prompt_defaults for consistency across all LLM providers.
         """

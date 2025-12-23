@@ -1,5 +1,7 @@
 import unittest
+
 from cubo.processing.chat_template_manager import ChatTemplateManager
+
 
 class TestChatTemplateManager(unittest.TestCase):
     def setUp(self):
@@ -8,7 +10,7 @@ class TestChatTemplateManager(unittest.TestCase):
     def test_llama3_formatting(self):
         messages = [
             {"role": "system", "content": "System Prompt"},
-            {"role": "user", "content": "User Query"}
+            {"role": "user", "content": "User Query"},
         ]
         expected = (
             "<|begin_of_text|>"
@@ -22,13 +24,9 @@ class TestChatTemplateManager(unittest.TestCase):
     def test_default_formatting(self):
         messages = [
             {"role": "system", "content": "System Prompt"},
-            {"role": "user", "content": "User Query"}
+            {"role": "user", "content": "User Query"},
         ]
-        expected = (
-            "System: System Prompt\n\n"
-            "User: User Query\n\n"
-            "Assistant: "
-        )
+        expected = "System: System Prompt\n\n" "User: User Query\n\n" "Assistant: "
         result = self.manager.format_chat(messages, model_name="unknown-model")
         self.assertEqual(result, expected)
 
@@ -43,7 +41,7 @@ class TestChatTemplateManager(unittest.TestCase):
             {"role": "system", "content": "You are helpful."},
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
-            {"role": "user", "content": "How are you?"}
+            {"role": "user", "content": "How are you?"},
         ]
         result = self.manager.format_chat(messages, model_name="llama3")
         # Check all parts are present
@@ -58,5 +56,6 @@ class TestChatTemplateManager(unittest.TestCase):
         # Should end with assistant header ready for generation
         self.assertTrue(result.endswith("<|start_header_id|>assistant<|end_header_id|>\n\n"))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,7 @@ While the backend is fighting to be "Enterprise Grade", the frontend is stuck in
 **Claim:** "Intelligent offline chatbot."
 **Reality:** A blocking, unresponsive interface.
 - **Evidence:** `lib/api.ts` uses a standard `await fetch()` for the `query` endpoint. `app/chat/page.tsx` waits for the *entire* response before showing a single character.
-- **Impact:** In a RAG system, generation can take 5-15 seconds. During this time, the UI sits frozen with a spinner. Modern users expect streaming tokens (like ChatGPT). This feels broken by comparison.
+- **Impact:** In a RAG system, generation can take 5-15 seconds. During this time, the UI sits frozen with a spinner. Modern users expect streaming tokens (like ChatGPT). This feels broken by comparison. RESOLVED !!!!
 
 ## 2. State Amnesia
 **Claim:** "Interact with your documents."

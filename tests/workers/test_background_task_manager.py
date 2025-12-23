@@ -377,7 +377,7 @@ class TestTaskContext:
     def test_failed_context(self, task_manager):
         """Test failed task context."""
         with pytest.raises(ValueError):
-            with task_manager.task_context("Failing Context") as reporter:
+            with task_manager.task_context("Failing Context"):
                 raise ValueError("Context error")
 
         # Find the task

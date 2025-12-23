@@ -16,7 +16,7 @@ class MockReadableStream {
     }
     underlyingSource.start(this.controller)
   }
-  
+
   getReader() {
     let index = 0
     return {

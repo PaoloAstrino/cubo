@@ -87,7 +87,7 @@ def test_download_dolphin(monkeypatch):
     # Avoid prompting stdin during pytest runs; if environment variable is not set, skip the download
     if os.environ.get("RUN_DOLPHIN_DOWNLOAD_TEST", "false").lower() != "true":
         pytest.skip("Dolphin download test skipped (set RUN_DOLPHIN_DOWNLOAD_TEST=true to enable)")
-    response = "y"
+    _response = "y"
 
     # Run download script
     os.system("python download_dolphin.py --download --test")

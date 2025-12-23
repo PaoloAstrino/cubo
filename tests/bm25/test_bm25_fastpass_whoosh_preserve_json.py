@@ -1,8 +1,6 @@
 import os
 from pathlib import Path
 
-import pytest
-
 from cubo.config import config
 from cubo.ingestion.fast_pass_ingestor import FastPassIngestor
 

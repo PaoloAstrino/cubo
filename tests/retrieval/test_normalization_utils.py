@@ -1,5 +1,3 @@
-import pytest
-
 from cubo.retrieval.normalization import (
     compute_stats,
     minmax_normalize,

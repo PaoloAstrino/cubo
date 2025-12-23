@@ -57,5 +57,5 @@ def test_publish_reader_safety(tmp_path: Path, monkeypatch):
 
     # Swap reader explicitly to new index
     reader.swap_indexes(v2)
-    res = reader.search([float(vectors[0][0]), float(vectors[0][1])], k=1)
-    assert res and res[0]["id"].startswith("id_")
+    _res = reader.search([float(vectors[0][0]), float(vectors[0][1])], k=1)
+    assert _res and _res[0]["id"].startswith("id_")

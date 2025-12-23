@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.retrieval.bm25_migration import convert_json_stats_to_bm25
@@ -34,13 +35,12 @@ def test_json_to_bm25_parity(tmp_path: Path):
     py_store2 = BM25PythonStore()
     # Load docs from the output directory's chunks file
     with open(Path(out_dir) / "chunks.jsonl", encoding="utf-8") as f:
-        out_docs = [json.loads(l) for l in f]
-    py_store2.index_documents([{"doc_id": d["doc_id"], "text": d["text"]} for d in out_docs])
-
+        out_docs = [json.loads(line) for line in f]
     q = "apples"
     py_res = py_store.search(q, top_k=3)
 
-    # Ensure at least the top doc id matches
+    # Load docs into python store and compare
+    py_store2.index_documents([{"doc_id": d["doc_id"], "text": d["text"]} for d in out_docs])
     out_res = py_store2.search(q, top_k=3)
     if py_res and out_res:
         assert py_res[0]["doc_id"] == out_res[0]["doc_id"]

@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 from pathlib import Path

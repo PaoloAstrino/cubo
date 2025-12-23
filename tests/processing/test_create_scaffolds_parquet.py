@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 import json
@@ -40,9 +41,7 @@ def test_create_scaffolds_from_parquet_with_run(tmp_path: Path):
     # Create enricher (now mandatory)
     enricher = ChunkEnricher(llm_provider=FakeLLM())
     # call wrapper
-    res = create_scaffolds_from_parquet(
-        str(parquet_path), str(out_dir), enricher=enricher, run_id=run_id
-    )
+    create_scaffolds_from_parquet(str(parquet_path), str(out_dir), enricher=enricher, run_id=run_id)
 
     # We expect a manifest in data/manifests or under output's manifest location
     manifest_path = Path(out_dir).parent / "manifests" / f"{run_id}_scaffold_manifest.json"

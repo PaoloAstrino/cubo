@@ -58,7 +58,7 @@ function Show-Run-Stats($runDir) {
             if ($meta.questions_by_difficulty) {
                 foreach ($k in $meta.questions_by_difficulty.PSObject.Properties.Name) {
                     $stats = $meta.questions_by_difficulty.$k
-                    Write-Host "   $k : total=$($stats.total), success_rate=$([math]::Round($stats.success_rate*100,2))%" 
+                    Write-Host "   $k : total=$($stats.total), success_rate=$([math]::Round($stats.success_rate*100,2))%"
                 }
             }
         }

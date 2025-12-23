@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 import json

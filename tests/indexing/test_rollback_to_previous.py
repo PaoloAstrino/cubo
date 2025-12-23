@@ -46,9 +46,9 @@ def test_rollback_to_previous(tmp_path: Path, tmp_metadata_db):
     import json
 
     pointer_path = index_root / "current_index.json"
-    versions_pre_rb = manager.list_index_versions(limit=5)
+    manager.list_index_versions(limit=5)
     ok = rollback_to_previous(index_root, telemetry_hook=telemetry_hook)
-    versions_post_rb = manager.list_index_versions(limit=5)
+    manager.list_index_versions(limit=5)
     with open(pointer_path, encoding="utf-8") as pfh:
         _after = json.load(pfh)
     assert ok is True

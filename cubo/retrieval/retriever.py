@@ -11,7 +11,7 @@ facade over specialized components:
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import numpy as np
 
@@ -25,7 +25,9 @@ except Exception:
     SentenceTransformer = None
 
 from cubo.config import config
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.embeddings.model_inference_threading import get_model_inference_threading
+from cubo.indexing.faiss_index import FAISSIndexManager
 from cubo.retrieval.bm25_searcher import BM25Searcher
 from cubo.retrieval.cache import RetrievalCacheService
 from cubo.retrieval.constants import DEFAULT_TOP_K, DEFAULT_WINDOW_SIZE
@@ -39,6 +41,7 @@ from cubo.retrieval.dependencies import (
     get_summary_embedder,
 )
 from cubo.retrieval.document_store import DocumentStore
+from cubo.retrieval.fusion import rrf_fuse
 from cubo.retrieval.orchestrator import (
     DeduplicationManager,
     HybridScorer,
@@ -577,8 +580,8 @@ class DocumentRetriever:
         # dominating due to incompatible raw ranges.
         norm_method = str(config.get("retrieval.score_normalization", "minmax") or "minmax")
         try:
-            from cubo.retrieval.normalization import normalize_candidates
             from cubo.monitoring import metrics
+            from cubo.retrieval.normalization import normalize_candidates
 
             normalize_candidates(sentence_results, method=norm_method, source="sentence_window")
             normalize_candidates(auto_results, method=norm_method, source="auto_merging")
@@ -601,8 +604,8 @@ class DocumentRetriever:
     ) -> List[Dict]:
         """Retrieve using sentence window with three-tier retrieval."""
         # Precompute weights used for recombination and possible fallback.
-        bm25_weight = float(strategy.get("bm25_weight", 0.3)) if strategy else 0.3
-        dense_weight = float(strategy.get("dense_weight", 0.7)) if strategy else 0.7
+        _bm25_weight = float(strategy.get("bm25_weight", 0.3)) if strategy else 0.3
+        _dense_weight = float(strategy.get("dense_weight", 0.7)) if strategy else 0.7
 
         def _operation():
             if not self.document_store.has_documents():
@@ -923,11 +926,7 @@ class DocumentRetriever:
         self.bm25.load_stats(input_path)
 
 
-from cubo.embeddings.embedding_generator import EmbeddingGenerator
-from cubo.indexing.faiss_index import FAISSIndexManager
-
 # Keep FaissHybridRetriever for backwards compatibility
-from cubo.retrieval.fusion import rrf_fuse
 
 
 class FaissHybridRetriever:

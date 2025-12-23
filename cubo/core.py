@@ -9,7 +9,6 @@ triggering interactive prompts or side effects.
 For CLI usage, see cubo.main.CuboCLI which wraps this class.
 """
 
-import os
 import threading
 import time
 from typing import Any, Dict, Iterator, List, Optional

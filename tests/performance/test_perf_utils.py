@@ -6,11 +6,7 @@ import time
 
 import pytest
 
-from cubo.evaluation.perf_utils import (
-    log_hardware_metadata,
-    sample_latency,
-    sample_memory,
-)
+from cubo.evaluation.perf_utils import log_hardware_metadata, sample_latency, sample_memory
 
 
 class TestPerfUtils:

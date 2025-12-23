@@ -4,8 +4,7 @@ Handles complex layouts (tables, columns) and scanned documents via OCR.
 """
 
 import logging
-import os
-from typing import List, Optional, Tuple
+from typing import List
 
 try:
     import fitz  # PyMuPDF
@@ -21,10 +20,6 @@ try:
 except ImportError:
     EASYOCR_AVAILABLE = False
 
-import io
-
-import numpy as np
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 

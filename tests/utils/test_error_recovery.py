@@ -273,7 +273,7 @@ class TestErrorRecoveryManager:
             call_times.append(time.time())
             raise ValueError("fail")
 
-        start_time = time.time()
+        time.time()
 
         try:
             erm.execute_with_recovery("document_processing", failing_operation)

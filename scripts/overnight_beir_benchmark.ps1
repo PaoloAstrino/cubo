@@ -114,7 +114,7 @@ print('Ground truth loading OK')
     Log-Message "ALL VALIDATIONS PASSED! Safe to run overnight."
     Log-Message "=============================================="
     Log-Message ""
-    
+
     # Ask for confirmation before long run
     Write-Host "`nValidation complete. The full indexing will take 2-4 hours." -ForegroundColor Yellow
     $confirm = Read-Host "Start overnight run now? (y/n)"
@@ -146,7 +146,7 @@ try {
         --batch-size 64 `
         --hot-fraction 0.25 `
         --nlist 128 2>&1 | Tee-Object -Append -FilePath $logFile
-    
+
     Log-Message "FAISS index build completed successfully!"
 }
 catch {
@@ -167,7 +167,7 @@ cur = conn.cursor()
 cur.execute('CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, content TEXT NOT NULL, metadata TEXT NOT NULL)')
 for _, row in df.iterrows():
     meta = json.dumps({'source': 'beir_corpus'})
-    cur.execute('INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)', 
+    cur.execute('INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)',
                 (str(row['chunk_id']), row['text'], meta))
 conn.commit()
 print(f'Populated {len(df)} documents')
@@ -198,7 +198,7 @@ try {
         --mode retrieval-only `
         --skip-index `
         --output "$resultsDir/beir_benchmark_results.json" 2>&1 | Tee-Object -Append -FilePath $logFile
-    
+
     Log-Message "Benchmark completed successfully!"
 }
 catch {
@@ -208,7 +208,7 @@ catch {
 # Summary
 $endTime = Get-Date
 $duration = $endTime - $startTime
-Log-Message "========================================" 
+Log-Message "========================================"
 Log-Message "Overnight run completed!"
 Log-Message "Duration: $duration"
 Log-Message "Results saved to: $resultsDir"

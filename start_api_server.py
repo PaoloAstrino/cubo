@@ -15,6 +15,7 @@ print(f"Python: {sys.executable}")
 print(f"Python version: {sys.version}")
 print("=" * 60)
 
+# ruff: noqa: E402
 import argparse
 
 import uvicorn

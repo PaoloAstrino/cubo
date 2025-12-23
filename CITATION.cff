@@ -22,9 +22,9 @@ keywords:
   - sentence-transformers
   - faiss
 abstract: >-
-  CUBO is a production-ready Retrieval-Augmented Generation (RAG) system designed for 
-  local, privacy-preserving document intelligence. It features hybrid retrieval (BM25 + 
-  dense embeddings), reranking with ColBERT, sentence window chunking, and advanced 
-  ingestion pipelines for PDFs, CSVs, and Excel files. The system is optimized for 
-  consumer-grade hardware (32GB RAM, RTX 4050) and supports both desktop GUI and web 
+  CUBO is a production-ready Retrieval-Augmented Generation (RAG) system designed for
+  local, privacy-preserving document intelligence. It features hybrid retrieval (BM25 +
+  dense embeddings), reranking with ColBERT, sentence window chunking, and advanced
+  ingestion pipelines for PDFs, CSVs, and Excel files. The system is optimized for
+  consumer-grade hardware (32GB RAM, RTX 4050) and supports both desktop GUI and web
   API interfaces.

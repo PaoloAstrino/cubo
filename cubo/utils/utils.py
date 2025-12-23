@@ -253,9 +253,10 @@ class Utils:
             if tokenizer_name:
                 try:
                     # Lazy import of transformers locally to avoid module-level import cost
-                    from transformers import AutoTokenizer as _AutoTokenizer
                     import os
                     from pathlib import Path
+
+                    from transformers import AutoTokenizer as _AutoTokenizer
 
                     # If tokenizer_name is a local path, load it directly
                     if Path(tokenizer_name).exists():

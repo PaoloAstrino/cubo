@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -252,9 +253,6 @@ class VectorStore:
         raise NotImplementedError()
 
 
-import re
-
-
 class FaissStore(VectorStore):
     ID_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 
@@ -343,7 +341,7 @@ class FaissStore(VectorStore):
                 logger.info(f"Rebuilding FAISS indexes from {count} stored vectors in DB")
                 try:
                     self._rebuild_index_from_db()
-                    logger.info(f"Rebuilt and saved FAISS indexes")
+                    logger.info("Rebuilt and saved FAISS indexes")
                 except Exception as e:
                     logger.warning(f"Failed to rebuild FAISS indexes: {e}")
 
@@ -444,7 +442,6 @@ class FaissStore(VectorStore):
 
     def _migrate_embeddings_if_needed(self) -> None:
         """Migrate embeddings from .npz to SQLite if needed."""
-        from datetime import datetime
 
         import numpy as np
 
@@ -1371,7 +1368,7 @@ class FaissStore(VectorStore):
         """Delete entries from the FAISS store."""
         if not ids:
             return
-        id_set = set(ids)
+        _id_set = set(ids)
 
         # Remove from SQLite (documents and vectors)
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:

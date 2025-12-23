@@ -391,7 +391,7 @@ def main():
     tester = RAGTester(args.questions, args.data_folder)
 
     # Run tests
-    results = tester.run_all_tests(
+    _results = tester.run_all_tests(
         easy_limit=args.easy_limit, medium_limit=args.medium_limit, hard_limit=args.hard_limit
     )
 

@@ -3,9 +3,7 @@
 import json
 from pathlib import Path
 
-import faiss
 import numpy as np
-import pytest
 
 from cubo.indexing.faiss_index import FAISSIndexManager
 
@@ -52,11 +50,11 @@ class TestFAISSNormalization:
         """Test that build_indexes normalizes vectors when normalize=True."""
         embeddings = _random_embeddings(20, dimension=64)
         ids = [f"id_{i}" for i in range(20)]
-        
+
         # Verify embeddings are NOT unit vectors initially
         norms_before = np.linalg.norm(embeddings, axis=1)
         assert norms_before.mean() > 2.0, "Test embeddings should not be unit vectors"
-        
+
         manager = FAISSIndexManager(
             dimension=64,
             index_dir=tmp_path,
@@ -66,23 +64,22 @@ class TestFAISSNormalization:
             hnsw_m=8,
         )
         manager.build_indexes(embeddings.tolist(), ids)
-        
+
         # Reconstruct vectors from hot index and verify they're normalized
         hot_vectors = manager.hot_index.reconstruct_n(0, manager.hot_index.ntotal)
         hot_norms = np.linalg.norm(hot_vectors, axis=1)
-        
+
         np.testing.assert_allclose(
-            hot_norms, 1.0, atol=0.001,
-            err_msg="Hot index vectors should be unit vectors"
+            hot_norms, 1.0, atol=0.001, err_msg="Hot index vectors should be unit vectors"
         )
 
     def test_build_preserves_vectors_when_not_normalized(self, tmp_path: Path):
         """Test that build_indexes preserves vector norms when normalize=False."""
         embeddings = _random_embeddings(20, dimension=64)
         ids = [f"id_{i}" for i in range(20)]
-        
+
         original_norms = np.linalg.norm(embeddings, axis=1)
-        
+
         manager = FAISSIndexManager(
             dimension=64,
             index_dir=tmp_path,
@@ -92,15 +89,17 @@ class TestFAISSNormalization:
             hnsw_m=8,
         )
         manager.build_indexes(embeddings.tolist(), ids)
-        
+
         # Reconstruct vectors from hot index and verify norms preserved
         hot_vectors = manager.hot_index.reconstruct_n(0, manager.hot_index.ntotal)
         hot_norms = np.linalg.norm(hot_vectors, axis=1)
-        
+
         # Should be same as original (within floating point tolerance)
         np.testing.assert_allclose(
-            hot_norms, original_norms[:len(hot_norms)], rtol=0.001,
-            err_msg="Vectors should preserve original norms when normalize=False"
+            hot_norms,
+            original_norms[: len(hot_norms)],
+            rtol=0.001,
+            err_msg="Vectors should preserve original norms when normalize=False",
         )
 
     def test_search_normalizes_query(self, tmp_path: Path):
@@ -108,7 +107,7 @@ class TestFAISSNormalization:
         # Build index with normalized vectors
         embeddings = _random_embeddings(20, dimension=64)
         ids = [f"id_{i}" for i in range(20)]
-        
+
         manager = FAISSIndexManager(
             dimension=64,
             index_dir=tmp_path,
@@ -117,11 +116,11 @@ class TestFAISSNormalization:
             hnsw_m=8,
         )
         manager.build_indexes(embeddings.tolist(), ids)
-        
+
         # Search with non-unit query - should still work
         query = embeddings[0].tolist()  # Not normalized
         results = manager.search(query, k=5)
-        
+
         # Should find itself (id_0) as top result
         assert len(results) > 0
         assert results[0]["id"] == "id_0", "Should find query document as top result"
@@ -131,7 +130,7 @@ class TestFAISSNormalization:
         """Test that normalize and model_path are saved and loaded from metadata."""
         embeddings = _random_embeddings(10, dimension=64)
         ids = [f"id_{i}" for i in range(10)]
-        
+
         # Build and save
         manager = FAISSIndexManager(
             dimension=64,
@@ -143,19 +142,19 @@ class TestFAISSNormalization:
         )
         manager.build_indexes(embeddings.tolist(), ids)
         manager.save()
-        
+
         # Check metadata file directly
         metadata_path = tmp_path / "metadata.json"
         with open(metadata_path) as f:
             metadata = json.load(f)
-        
+
         assert metadata.get("normalize") is True
         assert metadata.get("model_path") == "./test/model"
-        
+
         # Load into new manager
         manager2 = FAISSIndexManager(dimension=64, index_dir=tmp_path)
         manager2.load()
-        
+
         assert manager2.normalize is True
         assert manager2.model_path == "./test/model"
 
@@ -164,14 +163,14 @@ class TestFAISSNormalization:
         # Create some related documents
         np.random.seed(123)
         base = np.random.randn(64).astype("float32")
-        
+
         # Create 5 variations of base (similar) and 5 random (different)
         similar = [base + np.random.randn(64).astype("float32") * 0.1 for _ in range(5)]
         different = [np.random.randn(64).astype("float32") * 10 for _ in range(5)]
-        
+
         embeddings = similar + different
         ids = [f"similar_{i}" for i in range(5)] + [f"different_{i}" for i in range(5)]
-        
+
         manager = FAISSIndexManager(
             dimension=64,
             index_dir=tmp_path,
@@ -180,10 +179,10 @@ class TestFAISSNormalization:
             hnsw_m=8,
         )
         manager.build_indexes(embeddings, ids)
-        
+
         # Search with base vector
         results = manager.search(base.tolist(), k=5)
-        
+
         # All top results should be from "similar" group
         similar_count = sum(1 for r in results if r["id"].startswith("similar"))
         assert similar_count >= 4, f"Expected at least 4 similar results, got {similar_count}"
@@ -196,7 +195,7 @@ class TestNormalizationInteraction:
         """Test that normalization works with OPQ enabled."""
         embeddings = _random_embeddings(200, dimension=64)
         ids = [f"id_{i}" for i in range(200)]
-        
+
         manager = FAISSIndexManager(
             dimension=64,
             index_dir=tmp_path,
@@ -209,7 +208,7 @@ class TestNormalizationInteraction:
             hnsw_m=8,
         )
         manager.build_indexes(embeddings.tolist(), ids)
-        
+
         # Hot vectors should be normalized
         hot_vectors = manager.hot_index.reconstruct_n(0, manager.hot_index.ntotal)
         hot_norms = np.linalg.norm(hot_vectors, axis=1)
@@ -220,7 +219,7 @@ class TestNormalizationInteraction:
         # Build initial index
         embeddings1 = _random_embeddings(10, dimension=64)
         ids1 = [f"batch1_{i}" for i in range(10)]
-        
+
         manager = FAISSIndexManager(
             dimension=64,
             index_dir=tmp_path,
@@ -229,12 +228,12 @@ class TestNormalizationInteraction:
             hnsw_m=8,
         )
         manager.build_indexes(embeddings1.tolist(), ids1)
-        
+
         # Append more data
         embeddings2 = _random_embeddings(10, dimension=64)
         ids2 = [f"batch2_{i}" for i in range(10)]
         manager.build_indexes(embeddings2.tolist(), ids2, append=True)
-        
+
         # All vectors should be normalized
         hot_vectors = manager.hot_index.reconstruct_n(0, manager.hot_index.ntotal)
         hot_norms = np.linalg.norm(hot_vectors, axis=1)

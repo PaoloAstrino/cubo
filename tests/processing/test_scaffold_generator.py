@@ -3,6 +3,7 @@ Tests for ScaffoldGenerator grouping and embedding logic.
 """
 
 import pytest
+
 pytest.importorskip("torch")
 
 import unittest

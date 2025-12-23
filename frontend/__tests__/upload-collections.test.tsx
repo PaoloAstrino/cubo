@@ -163,7 +163,7 @@ describe('UploadPage', () => {
       // Verify collection cards are rendered as clickable elements
       const collectionText = screen.getByText('Research Papers')
       expect(collectionText).toBeInTheDocument()
-      
+
       // The card should have cursor-pointer class indicating it's clickable
       const card = collectionText.closest('.cursor-pointer')
       expect(card).toBeInTheDocument()

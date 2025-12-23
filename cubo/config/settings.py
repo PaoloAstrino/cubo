@@ -4,7 +4,7 @@ Provides validation and type safety for application settings.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict

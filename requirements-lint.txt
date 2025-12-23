@@ -2,6 +2,6 @@
 # Used by CI/CD linting jobs to avoid installing heavy ML dependencies
 
 ruff>=0.7.0
-black>=24.0.0  
+black>=24.0.0
 isort>=5.13.0
 bandit[toml]>=1.7.0

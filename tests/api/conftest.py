@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,7 @@ from fastapi.testclient import TestClient
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+# ruff: noqa: E402
 from cubo.server.api import app
 
 

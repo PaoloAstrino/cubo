@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.retrieval.vector_store import DocumentCache, FaissStore
@@ -202,7 +203,7 @@ class TestFaissStoreSQLite:
 
         # First query
         query_vec = np.ones(8)
-        result1 = store.query(query_embeddings=[query_vec], n_results=2)
+        store.query(query_embeddings=[query_vec], n_results=2)
 
         # Check cache was populated
         stats = store.get_cache_stats()

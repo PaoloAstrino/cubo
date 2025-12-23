@@ -43,7 +43,7 @@ export function useChatHistory(collectionId: string | null) {
   }, [storageKey])
 
   // Save to localStorage whenever messages change
-  // We use a debounce-like effect by just saving on every change. 
+  // We use a debounce-like effect by just saving on every change.
   // React state updates are batched, but writing to LS is sync.
   // For a chat app, message updates aren't *that* frequent (typing doesn't update messages, sending does).
   useEffect(() => {

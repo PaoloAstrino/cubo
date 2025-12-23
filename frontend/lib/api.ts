@@ -109,12 +109,12 @@ export async function getCollectionDocuments(
 export async function uploadFile(file: File): Promise<{ filename: string; size: number; message: string }> {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await fetch(`${API_BASE_URL}/api/upload`, {
     method: 'POST',
     body: formData,
   });
-  
+
   return handleResponse<{ filename: string; size: number; message: string }>(response);
 }
 
@@ -126,7 +126,7 @@ export async function ingestDocuments(options?: { fast_pass?: boolean }): Promis
     },
     body: JSON.stringify(options || {}),
   });
-  
+
   return handleResponse<{ status: string; documents_processed: number; message: string }>(response);
 }
 
@@ -138,7 +138,7 @@ export async function buildIndex(): Promise<{ status: string; message: string }>
     },
     body: JSON.stringify({}),
   });
-  
+
   return handleResponse<{ status: string; message: string }>(response);
 }
 
@@ -159,14 +159,14 @@ export async function query(params: {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ 
-      query: queryText, 
-      top_k, 
+    body: JSON.stringify({
+      query: queryText,
+      top_k,
       use_reranker,
       ...(collection_id && { collection_id })
     }),
   });
-  
+
   return handleResponse<{
     answer: string;
     sources: Array<{ content: string; score: number; metadata: Record<string, unknown> }>;
@@ -199,15 +199,15 @@ export async function queryStream(
   signal?: AbortSignal
 ): Promise<void> {
   const { query: queryText, top_k = 5, use_reranker = true, collection_id } = params;
-  
+
   const response = await fetch(`${API_BASE_URL}/api/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ 
-      query: queryText, 
-      top_k, 
+    body: JSON.stringify({
+      query: queryText,
+      top_k,
       use_reranker,
       stream: true,
       ...(collection_id && { collection_id })

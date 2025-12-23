@@ -10,9 +10,7 @@ This module encapsulates the core retrieval logic including:
 
 import hashlib
 import re
-from typing import Any, Callable, Dict, List, Optional, Set
-
-import numpy as np
+from typing import Any, Dict, List, Optional, Set
 
 from cubo.config import config
 from cubo.retrieval.constants import (
@@ -476,21 +474,3 @@ class RetrievalExecutor:
                 return " ".join([str(x) for x in doc])
         # Fallback to stringifying other types
         return str(doc)
-
-
-def extract_chunk_id(result: Dict) -> Optional[str]:
-    """
-    Extract chunk ID from a result dictionary.
-
-    Args:
-        result: Result dictionary
-
-    Returns:
-        Chunk ID string or None
-    """
-    metadata = result.get("metadata") or {}
-    for key in ("chunk_id", "id", "document_id"):
-        value = metadata.get(key)
-        if value:
-            return str(value)
-    return None

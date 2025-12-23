@@ -150,7 +150,7 @@ def main():
             input_chunks_df=df,
             id_column=args.id_column,
         )
-        scaffold_paths = res
+        _scaffold_paths = res
         logger.info(f"Scaffold outputs saved to {res['run_dir']} (manifest: {res['manifest']})")
 
         # Build FAISS index on scaffolds instead of chunks

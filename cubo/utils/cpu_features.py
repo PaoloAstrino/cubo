@@ -1,7 +1,4 @@
-import os
-import platform
-import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 try:
     import psutil
@@ -114,12 +111,10 @@ def detect_blas_backend() -> Tuple[str, Dict[str, str]]:
 
     # Secondary check: try importing mkl
     if backend == "unknown":
-        try:
-            import mkl
+        import importlib
 
+        if importlib.util.find_spec("mkl") is not None:
             backend = "mkl"
-        except ImportError:
-            pass
 
     return backend, config
 

@@ -44,7 +44,7 @@ def test_logger_reconfig_json_and_trace(tmp_path):
 
     # Read the logged lines
     with open(log_file, encoding="utf-8") as f:
-        lines = [l.strip() for l in f.readlines() if l.strip()]
+        lines = [line.strip() for line in f.readlines() if line.strip()]
 
     assert lines, "Log file should contain at least one line"
     print(f"DEBUG: Captured lines: {lines}")

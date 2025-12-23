@@ -1,9 +1,13 @@
-import pytest
 from cubo.retrieval.fusion import rrf_fuse
 
 
 def make_doc(doc_id, similarity=1.0, meta=None):
-    return {"id": doc_id, "document": f"doc_{doc_id}", "similarity": similarity, "metadata": meta or {}}
+    return {
+        "id": doc_id,
+        "document": f"doc_{doc_id}",
+        "similarity": similarity,
+        "metadata": meta or {},
+    }
 
 
 def test_rrf_fuse_emits_doc_id_and_score_fields():

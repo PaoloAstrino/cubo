@@ -1,7 +1,7 @@
-import threading
-import time
 from unittest.mock import MagicMock, patch
+
 import pytest
+
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
@@ -27,6 +27,7 @@ def test_generate_response_wrapper_called():
         with patch("cubo.server.api.security_manager") as mock_security:
             mock_security.scrub.side_effect = lambda x: x
             from cubo.server.api import app
+
             client = TestClient(app)
 
             response = client.post("/api/query", json={"query": "What is this?", "top_k": 1})

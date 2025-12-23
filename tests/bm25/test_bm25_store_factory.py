@@ -1,8 +1,9 @@
 import pytest
+
 pytest.importorskip("torch")
 
-from cubo.retrieval.bm25_store_factory import get_bm25_store
 from cubo.retrieval.bm25_python_store import BM25PythonStore
+from cubo.retrieval.bm25_store_factory import get_bm25_store
 
 
 def test_factory_returns_python_by_default(tmp_path):

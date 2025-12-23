@@ -6,7 +6,6 @@ implements a synchronous generation via the service_manager to keep parity with 
 
 from __future__ import annotations
 
-import json
 import time
 from typing import Dict, Iterator, List, Optional
 

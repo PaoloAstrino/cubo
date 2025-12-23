@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.retrieval.bm25_python_store import BM25PythonStore
@@ -21,10 +22,7 @@ def test_bm25_cli_roundtrip(tmp_path: Path):
 
     out_dir = tmp_path / "bm25"
     out_dir.mkdir()
-    from cubo.retrieval.bm25_migration import (
-        convert_json_stats_to_bm25,
-        export_bm25_to_json,
-    )
+    from cubo.retrieval.bm25_migration import convert_json_stats_to_bm25, export_bm25_to_json
 
     convert_json_stats_to_bm25(str(tmp_path / "bm25_stats.json"), str(chunks_path), str(out_dir))
     out_chunks = tmp_path / "roundtrip_chunks.jsonl"
@@ -41,7 +39,7 @@ def test_bm25_cli_roundtrip(tmp_path: Path):
     # Validate by reading exported chunks and indexing in Python store again
     py_store2 = BM25PythonStore()
     with open(out_chunks, encoding="utf-8") as f:
-        exported = [json.loads(l) for l in f]
+        exported = [json.loads(line) for line in f]
     py_store2.index_documents([{"doc_id": d["doc_id"], "text": d["text"]} for d in exported])
     out_res = py_store2.search(q, top_k=3)
     assert py_res and out_res

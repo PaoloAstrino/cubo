@@ -168,8 +168,8 @@ class Logger:
             pass
 
         rotate_method = _cfg_logging_or("rotate_method", "midnight")
-        retention_days = int(_cfg_logging_or("retention_days", 30))
-        compress_rotated = bool(_cfg_logging_or("compress_rotated", True))
+        _retention_days = int(_cfg_logging_or("retention_days", 30))
+        _compress_rotated = bool(_cfg_logging_or("compress_rotated", True))
 
         # Use Windows-safe rotation handlers
         if rotate_method == "size":

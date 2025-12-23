@@ -17,19 +17,29 @@ import { X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { query, queryStream, getTrace, type Collection, type ReadinessResponse } from "@/lib/api"
+import { queryStream, getTrace, type Collection, type ReadinessResponse } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useChatHistory, type Message } from "@/hooks/useChatHistory"
 import { SourcesList } from "@/components/sources-list"
 import useSWR from "swr"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { Copy } from "lucide-react"
 
 function ChatContent() {
   const searchParams = useSearchParams()
   const collectionId = searchParams.get('collection')
-  
+
   const { messages, setMessages, isHistoryLoaded } = useChatHistory(collectionId)
   const [isLoading, setIsLoading] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
+  const [traceData, setTraceData] = React.useState<{ trace_id: string; events: Array<Record<string, unknown>> } | null>(null)
+  const [isTraceOpen, setIsTraceOpen] = React.useState(false)
   const { toast } = useToast()
   const scrollAreaRef = React.useRef<HTMLDivElement>(null)
 
@@ -52,7 +62,7 @@ function ChatContent() {
       return isSystemReady ? 0 : 2000
     }
   })
-  
+
   const isReady = Boolean(
     readinessData?.components?.retriever &&
     readinessData?.components?.generator
@@ -117,8 +127,8 @@ function ChatContent() {
         collection_id: collectionId ?? undefined,
       }, (event) => {
         if (event.type === 'token' && event.delta) {
-          setMessages((prev) => prev.map(msg => 
-            msg.id === assistantMessageId 
+          setMessages((prev) => prev.map(msg =>
+            msg.id === assistantMessageId
               ? { ...msg, content: msg.content + event.delta }
               : msg
           ))
@@ -126,18 +136,18 @@ function ChatContent() {
            setMessages((prev) => prev.map(msg => {
              if (msg.id !== assistantMessageId) return msg;
              const sources = msg.sources || [];
-             return { 
-               ...msg, 
-               sources: [...sources, { 
-                 content: event.content!, 
-                 score: event.score || 0, 
-                 metadata: event.metadata || {} 
-               }] 
+             return {
+               ...msg,
+               sources: [...sources, {
+                 content: event.content!,
+                 score: event.score || 0,
+                 metadata: event.metadata || {}
+               }]
              }
            }))
         } else if (event.type === 'done') {
-           setMessages((prev) => prev.map(msg => 
-            msg.id === assistantMessageId 
+           setMessages((prev) => prev.map(msg =>
+            msg.id === assistantMessageId
               ? { ...msg, content: event.answer || msg.content, trace_id: event.trace_id }
               : msg
           ))
@@ -145,7 +155,7 @@ function ChatContent() {
            throw new Error(event.message || "Stream error")
         }
       }, abortControllerRef.current.signal)
-      
+
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
 
@@ -155,7 +165,7 @@ function ChatContent() {
         variant: "destructive",
       })
 
-      setMessages((prev) => prev.map(msg => 
+      setMessages((prev) => prev.map(msg =>
         msg.id === assistantMessageId
           ? { ...msg, content: "Sorry, I encountered an error processing your request. Please make sure documents are uploaded and indexed." }
           : msg
@@ -169,7 +179,8 @@ function ChatContent() {
   const handleViewTrace = async (traceId: string) => {
     try {
       const res = await getTrace(traceId)
-      alert(JSON.stringify(res, null, 2))
+      setTraceData(res)
+      setIsTraceOpen(true)
     } catch (err) {
       console.error('Failed to fetch trace:', err)
       toast({ title: 'Trace fetch error', description: 'Unable to fetch trace details', variant: 'destructive' })
@@ -191,7 +202,7 @@ function ChatContent() {
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       {/* Collection context bar */}
       {activeCollection && (
-        <div 
+        <div
           className="flex items-center gap-3 px-4 py-2 rounded-lg border"
           style={{ borderColor: activeCollection.color, backgroundColor: `${activeCollection.color}10` }}
         >
@@ -246,7 +257,7 @@ function ChatContent() {
                         {documentCount} document{documentCount !== 1 ? 's' : ''} indexed
                       </h3>
                       <p className="text-sm text-muted-foreground max-w-md">
-                        Type a question below to search across your document collection. 
+                        Type a question below to search across your document collection.
                         Answers will be generated based on the most relevant passages found.
                       </p>
                     </>
@@ -308,11 +319,11 @@ function ChatContent() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={
-                hasDocuments === false 
-                  ? "Upload documents first..." 
+                hasDocuments === false
+                  ? "Upload documents first..."
                   : (activeCollection && activeCollection.document_count === 0)
                     ? "This collection is empty..."
-                    : activeCollection 
+                    : activeCollection
                       ? `Ask about "${activeCollection.name}"...`
                       : "Ask a question about your documents..."
               }
@@ -326,6 +337,35 @@ function ChatContent() {
           </form>
         </div>
       </Card>
+
+      <Sheet open={isTraceOpen} onOpenChange={setIsTraceOpen}>
+        <SheetContent className="w-[400px] sm:w-[540px] flex flex-col">
+          <SheetHeader>
+            <SheetTitle>Trace Details</SheetTitle>
+            <SheetDescription>
+              Trace ID: <code className="bg-muted px-1 py-0.5 rounded">{traceData?.trace_id}</code>
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden mt-4 relative">
+             <ScrollArea className="h-full border rounded-md p-4 bg-muted/30">
+               <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                 {JSON.stringify(traceData, null, 2)}
+               </pre>
+             </ScrollArea>
+             <Button
+               size="icon"
+               variant="outline"
+               className="absolute top-2 right-2 h-8 w-8 bg-background"
+               onClick={() => {
+                 navigator.clipboard.writeText(JSON.stringify(traceData, null, 2))
+                 toast({ title: "Copied", description: "Trace JSON copied to clipboard" })
+               }}
+             >
+               <Copy className="h-4 w-4" />
+             </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

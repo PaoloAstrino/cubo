@@ -1,11 +1,12 @@
 import asyncio
 import os
+
 import pytest
-from httpx import AsyncClient, ASGITransport
-from pathlib import Path
+from httpx import ASGITransport, AsyncClient
 
 # Import app after setting up environment if needed, but here we just need the app object
 from cubo.server.api import app
+
 
 @pytest.fixture
 def mock_data_dir(tmp_path):
@@ -14,6 +15,7 @@ def mock_data_dir(tmp_path):
     os.chdir(tmp_path)
     yield tmp_path
     os.chdir(original_cwd)
+
 
 @pytest.mark.asyncio
 async def test_concurrent_uploads(mock_data_dir):
@@ -29,9 +31,9 @@ async def test_concurrent_uploads(mock_data_dir):
             # httpx files param: (filename, content, content_type)
             files_param = {"file": (filename, content.encode(), "text/plain")}
             tasks.append(ac.post("/api/upload", files=files_param))
-        
+
         responses = await asyncio.gather(*tasks)
-        
+
     for r in responses:
         assert r.status_code == 200
         data = r.json()
@@ -45,19 +47,20 @@ async def test_concurrent_uploads(mock_data_dir):
         assert (data_dir / filename).exists()
         assert (data_dir / filename).read_text() == files_content[filename]
 
+
 @pytest.mark.asyncio
 async def test_upload_large_file_chunking(mock_data_dir):
     """Test uploading a larger file to verify chunking logic."""
     # 5MB file
     large_content = "x" * (5 * 1024 * 1024)
     filename = "large_test.txt"
-    
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         files_param = {"file": (filename, large_content.encode(), "text/plain")}
         response = await ac.post("/api/upload", files=files_param)
-    
+
     assert response.status_code == 200
     assert response.json()["size"] == len(large_content)
-    
+
     data_dir = mock_data_dir / "data"
     assert (data_dir / filename).stat().st_size == len(large_content)

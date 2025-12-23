@@ -9,6 +9,7 @@ class TestDeduplicatorCandidateCap(unittest.TestCase):
     def test_no_cap_by_default(self):
         """Test that cap is None by default (unlimited)."""
         from unittest.mock import patch
+
         from cubo.deduplication.deduplicator import Deduplicator
 
         # Ensure config does not provide max_candidates to validate default behavior

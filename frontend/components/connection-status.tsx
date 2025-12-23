@@ -21,10 +21,10 @@ export function ConnectionStatus({ className }: ConnectionStatusProps) {
   const state: ConnectionState = React.useMemo(() => {
     if (healthError || readinessError) return 'error'
     if (!health || !readiness) return 'connecting'
-    
+
     const { retriever, generator } = readiness.components || {}
     if (retriever && generator) return 'connected'
-    
+
     return 'initializing'
   }, [health, readiness, healthError, readinessError])
 
@@ -32,7 +32,7 @@ export function ConnectionStatus({ className }: ConnectionStatusProps) {
     if (state === 'error') return 'Cannot connect to backend'
     if (state === 'connecting') return 'Connecting to backend...'
     if (state === 'connected') return 'System ready'
-    
+
     const { retriever, generator } = readiness?.components || {}
     const waiting: string[] = []
     if (!retriever) waiting.push('retriever')

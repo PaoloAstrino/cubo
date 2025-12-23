@@ -105,7 +105,7 @@ describe('Chat Collection API', () => {
   describe('getCollections', () => {
     it('should fetch all collections', async () => {
       const result = await api.getCollections()
-      
+
       expect(result).toEqual(mockCollections)
       expect(api.getCollections).toHaveBeenCalled()
     })
@@ -116,14 +116,14 @@ describe('Collection Filtering Logic', () => {
   it('should find collection by ID', () => {
     const collectionId = 'coll-1'
     const found = mockCollections.find(c => c.id === collectionId)
-    
+
     expect(found).toBeDefined()
     expect(found?.name).toBe('Research Papers')
   })
 
   it('should return undefined for non-existent collection', () => {
     const found = mockCollections.find(c => c.id === 'non-existent')
-    
+
     expect(found).toBeUndefined()
   })
 })

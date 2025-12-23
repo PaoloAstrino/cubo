@@ -1,6 +1,9 @@
 import os
-from playwright.sync_api import Page, expect
+
+from playwright.sync_api import Page
+
 from .base_page import BasePage
+
 
 class UploadPage(BasePage):
     def __init__(self, page: Page, base_url: str):
@@ -8,8 +11,10 @@ class UploadPage(BasePage):
         # Locators
         self.file_input = page.locator("input[type='file']")
         self.upload_label = page.locator("label[for='file-upload']")
-        self.progress_bar = page.locator(".progress-root") # shadcn progress might not have a clear root class exposed simply, but we can look for text
-        self.toast_title = page.locator(".toast-title, div[role='status']") # Generic toast locator
+        self.progress_bar = page.locator(
+            ".progress-root"
+        )  # shadcn progress might not have a clear root class exposed simply, but we can look for text
+        self.toast_title = page.locator(".toast-title, div[role='status']")  # Generic toast locator
 
     def goto(self):
         self.navigate("/upload")
@@ -17,7 +22,7 @@ class UploadPage(BasePage):
     def upload_file(self, file_path: str):
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Test file not found: {file_path}")
-        
+
         # In Playwright, we handle hidden inputs by setting input files directly
         # or waiting for the file chooser if clicking.
         # Direct set is more robust for hidden inputs.
@@ -29,7 +34,9 @@ class UploadPage(BasePage):
         try:
             # Check for success toast OR status text
             # We use a combined locator or verify one of them appears
-            self.page.wait_for_selector("text=Ready! >> visible=true, text=Complete! >> visible=true", timeout=timeout)
+            self.page.wait_for_selector(
+                "text=Ready! >> visible=true, text=Complete! >> visible=true", timeout=timeout
+            )
             return True
         except Exception:
             return False

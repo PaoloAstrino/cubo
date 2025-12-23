@@ -19,7 +19,7 @@ def test_migrate_scaffold_mappings_add_run_id(tmp_path: Path):
     conn.close()
 
     # Now instantiate MetadataManager pointing at this DB and allow migration
-    mgr = MetadataManager(db_path=str(db_path))
+    MetadataManager(db_path=str(db_path))
 
     # Query the table schema to confirm run_id column exists
     conn = sqlite3.connect(str(db_path))

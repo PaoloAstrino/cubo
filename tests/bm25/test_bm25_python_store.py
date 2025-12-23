@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.retrieval.bm25_python_store import BM25PythonStore
@@ -12,8 +13,8 @@ def test_python_store_search():
         {"doc_id": "b", "text": "I drive a car."},
     ]
     st.index_documents(docs)
-    res = st.search("apples", top_k=2)
-    assert len(res) == 1 and res[0]["doc_id"] == "a"
+    _res = st.search("apples", top_k=2)
+    assert len(_res) == 1 and _res[0]["doc_id"] == "a"
 
 
 def test_python_store_compute_score():

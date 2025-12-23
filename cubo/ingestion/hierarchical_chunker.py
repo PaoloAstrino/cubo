@@ -4,12 +4,12 @@ Chunks documents while respecting structural boundaries (articles, sections, par
 and preserving hierarchy metadata for better context preservation.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from cubo.ingestion.structure_detector import StructureNode, detect_document_structure
-from cubo.utils.utils import Utils
-from cubo.utils.logger import logger
 from cubo.monitoring import metrics
+from cubo.utils.logger import logger
+from cubo.utils.utils import Utils
 
 
 class HierarchicalChunker:
@@ -269,10 +269,10 @@ class HierarchicalChunker:
             p_size = 0
             p_tokens = 0
             for s in sentences:
-                l = len(s)
+                length = len(s)
                 t = Utils._token_count(s, self.tokenizer)
-                p_data.append((s, l, t))
-                p_size += l
+                p_data.append((s, length, t))
+                p_size += length
                 p_tokens += t
 
             # Check if adding whole paragraph exceeds limits
@@ -297,35 +297,37 @@ class HierarchicalChunker:
 
                 if not (size_exceeded or tokens_exceeded):
                     # Fits now (after clearing previous content)
-                    for s, l, t in p_data:
+                    for s, length, t in p_data:
                         current_chunk.append(s)
-                        current_size += l
+                        current_size += length
                         current_tokens += t
                 else:
                     # Paragraph too big, must split internally
                     logger.debug("Paragraph too large, splitting internally")
-                    for s, l, t in p_data:
+                    for s, length, t in p_data:
                         # Check limits for single sentence addition
-                        if (current_size + l > self.max_chunk_size) or (
+                        if (current_size + length > self.max_chunk_size) or (
                             (self.max_chunk_tokens is not None)
                             and (current_tokens + t > self.max_chunk_tokens)
                         ):
                             if current_chunk:
                                 save_chunk()
 
-                        if (l > self.max_chunk_size) or (
+                        if (length > self.max_chunk_size) or (
                             (self.max_chunk_tokens is not None) and (t > self.max_chunk_tokens)
                         ):
-                            logger.warning(f"Single sentence exceeds limits: {l} chars, {t} tokens")
+                            logger.warning(
+                                f"Single sentence exceeds limits: {length} chars, {t} tokens"
+                            )
 
                         current_chunk.append(s)
-                        current_size += l
+                        current_size += length
                         current_tokens += t
             else:
                 # Fits, add all
-                for s, l, t in p_data:
+                for s, length, t in p_data:
                     current_chunk.append(s)
-                    current_size += l
+                    current_size += length
                     current_tokens += t
 
         # Add remaining chunk
@@ -445,10 +447,10 @@ class HierarchicalChunker:
             p_size = 0
             p_tokens = 0
             for s in sentences:
-                l = len(s)
+                length = len(s)
                 t = Utils._token_count(s, self.tokenizer)
-                p_data.append((s, l, t))
-                p_size += l
+                p_data.append((s, length, t))
+                p_size += length
                 p_tokens += t
 
             # Check if adding whole paragraph exceeds limits
@@ -471,35 +473,37 @@ class HierarchicalChunker:
 
                 if not (size_exceeded or tokens_exceeded):
                     # Fits now (after clearing previous content)
-                    for s, l, t in p_data:
+                    for s, length, t in p_data:
                         current_chunk.append(s)
-                        current_size += l
+                        current_size += length
                         current_tokens += t
                 else:
                     # Paragraph too big, must split internally
                     logger.debug("Paragraph too large, splitting internally")
-                    for s, l, t in p_data:
+                    for s, length, t in p_data:
                         # Check limits for single sentence addition
-                        if (current_size + l > self.max_chunk_size) or (
+                        if (current_size + length > self.max_chunk_size) or (
                             (self.max_chunk_tokens is not None)
                             and (current_tokens + t > self.max_chunk_tokens)
                         ):
                             if current_chunk:
                                 save_chunk()
 
-                        if (l > self.max_chunk_size) or (
+                        if (length > self.max_chunk_size) or (
                             (self.max_chunk_tokens is not None) and (t > self.max_chunk_tokens)
                         ):
-                            logger.warning(f"Single sentence exceeds limits: {l} chars, {t} tokens")
+                            logger.warning(
+                                f"Single sentence exceeds limits: {length} chars, {t} tokens"
+                            )
 
                         current_chunk.append(s)
-                        current_size += l
+                        current_size += length
                         current_tokens += t
             else:
                 # Fits, add all
-                for s, l, t in p_data:
+                for s, length, t in p_data:
                     current_chunk.append(s)
-                    current_size += l
+                    current_size += length
                     current_tokens += t
 
         # Add remaining

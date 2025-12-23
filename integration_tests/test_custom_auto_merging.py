@@ -9,10 +9,10 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-import pytest
-
 import tempfile
 from pathlib import Path as _Path
+
+import pytest
 
 from cubo.config import config as _test_cfg
 
@@ -21,6 +21,7 @@ from cubo.config import config as _test_cfg
 tmpdir_global = _Path(tempfile.mkdtemp())
 _test_cfg.set("vector_store_backend", "inmemory")
 _test_cfg.set("vector_store_path", str(tmpdir_global / "vector_store"))
+# ruff: noqa: E402
 
 from cubo.deduplication.custom_auto_merging import AutoMergingRetriever
 from cubo.utils.logger import logger

@@ -618,7 +618,7 @@ class MetadataManager:
                 raise ValueError(f"Conversation {conversation_id} does not exist")
 
             cur.execute(
-                """INSERT INTO messages (id, conversation_id, role, content, created_at, metadata) 
+                """INSERT INTO messages (id, conversation_id, role, content, created_at, metadata)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (msg_id, conversation_id, role, content, now, metadata_json),
             )
@@ -634,7 +634,7 @@ class MetadataManager:
         with self._lock:
             cur = self.conn.cursor()
             cur.execute(
-                """SELECT id, role, content, created_at, metadata FROM messages 
+                """SELECT id, role, content, created_at, metadata FROM messages
                    WHERE conversation_id = ? ORDER BY created_at ASC""",
                 (conversation_id,),
             )
@@ -656,7 +656,7 @@ class MetadataManager:
         with self._lock:
             cur = self.conn.cursor()
             cur.execute(
-                """SELECT id, title, created_at, updated_at FROM conversations 
+                """SELECT id, title, created_at, updated_at FROM conversations
                    ORDER BY updated_at DESC LIMIT ?""",
                 (limit,),
             )

@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-
 ASSERT_CALL_ATTR_PREFIXES = ("assert",)
 ASSERT_LIKE_CALLS = {
     # common patterns that indicate an assertion even if not using `assert` statement
@@ -81,7 +80,11 @@ class _TestVisitor(ast.NodeVisitor):
 
         # count top-level statements excluding docstring
         for stmt in node.body:
-            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+            if (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Constant)
+                and isinstance(stmt.value.value, str)
+            ):
                 continue
             self.current_test["stmts"] += 1
 
@@ -133,13 +136,19 @@ class _TestVisitor(ast.NodeVisitor):
                 self.current_test["assert_like_calls"] += 1
 
             # unittest-style self.assert*
-            if isinstance(node.func, ast.Attribute) and node.func.attr.startswith(ASSERT_CALL_ATTR_PREFIXES):
+            if isinstance(node.func, ast.Attribute) and node.func.attr.startswith(
+                ASSERT_CALL_ATTR_PREFIXES
+            ):
                 self.current_test["assert_like_calls"] += 1
 
             # mocking / patching signals
             if isinstance(node.func, ast.Name) and node.func.id in {"patch", "MagicMock", "Mock"}:
                 self.current_test["mock_related_calls"] += 1
-            if isinstance(node.func, ast.Attribute) and node.func.attr in {"patch", "MagicMock", "Mock"}:
+            if isinstance(node.func, ast.Attribute) and node.func.attr in {
+                "patch",
+                "MagicMock",
+                "Mock",
+            }:
                 self.current_test["mock_related_calls"] += 1
 
         self.generic_visit(node)
@@ -238,7 +247,9 @@ def main() -> int:
     lines.append(f"Discovered test functions: {len(all_findings)}")
     lines.append(f"Suspicious tests: {len(suspicious)}")
     lines.append("")
-    lines.append("Top suspicious tests (file | test | asserts+signals | stmts | except:pass | pass | mock_calls):")
+    lines.append(
+        "Top suspicious tests (file | test | asserts+signals | stmts | except:pass | pass | mock_calls):"
+    )
     for f in suspicious[: args.limit]:
         lines.append(
             f"- {f.file} | {f.test_name} | {f.total_assert_signals} | {f.stmts} | {f.except_pass_blocks} | {f.pass_stmts} | {f.mock_related_calls}"
@@ -248,7 +259,8 @@ def main() -> int:
     lines.append("Stress coverage:")
     if stress_files:
         for fp in stress_files:
-            lines.append(f"- {str(fp).replace('\\\\','/')}")
+            norm_fp = str(fp).replace("\\", "/")
+            lines.append(f"- {norm_fp}")
     else:
         lines.append("- (none)")
 
@@ -258,7 +270,8 @@ def main() -> int:
         lines.append(f"- test files: {len(perf_files)}")
         # list a few
         for fp in perf_files[:10]:
-            lines.append(f"- {str(fp).replace('\\\\','/')}")
+            norm_fp = str(fp).replace("\\", "/")
+            lines.append(f"- {norm_fp}")
         if len(perf_files) > 10:
             lines.append(f"- ... ({len(perf_files) - 10} more)")
     else:

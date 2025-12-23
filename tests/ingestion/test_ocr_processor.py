@@ -19,7 +19,7 @@ def ocr_config():
 def test_ocr_processor_initialization(ocr_config):
     """Test OCR processor initialization."""
     processor = OCRProcessor(ocr_config)
-    assert processor.enabled == True
+    assert processor.enabled
     assert processor.tesseract_cmd == "tesseract"
     assert processor.lang == "eng"
 

@@ -8,7 +8,6 @@ chunks and BM25 statistics to disk in a small directory layout.
 """
 
 import json
-import os
 from pathlib import Path
 from typing import Dict
 

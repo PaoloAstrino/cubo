@@ -24,7 +24,7 @@ def test_json_log_format(tmp_path):
     )
     # Ensure file exists and is valid JSON
     with open(log_file, encoding="utf-8") as f:
-        lines = [l.strip() for l in f.readlines() if l.strip()]
+        lines = [line.strip() for line in f.readlines() if line.strip()]
     assert lines and lines[0]
     line = lines[0]
     # If JSON lines produced, parse

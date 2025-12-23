@@ -1,14 +1,13 @@
-import os
-import sqlite3
 import hashlib
+import sqlite3
 import threading
-import tempfile
+
 import pytest
 
 from cubo.ingestion.document_loader import DocumentLoader
 from cubo.retrieval.vector_store import FaissStore
-from cubo.storage.metadata_manager import MetadataManager
 from cubo.scripts import download_dolphin
+from cubo.storage.metadata_manager import MetadataManager
 from cubo.utils.utils import Utils
 
 
@@ -79,6 +78,8 @@ def test_create_sentence_window_chunks_handles_unpinned_tokenizer(monkeypatch):
     monkeypatch.delenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", raising=False)
 
     # Using a remote tokenizer name should not raise (exception is caught internally)
-    chunks = Utils.create_sentence_window_chunks("This is a sentence. Another.", tokenizer_name="some-remote/tokenizer")
+    chunks = Utils.create_sentence_window_chunks(
+        "This is a sentence. Another.", tokenizer_name="some-remote/tokenizer"
+    )
     assert isinstance(chunks, list)
     assert len(chunks) > 0

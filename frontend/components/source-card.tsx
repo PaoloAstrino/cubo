@@ -59,9 +59,9 @@ export function SourceCard({ source, index }: SourceCardProps) {
             </Badge>
           </CollapsibleTrigger>
         </HoverCardTrigger>
-        <HoverCardContent 
-          className="w-80 text-sm" 
-          side="top" 
+        <HoverCardContent
+          className="w-80 text-sm"
+          side="top"
           align="start"
           sideOffset={8}
         >

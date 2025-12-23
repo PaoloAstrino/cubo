@@ -48,7 +48,7 @@ def test_publish_and_pointer_flip(tmp_path: Path):
     ids3 = [f"id_{i}" for i in range(len(embs3))]
     manager3.build_indexes(embs3, ids3)
     manager3.save(path=v3)
-    published3 = publish_version(v3, index_root)
+    publish_version(v3, index_root)
     assert get_current_index_dir(index_root) == v3
 
     # DB should have the latest version recorded

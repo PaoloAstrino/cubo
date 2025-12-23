@@ -603,4 +603,3 @@ class RetrievalCacheService:
 
 
 # Type alias for cache key tuples
-from typing import Tuple

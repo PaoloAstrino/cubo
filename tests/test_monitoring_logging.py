@@ -1,8 +1,8 @@
 import logging
 
+from cubo.ingestion.hierarchical_chunker import HierarchicalChunker
 from cubo.monitoring import metrics
 from cubo.utils.utils import Utils
-from cubo.ingestion.hierarchical_chunker import HierarchicalChunker
 
 
 def setup_function():
@@ -11,7 +11,9 @@ def setup_function():
 
 def test_metrics_record(monkeypatch):
     # Simple token count stub: words = tokens
-    monkeypatch.setattr(Utils, "_token_count", staticmethod(lambda text, tokenizer=None: len(text.split())))
+    monkeypatch.setattr(
+        Utils, "_token_count", staticmethod(lambda text, tokenizer=None: len(text.split()))
+    )
     metrics.reset_metrics()
 
     chunker = HierarchicalChunker(max_chunk_size=1000)

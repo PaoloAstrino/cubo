@@ -24,7 +24,7 @@ def test_llm_config_model_name():
     """Test that model name fallback works."""
     # Test primary config key
     config.set("llm.model_name", "test-model")
-    generator = ResponseGenerator()
+    ResponseGenerator()
 
     # The model name should be retrievable
     model_name = config.get("llm.model_name")

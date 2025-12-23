@@ -12,6 +12,7 @@ from pathlib import Path
 # Project root
 ROOT = Path(__file__).parent.parent
 
+
 def main():
     print(">>> Starting CUBO Full Stack...")
 
@@ -19,13 +20,10 @@ def main():
     print(">>> Ensuring Ollama is running...")
     try:
         subprocess.Popen(
-            ["ollama", "serve"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            shell=True
+            ["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True
         )
     except Exception:
-        pass # Assume it's running or user will handle it
+        pass  # Assume it's running or user will handle it
 
     # 2. Start Backend
     print(">>> Starting Backend (http://localhost:8000)...")
@@ -33,25 +31,18 @@ def main():
     backend_env["PYTHONPATH"] = str(ROOT)
     # Enable reload by default for dev experience
     backend_cmd = [sys.executable, "cubo/server/run.py", "--reload"]
-    
-    backend = subprocess.Popen(
-        backend_cmd,
-        cwd=ROOT,
-        env=backend_env
-    )
+
+    backend = subprocess.Popen(backend_cmd, cwd=ROOT, env=backend_env)
 
     # 3. Start Frontend
     print(">>> Starting Frontend (http://localhost:3000)...")
     frontend_dir = ROOT / "frontend"
     frontend_cmd = ["npm", "run", "dev"]
-    
+
     # Windows needs shell=True for npm
     is_windows = sys.platform.startswith("win")
     frontend = subprocess.Popen(
-        frontend_cmd,
-        cwd=frontend_dir,
-        shell=is_windows,
-        env=os.environ.copy()
+        frontend_cmd, cwd=frontend_dir, shell=is_windows, env=os.environ.copy()
     )
 
     print("\n>>> Full Stack Running. Press Ctrl+C to stop.\n")
@@ -71,6 +62,7 @@ def main():
         backend.terminate()
         frontend.terminate()
         print(">>> Stopped.")
+
 
 if __name__ == "__main__":
     main()

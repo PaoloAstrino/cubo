@@ -52,7 +52,7 @@ export function LLMSettings() {
         setValue(currentValue)
         setOpen(false)
         setSaving(true)
-        
+
         try {
             await updateSettings({
                 llm_model: currentValue,
@@ -88,7 +88,7 @@ export function LLMSettings() {
                     <FieldDescription>
                         Select the Large Language Model to use for generation.
                     </FieldDescription>
-                    
+
                     <Field orientation="horizontal">
                         <FieldContent>
                             <FieldTitle>Model</FieldTitle>
@@ -125,7 +125,7 @@ export function LLMSettings() {
                                                 <CommandItem
                                                     key={model.name}
                                                     value={model.name}
-                                                    onSelect={() => handleSelect(model.name)} 
+                                                    onSelect={() => handleSelect(model.name)}
                                                 >
                                                     <Check
                                                         className={cn(
@@ -136,7 +136,7 @@ export function LLMSettings() {
                                                     <div className="flex flex-col">
                                                         <span>{model.name}</span>
                                                         <span className="text-xs text-muted-foreground">
-                                                            {(model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) + "GB" : "")} 
+                                                            {(model.size ? (model.size / 1024 / 1024 / 1024).toFixed(1) + "GB" : "")}
                                                             {model.family ? ` • ${model.family}` : ""}
                                                         </span>
                                                     </div>

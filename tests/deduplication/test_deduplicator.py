@@ -3,6 +3,7 @@ Tests for Deduplicator.
 """
 
 import pytest
+
 pytest.importorskip("torch")
 
 import unittest

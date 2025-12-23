@@ -1,6 +1,7 @@
 import importlib
-import pytest
 from typing import Optional
+
+import pytest
 
 
 def pytest_ignore_collect(path, config) -> Optional[bool]:
@@ -18,10 +19,11 @@ def pytest_ignore_collect(path, config) -> Optional[bool]:
         if spec is None:
             return True
     return None
+
+
+# ruff: noqa: E402
 import os
 from pathlib import Path
-
-import pytest
 
 
 @pytest.fixture(scope="session")

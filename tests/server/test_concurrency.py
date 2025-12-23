@@ -1,7 +1,9 @@
 import threading
 import time
 from unittest.mock import MagicMock, patch
+
 import pytest
+
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
@@ -33,10 +35,13 @@ def test_concurrent_build_and_query():
         with patch("cubo.server.api.security_manager") as mock_security:
             mock_security.scrub.side_effect = lambda x: x
             from cubo.server.api import app
+
             client = TestClient(app)
 
             # Start build in background thread
-            t = threading.Thread(target=lambda: client.post("/api/build-index", json={"force_rebuild": True}),)
+            t = threading.Thread(
+                target=lambda: client.post("/api/build-index", json={"force_rebuild": True}),
+            )
             t.start()
 
             # While build runs, perform multiple queries; expect only 503/200 during build
@@ -63,6 +68,7 @@ def test_build_index_crash_while_adding(tmp_path):
     """
     import sqlite3
     from pathlib import Path
+
     from cubo.retrieval.vector_store import FaissStore
 
     tmpdir = tmp_path / "faiss_temp"
@@ -116,10 +122,11 @@ def test_build_index_crash_while_adding(tmp_path):
 
     try:
         import numpy as np
+
         embeddings = [np.zeros(64, dtype=np.float32)]
         docs = ["Test doc"]
         metas = [{"filename": "a.txt"}]
-        with patch("cubo.utils.logger.logger") as mock_logger:
+        with patch("cubo.utils.logger.logger"):
             try:
                 store.add(embeddings=embeddings, documents=docs, metadatas=metas, ids=["d1"])
             except sqlite3.OperationalError:
@@ -148,6 +155,7 @@ def test_build_index_crash_while_adding(tmp_path):
         except Exception:
             pass
         import shutil
+
         try:
             shutil.rmtree(tmpdir, ignore_errors=True)
         except Exception:

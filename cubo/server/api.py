@@ -1,5 +1,7 @@
 """FastAPI server for CUBO RAG system."""
 
+# ruff: noqa: E402
+
 import asyncio
 import csv
 import datetime
@@ -24,8 +26,8 @@ from fastapi import (
     File,
     HTTPException,
     Query,
-    Response,
     Request,
+    Response,
     UploadFile,
     status,
 )
@@ -42,12 +44,10 @@ from cubo.services.service_manager import ServiceManager
 from cubo.storage.metadata_manager import get_metadata_manager
 from cubo.utils.exceptions import (
     CUBOError,
-    DatabaseError,
     DocumentAlreadyExistsError,
     DocumentNotFoundError,
     InvalidConfigurationError,
     ModelLoadError,
-    RetrievalError,
     ValidationError,
 )
 from cubo.utils.logger import logger
@@ -1244,9 +1244,11 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
     try:
         # Scrub query for logging
         scrubbed_query = security_manager.scrub(request_data.query)
-        query_scrubbed = scrubbed_query != request_data.query
 
-        logger.info("Streaming query received", extra={"query": scrubbed_query})
+        logger.info(
+            "Streaming query received",
+            extra={"query": scrubbed_query, "query_scrubbed": scrubbed_query != request_data.query},
+        )
 
         # Check retriever initialization
         if not hasattr(cubo_app, "retriever") or not cubo_app.retriever:
@@ -1275,7 +1277,7 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
                 where_filter = {"filename": {"$in": filenames}}
             else:
                 yield (
-                    json.dumps({"type": "error", "message": f"Collection has no documents"}) + "\n"
+                    json.dumps({"type": "error", "message": "Collection has no documents"}) + "\n"
                 ).encode()
                 return
 
@@ -1516,7 +1518,7 @@ async def delete_document(doc_id: str, request: Request):
         raise HTTPException(status_code=503, detail="CUBO app not initialized")
 
     logger.info(
-        f"Document deletion requested", extra={"doc_id": doc_id, "trace_id": request.state.trace_id}
+        "Document deletion requested", extra={"doc_id": doc_id, "trace_id": request.state.trace_id}
     )
 
     # Record deletion request in trace for GDPR audit

@@ -39,13 +39,13 @@ describe('useChatHistory', () => {
     localStorage.setItem('cubo_chat_history_global', JSON.stringify(mockMessages))
 
     const { result } = renderHook(() => useChatHistory(null))
-    
+
     expect(result.current.messages).toEqual(mockMessages)
   })
 
   it('should save messages to localStorage when updated', () => {
     const { result } = renderHook(() => useChatHistory(null))
-    
+
     act(() => {
       result.current.setMessages([{ id: '1', role: 'user', content: 'hello' } as any])
     })
@@ -56,7 +56,7 @@ describe('useChatHistory', () => {
   it('should use collectionId for storage key', () => {
     const collectionId = '123'
     const { result } = renderHook(() => useChatHistory(collectionId))
-    
+
     act(() => {
       result.current.setMessages([{ id: '1', role: 'user', content: 'hello' } as any])
     })
@@ -67,11 +67,11 @@ describe('useChatHistory', () => {
 
   it('should clear history', () => {
     const { result } = renderHook(() => useChatHistory(null))
-    
+
     act(() => {
       result.current.setMessages([{ id: '1', role: 'user', content: 'hello' } as any])
     })
-    
+
     act(() => {
       result.current.clearHistory()
     })

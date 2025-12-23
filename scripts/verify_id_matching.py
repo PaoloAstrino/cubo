@@ -1,7 +1,5 @@
-
-import json
 import csv
-from pathlib import Path
+import json
 
 # 1. Load a few lines of corpus to check IDs
 corpus_path = "data/beir/beir_corpus.jsonl"
@@ -9,7 +7,8 @@ print("--- Corpus IDs ---")
 with open(corpus_path, "r", encoding="utf-8") as f:
     for i in range(5):
         line = f.readline()
-        if not line: break
+        if not line:
+            break
         doc = json.loads(line)
         print(f"Original ID: {doc.get('_id')}")
 
@@ -19,7 +18,8 @@ print("\n--- Qrels IDs ---")
 with open(qrels_path, "r", encoding="utf-8") as f:
     reader = csv.DictReader(f, delimiter="\t")
     for i, row in enumerate(reader):
-        if i >= 5: break
+        if i >= 5:
+            break
         print(f"Qrels Query ID: {row['query-id']}, Corpus ID: {row['corpus-id']}")
 
 # 3. Simulated retrieval check

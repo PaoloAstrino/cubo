@@ -1,4 +1,5 @@
 import pytest
+
 pytest.importorskip("torch")
 
 from cubo.retrieval.bm25_python_store import BM25PythonStore
@@ -11,8 +12,8 @@ def test_searcher_explicit_python_backend():
     assert isinstance(bs._store, BM25PythonStore)
     docs = [{"doc_id": "a", "text": "apples and fruit"}, {"doc_id": "b", "text": "cars and trucks"}]
     bs.index_documents(docs)
-    res = bs.search("apples", top_k=2)
-    assert len(res) == 1 and res[0]["doc_id"] == "a"
+    _res = bs.search("apples", top_k=2)
+    assert len(_res) == 1 and _res[0]["doc_id"] == "a"
 
 
 def test_searcher_uses_backend_arg():
@@ -21,8 +22,8 @@ def test_searcher_uses_backend_arg():
     assert hasattr(bs, "_store")
     docs = [{"doc_id": "a", "text": "apples and fruit"}, {"doc_id": "b", "text": "cars and trucks"}]
     bs.index_documents(docs)
-    res = bs.search("cars", top_k=2)
-    assert len(res) == 1 and res[0]["doc_id"] == "b"
+    _res = bs.search("cars", top_k=2)
+    assert len(_res) == 1 and _res[0]["doc_id"] == "b"
 
 
 def test_searcher_delegates_to_default_store():
