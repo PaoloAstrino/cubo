@@ -1247,10 +1247,12 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
         query_scrubbed = scrubbed_query != request_data.query
 
         logger.info("Streaming query received", extra={"query": scrubbed_query})
-        
+
         # Check retriever initialization
         if not hasattr(cubo_app, "retriever") or not cubo_app.retriever:
-            yield (json.dumps({"type": "error", "message": "Retriever not initialized"}) + "\n").encode()
+            yield (
+                json.dumps({"type": "error", "message": "Retriever not initialized"}) + "\n"
+            ).encode()
             return
 
         # Check collection count
@@ -1272,7 +1274,9 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             if filenames:
                 where_filter = {"filename": {"$in": filenames}}
             else:
-                yield (json.dumps({"type": "error", "message": f"Collection has no documents"}) + "\n").encode()
+                yield (
+                    json.dumps({"type": "error", "message": f"Collection has no documents"}) + "\n"
+                ).encode()
                 return
 
         # Retrieve documents
@@ -1285,13 +1289,13 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             retrieve_kwargs["where"] = where_filter
 
         retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
-        
+
         # Emit source events
         for idx, doc in enumerate(retrieved_docs):
             metadata = doc.get("metadata", {})
             content = doc.get("document", doc.get("content", ""))
             score = doc.get("similarity", doc.get("score", 0.0))
-            
+
             source_event = {
                 "type": "source",
                 "index": idx,
@@ -1303,8 +1307,10 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             yield (json.dumps(source_event) + "\n").encode()
 
         # Build context and stream generation
-        context = "\n\n".join([doc.get("document", doc.get("content", "")) for doc in retrieved_docs])
-        
+        context = "\n\n".join(
+            [doc.get("document", doc.get("content", "")) for doc in retrieved_docs]
+        )
+
         def _stream_generator():
             return cubo_app.generate_response_stream(
                 query=request_data.query,
@@ -1315,10 +1321,13 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
         # Stream tokens from generator
         for event in await run_in_threadpool(_stream_generator):
             yield (json.dumps(event) + "\n").encode()
-            
+
     except Exception as e:
         logger.error(f"Streaming query error: {e}")
-        yield (json.dumps({"type": "error", "message": str(e), "trace_id": request.state.trace_id}) + "\n").encode()
+        yield (
+            json.dumps({"type": "error", "message": str(e), "trace_id": request.state.trace_id})
+            + "\n"
+        ).encode()
 
 
 @app.post("/api/query", response_model=QueryResponse)

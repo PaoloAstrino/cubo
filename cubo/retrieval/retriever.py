@@ -717,7 +717,9 @@ class DocumentRetriever:
                     # Do NOT default missing scores to 1.0.
                     # Missing raw scores are treated as 0.0 and may be normalized.
                     "raw_similarity": r.get("similarity", None),
-                    "similarity": (float(r.get("similarity")) if r.get("similarity") is not None else 0.0),
+                    "similarity": (
+                        float(r.get("similarity")) if r.get("similarity") is not None else 0.0
+                    ),
                     "base_similarity": (
                         float(r.get("similarity")) if r.get("similarity") is not None else 0.0
                     ),

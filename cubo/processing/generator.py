@@ -115,7 +115,7 @@ class ResponseGenerator:
         trace_id: Optional[str] = None,
     ) -> Iterator[Dict[str, any]]:
         """Generate a streaming response using the LLM.
-        
+
         Yields NDJSON events:
         - {'type': 'token', 'delta': '...', 'trace_id': '...'}
         - {'type': 'done', 'answer': '...', 'trace_id': '...', 'duration_ms': 123}
@@ -158,7 +158,7 @@ class ResponseGenerator:
             assistant_content = "".join(accumulated)
             self._update_conversation_history(conversation_messages, assistant_content, messages)
             duration_ms = int((time.time() - start_time) * 1000)
-            
+
             if trace_id:
                 try:
                     trace_collector.record(

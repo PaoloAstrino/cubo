@@ -11,7 +11,7 @@ class HardwareProfile:
     device: Literal["cuda", "mps", "cpu"]
     n_gpu_layers: int
     vram_gb: float
-    
+
     # Extended CPU/System info
     physical_cores: int = 1
     logical_cores: int = 1
@@ -55,11 +55,12 @@ def detect_hardware() -> HardwareProfile:
     flags = cpu_features.get_cpu_flags()
     blas, _ = cpu_features.detect_blas_backend()
     allocator = cpu_features.detect_allocator()
-    
+
     # Get RAM
     total_ram = 0.0
     try:
         import psutil
+
         total_ram = psutil.virtual_memory().total / (1024**3)
     except Exception:
         pass
@@ -73,5 +74,5 @@ def detect_hardware() -> HardwareProfile:
         total_ram_gb=total_ram,
         cpu_flags=flags,
         blas_backend=blas,
-        allocator=allocator
+        allocator=allocator,
     )

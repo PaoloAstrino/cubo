@@ -107,7 +107,7 @@ class LocalResponseGenerator:
         trace_id: Optional[str] = None,
     ) -> Iterator[Dict[str, any]]:
         """Generate a streaming response with local LLM.
-        
+
         Yields NDJSON events:
         - {'type': 'token', 'delta': '...', 'trace_id': '...'}
         - {'type': 'done', 'answer': '...', 'trace_id': '...', 'duration_ms': 123}
@@ -126,7 +126,7 @@ class LocalResponseGenerator:
         prompt = self.chat_template_manager.format_chat(convo, model_name=model_name)
 
         start_time = time.time()
-        
+
         if not self._llm:
             logger.error("Local LLM not initialized")
             yield {
@@ -148,7 +148,7 @@ class LocalResponseGenerator:
                             if delta:
                                 accumulated.append(delta)
                                 yield {"type": "token", "delta": delta, "trace_id": trace_id}
-                    
+
                     answer = "".join(accumulated)
                     duration_ms = int((time.time() - start_time) * 1000)
                     yield {
@@ -161,24 +161,24 @@ class LocalResponseGenerator:
                     return
                 except Exception as stream_err:
                     logger.warning(f"Streaming failed, falling back: {stream_err}")
-            
+
             # Fallback: generate synchronously and chunk the result
             answer = self.generate_response(query, context, messages)
             duration_ms = int((time.time() - start_time) * 1000)
-            
+
             # Chunk answer into tokens for streaming UX
             chunk_size = 10
             for i in range(0, len(answer), chunk_size):
                 delta = answer[i : i + chunk_size]
                 yield {"type": "token", "delta": delta, "trace_id": trace_id}
-            
+
             yield {
                 "type": "done",
                 "answer": answer,
                 "trace_id": trace_id,
                 "duration_ms": duration_ms,
             }
-            
+
         except Exception as e:
             logger.error(f"Local LLM streaming error: {e}")
             yield {"type": "error", "message": str(e), "trace_id": trace_id}

@@ -27,7 +27,7 @@ def _mean_std(values: Sequence[float]) -> Tuple[float, float]:
         return 0.0, 0.0
     mean = sum(values) / len(values)
     var = sum((v - mean) ** 2 for v in values) / len(values)
-    return mean, var ** 0.5
+    return mean, var**0.5
 
 
 def compute_stats(values: Sequence[float]) -> NormalizationStats:

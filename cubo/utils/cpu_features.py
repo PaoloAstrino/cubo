@@ -41,12 +41,7 @@ def get_topology() -> Dict[str, int]:
     """
     Get CPU topology: physical cores, logical cores, sockets (if available).
     """
-    topology = {
-        "physical_cores": 1,
-        "logical_cores": 1,
-        "sockets": 1,
-        "l3_cache_kb": 0
-    }
+    topology = {"physical_cores": 1, "logical_cores": 1, "sockets": 1, "l3_cache_kb": 0}
 
     if psutil:
         try:
@@ -89,13 +84,15 @@ def detect_blas_backend() -> Tuple[str, Dict[str, str]]:
             # numpy.show_config() prints to stdout, so we inspect internal structures
             # np.__config__.show() is similar.
             # We look at np.__config__.blas_opt_info or similar.
-            
+
             # Modern numpy (1.20+) has np.__config__.get_info or direct dicts
             if hasattr(np.__config__, "get_info"):
                 # Try to find specific keys
                 if np.__config__.get_info("mkl_info") or np.__config__.get_info("blas_mkl_info"):
                     backend = "mkl"
-                elif np.__config__.get_info("openblas_info") or np.__config__.get_info("openblas_lapack_info"):
+                elif np.__config__.get_info("openblas_info") or np.__config__.get_info(
+                    "openblas_lapack_info"
+                ):
                     backend = "openblas"
                 elif np.__config__.get_info("accelerate_info"):
                     backend = "accelerate"
@@ -119,6 +116,7 @@ def detect_blas_backend() -> Tuple[str, Dict[str, str]]:
     if backend == "unknown":
         try:
             import mkl
+
             backend = "mkl"
         except ImportError:
             pass
@@ -132,7 +130,7 @@ def detect_allocator() -> str:
     This is heuristic-based and checks loaded shared libraries.
     """
     allocator = "libc"  # Default assumption
-    
+
     if psutil and hasattr(psutil.Process, "memory_maps"):
         try:
             proc = psutil.Process()
@@ -147,5 +145,5 @@ def detect_allocator() -> str:
                     return "mimalloc"
         except Exception:
             pass
-            
+
     return allocator

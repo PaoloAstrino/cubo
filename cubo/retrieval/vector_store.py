@@ -254,6 +254,7 @@ class VectorStore:
 
 import re
 
+
 class FaissStore(VectorStore):
     ID_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 
@@ -271,6 +272,7 @@ class FaissStore(VectorStore):
             s = i.decode() if isinstance(i, bytes) else i
             if not self.ID_RE.match(s):
                 raise ValueError(f"Invalid id value detected: {s}")
+
     """FAISS-backed vector store with async hot/cold index promotion.
 
     The hot/cold architecture keeps frequently accessed vectors in a fast
@@ -1247,10 +1249,12 @@ class FaissStore(VectorStore):
             cur = conn.cursor()
             cur.execute("CREATE TEMP TABLE IF NOT EXISTS _tmp_ids(id TEXT PRIMARY KEY)")
             try:
-                cur.executemany("INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)", ((i,) for i in document_ids))
+                cur.executemany(
+                    "INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)", ((i,) for i in document_ids)
+                )
                 cur.execute(
                     "DELETE FROM collection_documents WHERE collection_id = ? AND document_id IN (SELECT id FROM _tmp_ids)",
-                    (collection_id,)
+                    (collection_id,),
                 )
                 rowcount = cur.rowcount
                 conn.commit()
@@ -1376,7 +1380,9 @@ class FaissStore(VectorStore):
             cur = conn.cursor()
             cur.execute("CREATE TEMP TABLE IF NOT EXISTS _tmp_ids(id TEXT PRIMARY KEY)")
             try:
-                cur.executemany("INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)", ((i,) for i in ids))
+                cur.executemany(
+                    "INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)", ((i,) for i in ids)
+                )
                 cur.execute("DELETE FROM documents WHERE id IN (SELECT id FROM _tmp_ids)")
                 cur.execute("DELETE FROM vectors WHERE id IN (SELECT id FROM _tmp_ids)")
                 conn.commit()

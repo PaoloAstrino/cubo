@@ -231,7 +231,7 @@ class CuboCore:
                 )
                 yield {"type": "done", "answer": answer, "trace_id": trace_id}
                 return
-            
+
             yield from self.generator.generate_response_stream(
                 query=query, context=context, trace_id=trace_id
             )

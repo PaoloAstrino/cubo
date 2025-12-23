@@ -141,16 +141,17 @@ class Utils:
         Handles abbreviations and common edge cases.
         """
         text = re.sub(r"\s+", " ", text.strip())
-        
+
         # Try NLTK first
         try:
             import nltk
+
             try:
                 return nltk.sent_tokenize(text)
             except LookupError:
                 # Attempt to download punkt if missing
                 try:
-                    nltk.download('punkt', quiet=True)
+                    nltk.download("punkt", quiet=True)
                     return nltk.sent_tokenize(text)
                 except Exception:
                     pass
@@ -160,14 +161,30 @@ class Utils:
         # Fallback: Improved Regex
         # Protect common abbreviations
         abbreviations = {
-            "Mr.", "Mrs.", "Dr.", "Ms.", "Prof.", "Sr.", "Jr.", 
-            "vs.", "v.", "e.g.", "i.e.", "etc.", "U.S.", "U.K.", "U.S.A.",
-            "Art.", "No.", "Fig.", "Vol."
+            "Mr.",
+            "Mrs.",
+            "Dr.",
+            "Ms.",
+            "Prof.",
+            "Sr.",
+            "Jr.",
+            "vs.",
+            "v.",
+            "e.g.",
+            "i.e.",
+            "etc.",
+            "U.S.",
+            "U.K.",
+            "U.S.A.",
+            "Art.",
+            "No.",
+            "Fig.",
+            "Vol.",
         }
-        
+
         # Sort by length descending to handle nested abbreviations (e.g. U.S.A. before U.S.)
         sorted_abbreviations = sorted(abbreviations, key=len, reverse=True)
-        
+
         processed_text = text
         for abbr in sorted_abbreviations:
             # Replace "Mr." with "Mr<PRD>"
@@ -176,17 +193,17 @@ class Utils:
             pattern = r"\b" + re.escape(abbr[:-1]) + r"\."
             replacement = abbr[:-1] + "<PRD>"
             processed_text = re.sub(pattern, replacement, processed_text, flags=re.IGNORECASE)
-            
+
         # Split on terminal punctuation followed by space
         sentences = re.split(r"(?<=[.!?])\s+", processed_text)
-        
+
         # Restore dots
         final_sentences = []
         for s in sentences:
             s = s.replace("<PRD>", ".")
             if s.strip():
                 final_sentences.append(s.strip())
-                
+
         return final_sentences
 
     @staticmethod
@@ -197,7 +214,7 @@ class Utils:
                 # Handle HF tokenizer or tiktoken
                 if hasattr(tokenizer, "encode"):
                     return len(tokenizer.encode(text, add_special_tokens=False))
-                elif hasattr(tokenizer, "encode_ordinary"): # tiktoken
+                elif hasattr(tokenizer, "encode_ordinary"):  # tiktoken
                     return len(tokenizer.encode_ordinary(text))
             except Exception:
                 pass
@@ -207,7 +224,10 @@ class Utils:
     @staticmethod
     @log_errors("Sentence window chunks created successfully")
     def create_sentence_window_chunks(
-        text: str, window_size: int = 3, tokenizer_name: Optional[str] = None, add_window_text: bool = True
+        text: str,
+        window_size: int = 3,
+        tokenizer_name: Optional[str] = None,
+        add_window_text: bool = True,
     ) -> List[dict]:
         """
         Create sentence window chunks: single sentences with window metadata.
@@ -245,12 +265,16 @@ class Utils:
                         rev = os.getenv("HF_PINNED_REVISION")
                         allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
                         if rev:
-                            tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, revision=rev, use_fast=True)
+                            tokenizer = _AutoTokenizer.from_pretrained(
+                                tokenizer_name, revision=rev, use_fast=True
+                            )
                         elif allow_unpinned:
                             logger.warning(
                                 f"Loading tokenizer {tokenizer_name} without pinned revision because HF_ALLOW_UNPINNED_HF_DOWNLOADS=1."
                             )
-                            tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                            tokenizer = _AutoTokenizer.from_pretrained(
+                                tokenizer_name, use_fast=True
+                            )
                         else:
                             raise RuntimeError(
                                 "Attempted to download tokenizer without pinned HF revision. Set HF_PINNED_REVISION or HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to proceed."
@@ -283,7 +307,7 @@ class Utils:
                     "sentence_token_count": sentence_tokens,
                     "window_token_count": window_tokens,
                 }
-                
+
                 if add_window_text:
                     chunk["window"] = window_text
 

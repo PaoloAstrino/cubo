@@ -235,10 +235,14 @@ class DeepIngestor:
 
         try:
             if self.n_workers > 1:
-                logger.info(f"Ingesting {len(files_to_process)} files with {self.n_workers} workers")
+                logger.info(
+                    f"Ingesting {len(files_to_process)} files with {self.n_workers} workers"
+                )
                 with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-                    future_to_path = {executor.submit(self._process_file, p): p for p in files_to_process}
-                    
+                    future_to_path = {
+                        executor.submit(self._process_file, p): p for p in files_to_process
+                    }
+
                     for future in as_completed(future_to_path):
                         path = future_to_path[future]
                         size_bytes = None
@@ -246,26 +250,30 @@ class DeepIngestor:
                             size_bytes = path.stat().st_size
                         except Exception:
                             pass
-                            
+
                         try:
                             chunks = future.result()
                             if chunks:
                                 current_batch.extend(chunks)
                             processed_files.append(str(path))
-                            
+
                             if len(current_batch) >= self.chunk_batch_size:
                                 self._flush_chunk_batch(current_batch)
                                 total_chunks += len(current_batch)
                                 current_batch = []
-                                
+
                             try:
-                                manager.mark_file_succeeded(run_id, str(path), size_bytes=size_bytes)
+                                manager.mark_file_succeeded(
+                                    run_id, str(path), size_bytes=size_bytes
+                                )
                             except Exception:
                                 pass
                         except Exception as exc:
                             logger.warning(f"Failed processing file {path}: {exc}")
                             try:
-                                manager.mark_file_failed(run_id, str(path), error=str(exc), size_bytes=size_bytes)
+                                manager.mark_file_failed(
+                                    run_id, str(path), error=str(exc), size_bytes=size_bytes
+                                )
                             except Exception:
                                 pass
             else:

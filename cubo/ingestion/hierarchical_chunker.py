@@ -48,11 +48,12 @@ class HierarchicalChunker:
         self.include_parent_context = include_parent_context
         self.overlap_sentences = overlap_sentences
         self.max_overlap_tokens = max_overlap_tokens
-        
+
         self.tokenizer = None
         if tokenizer_name:
             try:
                 from transformers import AutoTokenizer
+
                 self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
             except Exception as e:
                 logger.warning(f"Failed to load tokenizer {tokenizer_name}: {e}")
@@ -71,6 +72,7 @@ class HierarchicalChunker:
             List of chunk dictionaries with text and metadata
         """
         import time
+
         start_time = time.time()
 
         # Detect structure if not provided
@@ -110,7 +112,7 @@ class HierarchicalChunker:
                         start_index=len(chunks),
                     )
                     chunks.extend(sub_chunks)
-        
+
         elapsed = time.time() - start_time
         logger.info(f"Chunking completed in {elapsed:.4f}s. Generated {len(chunks)} chunks.")
         return chunks
@@ -185,7 +187,9 @@ class HierarchicalChunker:
                 )
 
             if self.max_chunk_size is not None and len(text) >= 0.9 * self.max_chunk_size:
-                logger.warning(f"Chunk {chunk_index} is approaching char size limit: {len(text)} chars (limit {self.max_chunk_size})")
+                logger.warning(
+                    f"Chunk {chunk_index} is approaching char size limit: {len(text)} chars (limit {self.max_chunk_size})"
+                )
         except Exception as e:
             logger.debug(f"Metrics recording failed: {e}")
 
@@ -206,6 +210,7 @@ class HierarchicalChunker:
             List of chunk dictionaries
         """
         import re
+
         chunks = []
         # raise Exception("I am running updated code")
 
@@ -233,7 +238,9 @@ class HierarchicalChunker:
                 chunk_index=start_index + len(chunks),
             )
             chunks.append(chunk)
-            logger.debug(f"Created chunk {len(chunks)}: {len(chunk_text)} chars, {chunk['token_count']} tokens")
+            logger.debug(
+                f"Created chunk {len(chunks)}: {len(chunk_text)} chars, {chunk['token_count']} tokens"
+            )
 
             # Start new chunk with overlap
             if self.overlap_sentences > 0:
@@ -256,7 +263,7 @@ class HierarchicalChunker:
 
             # Split paragraph into sentences
             sentences = Utils._split_into_sentences(paragraph)
-            
+
             # Pre-calculate sentence metrics
             p_data = []
             p_size = 0
@@ -270,8 +277,10 @@ class HierarchicalChunker:
 
             # Check if adding whole paragraph exceeds limits
             size_exceeded = current_size + p_size > self.max_chunk_size
-            tokens_exceeded = (self.max_chunk_tokens is not None) and (current_tokens + p_tokens > self.max_chunk_tokens)
-            
+            tokens_exceeded = (self.max_chunk_tokens is not None) and (
+                current_tokens + p_tokens > self.max_chunk_tokens
+            )
+
             # print(f"DEBUG: P='{paragraph[:10]}...', size={p_size}, current={current_size}, max={self.max_chunk_size}, exceeded={size_exceeded}")
 
             if size_exceeded or tokens_exceeded:
@@ -279,10 +288,12 @@ class HierarchicalChunker:
                 if current_chunk:
                     logger.debug("Paragraph boundary triggered chunk split")
                     save_chunk()
-                
+
                 # Check if paragraph fits in new chunk (which might have overlap)
                 size_exceeded = current_size + p_size > self.max_chunk_size
-                tokens_exceeded = (self.max_chunk_tokens is not None) and (current_tokens + p_tokens > self.max_chunk_tokens)
+                tokens_exceeded = (self.max_chunk_tokens is not None) and (
+                    current_tokens + p_tokens > self.max_chunk_tokens
+                )
 
                 if not (size_exceeded or tokens_exceeded):
                     # Fits now (after clearing previous content)
@@ -295,13 +306,16 @@ class HierarchicalChunker:
                     logger.debug("Paragraph too large, splitting internally")
                     for s, l, t in p_data:
                         # Check limits for single sentence addition
-                        if (current_size + l > self.max_chunk_size) or \
-                           ((self.max_chunk_tokens is not None) and (current_tokens + t > self.max_chunk_tokens)):
+                        if (current_size + l > self.max_chunk_size) or (
+                            (self.max_chunk_tokens is not None)
+                            and (current_tokens + t > self.max_chunk_tokens)
+                        ):
                             if current_chunk:
                                 save_chunk()
-                        
-                        if (l > self.max_chunk_size) or \
-                           ((self.max_chunk_tokens is not None) and (t > self.max_chunk_tokens)):
+
+                        if (l > self.max_chunk_size) or (
+                            (self.max_chunk_tokens is not None) and (t > self.max_chunk_tokens)
+                        ):
                             logger.warning(f"Single sentence exceeds limits: {l} chars, {t} tokens")
 
                         current_chunk.append(s)
@@ -319,7 +333,9 @@ class HierarchicalChunker:
             chunk_text = " ".join(current_chunk)
             # Always add if it's the only chunk, otherwise check min size
             size_ok = len(chunk_text) >= self.min_chunk_size
-            tokens_ok = (self.min_chunk_tokens is None) or (Utils._token_count(chunk_text, self.tokenizer) >= self.min_chunk_tokens)
+            tokens_ok = (self.min_chunk_tokens is None) or (
+                Utils._token_count(chunk_text, self.tokenizer) >= self.min_chunk_tokens
+            )
 
             if len(chunks) == 0 or (size_ok and tokens_ok):
                 chunk = self._create_chunk(
@@ -349,13 +365,14 @@ class HierarchicalChunker:
             List of chunk dictionaries
         """
         import re
+
         chunks = []
-        
+
         # Split by paragraphs (double newline) to preserve structure
         paragraphs = re.split(r"\n\s*\n", text)
         if len(paragraphs) > 1:
             logger.debug(f"Simple chunking: splitting into {len(paragraphs)} paragraphs")
-        
+
         current_chunk = []
         current_size = 0
         current_tokens = 0
@@ -366,7 +383,7 @@ class HierarchicalChunker:
                 return
 
             chunk_text = " ".join(current_chunk)
-            
+
             token_count = Utils._token_count(chunk_text, self.tokenizer)
             chunks.append(
                 {
@@ -383,8 +400,16 @@ class HierarchicalChunker:
             # Metrics & warnings for simple chunk
             try:
                 metrics.record("chunks_created", 1)
-                metrics.record("chunk_tokens_total", token_count) if token_count is not None else None
-                if self.max_chunk_tokens is not None and token_count is not None and token_count >= 0.9 * self.max_chunk_tokens:
+                (
+                    metrics.record("chunk_tokens_total", token_count)
+                    if token_count is not None
+                    else None
+                )
+                if (
+                    self.max_chunk_tokens is not None
+                    and token_count is not None
+                    and token_count >= 0.9 * self.max_chunk_tokens
+                ):
                     logger.warning(
                         f"Simple chunk is approaching token limit: {token_count} tokens (limit {self.max_chunk_tokens})"
                     )
@@ -414,7 +439,7 @@ class HierarchicalChunker:
 
             # Split paragraph into sentences
             sentences = Utils._split_into_sentences(paragraph)
-            
+
             # Pre-calculate sentence metrics
             p_data = []
             p_size = 0
@@ -428,17 +453,21 @@ class HierarchicalChunker:
 
             # Check if adding whole paragraph exceeds limits
             size_exceeded = current_size + p_size > self.max_chunk_size
-            tokens_exceeded = (self.max_chunk_tokens is not None) and (current_tokens + p_tokens > self.max_chunk_tokens)
+            tokens_exceeded = (self.max_chunk_tokens is not None) and (
+                current_tokens + p_tokens > self.max_chunk_tokens
+            )
 
             if size_exceeded or tokens_exceeded:
                 # If we have content, save it to respect paragraph boundary
                 if current_chunk:
                     logger.debug("Paragraph boundary triggered chunk split")
                     save_chunk()
-                
+
                 # Check if paragraph fits in new chunk (which might have overlap)
                 size_exceeded = current_size + p_size > self.max_chunk_size
-                tokens_exceeded = (self.max_chunk_tokens is not None) and (current_tokens + p_tokens > self.max_chunk_tokens)
+                tokens_exceeded = (self.max_chunk_tokens is not None) and (
+                    current_tokens + p_tokens > self.max_chunk_tokens
+                )
 
                 if not (size_exceeded or tokens_exceeded):
                     # Fits now (after clearing previous content)
@@ -451,13 +480,16 @@ class HierarchicalChunker:
                     logger.debug("Paragraph too large, splitting internally")
                     for s, l, t in p_data:
                         # Check limits for single sentence addition
-                        if (current_size + l > self.max_chunk_size) or \
-                           ((self.max_chunk_tokens is not None) and (current_tokens + t > self.max_chunk_tokens)):
+                        if (current_size + l > self.max_chunk_size) or (
+                            (self.max_chunk_tokens is not None)
+                            and (current_tokens + t > self.max_chunk_tokens)
+                        ):
                             if current_chunk:
                                 save_chunk()
-                        
-                        if (l > self.max_chunk_size) or \
-                           ((self.max_chunk_tokens is not None) and (t > self.max_chunk_tokens)):
+
+                        if (l > self.max_chunk_size) or (
+                            (self.max_chunk_tokens is not None) and (t > self.max_chunk_tokens)
+                        ):
                             logger.warning(f"Single sentence exceeds limits: {l} chars, {t} tokens")
 
                         current_chunk.append(s)
@@ -473,9 +505,11 @@ class HierarchicalChunker:
         # Add remaining
         if current_chunk:
             chunk_text = " ".join(current_chunk)
-            
+
             size_ok = len(chunk_text) >= self.min_chunk_size
-            tokens_ok = (self.min_chunk_tokens is None) or (Utils._token_count(chunk_text, self.tokenizer) >= self.min_chunk_tokens)
+            tokens_ok = (self.min_chunk_tokens is None) or (
+                Utils._token_count(chunk_text, self.tokenizer) >= self.min_chunk_tokens
+            )
 
             if len(chunks) == 0 or (size_ok and tokens_ok):
                 token_count = Utils._token_count(chunk_text, self.tokenizer)
@@ -493,7 +527,11 @@ class HierarchicalChunker:
 
                 try:
                     metrics.record("chunks_created", 1)
-                    metrics.record("chunk_tokens_total", token_count) if token_count is not None else None
+                    (
+                        metrics.record("chunk_tokens_total", token_count)
+                        if token_count is not None
+                        else None
+                    )
                 except Exception as e:
                     logger.debug(f"Metrics recording failed: {e}")
 
