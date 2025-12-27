@@ -130,6 +130,7 @@ class Config(ConfigAdapter):
         defaults = {
             "model_path": "./models/embeddinggemma-300m",
             "llm_model": "llama3.2:latest",
+            "llm": {"n_ctx": 0},  # 0 = auto-detect
         }
         for key, value in defaults.items():
             self.set(key, value)

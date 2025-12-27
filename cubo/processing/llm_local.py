@@ -31,7 +31,16 @@ class LocalResponseGenerator:
             from llama_cpp import Llama  # type: ignore
 
             gpu_layers = config.get("llm.n_gpu_layers", 0)
-            self._llm = Llama(model_path=self.model_path, n_ctx=2048, n_gpu_layers=gpu_layers)
+
+            # Context window handling:
+            # 1. Try config 'llm.n_ctx' (0 = auto in llama_cpp)
+            # 2. Fallback to 8192 (safe modern default) if config missing
+            n_ctx = config.get("llm.n_ctx", 0)
+            if n_ctx is None:
+                n_ctx = 8192
+
+            logger.info("Initializing Local LLM with n_ctx=%s, gpu_layers=%s", n_ctx, gpu_layers)
+            self._llm = Llama(model_path=self.model_path, n_ctx=n_ctx, n_gpu_layers=gpu_layers)
         except Exception as e:
             logger.warning("Failed to initialize local llama model: %s", e)
             self._llm = None
