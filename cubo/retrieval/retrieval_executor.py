@@ -21,6 +21,9 @@ from cubo.retrieval.constants import (
 from cubo.utils.exceptions import DatabaseError
 from cubo.utils.logger import logger
 
+# Import the embedding prompt helper
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
+
 
 def extract_chunk_id(candidate: Any) -> Optional[str]:
     """Utility to extract a stable chunk/document id from a retrieval candidate.
@@ -93,8 +96,15 @@ class RetrievalExecutor:
         if self.model is None or self.inference_threading is None:
             return []
 
+        # Apply query prompt prefix if model defines one
+        try:
+            prefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "query")
+            prefixed_query = (prefix + query) if prefix else query
+        except Exception:
+            prefixed_query = query
+
         query_embeddings = self.inference_threading.generate_embeddings_threaded(
-            [query], self.model
+            [prefixed_query], self.model
         )
         return query_embeddings[0] if query_embeddings else []
 

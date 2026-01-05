@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from cubo.config import config
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -453,7 +454,14 @@ class LocalReranker:
             if cached is not None:
                 return cached
 
-        emb = self.model.encode(query, convert_to_tensor=False)
+        # Apply query prompt prefix if model defines one
+        try:
+            qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "query")
+            q_to_encode = qprefix + query if qprefix else query
+        except Exception:
+            q_to_encode = query
+
+        emb = self.model.encode(q_to_encode, convert_to_tensor=False)
 
         if self._cache_enabled:
             self._cache.put_query_embedding(query, emb)
@@ -483,7 +491,14 @@ class LocalReranker:
                 doc_emb = self._cache.get_embedding(str(doc_id))
 
             if doc_emb is None:
-                doc_emb = self.model.encode(doc_content, convert_to_tensor=False)
+                # Apply document prompt prefix if available
+                try:
+                    dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+                    doc_to_encode = dprefix + doc_content if dprefix else doc_content
+                except Exception:
+                    doc_to_encode = doc_content
+
+                doc_emb = self.model.encode(doc_to_encode, convert_to_tensor=False)
                 if self._cache_enabled and doc_id:
                     self._cache.put_embedding(str(doc_id), doc_emb)
 

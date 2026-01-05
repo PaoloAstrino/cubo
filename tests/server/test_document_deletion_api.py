@@ -30,9 +30,9 @@ class TestDocumentDeletionAPI:
     """Test cases for document deletion endpoint."""
 
     def test_delete_document_success(self, client, mock_cubo_app):
-        """Test successful document deletion."""
-        # Mock successful deletion
-        mock_cubo_app.vector_store.delete.return_value = None
+        """Test successful document deletion (enqueued compaction)."""
+        # Mock enqueue_deletion returning a job id
+        mock_cubo_app.vector_store.enqueue_deletion.return_value = "job123"
         mock_cubo_app.retriever.remove_document.return_value = True
 
         response = client.delete("/api/documents/test_doc.pdf")
@@ -45,13 +45,15 @@ class TestDocumentDeletionAPI:
 
         assert data["doc_id"] == "test_doc.pdf"
         assert data["deleted"] is True
+        assert data["job_id"] == "job123"
+        assert data["queued"] is True
         assert "trace_id" in data
         assert "message" in data
 
     def test_delete_document_not_found(self, client, mock_cubo_app):
-        """Test deletion of non-existent document."""
-        # Mock failed deletion
-        mock_cubo_app.vector_store.delete.side_effect = Exception("Not found")
+        """Test deletion of non-existent document (enqueue fails)."""
+        # Mock failed enqueue
+        mock_cubo_app.vector_store.enqueue_deletion.side_effect = Exception("Not found")
         mock_cubo_app.retriever.remove_document.return_value = False
 
         response = client.delete("/api/documents/nonexistent.pdf")
@@ -65,6 +67,7 @@ class TestDocumentDeletionAPI:
 
     def test_delete_document_includes_trace_id(self, client, mock_cubo_app):
         """Test that deletion response includes trace_id."""
+        mock_cubo_app.vector_store.enqueue_deletion.return_value = "job-abc"
         mock_cubo_app.retriever.remove_document.return_value = True
 
         response = client.delete(
@@ -74,10 +77,11 @@ class TestDocumentDeletionAPI:
         if response.status_code == 503:
             pytest.skip("Server not initialized")
 
-        # Response should include trace_id
+        # Response should include trace_id and job_id
         data = response.json()
         if response.status_code == 200:
             assert "trace_id" in data
+            assert data.get("job_id") == "job-abc"
 
     def test_delete_document_without_app(self, client):
         """Test deletion when app is not initialized."""
@@ -88,6 +92,7 @@ class TestDocumentDeletionAPI:
 
     def test_delete_document_logs_audit(self, client, mock_cubo_app):
         """Test that deletion is logged for GDPR audit."""
+        mock_cubo_app.vector_store.enqueue_deletion.return_value = "job-xyz"
         mock_cubo_app.retriever.remove_document.return_value = True
 
         with patch("cubo.server.api.logger") as mock_logger:
@@ -103,6 +108,7 @@ class TestDocumentDeletionAPI:
 
     def test_delete_document_response_model(self, client, mock_cubo_app):
         """Test deletion response matches DeleteDocumentResponse model."""
+        mock_cubo_app.vector_store.enqueue_deletion.return_value = "job-456"
         mock_cubo_app.retriever.remove_document.return_value = True
 
         response = client.delete("/api/documents/model_test.pdf")
@@ -119,6 +125,8 @@ class TestDocumentDeletionAPI:
             assert "chunks_removed" in data
             assert "trace_id" in data
             assert "message" in data
+            assert "job_id" in data
+            assert "queued" in data
 
             # Verify types
             assert isinstance(data["doc_id"], str)
@@ -126,3 +134,5 @@ class TestDocumentDeletionAPI:
             assert isinstance(data["chunks_removed"], int)
             assert isinstance(data["trace_id"], str)
             assert isinstance(data["message"], str)
+            assert isinstance(data["job_id"], str)
+            assert isinstance(data["queued"], bool)

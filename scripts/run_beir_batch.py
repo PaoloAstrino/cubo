@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""
+Run BEIR benchmarks on multiple datasets and generate summary report.
+
+Usage:
+    python scripts/run_beir_batch.py --datasets scifact fiqa arguana
+    python scripts/run_beir_batch.py --all-small  # Run on small datasets only
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# Add project root to path
+sys.path.append(str(Path(__file__).parent.parent))
+
+# Dataset metadata
+DATASET_INFO = {
+    "nfcorpus": {"size": "small", "domain": "medical", "docs": 3633, "queries": 323},
+    "scifact": {"size": "small", "domain": "scientific", "docs": 5183, "queries": 300},
+    "arguana": {"size": "small", "domain": "argument", "docs": 8674, "queries": 1406},
+    "fiqa": {"size": "medium", "domain": "financial", "docs": 57638, "queries": 648},
+    "trec-covid": {"size": "large", "domain": "biomedical", "docs": 171332, "queries": 50},
+    "webis-touche2020": {"size": "large", "domain": "argument", "docs": 382545, "queries": 49},
+    "scidocs": {"size": "medium", "domain": "scientific", "docs": 25657, "queries": 1000},
+    "fever": {"size": "large", "domain": "fact-checking", "docs": 5416568, "queries": 6666},
+    "climate-fever": {"size": "medium", "domain": "climate", "docs": 5416593, "queries": 1535},
+    "dbpedia-entity": {"size": "large", "domain": "entity", "docs": 4635922, "queries": 400},
+    "nq": {"size": "xlarge", "domain": "qa", "docs": 2681468, "queries": 3452},
+    "hotpotqa": {"size": "xlarge", "domain": "qa", "docs": 5233329, "queries": 7405},
+    "quora": {"size": "medium", "domain": "duplicate-detection", "docs": 522931, "queries": 10000},
+}
+
+
+def run_benchmark(dataset_name: str, laptop_mode: bool = True) -> dict:
+    """Run benchmark on a single dataset."""
+    print(f"\n{'='*60}")
+    print(f"Running benchmark on: {dataset_name}")
+    print(f"{'='*60}")
+    
+    dataset_dir = Path(f"data/beir/{dataset_name}")
+    if not dataset_dir.exists():
+        print(f"Dataset not found: {dataset_dir}")
+        return None
+    
+    corpus_path = dataset_dir / "corpus.jsonl"
+    queries_path = dataset_dir / "queries.jsonl"
+    qrels_path = dataset_dir / "qrels" / "test.tsv"
+    
+    if not corpus_path.exists() or not queries_path.exists():
+        print(f"Missing required files in {dataset_dir}")
+        return None
+    
+    # Run BEIR adapter
+    output_file = f"results/beir_run_{dataset_name}.json"
+    index_dir = f"results/beir_index_{dataset_name}"
+    
+    cmd = [
+        "python",
+        "scripts/run_beir_adapter.py",
+        "--corpus", str(corpus_path),
+        "--queries", str(queries_path),
+        "--reindex",
+        "--output", output_file,
+        "--index-dir", index_dir,
+        "--use-optimized",
+    ]
+    
+    if laptop_mode:
+        cmd.append("--laptop-mode")
+    
+    print(f"Command: {' '.join(cmd)}")
+    
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print("✓ Benchmark completed")
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Benchmark failed: {e}")
+        print(f"STDERR: {e.stderr}")
+        return None
+    
+    # Calculate metrics
+    if not qrels_path.exists():
+        print(f"Warning: No qrels found at {qrels_path}, skipping metrics")
+        return {"dataset": dataset_name, "status": "no_qrels"}
+    
+    print("Calculating metrics...")
+    try:
+        # Import and run metrics calculation
+        from scripts.calculate_beir_metrics import calculate_metrics
+        
+        # Capture metrics
+        import io
+        from contextlib import redirect_stdout
+        
+        f = io.StringIO()
+        with redirect_stdout(f):
+            calculate_metrics(output_file, str(qrels_path), k=10)
+        
+        output = f.getvalue()
+        
+        # Parse metrics from output
+        metrics = {"dataset": dataset_name, "status": "success"}
+        for line in output.split("\n"):
+            if "Queries Evaluated:" in line:
+                metrics["queries_evaluated"] = int(line.split(":")[-1].strip())
+            elif "Avg Recall@10:" in line:
+                metrics["recall_at_10"] = float(line.split(":")[-1].strip())
+            elif "Mean Reciprocal Rank:" in line:
+                metrics["mrr"] = float(line.split(":")[-1].strip())
+        
+        return metrics
+    except Exception as e:
+        print(f"✗ Metrics calculation failed: {e}")
+        return {"dataset": dataset_name, "status": "metrics_failed", "error": str(e)}
+
+
+def generate_summary_markdown(results: list, output_path: Path):
+    """Generate markdown summary of all results."""
+    md = ["# BEIR Multi-Dataset Benchmark Results\n"]
+    md.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    md.append(f"**Model**: `embeddinggemma-300m`\n")
+    md.append(f"**Configuration**: Laptop Mode (optimized batch retrieval, no reranking)\n")
+    
+    md.append("\n## Results Summary\n")
+    md.append("| Dataset | Domain | Size | Queries | Recall@10 | MRR | Status |")
+    md.append("|---------|--------|------|---------|-----------|-----|--------|")
+    
+    for result in results:
+        dataset = result.get("dataset", "unknown")
+        info = DATASET_INFO.get(dataset, {})
+        domain = info.get("domain", "unknown")
+        size = info.get("size", "unknown")
+        queries = result.get("queries_evaluated", "N/A")
+        recall = f"{result.get('recall_at_10', 0):.4f}" if "recall_at_10" in result else "N/A"
+        mrr = f"{result.get('mrr', 0):.4f}" if "mrr" in result else "N/A"
+        status = result.get("status", "unknown")
+        
+        md.append(f"| {dataset} | {domain} | {size} | {queries} | {recall} | {mrr} | {status} |")
+    
+    md.append("\n## Analysis\n")
+    
+    # Group by domain
+    by_domain = {}
+    for result in results:
+        if "recall_at_10" in result:
+            dataset = result["dataset"]
+            domain = DATASET_INFO.get(dataset, {}).get("domain", "unknown")
+            if domain not in by_domain:
+                by_domain[domain] = []
+            by_domain[domain].append(result)
+    
+    md.append("### Performance by Domain\n")
+    for domain, domain_results in sorted(by_domain.items()):
+        avg_recall = sum(r["recall_at_10"] for r in domain_results) / len(domain_results)
+        avg_mrr = sum(r["mrr"] for r in domain_results) / len(domain_results)
+        md.append(f"- **{domain.capitalize()}**: Avg Recall@10 = {avg_recall:.4f}, Avg MRR = {avg_mrr:.4f}")
+    
+    md.append("\n### Observations\n")
+    md.append("- Add your observations here based on the results\n")
+    
+    # Write to file
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md))
+    
+    print(f"\n✓ Summary written to: {output_path}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run BEIR benchmarks on multiple datasets")
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        help="List of dataset names to benchmark",
+    )
+    parser.add_argument(
+        "--all-small",
+        action="store_true",
+        help="Run on all small datasets",
+    )
+    parser.add_argument(
+        "--all-medium",
+        action="store_true",
+        help="Run on all small and medium datasets",
+    )
+    parser.add_argument(
+        "--no-laptop-mode",
+        action="store_true",
+        help="Disable laptop mode",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="results/beir_multi_dataset_summary.md",
+        help="Output markdown file",
+    )
+    
+    args = parser.parse_args()
+    
+    datasets_to_run = []
+    
+    if args.all_small:
+        datasets_to_run = [name for name, info in DATASET_INFO.items() if info["size"] == "small"]
+    elif args.all_medium:
+        datasets_to_run = [
+            name for name, info in DATASET_INFO.items() 
+            if info["size"] in ["small", "medium"]
+        ]
+    elif args.datasets:
+        datasets_to_run = args.datasets
+    else:
+        parser.print_help()
+        return
+    
+    print(f"Running benchmarks on {len(datasets_to_run)} datasets: {datasets_to_run}")
+    
+    results = []
+    for dataset_name in datasets_to_run:
+        result = run_benchmark(dataset_name, laptop_mode=not args.no_laptop_mode)
+        if result:
+            results.append(result)
+            # Save intermediate results
+            with open("results/beir_batch_results.json", "w") as f:
+                json.dump(results, f, indent=2)
+    
+    # Generate summary
+    generate_summary_markdown(results, Path(args.output))
+    
+    print(f"\n{'='*60}")
+    print(f"Completed {len(results)}/{len(datasets_to_run)} benchmarks")
+    print(f"{'='*60}")
+
+
+if __name__ == "__main__":
+    main()

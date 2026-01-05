@@ -11,6 +11,8 @@ from typing import Any, Dict, List
 from PIL import Image
 
 from cubo.embeddings.model_loader import ModelManager
+from cubo.config import config
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 try:
     from cubo.models.dolphin_processor import DolphinProcessor
@@ -150,8 +152,14 @@ class EnhancedDocumentProcessor:
         # Generate embeddings for each chunk
         chunks = []
         for i, chunk_text in enumerate(text_chunks):
-            # Get embedding
-            embedding = self.embedding_model.encode(chunk_text, convert_to_numpy=True)
+            # Get embedding; apply document prompt if model defines it
+            try:
+                dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+                text_to_encode = dprefix + chunk_text if dprefix else chunk_text
+            except Exception:
+                text_to_encode = chunk_text
+
+            embedding = self.embedding_model.encode(text_to_encode, convert_to_numpy=True)
 
             chunk = {
                 "id": f"{Path(source_path).stem}_chunk_{i}",

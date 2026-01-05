@@ -222,16 +222,23 @@ class CuboBeirAdapter:
         """Helper to embed and add batch to FAISS and DB."""
         # Use direct model.encode() for bulk indexing to avoid threading timeout issues
         # Use smaller internal batch size to avoid GPU OOM
+        # Apply document prompt prefix if defined by model
+        try:
+            prefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+            texts_to_encode = [prefix + t for t in texts] if prefix else texts
+        except Exception:
+            texts_to_encode = texts
+
         try:
             embeddings = self.embedding_generator.model.encode(
-                texts,
+                texts_to_encode,
                 batch_size=8,  # Small batch to avoid GPU OOM
                 show_progress_bar=False,
                 convert_to_numpy=True,
             )
         except TypeError:
             # Fallback for models that don't support all parameters
-            embeddings = self.embedding_generator.model.encode(texts, batch_size=8)
+            embeddings = self.embedding_generator.model.encode(texts_to_encode, batch_size=8)
 
         # Convert to numpy if needed
         if hasattr(embeddings, "cpu"):
@@ -316,8 +323,15 @@ class CuboBeirAdapter:
         for i in range(0, len(query_texts), batch_size):
             batch = query_texts[i : i + batch_size]
             try:
+                # Apply query prompt if defined
+                try:
+                    qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "query")
+                    batch_to_encode = [qprefix + q for q in batch] if qprefix else batch
+                except Exception:
+                    batch_to_encode = batch
+
                 batch_embs = self.embedding_generator.model.encode(
-                    batch,
+                    batch_to_encode,
                     batch_size=batch_size,
                     show_progress_bar=False,
                     convert_to_numpy=True,

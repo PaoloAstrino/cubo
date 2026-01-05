@@ -534,6 +534,8 @@ class DeleteDocumentResponse(BaseModel):
     chunks_removed: int
     trace_id: str
     message: str
+    job_id: Optional[str] = None
+    queued: bool = False
 
 
 class UploadResponse(BaseModel):
@@ -1528,24 +1530,39 @@ async def delete_document(doc_id: str, request: Request):
 
     chunks_removed = 0
     deleted = False
+    job_id = None
 
-    # Try to delete from vector store
+    force = bool(request.query_params.get("force", "false").lower() in ("1", "true", "yes"))
+
+    # Enqueue deletion job in vector store (preferred)
     if hasattr(cubo_app, "vector_store") and cubo_app.vector_store:
         try:
-            # Try delete by document ID/filename
-            cubo_app.vector_store.delete(ids=[doc_id])
-            deleted = True
-            chunks_removed += 1
+            # Use enqueue_deletion which removes DB rows and schedules compaction
+            if hasattr(cubo_app.vector_store, "enqueue_deletion"):
+                job_id = cubo_app.vector_store.enqueue_deletion(
+                    doc_id, trace_id=request.state.trace_id, force=force
+                )
+                deleted = True
+                chunks_removed += 1
+            else:
+                # Fallback to immediate delete (legacy behavior)
+                cubo_app.vector_store.delete(ids=[doc_id])
+                deleted = True
+                chunks_removed += 1
         except Exception as e:
-            logger.warning(f"Vector store delete failed: {e}")
+            logger.warning(f"Vector store delete/enqueue failed: {e}")
 
-    # Try to delete from retriever's document store
+    # Optionally notify retriever memory caches to remove doc quickly
     if hasattr(cubo_app, "retriever") and cubo_app.retriever:
         try:
             if hasattr(cubo_app.retriever, "remove_document"):
-                result = cubo_app.retriever.remove_document(doc_id)
-                if result:
-                    deleted = True
+                try:
+                    result = cubo_app.retriever.remove_document(doc_id)
+                    if result:
+                        deleted = True
+                except Exception:
+                    # Best-effort: ignore retriever removal errors
+                    pass
         except Exception as e:
             logger.warning(f"Retriever remove_document failed: {e}")
 
@@ -1576,8 +1593,25 @@ async def delete_document(doc_id: str, request: Request):
         deleted=deleted,
         chunks_removed=chunks_removed,
         trace_id=request.state.trace_id,
-        message=f"Document {doc_id} deleted successfully",
+        message=(f"Document {doc_id} deletion enqueued (job: {job_id})" if job_id else f"Document {doc_id} deleted"),
+        job_id=job_id,
+        queued=bool(job_id),
     )
+
+
+@app.get("/api/delete-status/{job_id}")
+async def get_delete_status(job_id: str):
+    """Get status for a deletion job."""
+    if not cubo_app or not hasattr(cubo_app, "vector_store"):
+        raise HTTPException(status_code=503, detail="CUBO app not initialized")
+
+    if not hasattr(cubo_app.vector_store, "get_deletion_status"):
+        raise HTTPException(status_code=404, detail="Deletion jobs not supported by current store")
+
+    status = cubo_app.vector_store.get_deletion_status(job_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return status
 
 
 @app.get("/api/export-audit")

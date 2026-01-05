@@ -423,6 +423,21 @@ class FaissStore(VectorStore):
                     )
                 """
                 )
+
+                # Jobs enqueued for background deletions/compaction
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS deletion_jobs (
+                        id TEXT PRIMARY KEY,
+                        doc_id TEXT NOT NULL,
+                        enqueued_at TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        priority INTEGER DEFAULT 0,
+                        trace_id TEXT,
+                        force INTEGER DEFAULT 0
+                    )
+                """
+                )
                 conn.commit()
 
     def _serialize_vector(self, vector: Any) -> tuple[bytes, str, int]:
@@ -585,39 +600,82 @@ class FaissStore(VectorStore):
         return row[0] if row else 0
 
     def _rebuild_index_from_db(self) -> None:
-        """Rebuild FAISS index by iterating over all vectors in DB."""
-        # This is a heavy operation, should be done carefully
-        # For now, we load all to rebuild, but we could do it in batches if FAISS supports it
-        # Standard FAISS build needs all vectors.
-        # If dataset is huge, we might need a different approach (e.g. on-disk index training)
-        # But for now, we just fetch all from DB instead of keeping in RAM always.
-
+        """Rebuild FAISS index using streaming to prevent OOM."""
         total = self.count_vectors()
         if total == 0:
             return
 
-        # Fetch all IDs
+        # Phase 1: Training (if needed, use sample of up to 50k)
+        logger.info("Starting streaming FAISS rebuild...")
+        
+        sample_size = 50000
+        training_vectors = []
+        
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+             cursor = conn.execute(f"SELECT id FROM vectors LIMIT {sample_size}")
+             sample_ids = [r[0] for r in cursor]
+        
+        if sample_ids:
+            logger.info(f"Fetching training sample ({len(sample_ids)} vectors)...")
+            batch_vecs = self.get_vectors(sample_ids)
+            for did in sample_ids:
+                if did in batch_vecs:
+                    training_vectors.append(batch_vecs[did])
+            
+            # Reset and Train
+            self._index.reset()
+            self._index.train(training_vectors)
+        
+        # Phase 2: Streaming Add
+        hot_capacity = int(total * self._index.hot_fraction)
+        batch_size = 5000
+        
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             rows = conn.execute("SELECT id FROM vectors").fetchall()
-
-        all_ids = [r[0] for r in rows]
-
-        # Fetch vectors in batches to avoid one massive query,
-        # but we still need them all in RAM for index.train/add
-        vectors = []
-        batch_size = 1000
-
+            all_ids = [r[0] for r in rows]
+            
+        logger.info(f"Adding {len(all_ids)} vectors in batches of {batch_size}...")
+        
         for i in range(0, len(all_ids), batch_size):
             batch_ids = all_ids[i : i + batch_size]
-            batch_vecs = self.get_vectors(batch_ids)
-            # Ensure order matches
+            batch_vecs_map = self.get_vectors(batch_ids)
+            
+            # Reconstruct batch lists in order
+            batch_vectors_list = []
+            batch_ids_list = []
+            
             for did in batch_ids:
-                if did in batch_vecs:
-                    vectors.append(batch_vecs[did])
+                if did in batch_vecs_map:
+                    batch_vectors_list.append(batch_vecs_map[did])
+                    batch_ids_list.append(did)
+                    
+            if not batch_vectors_list:
+                continue
+            
+            # Determine destination based on index position
+            current_start = i
+            remaining_hot = max(0, hot_capacity - current_start)
+            
+            if remaining_hot >= len(batch_vectors_list):
+                # All hot
+                self._index.add_batch(batch_vectors_list, batch_ids_list, destination="hot")
+            elif remaining_hot <= 0:
+                # All cold
+                self._index.add_batch(batch_vectors_list, batch_ids_list, destination="cold")
+            else:
+                # Split
+                hot_v = batch_vectors_list[:remaining_hot]
+                hot_i = batch_ids_list[:remaining_hot]
+                cold_v = batch_vectors_list[remaining_hot:]
+                cold_i = batch_ids_list[remaining_hot:]
+                self._index.add_batch(hot_v, hot_i, destination="hot")
+                self._index.add_batch(cold_v, cold_i, destination="cold")
+                
+            if i % (batch_size * 5) == 0:
+                 logger.info(f"Processed {i}/{total} vectors...")
 
-        if vectors:
-            self._index.build_indexes(vectors, all_ids, append=False)
-            self._index.save()
+        self._index.save()
+        logger.info("FAISS index rebuild complete.")
 
     def _load_embeddings_from_disk(self) -> None:
         """Deprecated: Use _migrate_embeddings_if_needed instead."""
@@ -1402,6 +1460,128 @@ class FaissStore(VectorStore):
                 self.reset()
         else:
             self.reset()
+
+    def enqueue_deletion(self, doc_id: str, trace_id: Optional[str] = None, force: bool = False) -> str:
+        """Enqueue a deletion job for background compaction.
+
+        This method deletes the document and vector rows from SQLite immediately
+        (logical/DB deletion) and enqueues a compaction job to rebuild FAISS
+        index in the background. Returns a job id to track progress.
+        """
+        import uuid
+        from datetime import datetime
+
+        job_id = uuid.uuid4().hex[:8]
+        enqueued_at = datetime.utcnow().isoformat()
+        status = "pending"
+        priority = 1 if force else 0
+
+        with self._write_lock:
+            # Validate id
+            self._validate_ids([doc_id])
+            # delete from documents/vectors immediately so DB reflects removal
+            with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                cur = conn.cursor()
+                try:
+                    cur.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+                    cur.execute("DELETE FROM vectors WHERE id = ?", (doc_id,))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+
+                # Insert job record
+                cur.execute(
+                    "INSERT OR REPLACE INTO deletion_jobs (id, doc_id, enqueued_at, status, priority, trace_id, force) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (job_id, doc_id, enqueued_at, status, priority, trace_id, 1 if force else 0),
+                )
+                conn.commit()
+
+        # Clean caches
+        self._doc_cache.remove(doc_id)
+        self._access_counts.pop(doc_id, None)
+        try:
+            # Overwrite any cached vector reference
+            self._vector_cache.put(doc_id, None)
+        except Exception:
+            pass
+
+        # Schedule background compaction via promotion executor
+        try:
+            executor = _get_promotion_executor()
+            executor.submit(self._run_compaction_once)
+        except Exception:
+            # If scheduling fails, leave job pending for manual/cron compaction
+            pass
+
+        return job_id
+
+    def get_deletion_status(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Return status for a deletion job."""
+        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+            row = conn.execute(
+                "SELECT id, doc_id, enqueued_at, status, priority, trace_id, force FROM deletion_jobs WHERE id = ?",
+                (job_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "doc_id": row[1],
+            "enqueued_at": row[2],
+            "status": row[3],
+            "priority": row[4],
+            "trace_id": row[5],
+            "force": bool(row[6]),
+        }
+
+    def _run_compaction_once(self) -> None:
+        """Run a single compaction pass: pick pending jobs, rebuild index, mark jobs done."""
+        from datetime import datetime
+
+        with self._write_lock:
+            try:
+                with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                    cur = conn.cursor()
+                    # Pick pending jobs ordered by priority then time
+                    rows = cur.execute(
+                        "SELECT id, doc_id FROM deletion_jobs WHERE status = 'pending' ORDER BY priority DESC, enqueued_at ASC LIMIT 100"
+                    ).fetchall()
+                    job_ids = [r[0] for r in rows]
+                    if not job_ids:
+                        return
+                    # Mark in-progress
+                    cur.executemany(
+                        "UPDATE deletion_jobs SET status = 'in_progress' WHERE id = ?",
+                        ((jid,) for jid in job_ids),
+                    )
+                    conn.commit()
+
+                # Perform rebuild from DB (which no longer contains deleted vectors)
+                try:
+                    self._rebuild_index_from_db()
+                    success = True
+                except Exception:
+                    # Attempt to reset index to safe state
+                    try:
+                        self.reset()
+                    except Exception:
+                        pass
+                    success = False
+
+                # Update job statuses
+                finished_at = datetime.utcnow().isoformat()
+                status_val = 'completed' if success else 'failed'
+                with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                    cur = conn.cursor()
+                    cur.executemany(
+                        "UPDATE deletion_jobs SET status = ?, enqueued_at = ? WHERE id = ?",
+                        ((status_val, finished_at, jid) for jid in job_ids),
+                    )
+                    conn.commit()
+            except Exception:
+                # Avoid allowing exceptions to bubble to threadpool
+                pass
 
     def close(self, persist: bool = False) -> None:
         """Shutdown resources used by this FaissStore instance.

@@ -225,7 +225,8 @@ def main():
         raise ValueError("Text and id columns must have the same length")
 
     generator = EmbeddingGenerator(batch_size=args.batch_size)
-    embeddings = generator.encode(texts, batch_size=args.batch_size)
+    # Use document prompt when embedding chunk text/summaries
+    embeddings = generator.encode(texts, batch_size=args.batch_size, prompt_name="document")
     dimension = len(embeddings[0]) if embeddings else 0
     if dimension == 0:
         raise ValueError("Unable to determine embedding dimension")

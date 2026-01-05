@@ -14,8 +14,7 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - **🌐 Web API & Frontend**: FastAPI backend with Next.js frontend for web-based document management
 - **🔍 Request Tracing**: Trace ID propagation across all API requests for debugging and monitoring
 - **🔒 Query Scrubbing**: Automatic query sanitization in logs for privacy protection
-- **🇪🇺 GDPR Compliance**: Document deletion, audit log export, and citation tracking for EU compliance
-- **🧪 E2E Testing**: Automated end-to-end smoke tests with CI/CD integration
+- **🇪🇺 GDPR Compliance**: Document deletion, audit log export, and citation tracking for EU compliance- 🧹 Background Compaction for Deletion: `DELETE /api/documents` now enqueues a background compaction job to physically purge vectors from FAISS; use `?force=true` to request priority compaction (admin).- **🧪 E2E Testing**: Automated end-to-end smoke tests with CI/CD integration
 - **📊 Structured Logging**: JSON-formatted logs with trace ID indexing for easy searching
 - **🚀 Full Stack**: Complete integration from upload → ingest → index → query
 
@@ -198,6 +197,37 @@ CI note: The repository's CI runs a Linux job that installs `faiss-cpu` and runs
 - **Security Features**: Path sanitization, file size limits, and rate limiting
 - **Comprehensive Logging**: Detailed logging with configurable levels
 - **Interactive & CLI Modes**: Both interactive conversation and command-line interfaces
+
+## System Architecture
+
+The following diagram illustrates the high-level architecture of CUBO's ingestion and query pipelines, highlighting the hybrid retrieval and hot/cold storage mechanisms.
+
+```mermaid
+graph TD
+    subgraph Ingestion Pipeline
+        A[Raw Files] -->|Fast Pass| B[BM25 Index]
+        A -->|Deep Pass| C[LLM Processing]
+        C -->|Summaries + Keywords| D[Semantic Scaffold]
+        D -->|Embedding| E[Dense Embeddings]
+        E -->|Graph Dedup| F[Deduplication]
+        F -->|Hot/Cold Split| G[Vector Store]
+        G --> H{Storage}
+        H -->|RAM| I[Hot Index HNSW]
+        H -->|Disk| J[Cold Index IVF+PQ]
+    end
+
+    subgraph Query Pipeline
+        K[User Query] -->|Router| L[Semantic Router]
+        L -->|Strategy| M[Hybrid Retrieval]
+        M -->|Sparse| B
+        M -->|Dense| I
+        M -->|Dense| J
+        M -->|Results| N[Reranker]
+        N -->|Top K| O[Context Assembler]
+        O -->|Prompt| P[LLM Generation]
+        P -->|Stream| Q[Frontend]
+    end
+```
 
 ### Deep Ingestor
 

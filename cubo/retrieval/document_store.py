@@ -318,6 +318,13 @@ class DocumentStore:
         try:
             logger.info(f"Generating embeddings for {filename} ({len(texts)} chunks)")
 
+            # Apply "document" prompt prefix if model requires it (e.g. embeddinggemma)
+            from cubo.embeddings.embedding_generator import EmbeddingGenerator
+            prompt_prefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+            if prompt_prefix:
+                texts = [prompt_prefix + t for t in texts]
+                logger.debug(f"Applied document prompt prefix: '{prompt_prefix}'")
+
             # In laptop mode, use a lightweight deterministic embedding to minimize RAM/CPU.
             if config.get("laptop_mode", False):
                 dim = 64

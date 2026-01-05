@@ -249,7 +249,8 @@ class ScaffoldGenerator:
             return []
         summaries = [scaffold["summary"] for scaffold in scaffolds_data]
         logger.info(f"Generating embeddings for {len(summaries)} scaffolds")
-        embeddings = self.embedding_generator.encode(summaries)
+        # Apply "document" prompt prefix for instruction-tuned models
+        embeddings = self.embedding_generator.encode(summaries, prompt_name="document")
         return embeddings
 
 

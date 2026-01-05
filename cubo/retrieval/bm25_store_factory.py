@@ -24,6 +24,10 @@ def get_bm25_store(backend: Optional[str] = None, **kwargs):
         from cubo.retrieval.bm25_python_store import BM25PythonStore
 
         return BM25PythonStore(**kwargs)
+    elif backend == "sqlite":
+        from cubo.retrieval.bm25_sqlite_store import BM25SqliteStore
+
+        return BM25SqliteStore(**kwargs)
     # If an unknown backend was requested, fallback to Python implementation
     try:
         from cubo.retrieval.bm25_python_store import BM25PythonStore
