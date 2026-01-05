@@ -2,6 +2,7 @@ import pytest
 
 pytest.importorskip("fastapi")
 from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 
 

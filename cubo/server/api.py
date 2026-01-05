@@ -105,7 +105,8 @@ class _DocumentsCache:
     def _compute_docs_etag(items: List[Tuple[str, int, int]]) -> str:
         # Weak ETag: stable across equivalent directory states.
         # items is a sorted list of (name, mtime_ns, size)
-        h = hashlib.sha1()
+        # Use SHA-256 for ETag hashing (SHA-1 is considered weak for security-sensitive uses)
+        h = hashlib.sha256()
         for name, mtime_ns, size in items:
             h.update(name.encode("utf-8", errors="ignore"))
             h.update(b"\0")
@@ -188,7 +189,8 @@ class _CollectionsCache:
 
     @staticmethod
     def _compute_etag(collections: List[Dict[str, Any]]) -> str:
-        h = hashlib.sha1(json.dumps(collections, sort_keys=True).encode("utf-8"))
+        # Use SHA-256 for collection ETags to avoid weak hash usage
+        h = hashlib.sha256(json.dumps(collections, sort_keys=True).encode("utf-8"))
         return f'W/"{h.hexdigest()}"'
 
     async def get(self, vector_store: Any) -> Tuple[List["CollectionResponse"], str]:
@@ -1593,7 +1595,11 @@ async def delete_document(doc_id: str, request: Request):
         deleted=deleted,
         chunks_removed=chunks_removed,
         trace_id=request.state.trace_id,
-        message=(f"Document {doc_id} deletion enqueued (job: {job_id})" if job_id else f"Document {doc_id} deleted"),
+        message=(
+            f"Document {doc_id} deletion enqueued (job: {job_id})"
+            if job_id
+            else f"Document {doc_id} deleted"
+        ),
         job_id=job_id,
         queued=bool(job_id),
     )

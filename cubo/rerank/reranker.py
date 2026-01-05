@@ -456,7 +456,9 @@ class LocalReranker:
 
         # Apply query prompt prefix if model defines one
         try:
-            qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "query")
+            qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                config.get("model_path"), "query"
+            )
             q_to_encode = qprefix + query if qprefix else query
         except Exception:
             q_to_encode = query
@@ -493,7 +495,9 @@ class LocalReranker:
             if doc_emb is None:
                 # Apply document prompt prefix if available
                 try:
-                    dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+                    dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                        config.get("model_path"), "document"
+                    )
                     doc_to_encode = dprefix + doc_content if dprefix else doc_content
                 except Exception:
                     doc_to_encode = doc_content

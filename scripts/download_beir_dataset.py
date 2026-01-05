@@ -39,9 +39,9 @@ def download_file(url: str, dest_path: Path) -> bool:
     try:
         response = requests.get(url, stream=True, timeout=30)
         response.raise_for_status()
-        
+
         total_size = int(response.headers.get("content-length", 0))
-        
+
         with open(dest_path, "wb") as f, tqdm(
             desc=dest_path.name,
             total=total_size,
@@ -53,7 +53,7 @@ def download_file(url: str, dest_path: Path) -> bool:
                 if chunk:
                     f.write(chunk)
                     pbar.update(len(chunk))
-        
+
         print(f"✓ Downloaded: {dest_path}")
         return True
     except Exception as e:
@@ -80,27 +80,27 @@ def download_dataset(dataset_name: str, output_dir: Path = Path("data/beir")) ->
         print(f"Unknown dataset: {dataset_name}")
         print(f"Available datasets: {', '.join(BEIR_DATASETS.keys())}")
         return False
-    
+
     url = BEIR_DATASETS[dataset_name]
     dataset_dir = output_dir / dataset_name
-    
+
     # Check if already exists
     if dataset_dir.exists() and (dataset_dir / "corpus.jsonl").exists():
         print(f"Dataset '{dataset_name}' already exists at {dataset_dir}")
         return True
-    
+
     output_dir.mkdir(parents=True, exist_ok=True)
     zip_path = output_dir / f"{dataset_name}.zip"
-    
+
     # Download
     print(f"Downloading {dataset_name}...")
     if not download_file(url, zip_path):
         return False
-    
+
     # Extract
     if not extract_zip(zip_path, output_dir):
         return False
-    
+
     # Clean up zip
     zip_path.unlink()
     print(f"✓ Dataset '{dataset_name}' ready at {dataset_dir}")
@@ -130,17 +130,17 @@ def main():
         default="data/beir",
         help="Output directory for datasets",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.list:
         print("Available BEIR datasets:")
         for name in sorted(BEIR_DATASETS.keys()):
             print(f"  - {name}")
         return
-    
+
     output_dir = Path(args.output_dir)
-    
+
     if args.all:
         print(f"Downloading all {len(BEIR_DATASETS)} BEIR datasets...")
         success_count = 0

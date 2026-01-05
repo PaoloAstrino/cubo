@@ -1,4 +1,5 @@
 import os
+
 from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 

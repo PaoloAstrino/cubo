@@ -40,40 +40,44 @@ def run_benchmark(dataset_name: str, laptop_mode: bool = True) -> dict:
     print(f"\n{'='*60}")
     print(f"Running benchmark on: {dataset_name}")
     print(f"{'='*60}")
-    
+
     dataset_dir = Path(f"data/beir/{dataset_name}")
     if not dataset_dir.exists():
         print(f"Dataset not found: {dataset_dir}")
         return None
-    
+
     corpus_path = dataset_dir / "corpus.jsonl"
     queries_path = dataset_dir / "queries.jsonl"
     qrels_path = dataset_dir / "qrels" / "test.tsv"
-    
+
     if not corpus_path.exists() or not queries_path.exists():
         print(f"Missing required files in {dataset_dir}")
         return None
-    
+
     # Run BEIR adapter
     output_file = f"results/beir_run_{dataset_name}.json"
     index_dir = f"results/beir_index_{dataset_name}"
-    
+
     cmd = [
         "python",
         "scripts/run_beir_adapter.py",
-        "--corpus", str(corpus_path),
-        "--queries", str(queries_path),
+        "--corpus",
+        str(corpus_path),
+        "--queries",
+        str(queries_path),
         "--reindex",
-        "--output", output_file,
-        "--index-dir", index_dir,
+        "--output",
+        output_file,
+        "--index-dir",
+        index_dir,
         "--use-optimized",
     ]
-    
+
     if laptop_mode:
         cmd.append("--laptop-mode")
-    
+
     print(f"Command: {' '.join(cmd)}")
-    
+
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         print("✓ Benchmark completed")
@@ -81,27 +85,27 @@ def run_benchmark(dataset_name: str, laptop_mode: bool = True) -> dict:
         print(f"✗ Benchmark failed: {e}")
         print(f"STDERR: {e.stderr}")
         return None
-    
+
     # Calculate metrics
     if not qrels_path.exists():
         print(f"Warning: No qrels found at {qrels_path}, skipping metrics")
         return {"dataset": dataset_name, "status": "no_qrels"}
-    
+
     print("Calculating metrics...")
     try:
         # Import and run metrics calculation
-        from scripts.calculate_beir_metrics import calculate_metrics
-        
         # Capture metrics
         import io
         from contextlib import redirect_stdout
-        
+
+        from scripts.calculate_beir_metrics import calculate_metrics
+
         f = io.StringIO()
         with redirect_stdout(f):
             calculate_metrics(output_file, str(qrels_path), k=10)
-        
+
         output = f.getvalue()
-        
+
         # Parse metrics from output
         metrics = {"dataset": dataset_name, "status": "success"}
         for line in output.split("\n"):
@@ -111,7 +115,7 @@ def run_benchmark(dataset_name: str, laptop_mode: bool = True) -> dict:
                 metrics["recall_at_10"] = float(line.split(":")[-1].strip())
             elif "Mean Reciprocal Rank:" in line:
                 metrics["mrr"] = float(line.split(":")[-1].strip())
-        
+
         return metrics
     except Exception as e:
         print(f"✗ Metrics calculation failed: {e}")
@@ -124,11 +128,11 @@ def generate_summary_markdown(results: list, output_path: Path):
     md.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
     md.append(f"**Model**: `embeddinggemma-300m`\n")
     md.append(f"**Configuration**: Laptop Mode (optimized batch retrieval, no reranking)\n")
-    
+
     md.append("\n## Results Summary\n")
     md.append("| Dataset | Domain | Size | Queries | Recall@10 | MRR | Status |")
     md.append("|---------|--------|------|---------|-----------|-----|--------|")
-    
+
     for result in results:
         dataset = result.get("dataset", "unknown")
         info = DATASET_INFO.get(dataset, {})
@@ -138,11 +142,11 @@ def generate_summary_markdown(results: list, output_path: Path):
         recall = f"{result.get('recall_at_10', 0):.4f}" if "recall_at_10" in result else "N/A"
         mrr = f"{result.get('mrr', 0):.4f}" if "mrr" in result else "N/A"
         status = result.get("status", "unknown")
-        
+
         md.append(f"| {dataset} | {domain} | {size} | {queries} | {recall} | {mrr} | {status} |")
-    
+
     md.append("\n## Analysis\n")
-    
+
     # Group by domain
     by_domain = {}
     for result in results:
@@ -152,21 +156,23 @@ def generate_summary_markdown(results: list, output_path: Path):
             if domain not in by_domain:
                 by_domain[domain] = []
             by_domain[domain].append(result)
-    
+
     md.append("### Performance by Domain\n")
     for domain, domain_results in sorted(by_domain.items()):
         avg_recall = sum(r["recall_at_10"] for r in domain_results) / len(domain_results)
         avg_mrr = sum(r["mrr"] for r in domain_results) / len(domain_results)
-        md.append(f"- **{domain.capitalize()}**: Avg Recall@10 = {avg_recall:.4f}, Avg MRR = {avg_mrr:.4f}")
-    
+        md.append(
+            f"- **{domain.capitalize()}**: Avg Recall@10 = {avg_recall:.4f}, Avg MRR = {avg_mrr:.4f}"
+        )
+
     md.append("\n### Observations\n")
     md.append("- Add your observations here based on the results\n")
-    
+
     # Write to file
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(md))
-    
+
     print(f"\n✓ Summary written to: {output_path}")
 
 
@@ -198,26 +204,25 @@ def main():
         default="results/beir_multi_dataset_summary.md",
         help="Output markdown file",
     )
-    
+
     args = parser.parse_args()
-    
+
     datasets_to_run = []
-    
+
     if args.all_small:
         datasets_to_run = [name for name, info in DATASET_INFO.items() if info["size"] == "small"]
     elif args.all_medium:
         datasets_to_run = [
-            name for name, info in DATASET_INFO.items() 
-            if info["size"] in ["small", "medium"]
+            name for name, info in DATASET_INFO.items() if info["size"] in ["small", "medium"]
         ]
     elif args.datasets:
         datasets_to_run = args.datasets
     else:
         parser.print_help()
         return
-    
+
     print(f"Running benchmarks on {len(datasets_to_run)} datasets: {datasets_to_run}")
-    
+
     results = []
     for dataset_name in datasets_to_run:
         result = run_benchmark(dataset_name, laptop_mode=not args.no_laptop_mode)
@@ -226,10 +231,10 @@ def main():
             # Save intermediate results
             with open("results/beir_batch_results.json", "w") as f:
                 json.dump(results, f, indent=2)
-    
+
     # Generate summary
     generate_summary_markdown(results, Path(args.output))
-    
+
     print(f"\n{'='*60}")
     print(f"Completed {len(results)}/{len(datasets_to_run)} benchmarks")
     print(f"{'='*60}")

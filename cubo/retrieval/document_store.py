@@ -320,7 +320,10 @@ class DocumentStore:
 
             # Apply "document" prompt prefix if model requires it (e.g. embeddinggemma)
             from cubo.embeddings.embedding_generator import EmbeddingGenerator
-            prompt_prefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+
+            prompt_prefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                config.get("model_path"), "document"
+            )
             if prompt_prefix:
                 texts = [prompt_prefix + t for t in texts]
                 logger.debug(f"Applied document prompt prefix: '{prompt_prefix}'")

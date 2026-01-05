@@ -1,6 +1,7 @@
-import numpy as np
 import tempfile
 from pathlib import Path
+
+import numpy as np
 
 from cubo.retrieval.vector_store import FaissStore
 from cubo.workers.deletion_compactor import run_compaction_once

@@ -224,7 +224,9 @@ class CuboBeirAdapter:
         # Use smaller internal batch size to avoid GPU OOM
         # Apply document prompt prefix if defined by model
         try:
-            prefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+            prefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                config.get("model_path"), "document"
+            )
             texts_to_encode = [prefix + t for t in texts] if prefix else texts
         except Exception:
             texts_to_encode = texts
@@ -325,7 +327,9 @@ class CuboBeirAdapter:
             try:
                 # Apply query prompt if defined
                 try:
-                    qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "query")
+                    qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                        config.get("model_path"), "query"
+                    )
                     batch_to_encode = [qprefix + q for q in batch] if qprefix else batch
                 except Exception:
                     batch_to_encode = batch

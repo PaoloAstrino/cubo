@@ -14,9 +14,9 @@ except Exception:  # pragma: no cover - optional dependency
     SentenceTransformer = None
 
 from cubo.config import config
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.retrieval.vector_store import create_vector_store
 from cubo.utils.logger import logger
-from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 
 class AutoMergingChunker:
@@ -446,8 +446,12 @@ class AutoMergingRetriever:
             # Generate embeddings for all chunks (apply document prompt if model defines it)
             chunk_texts = [chunk["text"] for chunk in chunks]
             try:
-                dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
-                chunk_texts_to_encode = [dprefix + t for t in chunk_texts] if dprefix else chunk_texts
+                dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                    config.get("model_path"), "document"
+                )
+                chunk_texts_to_encode = (
+                    [dprefix + t for t in chunk_texts] if dprefix else chunk_texts
+                )
             except Exception:
                 chunk_texts_to_encode = chunk_texts
 
@@ -523,7 +527,9 @@ class AutoMergingRetriever:
     def _generate_query_embedding(self, query: str) -> List[float]:
         """Generate embedding for the query."""
         try:
-            qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "query")
+            qprefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                config.get("model_path"), "query"
+            )
             q_to_encode = qprefix + query if qprefix else query
         except Exception:
             q_to_encode = query

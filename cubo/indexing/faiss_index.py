@@ -203,80 +203,88 @@ class FAISSIndexManager:
 
     def train(self, vectors: List[List[float]]) -> None:
         """Train the cold index (IVF+PQ) on a sample of vectors.
-        
+
         Does NOT add vectors to the index, just prepares the quantization.
         Hot index (HNSW) does not require training.
         """
         if not vectors:
             return
-            
+
         array = np.asarray(vectors, dtype="float32")
         if self.normalize:
             faiss.normalize_L2(array)
-            
+
         # Initialize hot index (no training needed, just setup)
         if self.hot_index is None:
             logger.info(f"Initializing hot index (HNSW M={self.hnsw_m})")
             self.hot_index = faiss.IndexHNSWFlat(self.dimension, self.hnsw_m)
             self.hot_index.hnsw.efConstruction = max(40, self.hnsw_m * 2)
             self.hot_index.hnsw.efSearch = self.hnsw_ef
-            
+
         # Initialize and Train cold index
         # We use a modified version of _build_cold_index that returns an empty trained index
         logger.info(f"Training cold index on {len(vectors)} vectors")
         self.cold_index = self._create_trained_cold_index(array)
 
-    def add_batch(self, vectors: List[List[float]], ids: List[str], destination: str = "cold") -> None:
+    def add_batch(
+        self, vectors: List[List[float]], ids: List[str], destination: str = "cold"
+    ) -> None:
         """Add a batch of vectors to the specified index (hot or cold)."""
         if not vectors or not ids:
             return
-            
+
         if len(vectors) != len(ids):
             raise ValueError("Vector and ID counts must match")
-            
+
         array = np.asarray(vectors, dtype="float32")
         if self.normalize:
             faiss.normalize_L2(array)
-            
+
         if destination == "hot":
-             if self.hot_index is None:
-                 # Auto-init if not exists
+            if self.hot_index is None:
+                # Auto-init if not exists
                 self.hot_index = faiss.IndexHNSWFlat(self.dimension, self.hnsw_m)
                 self.hot_index.hnsw.efConstruction = max(40, self.hnsw_m * 2)
                 self.hot_index.hnsw.efSearch = self.hnsw_ef
-             self.hot_index.add(array)
-             self.hot_ids.extend(ids)
-             
+            self.hot_index.add(array)
+            self.hot_ids.extend(ids)
+
         elif destination == "cold":
             if self.cold_index is None:
                 # If adding to cold without training, fallback to Flat
-                logger.warning("Adding to cold index without training! creating separate Flat index.")
-                # Ideally we should raise error or fallback. 
+                logger.warning(
+                    "Adding to cold index without training! creating separate Flat index."
+                )
+                # Ideally we should raise error or fallback.
                 # For safety, fallback to Flat.
                 self.cold_index = faiss.IndexFlatL2(self.dimension)
-            
+
             self.cold_index.add(array)
             self.cold_ids.extend(ids)
 
     def _create_trained_cold_index(self, vectors: np.ndarray) -> faiss.Index:
         """Create and train a cold index (IVF+PQ) but DO NOT add vectors."""
         # Ensure nlist is not larger than the number of training vectors
-        # For training, we determine nlist based on the projected scale. 
-        # But here 'vectors' is just the sample. 
+        # For training, we determine nlist based on the projected scale.
+        # But here 'vectors' is just the sample.
         # We assume nlist is set by config (self.nlist).
         # But if sample is small, we might need to clamp.
-        
+
         # Assumption: caller provides a representative sample of sufficient size
         effective_nlist = self.nlist
-        
+
         # Sanity check training size vs nlist
         if vectors.shape[0] < effective_nlist:
-             logger.warning(f"Training set size {vectors.shape[0]} < nlist {effective_nlist}. Clamping nlist.")
-             effective_nlist = max(1, vectors.shape[0] // 2)
-             
+            logger.warning(
+                f"Training set size {vectors.shape[0]} < nlist {effective_nlist}. Clamping nlist."
+            )
+            effective_nlist = max(1, vectors.shape[0] // 2)
+
         if vectors.shape[0] < effective_nlist * 39:
-             logger.warning("Training set too small for IVF+PQ. Falling back to Flat for cold index.")
-             return faiss.IndexFlatL2(self.dimension)
+            logger.warning(
+                "Training set too small for IVF+PQ. Falling back to Flat for cold index."
+            )
+            return faiss.IndexFlatL2(self.dimension)
 
         quantizer = faiss.IndexFlatL2(self.dimension)
         m_to_use = self.m
@@ -285,10 +293,11 @@ class FAISSIndexManager:
                 if self.dimension % candidate == 0:
                     m_to_use = candidate
                     break
-        
+
         import math
+
         # Helper to calc nbits? Assuming standard 8
-        nbits = 8 
+        nbits = 8
 
         if self.use_opq:
             opq_matrix = faiss.OPQMatrix(self.dimension, self.opq_m)
@@ -297,28 +306,26 @@ class FAISSIndexManager:
             except Exception as e:
                 logger.warning(f"OPQ training failed: {e}. Fallback Flat.")
                 return faiss.IndexFlatL2(self.dimension)
-            
+
             index = faiss.IndexPreTransform(
                 opq_matrix,
                 faiss.IndexIVFPQ(quantizer, self.dimension, effective_nlist, m_to_use, nbits),
             )
         else:
-            index = faiss.IndexIVFPQ(
-                quantizer, self.dimension, effective_nlist, m_to_use, nbits
-            )
-            
+            index = faiss.IndexIVFPQ(quantizer, self.dimension, effective_nlist, m_to_use, nbits)
+
         try:
             index.train(vectors)
         except Exception as e:
-             logger.warning(f"IVF+PQ training failed: {e}. Fallback Flat.")
-             return faiss.IndexFlatL2(self.dimension)
-             
+            logger.warning(f"IVF+PQ training failed: {e}. Fallback Flat.")
+            return faiss.IndexFlatL2(self.dimension)
+
         # Set nprobe
         if hasattr(index, "index"):
             index.index.nprobe = min(effective_nlist, 8)
         else:
             index.nprobe = min(effective_nlist, 8)
-            
+
         return index
 
     def _build(self, array: np.ndarray, ids: List[str]):

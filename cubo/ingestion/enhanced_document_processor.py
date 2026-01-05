@@ -10,9 +10,9 @@ from typing import Any, Dict, List
 
 from PIL import Image
 
-from cubo.embeddings.model_loader import ModelManager
 from cubo.config import config
 from cubo.embeddings.embedding_generator import EmbeddingGenerator
+from cubo.embeddings.model_loader import ModelManager
 
 try:
     from cubo.models.dolphin_processor import DolphinProcessor
@@ -154,7 +154,9 @@ class EnhancedDocumentProcessor:
         for i, chunk_text in enumerate(text_chunks):
             # Get embedding; apply document prompt if model defines it
             try:
-                dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "document")
+                dprefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                    config.get("model_path"), "document"
+                )
                 text_to_encode = dprefix + chunk_text if dprefix else chunk_text
             except Exception:
                 text_to_encode = chunk_text

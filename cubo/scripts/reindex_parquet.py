@@ -79,7 +79,9 @@ def main():
             logger.warning("Vector store does not support reset(); manual cleanup may be required")
 
     # Generate embeddings (document prompt aware)
-    logger.info(f"Generating embeddings for {len(texts)} items with batch size {args.batch_size} (document prompt)")
+    logger.info(
+        f"Generating embeddings for {len(texts)} items with batch size {args.batch_size} (document prompt)"
+    )
     embeddings = generator.encode(texts, batch_size=args.batch_size, prompt_name="document")
 
     # Insert into collection

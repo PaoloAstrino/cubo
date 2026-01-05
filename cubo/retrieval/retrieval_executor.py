@@ -13,6 +13,9 @@ import re
 from typing import Any, Dict, List, Optional, Set
 
 from cubo.config import config
+
+# Import the embedding prompt helper
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.retrieval.constants import (
     BM25_NORMALIZATION_FACTOR,
     BM25_WEIGHT_DETAILED,
@@ -20,9 +23,6 @@ from cubo.retrieval.constants import (
 )
 from cubo.utils.exceptions import DatabaseError
 from cubo.utils.logger import logger
-
-# Import the embedding prompt helper
-from cubo.embeddings.embedding_generator import EmbeddingGenerator
 
 
 def extract_chunk_id(candidate: Any) -> Optional[str]:
@@ -98,7 +98,9 @@ class RetrievalExecutor:
 
         # Apply query prompt prefix if model defines one
         try:
-            prefix = EmbeddingGenerator.get_prompt_prefix_for_model(config.get("model_path"), "query")
+            prefix = EmbeddingGenerator.get_prompt_prefix_for_model(
+                config.get("model_path"), "query"
+            )
             prefixed_query = (prefix + query) if prefix else query
         except Exception:
             prefixed_query = query

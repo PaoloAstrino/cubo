@@ -41,8 +41,8 @@ class EmbeddingGenerator:
         if not model_path:
             return {}
         try:
-            from pathlib import Path
             import json
+            from pathlib import Path
 
             cfg_path = Path(model_path) / "config_sentence_transformers.json"
             if not cfg_path.exists():
@@ -55,7 +55,9 @@ class EmbeddingGenerator:
             return {}
 
     @classmethod
-    def get_prompt_prefix_for_model(cls, model_path: Optional[str], prompt_name: str) -> Optional[str]:
+    def get_prompt_prefix_for_model(
+        cls, model_path: Optional[str], prompt_name: str
+    ) -> Optional[str]:
         """Get a prompt prefix for a given model path and prompt name.
 
         Tries multiple fallbacks to match common prompt key variants.
@@ -96,11 +98,15 @@ class EmbeddingGenerator:
             prefix = None
         if not prefix:
             # No prefix found; do not alter texts
-            logger.debug(f"No prompt prefix found for model {self.model_path} and prompt '{prompt_name}'")
+            logger.debug(
+                f"No prompt prefix found for model {self.model_path} and prompt '{prompt_name}'"
+            )
             return texts
         return [prefix + t for t in texts]
 
-    def encode(self, texts: List[str], batch_size: Optional[int] = None, prompt_name: Optional[str] = None) -> List[List[float]]:
+    def encode(
+        self, texts: List[str], batch_size: Optional[int] = None, prompt_name: Optional[str] = None
+    ) -> List[List[float]]:
         """Generate embeddings for a list of texts.
 
         Args:

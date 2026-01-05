@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Set
 import numpy as np
 
 from cubo.config import config
+from cubo.utils.logger import logger
 from cubo.utils.trace_collector import trace_collector
 
 # Promotion throttling constants to prevent RAM spikes
@@ -607,55 +608,56 @@ class FaissStore(VectorStore):
 
         # Phase 1: Training (if needed, use sample of up to 50k)
         logger.info("Starting streaming FAISS rebuild...")
-        
+
         sample_size = 50000
         training_vectors = []
-        
+
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-             cursor = conn.execute(f"SELECT id FROM vectors LIMIT {sample_size}")
+             # Use parameterized LIMIT to avoid dynamic SQL construction flagged by security scanners
+             cursor = conn.execute("SELECT id FROM vectors LIMIT ?", (int(sample_size),))
              sample_ids = [r[0] for r in cursor]
-        
+
         if sample_ids:
             logger.info(f"Fetching training sample ({len(sample_ids)} vectors)...")
             batch_vecs = self.get_vectors(sample_ids)
             for did in sample_ids:
                 if did in batch_vecs:
                     training_vectors.append(batch_vecs[did])
-            
+
             # Reset and Train
             self._index.reset()
             self._index.train(training_vectors)
-        
+
         # Phase 2: Streaming Add
         hot_capacity = int(total * self._index.hot_fraction)
         batch_size = 5000
-        
+
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             rows = conn.execute("SELECT id FROM vectors").fetchall()
             all_ids = [r[0] for r in rows]
-            
+
         logger.info(f"Adding {len(all_ids)} vectors in batches of {batch_size}...")
-        
+
         for i in range(0, len(all_ids), batch_size):
             batch_ids = all_ids[i : i + batch_size]
             batch_vecs_map = self.get_vectors(batch_ids)
-            
+
             # Reconstruct batch lists in order
             batch_vectors_list = []
             batch_ids_list = []
-            
+
             for did in batch_ids:
                 if did in batch_vecs_map:
                     batch_vectors_list.append(batch_vecs_map[did])
                     batch_ids_list.append(did)
-                    
+
             if not batch_vectors_list:
                 continue
-            
+
             # Determine destination based on index position
             current_start = i
             remaining_hot = max(0, hot_capacity - current_start)
-            
+
             if remaining_hot >= len(batch_vectors_list):
                 # All hot
                 self._index.add_batch(batch_vectors_list, batch_ids_list, destination="hot")
@@ -670,9 +672,9 @@ class FaissStore(VectorStore):
                 cold_i = batch_ids_list[remaining_hot:]
                 self._index.add_batch(hot_v, hot_i, destination="hot")
                 self._index.add_batch(cold_v, cold_i, destination="cold")
-                
+
             if i % (batch_size * 5) == 0:
-                 logger.info(f"Processed {i}/{total} vectors...")
+                logger.info(f"Processed {i}/{total} vectors...")
 
         self._index.save()
         logger.info("FAISS index rebuild complete.")
@@ -1461,7 +1463,9 @@ class FaissStore(VectorStore):
         else:
             self.reset()
 
-    def enqueue_deletion(self, doc_id: str, trace_id: Optional[str] = None, force: bool = False) -> str:
+    def enqueue_deletion(
+        self, doc_id: str, trace_id: Optional[str] = None, force: bool = False
+    ) -> str:
         """Enqueue a deletion job for background compaction.
 
         This method deletes the document and vector rows from SQLite immediately
@@ -1571,7 +1575,7 @@ class FaissStore(VectorStore):
 
                 # Update job statuses
                 finished_at = datetime.utcnow().isoformat()
-                status_val = 'completed' if success else 'failed'
+                status_val = "completed" if success else "failed"
                 with sqlite3.connect(str(self._db_path), timeout=30) as conn:
                     cur = conn.cursor()
                     cur.executemany(

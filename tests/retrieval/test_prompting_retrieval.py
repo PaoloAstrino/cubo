@@ -1,6 +1,6 @@
-from cubo.retrieval.retrieval_executor import RetrievalExecutor
-from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.config import config
+from cubo.embeddings.embedding_generator import EmbeddingGenerator
+from cubo.retrieval.retrieval_executor import RetrievalExecutor
 
 
 class DummyThreading:
@@ -20,7 +20,9 @@ def test_generate_query_embedding_applies_prompt():
     # Ensure model path points to embeddinggemma model which has a query prompt
     config.set("model_path", "./models/embeddinggemma-300m")
     dt = DummyThreading()
-    re = RetrievalExecutor(collection=None, bm25_searcher=None, model=DummyModel(), inference_threading=dt)
+    re = RetrievalExecutor(
+        collection=None, bm25_searcher=None, model=DummyModel(), inference_threading=dt
+    )
     emb = re.generate_query_embedding("hello")
     assert dt.last_texts is not None
     # The captured text should have the query prompt prefix
