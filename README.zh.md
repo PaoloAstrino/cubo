@@ -107,7 +107,7 @@ curl "http://localhost:8000/api/export-audit?format=json" > audit.json
 ## 功能特性
 
 - **🔍 混合搜索**: 结合 BM25（关键词）和 FAISS（语义）以获得精确结果
-- **🐬 Dolphin 处理**: 使用视觉语言模型进行高级 PDF/图像解析
+- **🐬 高级处理（可选）**: 支持外部视觉语言模型（如 Dolphin）以增强 PDF/图像解析（可选）。
 - **📊 语义去重**: 使用 MinHash + FAISS + HDBSCAN 减少重复块
 - **🔄 重排序器**: 使用交叉编码器改善结果排序
 - **📝 句子窗口**: 可配置上下文窗口的智能分块

@@ -107,7 +107,7 @@ curl "http://localhost:8000/api/export-audit?format=json" > audit.json
 ## Funzionalità
 
 - **🔍 Ricerca Ibrida**: Combina BM25 (keyword) e FAISS (semantica) per risultati precisi
-- **🐬 Elaborazione Dolphin**: Parsing avanzato PDF/immagini con modello vision-language
+- **🐬 Elaborazione Avanzata (opzionale)**: Supporto per modelli vision-language esterni (es. Dolphin) per parsing PDF/immagini migliorato (opzionale).
 - **📊 Deduplicazione Semantica**: Riduce chunk duplicati con MinHash + FAISS + HDBSCAN
 - **🔄 Reranker**: Cross-encoder per migliorare l'ordinamento dei risultati
 - **📝 Sentence Window**: Chunking intelligente con finestre di contesto configurabili

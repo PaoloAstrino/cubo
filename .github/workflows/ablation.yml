@@ -1,0 +1,30 @@
+name: Ablation Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset:
+        description: 'Dataset to run (e.g., nfcorpus)'
+        required: true
+        default: 'nfcorpus'
+
+jobs:
+  run-ablation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install deps
+        run: pip install -r requirements-ci.txt
+      - name: Run ablation
+        run: |
+          python scripts/run_ablation.py --dataset ${{ github.event.inputs.dataset }} --top-k 50
+          python scripts/run_reranker_eval.py --index-dir results/beir_index_${{ github.event.inputs.dataset }}_hybrid_topk50 --queries data/beir/${{ github.event.inputs.dataset }}/queries.jsonl --top-k 50
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ablation-results
+          path: results/

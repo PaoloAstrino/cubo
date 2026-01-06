@@ -67,12 +67,54 @@ def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
     avg_recall = sum(recall_at_k) / len(recall_at_k) if recall_at_k else 0
     avg_mrr = sum(mrr) / len(mrr) if mrr else 0
 
+    # Compute nDCG@k
+    def dcg(rels):
+        import math
+        return sum((2 ** r - 1) / math.log2(i + 2) for i, r in enumerate(rels))
+
+    ndcgs = []
+    for qid, hits in results.items():
+        if qid not in qrels:
+            continue
+        # Build relevance list for top-k
+        q_rel = qrels[qid]
+        sorted_hits = sorted(hits.items(), key=lambda x: x[1], reverse=True)[:k]
+        rels = [q_rel.get(hid, 0) for hid, _ in sorted_hits]
+        ideal_rels = sorted(q_rel.values(), reverse=True)[:k]
+        ideal_d = dcg(ideal_rels) if any(ideal_rels) else 0
+        cur_d = dcg(rels)
+        ndcgs.append(cur_d / ideal_d if ideal_d > 0 else 0)
+
+    avg_ndcg = sum(ndcgs) / len(ndcgs) if ndcgs else 0
+
     print(f"\n--- Performance Evidence (k={k}) ---")
     print(f"Queries Evaluated: {found_queries}")
     print(f"Avg Recall@{k}: {avg_recall:.4f}")
     print(f"Mean Reciprocal Rank: {avg_mrr:.4f}")
+    print(f"Avg nDCG@{k}: {avg_ndcg:.4f}")
     print(f"----------------------------------")
+
+    # Save metrics to file
+    metrics = {
+        "queries_evaluated": found_queries,
+        "recall_at_k": avg_recall,
+        "mrr": avg_mrr,
+        "ndcg": avg_ndcg,
+        "k": k,
+    }
+
+    metrics_file = results_path.replace('.json', f'_metrics_k{k}.json')
+    with open(metrics_file, 'w', encoding='utf-8') as mf:
+        json.dump(metrics, mf, indent=2)
+    print(f"Metrics saved to {metrics_file}")
 
 
 if __name__ == "__main__":
-    calculate_metrics("results/beir_run_nfcorpus.json", "data/beir/nfcorpus/qrels/test.tsv")
+    import argparse
+    parser = argparse.ArgumentParser(description="Calculate BEIR metrics from run results")
+    parser.add_argument("--results", type=str, default="results/beir_run_nfcorpus.json", help="Path to the results JSON file")
+    parser.add_argument("--qrels", type=str, default="data/beir/nfcorpus/qrels/test.tsv", help="Path to the qrels file (TSV or JSON)")
+    parser.add_argument("--k", type=int, default=10, help="Top-k for metrics calculation")
+    
+    args = parser.parse_args()
+    calculate_metrics(args.results, args.qrels, args.k)

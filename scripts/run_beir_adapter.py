@@ -53,7 +53,7 @@ def collect_benchmark_metadata(args, use_optimized: bool) -> Dict:
     return metadata
 
 
-def load_queries(queries_path: str) -> Dict[str, str]:
+def load_queries(queries_path: str, corpus_path: str = None) -> Dict[str, str]:
     """Load queries from BEIR queries.jsonl or queries.json"""
     queries = {}
     with open(queries_path, "r", encoding="utf-8") as f:
@@ -61,22 +61,45 @@ def load_queries(queries_path: str) -> Dict[str, str]:
         try:
             data = json.load(f)
             if isinstance(data, dict):
-                return data
+                queries = data
         except json.JSONDecodeError:
             # Not JSON, try JSONL
-            pass
+            f.seek(0)
+            for i, line in enumerate(f):
+                try:
+                    item = json.loads(line)
+                    qid = item.get("_id", str(i))
+                    text = item.get("text", item.get("query", ""))
+                    if text:
+                        queries[qid] = text
+                except json.JSONDecodeError:
+                    continue
 
-        # Reset file pointer and try JSONL
-        f.seek(0)
-        for i, line in enumerate(f):
-            try:
-                item = json.loads(line)
-                qid = item.get("_id", str(i))
-                text = item.get("text", item.get("query", ""))
-                if text:
-                    queries[qid] = text
-            except json.JSONDecodeError:
-                continue
+    # If a corpus is provided, check if we need to resolve IDs
+    if corpus_path and queries:
+        first_query = next(iter(queries.values()), "")
+        # Heuristic: if it looks like a hex/ID and is long enough
+        import re
+        if re.match(r"^[a-f0-9\-]+$", first_query) and len(first_query) >= 20:
+            print(f"Detected ID-based queries (e.g., '{first_query}'). Resolving against corpus...")
+            corpus_map = {}
+            with open(corpus_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        item = json.loads(line)
+                        cid = item.get("_id")
+                        if cid:
+                            corpus_map[str(cid)] = (item.get("title", "") + " " + item.get("text", "")).strip()
+                    except json.JSONDecodeError:
+                        continue
+            
+            resolved_count = 0
+            for qid, query_val in queries.items():
+                if query_val in corpus_map:
+                    queries[qid] = corpus_map[query_val]
+                    resolved_count += 1
+            print(f"Resolved {resolved_count}/{len(queries)} queries.")
+            
     return queries
 
 
@@ -113,6 +136,11 @@ def main():
         help="Use optimized batch retrieval (much faster, recommended)",
     )
     parser.add_argument(
+        "--bm25-only",
+        action="store_true",
+        help="Run BM25-only ablation (force semantic_weight=0)",
+    )
+    parser.add_argument(
         "--laptop-mode",
         action="store_true",
         help="Enable laptop mode (lazy loading, no reranking, etc)",
@@ -124,6 +152,13 @@ def main():
     if args.laptop_mode:
         log.info("Enabling laptop mode configuration...")
         config.apply_laptop_mode(force=True)
+
+    # Apply BM25-only override for ablation
+    if args.bm25_only:
+        log.info("BM25-only mode: forcing semantic_weight=0 and dense_weight=0")
+        # These keys exist in config or settings; apply runtime override
+        config.set("model.semantic_weight", 0.0)
+        config.set("model.dense_weight", 0.0)
 
     # Validate args
     if args.reindex and not args.corpus:
@@ -143,7 +178,7 @@ def main():
         adapter.load_index(args.index_dir)
 
     log.info(f"Loading queries from {args.queries}...")
-    queries = load_queries(args.queries)
+    queries = load_queries(args.queries, args.corpus)
     if args.query_limit:
         log.info(f"Limiting to first {args.query_limit} queries...")
         queries = dict(list(queries.items())[: args.query_limit])

@@ -1,0 +1,18 @@
+--- UltraDomain Inspection (data/ultradomain) ---
+agriculture     | File:   66.8MB | Questions:    100 | Contexts:    12
+cs              | File:   90.8MB | Questions:    100 | Contexts:    10
+legal           | File:  100.5MB | Questions:    438 | Contexts:    94
+mathematics     | File:  108.2MB | Questions:    160 | Contexts:    20
+mix             | File:    5.5MB | Questions:    130 | Contexts:    61
+physics         | File:   75.6MB | Questions:    160 | Contexts:    19
+politics        | File:  112.8MB | Questions:    180 | Contexts:    25
+TOTAL           |             | Questions:   1268 | Contexts:   241
+
+
+--- RAGBench Inspection (data/ragbench) ---
+ragbench_covidqa_test.parquet  | Size:   0.8MB | Questions:    246 | Contexts: 0
+ragbench_finqa_test.parquet    | Size:   9.8MB | Questions:   2294 | Contexts: 0
+ragbench_hagrid_test.parquet   | Size:   3.8MB | Questions:   1318 | Contexts: 0
+ragbench_hotpotqa_test.parquet | Size:   1.2MB | Questions:    390 | Contexts: 0
+ragbench_msmarco_test.parquet  | Size:   2.0MB | Questions:    423 | Contexts: 0
+ragbench_pubmedqa_test.parquet | Size:   9.6MB | Questions:   2450 | Contexts: 0

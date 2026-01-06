@@ -20,8 +20,8 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 
 ## What's New in v1.2.0
 
-- **Automatic Enhanced Processing**: Dolphin vision-language model integration for superior PDF/image parsing (works transparently)
-- **Seamless User Experience**: No technical choices required - system automatically uses best available processing
+- **Optional Enhanced Processing**: Support for external vision-language models (e.g., Dolphin) to improve PDF/image parsing; disabled by default and opt-in.
+- **Seamless User Experience**: System provides sensible defaults and will only use optional components when explicitly configured.
 - **Improved Document Understanding**: Better semantic embeddings with EmbeddingGemma-300M integration
 - **Enterprise-Ready**: Production-ready document processing without user configuration complexity
 
@@ -40,10 +40,10 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 
 ### v1.2.0 (September 2024)
 
-- 🐬 **Dolphin Integration**: Added ByteDance/Dolphin vision-language model for superior PDF and image document parsing
-- ⚡ **Automatic Enhanced Processing**: System automatically uses enhanced processing when Dolphin is available (transparent to users)
+- 🐬 **Optional Dolphin Support**: Added support for ByteDance/Dolphin as an optional external vision-language model for advanced PDF/image parsing (opt-in).
+- ⚡ **Optional Enhanced Processing**: The system can use external vision-language models (e.g., Dolphin) when explicitly enabled; this behavior is not automatic by default.
 - 🧠 **EmbeddingGemma Integration**: Seamless integration with EmbeddingGemma-300M for high-quality semantic embeddings
-- 🎯 **User Experience**: Removed technical configuration options - users get best processing automatically
+- 🎯 **User Experience**: Sensible defaults reduce configuration; optional components require explicit opt-in.
 - 🔧 **Architecture**: Enhanced document processor combining vision parsing with semantic embeddings
 - 📄 **Document Support**: Improved handling of PDFs, images, and complex documents with automatic fallback
 
@@ -191,7 +191,7 @@ CI note: The repository's CI runs a Linux job that installs `faiss-cpu` and runs
 - **Multi-format Support**: Supports .txt, .docx, .pdf, and .md files
 - **Sentence Window Chunking**: Intelligent text chunking with configurable context windows for better retrieval
 - **Desktop GUI**: Modern PySide6-based interface with drag-and-drop functionality
-- **Enhanced Document Processing**: Automatic Dolphin vision-language model for superior PDF/image parsing when available
+- **Enhanced Document Processing**: Optional integration with vision-language models (e.g., Dolphin) for superior PDF/image parsing when configured (disabled by default).
 - **Dual Retrieval System**: Sentence window + auto-merging retrieval with automatic method selection
 - **Device Auto-detection**: Automatically uses GPU (CUDA) if available, falls back to CPU
 - **Security Features**: Path sanitization, file size limits, and rate limiting
