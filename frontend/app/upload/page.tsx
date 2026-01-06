@@ -311,15 +311,15 @@ export default function UploadPage() {
             </div>
 
             {/* Document List */}
-            <Card className="flex-1">
+            <Card className="flex-1 flex flex-col">
                 <CardHeader>
                     <CardTitle>All Files</CardTitle>
                     <CardDescription>
                         Documents in your data directory ({documents.length})
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <ScrollArea className="h-[300px] pr-4">
+                <CardContent className="flex-1 p-0">
+                    <ScrollArea className="h-full px-4">
                         {isLoading ? (
                             <div className="space-y-2">
                                 {Array.from({ length: 4 }).map((_, i) => (

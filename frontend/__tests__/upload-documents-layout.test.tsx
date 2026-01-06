@@ -29,4 +29,23 @@ describe('UploadPage layout', () => {
     expect(gridContainer).toBeInTheDocument()
     expect(gridContainer?.className).toContain('sm:grid-cols-2')
   })
+
+  it('makes the All Files card grow and adapts ScrollArea to fill available space', () => {
+    render(<UploadPage />)
+
+    // Find the All Files title and locate its ancestor Card element
+    const title = screen.getByText('All Files')
+    const card = title.closest('.flex-1')
+    expect(card).toBeInTheDocument()
+
+    // The card should have flex and flex-col classes so it can grow
+    expect(card?.className).toContain('flex')
+    expect(card?.className).toContain('flex-col')
+
+    // ScrollArea should be full height to adapt to card size and have horizontal padding
+    const scrollArea = document.querySelector('.h-full.px-4')
+    expect(scrollArea).toBeInTheDocument()
+    // Ensure it has horizontal padding
+    expect(scrollArea?.className).toContain('px-4')
+  })
 })
