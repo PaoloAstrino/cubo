@@ -56,20 +56,36 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - 🔧 **Architecture**: Added postprocessor module for enhanced retrieval with WindowReplacementPostProcessor and LocalReranker
 - 🐛 **Bug Fixes**: Resolved circular import issues and improved error handling
 
-## Getting Started
+## Getting Started — Two commands (super simple)
 
-Choose the installation method that matches your needs:
+For unskilled users we provide two single commands that cover the most common workflows.
 
-### 1. "Low-Spec" / Native User (Recommended for Windows)
-**Goal:** Zero Setup. "I have a Windows laptop. I don't know what Docker is."
+- Full-stack (one-click, Windows):
 
-Just double-click `start.bat` in the root folder.
-This script will automatically:
-1. Create a virtual environment (`.venv`)
-2. Install all dependencies
-3. Launch the full stack (Backend + Frontend)
+```powershell
+# from repo root
+.\run_local.ps1
+# (or double-click `start.bat`)
+```
+This will create a virtual environment, install necessary dependencies (backend + frontend), and start the full stack (backend + frontend).
 
-### 2. Developer Library
+- Install as a library and run only the API (cross-platform):
+
+```bash
+python -m pip install -e . && python -m cubo.server.run --reload
+```
+
+Optional: to start the frontend UI in a second terminal:
+
+```bash
+npm run dev --prefix frontend
+```
+
+> Note: `run_local.ps1` and `run_local.sh` are provided for Windows and macOS/Linux respectively to make the full-stack start safe and idempotent.
+
+Choose the installation method that matches your needs (advanced instructions below):
+
+### Developer Library
 **Goal:** Integration. "I want to add RAG to my Python script."
 
 ```bash
@@ -89,7 +105,7 @@ response = rag.query("What is the invoice total?")
 print(response)
 ```
 
-### 3. Docker User
+### Docker User
 **Goal:** Enterprise/Server Deployment. "I want to host this on my server."
 
 ```bash

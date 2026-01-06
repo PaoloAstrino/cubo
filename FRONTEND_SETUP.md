@@ -23,6 +23,20 @@ The frontend application requires the following environment variables. You can s
 
 You can run the following commands from the **root** of the repository:
 
+### Quickstart (one line)
+For beginners, you can start the full stack (backend + frontend) with a single command:
+
+- Windows (PowerShell):
+```powershell
+./run_local.ps1
+```
+- macOS / Linux (bash):
+```bash
+./run_local.sh
+```
+
+These scripts create/activate a `.venv`, install the editable package and frontend dependencies if needed, and launch the full stack.
+
 ### Installation
 First, install the frontend dependencies (using `--legacy-peer-deps` due to React 19):
 ```bash
