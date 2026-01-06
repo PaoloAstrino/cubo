@@ -339,7 +339,7 @@ export default function UploadPage() {
                                 <p className="text-sm">Upload a file to get started</p>
                             </div>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {documents.map((doc) => (
                                     <div
                                         key={doc.name}
