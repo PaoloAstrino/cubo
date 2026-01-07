@@ -4,7 +4,9 @@
 
 ```bash
 # Install test dependencies
-pip install -r requirements-dev.txt
+# Preferred: install dev extras
+pip install -e '.[dev]'
+# Or: pip install -r requirements/requirements-dev.txt
 
 # Install Playwright browsers (for frontend tests)
 playwright install chromium
@@ -140,7 +142,7 @@ Add to `.github/workflows/test.yml`:
 ```yaml
 - name: Run E2E Tests
   run: |
-    pip install -r requirements-dev.txt
+    pip install -r requirements/requirements-dev.txt
     playwright install chromium --with-deps
     pytest tests/e2e/ -v --maxfail=1
 ```

@@ -276,9 +276,22 @@ class RetrievalExecutor:
             # searching the internal store for performance (avoids reconstructing
             # the docs list on each query). If a current_documents filter is
             # requested, fall back to selecting a small subset of docs to search.
-            if not current_documents and getattr(self.bm25, "docs", None):
+            bm25_docs = getattr(self.bm25, "docs", [])
+            if not current_documents and bm25_docs:
                 # Fast path: use prebuilt BM25 index
                 results = self.bm25.search(query, top_k=top_k)
+            elif current_documents and bm25_docs and len(bm25_docs) > 0:
+                # Optimized path: if we have indexed docs, filter them without fetching from DB
+                target_ids = set(current_documents)
+                docs_for_search = [
+                    d for d in bm25_docs 
+                    if d.get("doc_id") in target_ids or 
+                       (d.get("metadata") and d.get("metadata").get("filename") in target_ids)
+                ]
+                if docs_for_search:
+                    results = self.bm25.search(query, top_k=top_k, docs=docs_for_search)
+                else:
+                    results = []
             else:
                 # Fallback: retrieve explicit document list from the collection
                 where_filter = (

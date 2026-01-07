@@ -23,20 +23,32 @@
 - **📊 GDPR 审计导出**: 以 CSV/JSON 格式导出日志用于合规审计
 - **🌍 多语言 README**: 中文、英文和意大利文文档
 
-## 快速开始
+## 快速开始 — 两条命令（极简）
 
-### Web 界面（推荐）
+为不熟悉开发流程的用户提供两条简单命令，覆盖最常见的使用场景。
+
+- 一键全栈（Windows PowerShell）：
+
+```powershell
+# 在仓库根目录运行
+.\run_local.ps1
+# （或双击 `start.bat`）
+```
+该命令会创建 `.venv` 虚拟环境、安装必要依赖（后端 + 前端），并启动完整服务（后端 + 前端）。
+
+- 以库形式安装并仅启动 API（跨平台）：
 
 ```bash
-# 安装依赖
-pip install -r requirements.txt
-cd frontend && pnpm install && cd ..
-
-# 启动后端和前端
-python scripts/start_fullstack.py
+python -m pip install -e . && python -m cubo.server.run --reload
 ```
 
-访问:
+可选：在另一个终端启动前端 UI：
+
+```bash
+npm run dev --prefix frontend
+```
+
+访问：
 - 前端: http://localhost:3000
 - API 文档: http://localhost:8000/docs
 
@@ -107,7 +119,7 @@ curl "http://localhost:8000/api/export-audit?format=json" > audit.json
 ## 功能特性
 
 - **🔍 混合搜索**: 结合 BM25（关键词）和 FAISS（语义）以获得精确结果
-- **🐬 Dolphin 处理**: 使用视觉语言模型进行高级 PDF/图像解析
+- **🐬 高级处理（可选）**: 支持外部视觉语言模型（如 Dolphin）以增强 PDF/图像解析（可选）。
 - **📊 语义去重**: 使用 MinHash + FAISS + HDBSCAN 减少重复块
 - **🔄 重排序器**: 使用交叉编码器改善结果排序
 - **📝 句子窗口**: 可配置上下文窗口的智能分块

@@ -48,6 +48,7 @@ const mockCollections = [
     id: 'coll-1',
     name: 'Research Papers',
     color: '#2563eb',
+    emoji: '📚',
     created_at: '2025-11-29T10:00:00',
     document_count: 5,
   },
@@ -95,6 +96,46 @@ describe('UploadPage', () => {
       })
     })
 
+    it('should render collection cards as square', async () => {
+      render(<UploadPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Research Papers')).toBeInTheDocument()
+      })
+
+      const card = screen.getByText('Research Papers').closest('.group')
+      expect(card).toHaveClass('aspect-square')
+      expect(card).toHaveClass('min-w-[160px]')
+    })
+
+    it('should use a denser grid so collection cards are roughly half the width', async () => {
+      render(<UploadPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Research Papers')).toBeInTheDocument()
+      })
+
+      const grid = screen.getByText('Research Papers').closest('.grid')
+      expect(grid).toHaveClass('grid-cols-4')
+      expect(grid).toHaveClass('md:grid-cols-6')
+      expect(grid).toHaveClass('lg:grid-cols-8')
+      expect(grid).toHaveClass('gap-6')
+    })
+
+    it('should render emoji icon with white background and colored border when collection has emoji', async () => {
+      render(<UploadPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Research Papers')).toBeInTheDocument()
+      })
+
+      const emoji = screen.getByText('📚')
+      expect(emoji).toBeInTheDocument()
+
+      const container = emoji.closest('div')
+      expect(container).toHaveClass('bg-white', 'border-4')
+    })
+
     it('should show empty state when no collections exist', async () => {
       ;(useSWR as jest.Mock).mockImplementation((key) => {
         if (key === '/api/documents') return { data: mockDocuments, isLoading: false }
@@ -133,6 +174,45 @@ describe('UploadPage', () => {
       // Dialog should open - look for dialog elements
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument()
+      })
+    })
+
+    it('should pass emoji to createCollection when selected', async () => {
+      const user = userEvent.setup()
+      render(<UploadPage />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /new collection/i })).toBeInTheDocument()
+      })
+
+      // Open the dialog
+      await user.click(screen.getByRole('button', { name: /new collection/i }))
+      await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+
+      // Select an emoji and enter a name
+      const emojiButton = screen.getByRole('button', { name: /Select emoji 📚/i })
+      await user.click(emojiButton)
+
+      const nameInput = screen.getByPlaceholderText('e.g., Research Papers')
+      await user.type(nameInput, 'Emoji Test')
+
+      // Mock API resolves
+      ;(api.createCollection as jest.Mock).mockResolvedValue({
+        id: 'coll-emoji',
+        name: 'Emoji Test',
+        color: '#2563eb',
+        emoji: '📚',
+        created_at: '2025-11-29T12:00:00',
+        document_count: 0,
+      })
+
+      // Click create
+      await user.click(screen.getByRole('button', { name: /create/i }))
+
+      await waitFor(() => {
+        expect(api.createCollection).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'Emoji Test', emoji: '📚' })
+        )
       })
     })
   })

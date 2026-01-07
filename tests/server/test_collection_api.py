@@ -94,7 +94,36 @@ class TestCreateCollection:
         assert data["name"] == "New Collection"
         assert data["color"] == "#ff0000"
         assert data["id"] == "new-coll-id"
-        mock_store.create_collection.assert_called_once_with(name="New Collection", color="#ff0000")
+        # Ensure the store was called with expected name and color (emoji optional)
+        assert mock_store.create_collection.call_count == 1
+        _, kwargs = mock_store.create_collection.call_args
+        assert kwargs.get("name") == "New Collection"
+        assert kwargs.get("color") == "#ff0000"
+
+    def test_create_collection_with_emoji(self, client):
+        """Test creating a collection with an emoji value."""
+        test_client, mock_store = client
+        mock_store.create_collection.return_value = {
+            "id": "new-coll-id",
+            "name": "Emoji Collection",
+            "color": "#00ff00",
+            "emoji": "📚",
+            "created_at": "2025-11-29T12:00:00",
+            "document_count": 0,
+        }
+
+        response = test_client.post(
+            "/api/collections",
+            json={"name": "Emoji Collection", "color": "#00ff00", "emoji": "📚"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Emoji Collection"
+        assert data["emoji"] == "📚"
+        # Ensure emoji was passed to the store
+        _, kwargs = mock_store.create_collection.call_args
+        assert kwargs.get("emoji") == "📚"
 
     def test_create_collection_default_color(self, client):
         """Test collection creation with default color."""

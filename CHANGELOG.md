@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - Updated `/api/export-audit` to stream large logs efficiently.
 - Removed all ChromaDB references and defaulted vector store to FAISS.
 - Converted root-level script tests to proper pytest tests in tests/api/.
-- Updated requirements-dev.txt to include 'requests' for test dependencies.
+- Moved dev requirements to `requirements/requirements-dev.txt` and exposed a `dev` extra in `pyproject.toml` for easier `pip install -e .[dev]` installs.
 - Fixed syntax error in src/cubo/server/api.py for proper error handling.
 - Added Dockerfile for backend and docker-compose.yml to orchestrate backend, frontend, and vector store (FAISS).
 - Introduced scripts to generate Whoosh index from sample data.

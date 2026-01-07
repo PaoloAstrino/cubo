@@ -50,9 +50,9 @@ This frees **~30GB** of space on GitHub Actions runners.
 
 | File | Size | Use Case |
 |------|------|----------|
-| `requirements-minimal.txt` | ~200MB | Ollama-only mode (no PyTorch) |
+| `requirements/requirements-minimal.txt` | ~200MB | Ollama-only mode (no PyTorch) |
 | `requirements-ci.txt` | ~500MB | **CI/CD pipelines** (testing/linting) |
-| `requirements-core.txt` | ~1.5GB | Laptop mode (includes sentence-transformers) |
+| `requirements/requirements-core.txt` | ~1.5GB | Laptop mode (includes sentence-transformers) |
 | `requirements.txt` | ~5GB | Full production (all features) |
 
 ## Testing Locally
@@ -65,7 +65,7 @@ source .venv-ci/bin/activate  # On Windows: .venv-ci\Scripts\activate
 
 # Install CI dependencies
 pip install --no-cache-dir -r requirements-ci.txt
-pip install --no-cache-dir -r requirements-dev.txt
+pip install --no-cache-dir -r requirements/requirements-dev.txt
 pip install --no-cache-dir -e .
 
 # Run tests

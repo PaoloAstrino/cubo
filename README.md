@@ -20,8 +20,8 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 
 ## What's New in v1.2.0
 
-- **Automatic Enhanced Processing**: Dolphin vision-language model integration for superior PDF/image parsing (works transparently)
-- **Seamless User Experience**: No technical choices required - system automatically uses best available processing
+- **Optional Enhanced Processing**: Support for external vision-language models (e.g., Dolphin) to improve PDF/image parsing; disabled by default and opt-in.
+- **Seamless User Experience**: System provides sensible defaults and will only use optional components when explicitly configured.
 - **Improved Document Understanding**: Better semantic embeddings with EmbeddingGemma-300M integration
 - **Enterprise-Ready**: Production-ready document processing without user configuration complexity
 
@@ -40,10 +40,10 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 
 ### v1.2.0 (September 2024)
 
-- 🐬 **Dolphin Integration**: Added ByteDance/Dolphin vision-language model for superior PDF and image document parsing
-- ⚡ **Automatic Enhanced Processing**: System automatically uses enhanced processing when Dolphin is available (transparent to users)
+- 🐬 **Optional Dolphin Support**: Added support for ByteDance/Dolphin as an optional external vision-language model for advanced PDF/image parsing (opt-in).
+- ⚡ **Optional Enhanced Processing**: The system can use external vision-language models (e.g., Dolphin) when explicitly enabled; this behavior is not automatic by default.
 - 🧠 **EmbeddingGemma Integration**: Seamless integration with EmbeddingGemma-300M for high-quality semantic embeddings
-- 🎯 **User Experience**: Removed technical configuration options - users get best processing automatically
+- 🎯 **User Experience**: Sensible defaults reduce configuration; optional components require explicit opt-in.
 - 🔧 **Architecture**: Enhanced document processor combining vision parsing with semantic embeddings
 - 📄 **Document Support**: Improved handling of PDFs, images, and complex documents with automatic fallback
 
@@ -56,20 +56,55 @@ A modular Retrieval-Augmented Generation system using embedding models and Large
 - 🔧 **Architecture**: Added postprocessor module for enhanced retrieval with WindowReplacementPostProcessor and LocalReranker
 - 🐛 **Bug Fixes**: Resolved circular import issues and improved error handling
 
-## Getting Started
+## Getting Started — Two commands (super simple)
 
-Choose the installation method that matches your needs:
+For unskilled users we provide two single commands that cover the most common workflows.
 
-### 1. "Low-Spec" / Native User (Recommended for Windows)
-**Goal:** Zero Setup. "I have a Windows laptop. I don't know what Docker is."
+- Full-stack (one-click, Windows):
 
-Just double-click `start.bat` in the root folder.
-This script will automatically:
-1. Create a virtual environment (`.venv`)
-2. Install all dependencies
-3. Launch the full stack (Backend + Frontend)
+```powershell
+# from repo root
+.\run_local.ps1
+# (or double-click `start.bat`)
+```
+This will create a virtual environment, install necessary dependencies (backend + frontend), and start the full stack (backend + frontend).
 
-### 2. Developer Library
+- One-line clone + run (cross-platform):
+
+```bash
+# Clone the repo and run the local quickstart
+git clone https://github.com/your-username/cubo.git && cd cubo && ./run_local.sh
+```
+
+- Install a compact runtime (recommended for demos / low-resource machines):
+
+```bash
+python -m pip install -e .[minimal]
+```
+
+- Install the full runtime with all features:
+
+```bash
+python -m pip install -e .[full]
+```
+
+- Install as a library and run only the API (cross-platform):
+
+```bash
+python -m pip install -e . && python -m cubo.server.run --reload
+```
+
+Optional: to start the frontend UI in a second terminal:
+
+```bash
+npm run dev --prefix frontend
+```
+
+> Note: `run_local.ps1` and `run_local.sh` are provided for Windows and macOS/Linux respectively to make the full-stack start safe and idempotent. For an automated clone+run helper, see `scripts/quickstart.sh` and `scripts/quickstart.ps1`.
+
+Choose the installation method that matches your needs (advanced instructions below):
+
+### Developer Library
 **Goal:** Integration. "I want to add RAG to my Python script."
 
 ```bash
@@ -89,7 +124,7 @@ response = rag.query("What is the invoice total?")
 print(response)
 ```
 
-### 3. Docker User
+### Docker User
 **Goal:** Enterprise/Server Deployment. "I want to host this on my server."
 
 ```bash
@@ -191,7 +226,7 @@ CI note: The repository's CI runs a Linux job that installs `faiss-cpu` and runs
 - **Multi-format Support**: Supports .txt, .docx, .pdf, and .md files
 - **Sentence Window Chunking**: Intelligent text chunking with configurable context windows for better retrieval
 - **Desktop GUI**: Modern PySide6-based interface with drag-and-drop functionality
-- **Enhanced Document Processing**: Automatic Dolphin vision-language model for superior PDF/image parsing when available
+- **Enhanced Document Processing**: Optional integration with vision-language models (e.g., Dolphin) for superior PDF/image parsing when configured (disabled by default).
 - **Dual Retrieval System**: Sentence window + auto-merging retrieval with automatic method selection
 - **Device Auto-detection**: Automatically uses GPU (CUDA) if available, falls back to CPU
 - **Security Features**: Path sanitization, file size limits, and rate limiting
@@ -371,7 +406,7 @@ results = hybrid.search('What is apple', top_k=5, strategy=strategy)
 
 CI & Testing Notes
 - `pyarrow` and `openpyxl` are required to write/read parquet and xlsx files. See `requirements.txt`.
-- Add `reportlab` to `requirements-dev.txt` for PDF creation during tests.
+- Add `reportlab` to `requirements/requirements-dev.txt` for PDF creation during tests (or use the `dev` extra via `pip install -e .[dev]`).
 - Run tests with the `PYTHONPATH` set to the repo root:
 
 ```pwsh
@@ -435,7 +470,7 @@ cubo/
 ├── main.py              # CLI entry point
 ├── launch_gui.py        # GUI launcher
 ├── requirements.txt      # Python runtime dependencies
-├── requirements-dev.txt # Development dependencies
+├── requirements/requirements-dev.txt # Development dependencies (preferred: `pip install -e .[dev]`)
 └── README.md            # This file
 ```
 
@@ -799,7 +834,9 @@ CUBO includes comprehensive unit tests to ensure reliability.
 ```bash
 # Install test dependencies (included in requirements-dev.txt)
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
+pip install -r requirements/requirements-dev.txt
+
+# Or, preferred for development: pip install -e .[dev]
 
 # Run all tests
 python -m pytest tests/
