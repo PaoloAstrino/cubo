@@ -69,6 +69,25 @@ For unskilled users we provide two single commands that cover the most common wo
 ```
 This will create a virtual environment, install necessary dependencies (backend + frontend), and start the full stack (backend + frontend).
 
+- One-line clone + run (cross-platform):
+
+```bash
+# Clone the repo and run the local quickstart
+git clone https://github.com/your-username/cubo.git && cd cubo && ./run_local.sh
+```
+
+- Install a compact runtime (recommended for demos / low-resource machines):
+
+```bash
+python -m pip install -e .[minimal]
+```
+
+- Install the full runtime with all features:
+
+```bash
+python -m pip install -e .[full]
+```
+
 - Install as a library and run only the API (cross-platform):
 
 ```bash
@@ -81,7 +100,7 @@ Optional: to start the frontend UI in a second terminal:
 npm run dev --prefix frontend
 ```
 
-> Note: `run_local.ps1` and `run_local.sh` are provided for Windows and macOS/Linux respectively to make the full-stack start safe and idempotent.
+> Note: `run_local.ps1` and `run_local.sh` are provided for Windows and macOS/Linux respectively to make the full-stack start safe and idempotent. For an automated clone+run helper, see `scripts/quickstart.sh` and `scripts/quickstart.ps1`.
 
 Choose the installation method that matches your needs (advanced instructions below):
 
