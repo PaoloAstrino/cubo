@@ -136,7 +136,10 @@ To ensure dedup functionality is covered in CI, add a small workflow that runs t
   run: |
     python -m venv .venv
     .venv\Scripts\activate
-    pip install -r requirements.txt -r requirements-dev.txt
+    pip install -r requirements.txt
+    # For development and tests, prefer the dev extra:
+    pip install -e '.[dev]'
+    # Or use the repo copy: pip install -r requirements/requirements-dev.txt
     pytest tests/deduplication -k "deduplicator or end_to_end_dedup_and_index_flow" -q
 ```
 

@@ -91,6 +91,35 @@ describe('Collection API Client', () => {
       )
     })
 
+    it('should include emoji when provided', async () => {
+      const newCollectionEmoji: Collection = {
+        id: 'new-coll-emoji',
+        name: 'Emoji Collection',
+        color: '#00ff00',
+        emoji: '📚',
+        created_at: '2025-11-29T12:00:00',
+        document_count: 0,
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(newCollectionEmoji),
+      })
+
+      const result = await createCollection({ name: 'Emoji Collection', color: '#00ff00', emoji: '📚' })
+
+      expect(result).toEqual(newCollectionEmoji)
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/collections'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Emoji Collection', color: '#00ff00', emoji: '📚' }),
+        })
+      )
+
+    })
+
     it('should throw error on failure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,

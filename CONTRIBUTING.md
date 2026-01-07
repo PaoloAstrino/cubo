@@ -8,13 +8,40 @@ We welcome contributions! Please follow these steps:
    # Backend (Python)
    python -m venv .venv
    .venv\Scripts\activate  # Windows
-   pip install -r requirements.txt -r requirements-dev.txt
+   pip install -r requirements.txt
+   # For development and tests, prefer the dev extra:
+   pip install -e '.[dev]'
+   # Or: pip install -r requirements/requirements-dev.txt
 
    # Install pre-commit hooks (automatic code checks)
    pre-commit install
 
    # Frontend (Node.js)
    npm run install:frontend
+   ```
+
+   ### Quickstart (one‑line)
+   For new contributors who want a simple, one-line start, use the provided quickstart scripts (recommended):
+
+   - Windows (PowerShell):
+     ```powershell
+     .\run_local.ps1
+     ```
+   - macOS / Linux (bash):
+     ```bash
+     ./run_local.sh
+     ```
+
+   These scripts create/activate `.venv`, install required dependencies (backend + frontend) and launch the full stack.
+
+   Alternatively, to install the package in editable mode and run only the API:
+   ```bash
+   python -m pip install -e . && python -m cubo.server.run --reload
+   ```
+
+   (Optional) To start the frontend UI in another terminal:
+   ```bash
+   npm run dev --prefix frontend
    ```
 3. **Make your changes** adhering to the existing code style:
    - Python: follow `ruff` and `black` formatting.

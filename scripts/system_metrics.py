@@ -47,7 +47,7 @@ def run_index_worker(corpus, index_dir, limit=0):
 def run_query_benchmark(index_dir, queries, top_k):
     # Reuse worker_retrieve to get latencies and run
     out = f"results/system_query_run_topk{top_k}.json"
-    cmd = ['python', 'scripts/worker_retrieve.py', '--index-dir', index_dir, '--queries', queries, '--output', out, '--top-k', str(top_k), '--mode', 'with_rerank']
+    cmd = ['python', 'scripts/worker_retrieve.py', '--index-dir', index_dir, '--queries', queries, '--output', out, '--top-k', str(top_k), '--mode', 'no_rerank']
     proc = subprocess.Popen(cmd)
     peak = monitor_process_and_wait(proc)
     if proc.returncode != 0:

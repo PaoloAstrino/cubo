@@ -145,6 +145,18 @@ class CuboBeirAdapter:
         # COPYING PREVIOUS LOGIC FOR COMPLETENESS
 
         index_path = Path(index_dir)
+        lock_path = index_path / ".indexing.lock"
+        if lock_path.exists():
+            logger.warning(f"Indexing lock present at {lock_path}. Skipping reindex to avoid concurrent work.")
+            return 0
+        # create parent dirs if needed and write lock
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(lock_path, "w", encoding="utf-8") as _f:
+                _f.write(str(os.getpid()))
+        except Exception:
+            logger.warning("Could not create indexing lock; proceeding cautiously.")
+
         if index_path.exists():
             logger.warning(f"Removing existing index directory: {index_dir}")
             shutil.rmtree(index_dir, ignore_errors=True)
@@ -192,23 +204,51 @@ class CuboBeirAdapter:
                     batch_docs.append(text)
                     batch_ids.append(doc_id)
                     if len(batch_docs) >= batch_size:
-                        self._process_batch(batch_docs, batch_ids, conn, normalize, faiss_manager)
-                        count += len(batch_docs)
-                        batch_docs = []
-                        batch_ids = []
-                        if count % 10000 == 0:
-                            logger.info(f"Indexed {count} documents...")
+                        # Respect 'limit' if provided: only process up to the remaining budget
+                        if limit and (count + len(batch_docs)) > limit:
+                            needed = limit - count
+                            if needed > 0:
+                                to_docs = batch_docs[:needed]
+                                to_ids = batch_ids[:needed]
+                                self._process_batch(to_docs, to_ids, conn, normalize, faiss_manager)
+                                count += len(to_docs)
+                            # We've reached the requested limit; break out of the loop
+                            batch_docs = []
+                            batch_ids = []
+                            break
+                        else:
+                            self._process_batch(batch_docs, batch_ids, conn, normalize, faiss_manager)
+                            count += len(batch_docs)
+                            batch_docs = []
+                            batch_ids = []
+                            if count % 10000 == 0:
+                                logger.info(f"Indexed {count} documents...")
                 except json.JSONDecodeError:
                     continue
 
         if batch_docs:
-            self._process_batch(batch_docs, batch_ids, conn, normalize, faiss_manager)
-            count += len(batch_docs)
+            # Respect 'limit' for the final batch
+            if limit and (count + len(batch_docs)) > limit:
+                needed = limit - count
+                if needed > 0:
+                    to_docs = batch_docs[:needed]
+                    to_ids = batch_ids[:needed]
+                    self._process_batch(to_docs, to_ids, conn, normalize, faiss_manager)
+                    count += len(to_docs)
+            else:
+                self._process_batch(batch_docs, batch_ids, conn, normalize, faiss_manager)
+                count += len(batch_docs)
 
         logger.info("Saving FAISS index...")
         faiss_manager.save(index_path)
         conn.commit()
         conn.close()
+
+        # Clean up indexing lock
+        try:
+            lock_path.unlink()
+        except Exception:
+            pass
 
         self.index_dir = index_dir
         # After indexing, if we have a retriever, reload it

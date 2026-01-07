@@ -58,6 +58,8 @@ export default function UploadPage() {
     const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
     const [newCollectionName, setNewCollectionName] = React.useState("")
     const [selectedColor, setSelectedColor] = React.useState(COLLECTION_COLORS[0])
+    const EMOJIS = ['📁','📚','🧾','📄','📝','🗂️','🔖','🧩']
+    const [selectedEmoji, setSelectedEmoji] = React.useState<string | null>(null)
     const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
     const [isCreating, setIsCreating] = React.useState(false)
     const { toast } = useToast()
@@ -105,7 +107,7 @@ export default function UploadPage() {
 
         setIsCreating(true)
         try {
-            await createCollection({ name: newCollectionName, color: selectedColor })
+            await createCollection({ name: newCollectionName, color: selectedColor, emoji: selectedEmoji ?? undefined })
             mutate('/api/collections') // Refresh collections list
             toast({
                 title: "Collection Created",
@@ -113,6 +115,7 @@ export default function UploadPage() {
             })
             setNewCollectionName("")
             setSelectedColor(COLLECTION_COLORS[0])
+            setSelectedEmoji(null)
             setIsCreateDialogOpen(false)
         } catch (error) {
             toast({
@@ -186,11 +189,25 @@ export default function UploadPage() {
                                             <button
                                                 key={color}
                                                 onClick={() => setSelectedColor(color)}
-                                                className={`w-8 h-8 rounded-lg transition-all ${selectedColor === color ? 'ring-2 ring-offset-2 ring-primary' : ''
-                                                    }`}
+                                                className={`w-8 h-8 rounded-lg transition-all ${selectedColor === color ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
                                                 style={{ backgroundColor: color }}
                                                 aria-label={`Select color ${color}`}
                                             />
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Emoji</Label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {EMOJIS.map((em) => (
+                                            <button
+                                                key={em}
+                                                onClick={() => setSelectedEmoji(em)}
+                                                className={`w-8 h-8 rounded-lg transition-all text-lg ${selectedEmoji === em ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
+                                                aria-label={`Select emoji ${em}`}
+                                            >
+                                                {em}
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
@@ -248,9 +265,9 @@ export default function UploadPage() {
             <div>
                 <h2 className="text-lg font-semibold mb-3">Collections</h2>
                 {isLoading ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                            <Skeleton key={i} className="h-32 rounded-xl" />
+                    <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <Skeleton key={i} className="h-20 rounded-xl" />
                         ))}
                     </div>
                 ) : collections.length === 0 ? (
@@ -262,11 +279,12 @@ export default function UploadPage() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6">
                         {collections.map((collection) => (
                             <Card
                                 key={collection.id}
-                                className="group relative cursor-pointer hover:shadow-lg transition-all overflow-hidden"
+                                className="group relative cursor-pointer hover:shadow-lg transition-all overflow-hidden aspect-square min-w-[160px]"
+                                style={{ aspectRatio: '1 / 1' }}
                                 onClick={() => handleOpenCollection(collection.id)}
                             >
                                 <div
@@ -276,10 +294,14 @@ export default function UploadPage() {
                                 <CardContent className="relative pt-6">
                                     <div className="flex items-start justify-between">
                                         <div
-                                            className="w-12 h-12 rounded-xl flex items-center justify-center"
-                                            style={{ backgroundColor: collection.color }}
+                                            className={`w-12 h-12 rounded-xl flex items-center justify-center ${collection.emoji ? 'bg-white border-4' : ''}`}
+                                            style={collection.emoji ? { borderColor: collection.color } : { backgroundColor: collection.color }}
                                         >
-                                            <CuboLogo className="h-7 w-7 text-white" />
+                                            {collection.emoji ? (
+                                                <span className="text-xl">{collection.emoji}</span>
+                                            ) : (
+                                                <CuboLogo className="h-7 w-7 text-white" />
+                                            )}
                                         </div>
                                         <Button
                                             variant="ghost"

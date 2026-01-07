@@ -22,6 +22,8 @@ def main():
     metrics = {'indexed_count': count, 'time_s': end - start}
     out = args.index_dir.rstrip('/') + '/index_metrics.json'
     import json
+    import os
+    os.makedirs(args.index_dir, exist_ok=True)
     with open(out, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=2)
     print(f"Saved index metrics to {out}")

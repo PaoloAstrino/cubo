@@ -406,7 +406,7 @@ results = hybrid.search('What is apple', top_k=5, strategy=strategy)
 
 CI & Testing Notes
 - `pyarrow` and `openpyxl` are required to write/read parquet and xlsx files. See `requirements.txt`.
-- Add `reportlab` to `requirements-dev.txt` for PDF creation during tests.
+- Add `reportlab` to `requirements/requirements-dev.txt` for PDF creation during tests (or use the `dev` extra via `pip install -e .[dev]`).
 - Run tests with the `PYTHONPATH` set to the repo root:
 
 ```pwsh
@@ -470,7 +470,7 @@ cubo/
 ├── main.py              # CLI entry point
 ├── launch_gui.py        # GUI launcher
 ├── requirements.txt      # Python runtime dependencies
-├── requirements-dev.txt # Development dependencies
+├── requirements/requirements-dev.txt # Development dependencies (preferred: `pip install -e .[dev]`)
 └── README.md            # This file
 ```
 
@@ -834,7 +834,9 @@ CUBO includes comprehensive unit tests to ensure reliability.
 ```bash
 # Install test dependencies (included in requirements-dev.txt)
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
+pip install -r requirements/requirements-dev.txt
+
+# Or, preferred for development: pip install -e .[dev]
 
 # Run all tests
 python -m pytest tests/

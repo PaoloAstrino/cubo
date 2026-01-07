@@ -387,10 +387,22 @@ class FaissStore(VectorStore):
                         id TEXT PRIMARY KEY,
                         name TEXT NOT NULL UNIQUE,
                         created_at TEXT NOT NULL,
-                        color TEXT DEFAULT '#2563eb'
+                        color TEXT DEFAULT '#2563eb',
+                        emoji TEXT DEFAULT ''
                     )
                 """
                 )
+
+                # Add emoji column to existing DBs if missing (safe migration)
+                cursor = conn.execute("PRAGMA table_info('collections')")
+                columns = [row[1] for row in cursor.fetchall()]
+                if 'emoji' not in columns:
+                    try:
+                        conn.execute("ALTER TABLE collections ADD COLUMN emoji TEXT DEFAULT ''")
+                        conn.commit()
+                    except Exception:
+                        # If alter fails (old SQLite), ignore and continue
+                        pass
 
                 # Junction table linking documents to collections
                 conn.execute(
@@ -1140,15 +1152,16 @@ class FaissStore(VectorStore):
     # Collection Management Methods
     # =========================================================================
 
-    def create_collection(self, name: str, color: str = "#2563eb") -> Dict[str, Any]:
+    def create_collection(self, name: str, color: str = "#2563eb", emoji: Optional[str] = "") -> Dict[str, Any]:
         """Create a new document collection.
 
         Args:
             name: Unique name for the collection
             color: Hex color for visual representation (default: brand blue)
+            emoji: Optional emoji to visually represent the collection
 
         Returns:
-            Dict with collection id, name, color, and created_at
+            Dict with collection id, name, color, emoji and created_at
 
         Raises:
             ValueError: If collection name already exists
@@ -1162,8 +1175,8 @@ class FaissStore(VectorStore):
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
             try:
                 conn.execute(
-                    "INSERT INTO collections (id, name, created_at, color) VALUES (?, ?, ?, ?)",
-                    (collection_id, name, created_at, color),
+                    "INSERT INTO collections (id, name, created_at, color, emoji) VALUES (?, ?, ?, ?, ?)",
+                    (collection_id, name, created_at, color, emoji or ''),
                 )
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -1173,6 +1186,7 @@ class FaissStore(VectorStore):
             "id": collection_id,
             "name": name,
             "color": color,
+            "emoji": emoji or '',
             "created_at": created_at,
             "document_count": 0,
         }
@@ -1187,7 +1201,7 @@ class FaissStore(VectorStore):
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """
-                SELECT c.id, c.name, c.color, c.created_at,
+SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                        COUNT(cd.document_id) as document_count
                 FROM collections c
                 LEFT JOIN collection_documents cd ON c.id = cd.collection_id
@@ -1201,6 +1215,7 @@ class FaissStore(VectorStore):
                 "id": row["id"],
                 "name": row["name"],
                 "color": row["color"],
+                "emoji": row["emoji"] if "emoji" in row.keys() else None,
                 "created_at": row["created_at"],
                 "document_count": row["document_count"],
             }

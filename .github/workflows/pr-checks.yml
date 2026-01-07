@@ -89,7 +89,7 @@ jobs:
       - name: Install Dependencies (Minimal)
         run: |
           pip install --no-cache-dir -r requirements-ci.txt
-          pip install --no-cache-dir -r requirements-dev.txt
+          pip install --no-cache-dir -r requirements/requirements-dev.txt
           pip install --no-cache-dir -e .
           # Using requirements-ci.txt: skips heavy ML packages
       - name: Run Smoke Tests

@@ -23,17 +23,29 @@ Un sistema RAG (Retrieval-Augmented Generation) modulare che utilizza modelli di
 - **📊 Export Audit GDPR**: Esporta log in CSV/JSON per audit di conformità
 - **🌍 README Multilingue**: Documentazione in Italiano, Inglese e Cinese
 
-## Avvio Rapido
+## Avvio Rapido — Due comandi (semplice)
 
-### Interfaccia Web (Consigliata)
+Per gli utenti non esperti, sono disponibili due comandi semplici che coprono i flussi più comuni.
+
+- Full‑stack (un clic, Windows PowerShell):
+
+```powershell
+# dalla cartella del repository
+.\run_local.ps1
+# (oppure fai doppio clic su `start.bat`)
+```
+Questo comando crea l'ambiente virtuale `.venv`, installa le dipendenze necessarie (backend + frontend) e avvia l'intero stack (backend + frontend).
+
+- Installa come libreria e avvia solo l'API (cross‑platform):
 
 ```bash
-# Installa dipendenze
-pip install -r requirements.txt
-cd frontend && pnpm install && cd ..
+python -m pip install -e . && python -m cubo.server.run --reload
+```
 
-# Avvia backend e frontend
-python scripts/start_fullstack.py
+Opzionale: per avviare l'interfaccia frontend in una seconda shell:
+
+```bash
+npm run dev --prefix frontend
 ```
 
 Visita:

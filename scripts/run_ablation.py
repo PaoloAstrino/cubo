@@ -11,10 +11,9 @@ MODES = {
 }
 
 
-def run_mode(dataset_corpus, dataset_queries, mode, top_k, index_dir_base, output_base):
+def run_mode(dataset, dataset_corpus, dataset_queries, mode, top_k, index_dir, output_base, force_reindex=False):
     out = Path(output_base) / f"beir_run_{dataset}_topk{top_k}_{mode}.json"
-    idx = Path(index_dir_base) / f"beir_index_{dataset}_{mode}_topk{top_k}"
-
+    
     cmd = [
         "python",
         "scripts/run_beir_adapter.py",
@@ -22,19 +21,23 @@ def run_mode(dataset_corpus, dataset_queries, mode, top_k, index_dir_base, outpu
         str(dataset_corpus),
         "--queries",
         str(dataset_queries),
-        "--reindex",
         "--output",
         str(out),
         "--index-dir",
-        str(idx),
+        str(index_dir),
         "--top-k",
         str(top_k),
     ]
+    
+    # Only reindex if it's the first run or force_reindex is True
+    # We'll handle this in the main loop
+    if force_reindex:
+        cmd.append("--reindex")
 
     # Append mode-specific flags
     cmd += MODES[mode]
 
-    print("Running:", " ".join(cmd))
+    print(f"Running mode {mode}:", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
 
@@ -44,14 +47,26 @@ if __name__ == "__main__":
     parser.add_argument("--top-k", type=int, default=50)
     parser.add_argument("--index-dir", default="results")
     parser.add_argument("--output-dir", default="results")
+    parser.add_argument("--queries", help="Override queries path")
+    parser.add_argument("--corpus", help="Override corpus path")
+    parser.add_argument("--force-reindex", action="store_true", help="Force reindexing")
 
     args = parser.parse_args()
     dataset = args.dataset
 
-    corpus = Path(f"data/beir/{dataset}/corpus.jsonl")
-    queries = Path(f"data/beir/{dataset}/queries.jsonl")
+    corpus = Path(args.corpus) if args.corpus else Path(f"data/beir/{dataset}/corpus.jsonl")
+    queries = Path(args.queries) if args.queries else Path(f"data/beir/{dataset}/queries.jsonl")
 
+    # Single shared index for this dataset/top_k combo
+    shared_index_dir = Path(args.index_dir) / f"beir_index_{dataset}_shared"
+    
+    # We only need to index once for the entire ablation suite
+    first_run = True
     for mode in ["dense", "bm25", "hybrid"]:
-        run_mode(corpus, queries, mode, args.top_k, args.index_dir, args.output_dir)
+        # Reindex on first mode run if directory doesn't exist or force_reindex is set
+        do_reindex = (first_run and (not shared_index_dir.exists() or args.force_reindex))
+        
+        run_mode(dataset, corpus, queries, mode, args.top_k, shared_index_dir, args.output_dir, force_reindex=do_reindex)
+        first_run = False
 
     print("Ablation runs completed for", dataset)

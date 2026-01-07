@@ -626,6 +626,7 @@ class CollectionCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100, description="Collection name")
     color: str = Field("#2563eb", description="Hex color for visual representation")
+    emoji: Optional[str] = Field(None, description="Optional emoji to represent the collection")
 
 
 class CollectionResponse(BaseModel):
@@ -634,6 +635,7 @@ class CollectionResponse(BaseModel):
     id: str
     name: str
     color: str
+    emoji: Optional[str] = None
     created_at: str
     document_count: int
 
@@ -978,7 +980,9 @@ async def create_collection(collection_data: CollectionCreate, request: Request)
 
     try:
         collection = cubo_app.vector_store.create_collection(
-            name=collection_data.name, color=collection_data.color
+            name=collection_data.name,
+            color=collection_data.color,
+            emoji=collection_data.emoji if hasattr(collection_data, 'emoji') else None,
         )
     except ValueError as e:
         # Map ValueError from store to HTTP 409 for duplicate collections

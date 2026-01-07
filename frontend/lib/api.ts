@@ -21,6 +21,7 @@ export interface Collection {
   id: string;
   name: string;
   color: string;
+  emoji?: string;
   created_at: string;
   document_count: number;
 }
@@ -28,6 +29,7 @@ export interface Collection {
 export interface CreateCollectionParams {
   name: string;
   color?: string;
+  emoji?: string;
 }
 
 export interface AddDocumentsResult {

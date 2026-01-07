@@ -32,6 +32,17 @@ class BM25Searcher:
     K1 = BM25_K1
     B = BM25_B
 
+    @property
+    def docs(self) -> List[Dict]:
+        """Delegate docs to the underlying store."""
+        return getattr(self._store, "docs", [])
+
+    @docs.setter
+    def docs(self, value: List[Dict]):
+        """Setter to maintain compatibility if something tries to write to it."""
+        if hasattr(self._store, "docs"):
+            self._store.docs = value
+
     def __init__(
         self, chunks_jsonl: str = None, bm25_stats: str = None, backend: str = None, **kwargs
     ):
@@ -52,7 +63,6 @@ class BM25Searcher:
         self.avg_doc_length: float = 0.0
         self.term_doc_freq: Dict[str, int] = defaultdict(int)
         self.doc_term_freq: Dict[str, Dict[str, int]] = {}
-        self.docs: List[Dict] = self._store.docs
 
         # Load data if paths provided
         if self.chunks_jsonl or self.bm25_stats:

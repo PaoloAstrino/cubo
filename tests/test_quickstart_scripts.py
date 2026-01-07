@@ -20,6 +20,20 @@ def test_quickstart_scripts_exist():
     assert "start_fullstack.py" in content_sh, "run_local.sh should start start_fullstack.py"
     assert "start_fullstack.py" in content_ps1, "run_local.ps1 should start start_fullstack.py"
 
+    # Ensure the canonical run_local.sh does an editable install and installs frontend deps
+    assert "install -e ." in content_sh, "run_local.sh should install the package in editable mode (pip install -e .)"
+    assert ("pnpm" in content_sh) or ("npm" in content_sh), "run_local.sh should install frontend dependencies with pnpm or npm"
+
+    # Preflight checks
+    assert "Checking Python version" in content_sh
+    assert "Checking available disk space" in content_sh
+    assert "Checking Node" in content_sh or "Node.js" in content_sh
+
+    content_ps1 = ps1.read_text(encoding="utf-8")
+    assert "Checking Python version" in content_ps1
+    assert "Checking available disk space" in content_ps1
+    assert "Node.js" in content_ps1
+
 
 def test_run_local_sh_executable():
     sh = REPO_ROOT / "run_local.sh"
