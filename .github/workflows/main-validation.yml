@@ -77,7 +77,8 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - uses: pnpm/action-setup@v3
+      - name: Ensure pnpm available
+        uses: pnpm/action-setup@v3
         with:
           version: 10
 
@@ -104,17 +105,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
-      - name: Ensure pnpm installed (fallback)
-        run: |
-          if ! command -v pnpm >/dev/null 2>&1; then
-            echo "pnpm not found — installing via npm"
-            npm i -g pnpm@10
-          else
-            echo "pnpm is already installed: $(pnpm -v)"
-          fi
-        shell: bash
-
-      - run: pnpm install --frozen-lockfile
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
   # 4. Dry Run Artifact Build (Ensure packing works)
