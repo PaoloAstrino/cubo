@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { Home, Settings, Upload, MessageSquare } from "lucide-react"
+import { Settings, Upload, MessageSquare } from "lucide-react"
 import { CuboLogo } from "@/components/cubo-logo"
 import { cn } from "@/lib/utils"
 import { getCollections, type Collection } from "@/lib/api"
@@ -23,11 +23,6 @@ import {
 
 // Menu items.
 const items = [
-    {
-        title: "Home",
-        url: "/",
-        icon: Home,
-    },
     {
         title: "Chat",
         url: "/chat",
@@ -125,16 +120,21 @@ export function AppSidebar() {
                                             <SidebarMenuButton asChild size="lg">
                                                 <Link
                                                     href={`/chat?collection=${collection.id}`}
+                                                    aria-current={isActive ? 'page' : undefined}
                                                     className={cn(
-                                                        "flex items-center gap-3 group",
-                                                        isActive && "bg-accent"
+                                                        "flex items-center gap-3",
+                                                        isActive && "bg-muted-foreground/10 rounded-md px-2 py-1"
                                                     )}
                                                 >
                                                     <div
-                                                        className="w-6 h-6 rounded flex items-center justify-center shrink-0 transition-transform group-hover:scale-110"
-                                                        style={{ backgroundColor: collection.color }}
+                                                        className="w-6 h-6 rounded flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 bg-white"
+                                                        style={{ border: `1px solid ${collection.color}` }}
                                                     >
-                                                        <CuboLogo className="h-4 w-4 text-white" />
+                                                        {collection.emoji && collection.emoji.trim() ? (
+                                                            <span className="text-sm leading-none">{collection.emoji}</span>
+                                                        ) : (
+                                                            <CuboLogo className="h-4 w-4" fillColor={collection.color} />
+                                                        )}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-medium text-sm truncate">{collection.name}</p>

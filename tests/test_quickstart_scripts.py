@@ -24,6 +24,9 @@ def test_quickstart_scripts_exist():
     assert "install -e ." in content_sh, "run_local.sh should install the package in editable mode (pip install -e .)"
     assert ("pnpm" in content_sh) or ("npm" in content_sh), "run_local.sh should install frontend dependencies with pnpm or npm"
 
+    # Ensure quiet defaults exist (-q / --silent) so the script is unobtrusive by default
+    assert "-q" in content_sh or "--silent" in content_sh
+
     # Preflight checks
     assert "Checking Python version" in content_sh
     assert "Checking available disk space" in content_sh
@@ -33,6 +36,10 @@ def test_quickstart_scripts_exist():
     assert "Checking Python version" in content_ps1
     assert "Checking available disk space" in content_ps1
     assert "Node.js" in content_ps1
+
+    # PowerShell script should accept -Verbose switch or reference CUBO_VERBOSE
+    assert "param(" in content_ps1
+    assert "Verbose" in content_ps1 or "CUBO_VERBOSE" in content_ps1
 
 
 def test_run_local_sh_executable():

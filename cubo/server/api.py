@@ -946,6 +946,144 @@ async def list_documents(
     return sliced
 
 
+@app.delete("/api/documents")
+async def delete_all_documents(request: Request, force: Optional[bool] = Query(False)):
+    """Delete all documents by enqueuing deletion jobs for each document.
+
+    This enqueues a compaction job per document via the vector store's
+    enqueue_deletion method (preferred). If the vector store does not
+    support enqueue_deletion, falls back to deleting immediately where
+    supported.
+    """
+    if not cubo_app:
+        raise HTTPException(status_code=503, detail="CUBO app not initialized")
+
+    logger.info("Bulk document deletion requested", extra={"trace_id": request.state.trace_id, "force": bool(force)})
+
+    # Prefer cubo_app.state.documents_cache when present (tests may attach a DummyCache there),
+    # otherwise fall back to request.app.state cache.
+    _ensure_api_caches(request.app)
+    documents = []
+
+    # First, try cubo_app.state cache if available
+    try:
+        doc_cache = getattr(cubo_app, "state", None)
+        if doc_cache is not None:
+            documents_cache2 = getattr(doc_cache, "documents_cache", None)
+            if documents_cache2 is not None:
+                try:
+                    docs, _ = await documents_cache2.get()
+                    documents = []
+                    for d in docs:
+                        if isinstance(d, dict):
+                            name = d.get("name")
+                        else:
+                            name = getattr(d, "name", None) or getattr(d, "doc_id", None) or str(d)
+                        if name:
+                            documents.append(name)
+                    logger.info("Enumerated from cubo_app.state cache", extra={"count": len(documents), "trace_id": request.state.trace_id})
+                except Exception as e:
+                    logger.warning("cubo_app.state.documents_cache.get failed", extra={"error": str(e), "trace_id": request.state.trace_id})
+                    documents = []
+    except Exception as e:
+        logger.warning("Error checking cubo_app.state for documents_cache", extra={"error": str(e), "trace_id": request.state.trace_id})
+        documents = []
+
+    # If not found, try request.app.state cache
+    if not documents:
+        documents_cache = getattr(request.app.state, "documents_cache", None)
+        if documents_cache is not None:
+            try:
+                docs, _ = await documents_cache.get()
+                documents = []
+                for d in docs:
+                    if isinstance(d, dict):
+                        name = d.get("name")
+                    else:
+                        name = getattr(d, "name", None) or getattr(d, "doc_id", None) or str(d)
+                    if name:
+                        documents.append(name)
+            except Exception as e:
+                logger.warning("documents_cache.get failed", extra={"error": str(e), "trace_id": request.state.trace_id})
+                documents = []
+
+    # If documents empty, try fallback: query vector store for doc ids
+    if not documents:
+        try:
+            if hasattr(cubo_app, "vector_store") and cubo_app.vector_store:
+                # vector_store may expose a method to list documents; use it if available
+                getter = getattr(cubo_app.vector_store, "list_documents", None)
+                if getter:
+                    raw = getter()
+                    # Expect an iterable of document dicts or ids
+                    if raw and isinstance(raw, list):
+                        # Try to normalize
+                        if isinstance(raw[0], dict) and "id" in raw[0]:
+                            documents = [r["id"] for r in raw]
+                        else:
+                            documents = [str(r) for r in raw]
+        except Exception:
+            documents = []
+
+    if not documents:
+        # Nothing to delete (or couldn't enumerate)
+        logger.info("Bulk delete: no documents enumerated", extra={"trace_id": request.state.trace_id})
+        return {"deleted_count": 0, "queued": [], "message": "No documents found or could not enumerate documents"}
+
+    logger.info("Bulk delete: enumerated documents", extra={"count": len(documents), "trace_id": request.state.trace_id})
+
+    queued_jobs = []
+    deleted_count = 0
+    errors = []
+
+    for doc_id in documents:
+        try:
+            if hasattr(cubo_app, "vector_store") and cubo_app.vector_store:
+                if hasattr(cubo_app.vector_store, "enqueue_deletion"):
+                    job_id = cubo_app.vector_store.enqueue_deletion(doc_id, trace_id=request.state.trace_id, force=bool(force))
+                    queued_jobs.append({"doc_id": doc_id, "job_id": job_id})
+                    deleted_count += 1
+                else:
+                    # Fallback immediate delete
+                    try:
+                        cubo_app.vector_store.delete(ids=[doc_id])
+                        deleted_count += 1
+                    except Exception as e:
+                        errors.append({"doc_id": doc_id, "error": str(e)})
+
+            # Attempt to remove the physical file as part of bulk deletion
+            try:
+                data_path = Path("data") / doc_id
+                if await run_in_threadpool(data_path.exists):
+                    await run_in_threadpool(os.remove, data_path)
+                    logger.info("Removed uploaded file from disk (bulk)", extra={"path": str(data_path), "trace_id": request.state.trace_id})
+            except Exception as e:
+                logger.warning(f"Failed to remove uploaded file {doc_id} during bulk delete: {e}")
+
+            else:
+                errors.append({"doc_id": doc_id, "error": "vector_store not available"})
+        except Exception as e:
+            errors.append({"doc_id": doc_id, "error": str(e)})
+
+    # Invalidate documents cache
+    try:
+        if hasattr(request.app.state, "documents_cache"):
+            request.app.state.documents_cache.invalidate()
+    except Exception:
+        pass
+
+    # Record audit
+    trace_collector.record(
+        request.state.trace_id,
+        "api",
+        "document.delete.bulk",
+        {"count": deleted_count, "queued_jobs": len(queued_jobs)},
+    )
+
+    return {"deleted_count": deleted_count, "queued": queued_jobs, "errors": errors}
+
+
+
 # =========================================================================
 # Collection Endpoints
 # =========================================================================
@@ -1545,11 +1683,27 @@ async def delete_document(doc_id: str, request: Request):
         try:
             # Use enqueue_deletion which removes DB rows and schedules compaction
             if hasattr(cubo_app.vector_store, "enqueue_deletion"):
-                job_id = cubo_app.vector_store.enqueue_deletion(
-                    doc_id, trace_id=request.state.trace_id, force=force
-                )
-                deleted = True
-                chunks_removed += 1
+                try:
+                    job_id = cubo_app.vector_store.enqueue_deletion(
+                        doc_id, trace_id=request.state.trace_id, force=force
+                    )
+                    deleted = True
+                    chunks_removed += 1
+                except Exception as e:
+                    # If enqueue fails, attempt to remove the physical file as a fallback
+                    logger.warning(f"Vector store enqueue_deletion failed: {e}; attempting best-effort file removal", extra={"trace_id": request.state.trace_id})
+                    data_path = Path("data") / doc_id
+                    try:
+                        if await run_in_threadpool(data_path.exists):
+                            await run_in_threadpool(os.remove, data_path)
+                            logger.info("Removed uploaded file from disk as fallback after enqueue failure", extra={"path": str(data_path), "trace_id": request.state.trace_id})
+                            deleted = True
+                        else:
+                            # No file to remove and enqueue failed -> not found
+                            deleted = False
+                    except Exception as e2:
+                        logger.warning(f"Failed to remove uploaded file during enqueue failure fallback: {e2}", extra={"trace_id": request.state.trace_id})
+                        # Keep deleted as False in this case
             else:
                 # Fallback to immediate delete (legacy behavior)
                 cubo_app.vector_store.delete(ids=[doc_id])
@@ -1593,6 +1747,22 @@ async def delete_document(doc_id: str, request: Request):
 
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    # Attempt to remove the physical file from the data directory
+    try:
+        data_path = Path("data") / doc_id
+        if await run_in_threadpool(data_path.exists):
+            await run_in_threadpool(os.remove, data_path)
+            logger.info("Removed uploaded file from disk", extra={"path": str(data_path), "trace_id": request.state.trace_id})
+    except Exception as e:
+        logger.warning(f"Failed to remove uploaded file {doc_id}: {e}")
+
+    # Invalidate documents cache so listings refresh promptly
+    try:
+        if request is not None and hasattr(request.app.state, "documents_cache"):
+            request.app.state.documents_cache.invalidate()
+    except Exception:
+        pass
 
     return DeleteDocumentResponse(
         doc_id=doc_id,

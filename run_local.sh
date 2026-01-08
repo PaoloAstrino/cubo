@@ -2,7 +2,21 @@
 # Simple cross-platform local startup for unskilled users (Linux/macOS)
 set -euo pipefail
 
-echo "== CUBO Local Quickstart (bash) =="
+# Default: quiet mode. Use --verbose or -v to enable louder output
+VERBOSE=0
+for arg in "$@"; do
+  case "$arg" in
+    -v|--verbose)
+      VERBOSE=1
+      shift
+      ;;
+  esac
+done
+
+log() { if [ "$VERBOSE" -eq 1 ]; then echo "$@"; fi }
+err() { echo "$@" >&2; }
+
+log "== CUBO Local Quickstart (bash) =="
 
 # Prefer python3, fall back to python
 PY=python3
@@ -10,24 +24,24 @@ if ! command -v $PY >/dev/null 2>&1; then
   if command -v python >/dev/null 2>&1; then
     PY=python
   else
-    echo "Error: Python not found. Please install Python 3.11+"
+    err "Error: Python not found. Please install Python 3.11+"
     exit 1
   fi
 fi
 
 # Check Python version >= 3.11
-echo "Checking Python version..."
+log "Checking Python version..."
 if ! $PY -c "import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)" >/dev/null 2>&1; then
-  echo "Error: Python 3.11 or higher is required. Found: $($($PY -V 2>&1))"
+  err "Error: Python 3.11 or higher is required. Found: $($($PY -V 2>&1))"
   exit 1
 fi
 
 # Check available disk space (require at least 5GB)
-echo "Checking available disk space..."
+log "Checking available disk space..."
 avail_kb=$(df -Pk . | awk 'NR==2 {print $4}')
 min_kb=$((5 * 1024 * 1024))
 if [ "$avail_kb" -lt "$min_kb" ]; then
-  echo "Error: Not enough free disk space. At least 5GB required. Available: ${avail_kb}KB"
+  err "Error: Not enough free disk space. At least 5GB required. Available: ${avail_kb}KB"
   exit 1
 fi
 
@@ -42,11 +56,19 @@ fi
 . .venv/bin/activate
 
 # Ensure pip/up-to-date
-$PY -m pip install --upgrade pip setuptools wheel
+if [ "$VERBOSE" -eq 1 ]; then
+  $PY -m pip install --upgrade pip setuptools wheel
+else
+  $PY -m pip install -q --upgrade pip setuptools wheel
+fi
 
 # Install package in editable mode
-echo "Installing package in editable mode..."
-$PY -m pip install -e .
+log "Installing package in editable mode..."
+if [ "$VERBOSE" -eq 1 ]; then
+  $PY -m pip install -e .
+else
+  $PY -m pip install -q -e .
+fi
 
 # Frontend deps: prefer pnpm, fall back to npm
 # Check Node version (require >= 18)
@@ -62,19 +84,35 @@ else
 fi
 
 if command -v pnpm >/dev/null 2>&1; then
-  echo "Using pnpm to install frontend deps..."
-  pnpm install --prefix frontend
+  log "Using pnpm to install frontend deps..."
+  if [ "$VERBOSE" -eq 1 ]; then
+    pnpm install --prefix frontend
+  else
+    pnpm install --silent --prefix frontend
+  fi
 else
   if command -v npm >/dev/null 2>&1; then
-    echo "pnpm not found; using npm to install frontend deps..."
-    npm install --prefix frontend
+    log "pnpm not found; using npm to install frontend deps..."
+    if [ "$VERBOSE" -eq 1 ]; then
+      npm install --prefix frontend
+    else
+      npm install --silent --prefix frontend
+    fi
   else
-    echo "Error: neither pnpm nor npm were found. Please install Node.js and npm (https://nodejs.org/)."
+    err "Error: neither pnpm nor npm were found. Please install Node.js and npm (https://nodejs.org/)."
     exit 1
   fi
 fi
 
 # Start fullstack (uses scripts/start_fullstack.py)
-echo ""
-echo "Starting CUBO full stack..."
-$PY scripts/start_fullstack.py "$@"
+log ""
+log "Starting CUBO full stack..."
+# Export verbosity env so start_fullstack.py can adjust its own verbosity
+if [ "$VERBOSE" -eq 1 ]; then
+  export CUBO_VERBOSE=1
+  $PY scripts/start_fullstack.py "$@"
+else
+  export CUBO_VERBOSE=0
+  # Keep start script quiet by default
+  CUBO_VERBOSE=0 $PY scripts/start_fullstack.py "$@" >/dev/null 2>&1 &
+fi

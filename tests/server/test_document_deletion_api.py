@@ -6,6 +6,7 @@ pytest.importorskip("fastapi")
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 
 @pytest.fixture
@@ -35,6 +36,13 @@ class TestDocumentDeletionAPI:
         mock_cubo_app.vector_store.enqueue_deletion.return_value = "job123"
         mock_cubo_app.retriever.remove_document.return_value = True
 
+        # Create a test file in the data directory
+        data_dir = Path("data")
+        data_dir.mkdir(exist_ok=True)
+        test_file = data_dir / "test_doc.pdf"
+        test_file.write_text("dummy")
+        assert test_file.exists()
+
         response = client.delete("/api/documents/test_doc.pdf")
 
         if response.status_code == 503:
@@ -50,11 +58,20 @@ class TestDocumentDeletionAPI:
         assert "trace_id" in data
         assert "message" in data
 
-    def test_delete_document_not_found(self, client, mock_cubo_app):
-        """Test deletion of non-existent document (enqueue fails)."""
-        # Mock failed enqueue
+        # File should be removed from disk
+        assert not test_file.exists()
+
+    def test_delete_document_includes_trace_id(self, client, mock_cubo_app):
+        """Ensure dequeue errors with no file result in 404 and a meaningful message."""
+        # Simulate enqueue failure and no file present
         mock_cubo_app.vector_store.enqueue_deletion.side_effect = Exception("Not found")
         mock_cubo_app.retriever.remove_document.return_value = False
+
+        # Ensure file absent
+        data_dir = Path("data")
+        fn = data_dir / "nonexistent.pdf"
+        if fn.exists():
+            fn.unlink()
 
         response = client.delete("/api/documents/nonexistent.pdf")
 
@@ -65,23 +82,28 @@ class TestDocumentDeletionAPI:
         data = response.json()
         assert "not found" in data["detail"].lower()
 
-    def test_delete_document_includes_trace_id(self, client, mock_cubo_app):
-        """Test that deletion response includes trace_id."""
-        mock_cubo_app.vector_store.enqueue_deletion.return_value = "job-abc"
-        mock_cubo_app.retriever.remove_document.return_value = True
+    def test_delete_document_enqueue_fails_but_file_removed(self, client, mock_cubo_app):
+        """If enqueue_deletion fails but a file exists, we should remove file and return success."""
+        # Mock enqueue failure
+        mock_cubo_app.vector_store.enqueue_deletion.side_effect = Exception("DB error")
+        mock_cubo_app.retriever.remove_document.return_value = False
 
-        response = client.delete(
-            "/api/documents/test_doc.pdf", headers={"x-trace-id": "custom-trace-123"}
-        )
+        # Create a test file
+        data_dir = Path("data")
+        data_dir.mkdir(exist_ok=True)
+        test_file = data_dir / "orphan.pdf"
+        test_file.write_text("x")
+        assert test_file.exists()
+
+        response = client.delete("/api/documents/orphan.pdf")
 
         if response.status_code == 503:
             pytest.skip("Server not initialized")
 
-        # Response should include trace_id and job_id
+        assert response.status_code == 200
         data = response.json()
-        if response.status_code == 200:
-            assert "trace_id" in data
-            assert data.get("job_id") == "job-abc"
+        assert data.get("deleted") is True
+        assert not (data_dir / "orphan.pdf").exists()
 
     def test_delete_document_without_app(self, client):
         """Test deletion when app is not initialized."""

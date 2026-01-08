@@ -32,7 +32,8 @@ try {
     if ($Quick) {
         Write-Host "STARTING QUICK BENCHMARK (50 queries)" -ForegroundColor Cyan
         Write-Host "Estimated runtime: 20-30 minutes" -ForegroundColor Yellow
-    } else {
+    }
+    else {
         Write-Host "STARTING FULL BENCHMARK SUITE (323 queries)" -ForegroundColor Cyan
         Write-Host "Estimated runtime: 2-3 HOURS" -ForegroundColor Yellow
     }
@@ -127,12 +128,14 @@ try {
     Write-Host "Total Duration: $([math]::Round($totalDuration / 60, 1)) minutes" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
 
-} catch {
+}
+catch {
     Write-Host ""
     Write-Host "!!! ERROR DETECTED !!!" -ForegroundColor Red
     Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "Benchmark stopped prematurely." -ForegroundColor Red
     Write-Host "Check the log file for details: $logFile" -ForegroundColor Gray
-} finally {
+}
+finally {
     Stop-Transcript
 }

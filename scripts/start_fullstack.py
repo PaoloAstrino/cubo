@@ -14,54 +14,62 @@ ROOT = Path(__file__).parent.parent
 
 
 def main():
-    print(">>> Starting CUBO Full Stack...")
+    verbose = os.environ.get("CUBO_VERBOSE", "0") == "1"
+
+    def p(msg):
+        if verbose:
+            print(msg)
+
+    p(">>> Starting CUBO Full Stack...")
 
     # 1. Start Ollama (best effort)
-    print(">>> Ensuring Ollama is running...")
+    p(">>> Ensuring Ollama is running...")
     try:
-        subprocess.Popen(
-            ["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True
-        )
+        subprocess.Popen([
+            "ollama",
+            "serve",
+        ], stdout=(None if verbose else subprocess.DEVNULL), stderr=(None if verbose else subprocess.DEVNULL), shell=True)
     except Exception:
         pass  # Assume it's running or user will handle it
 
     # 2. Start Backend
-    print(">>> Starting Backend (http://localhost:8000)...")
+    p(">>> Starting Backend (http://localhost:8000)...")
     backend_env = os.environ.copy()
     backend_env["PYTHONPATH"] = str(ROOT)
-    # Enable reload by default for dev experience
     backend_cmd = [sys.executable, "cubo/server/run.py", "--reload"]
 
-    backend = subprocess.Popen(backend_cmd, cwd=ROOT, env=backend_env)
+    backend = subprocess.Popen(backend_cmd, cwd=ROOT, env=backend_env, stdout=(None if verbose else subprocess.DEVNULL), stderr=(None if verbose else subprocess.DEVNULL))
 
     # 3. Start Frontend
-    print(">>> Starting Frontend (http://localhost:3000)...")
+    p(">>> Starting Frontend (http://localhost:3000)...")
     frontend_dir = ROOT / "frontend"
     frontend_cmd = ["npm", "run", "dev"]
 
-    # Windows needs shell=True for npm
     is_windows = sys.platform.startswith("win")
-    frontend = subprocess.Popen(
-        frontend_cmd, cwd=frontend_dir, shell=is_windows, env=os.environ.copy()
-    )
+    frontend = subprocess.Popen(frontend_cmd, cwd=frontend_dir, shell=is_windows, env=os.environ.copy(), stdout=(None if verbose else subprocess.DEVNULL), stderr=(None if verbose else subprocess.DEVNULL))
 
-    print("\n>>> Full Stack Running. Press Ctrl+C to stop.\n")
+    if verbose:
+        print("\n>>> Full Stack Running. Press Ctrl+C to stop.\n")
 
     try:
         while True:
             time.sleep(1)
             if backend.poll() is not None:
-                print("!!! Backend exited unexpectedly")
+                if verbose:
+                    print("!!! Backend exited unexpectedly")
                 break
             if frontend.poll() is not None:
-                print("!!! Frontend exited unexpectedly")
+                if verbose:
+                    print("!!! Frontend exited unexpectedly")
                 break
     except KeyboardInterrupt:
-        print("\n>>> Stopping...")
+        if verbose:
+            print("\n>>> Stopping...")
     finally:
         backend.terminate()
         frontend.terminate()
-        print(">>> Stopped.")
+        if verbose:
+            print(">>> Stopped.")
 
 
 if __name__ == "__main__":

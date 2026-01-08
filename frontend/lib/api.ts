@@ -259,6 +259,20 @@ export async function getDocuments(): Promise<Array<{ name: string; size: string
   return handleResponse<Array<{ name: string; size: string; uploadDate: string }>>(response);
 }
 
+export async function deleteDocument(filename: string): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/documents/${encodeURIComponent(filename)}`, {
+    method: 'DELETE',
+  });
+  return handleResponse<any>(response);
+}
+
+export async function deleteAllDocuments(): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/documents`, {
+    method: 'DELETE',
+  });
+  return handleResponse<any>(response);
+}
+
 export interface ReadinessResponse {
   components: {
     api: boolean;
@@ -306,6 +320,7 @@ export async function getTrace(traceId: string): Promise<{ trace_id: string; eve
   const response = await fetch(`${API_BASE_URL}/api/traces/${traceId}`);
   return handleResponse<{ trace_id: string; events: Array<Record<string, unknown>> }>(response);
 }
+
 
 // =========================================================================
 // Settings & LLM
