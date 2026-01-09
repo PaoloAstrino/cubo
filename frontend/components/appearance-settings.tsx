@@ -1,28 +1,22 @@
 "use client"
 
-import { IconMinus, IconPlus } from "@tabler/icons-react"
 import { CheckIcon } from "lucide-react"
 
-import { Button } from '@/components/ui/button'
-import { ButtonGroup } from '@/components/ui/button-group'
 import {
   Field,
   FieldContent,
   FieldDescription,
   FieldGroup,
-  FieldLabel,
   FieldLegend,
   FieldSeparator,
   FieldSet,
   FieldTitle,
 } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   RadioGroup,
   RadioGroupItem,
 } from '@/components/ui/radio-group'
-import { Switch } from '@/components/ui/switch'
 
 const accents = [
   {
@@ -52,32 +46,14 @@ export function AppearanceSettings() {
           <FieldDescription>
             Select the compute environment for your cluster.
           </FieldDescription>
-          <RadioGroup defaultValue="kubernetes">
-            <FieldLabel htmlFor="kubernetes-r2h">
-              <Field orientation="horizontal">
-                <FieldContent>
-                  <FieldTitle>Kubernetes</FieldTitle>
-                  <FieldDescription>
-                    Run GPU workloads on a K8s configured cluster. This is the
-                    default.
-                  </FieldDescription>
-                </FieldContent>
-                <RadioGroupItem value="kubernetes" id="kubernetes-r2h" />
-              </Field>
-            </FieldLabel>
-            <FieldLabel htmlFor="vm-z4k">
-              <Field orientation="horizontal">
-                <FieldContent>
-                  <FieldTitle>Virtual Machine</FieldTitle>
-                  <FieldDescription>
-                    Access a VM configured cluster to run workloads. (Coming
-                    soon)
-                  </FieldDescription>
-                </FieldContent>
-                <RadioGroupItem value="vm" id="vm-z4k" />
-              </Field>
-            </FieldLabel>
-          </RadioGroup>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Kubernetes</FieldTitle>
+              <FieldDescription>
+                Run GPU workloads on a K8s configured cluster. This is the default.
+              </FieldDescription>
+            </FieldContent>
+          </Field>
         </FieldSet>
         <FieldSeparator />
         <Field orientation="horizontal">
@@ -107,37 +83,7 @@ export function AppearanceSettings() {
           </FieldSet>
         </Field>
         <FieldSeparator />
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldLabel htmlFor="number-of-gpus-f6l">Number of GPUs</FieldLabel>
-            <FieldDescription>You can add more later.</FieldDescription>
-          </FieldContent>
-          <ButtonGroup>
-            <Input
-              id="number-of-gpus-f6l"
-              placeholder="8"
-              size={3}
-              className="h-8 !w-14 font-mono"
-              maxLength={3}
-            />
-            <Button variant="outline" size="icon-sm" type="button">
-              <IconMinus />
-            </Button>
-            <Button variant="outline" size="icon-sm" type="button">
-              <IconPlus />
-            </Button>
-          </ButtonGroup>
-        </Field>
-        <FieldSeparator />
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldLabel htmlFor="tinting">Wallpaper Tinting</FieldLabel>
-            <FieldDescription>
-              Allow the wallpaper to be tinted.
-            </FieldDescription>
-          </FieldContent>
-          <Switch id="tinting" defaultChecked />
-        </Field>
+
       </FieldGroup>
     </FieldSet>
   )
