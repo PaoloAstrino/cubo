@@ -25,7 +25,7 @@
 
 - **Performance varies dramatically by domain** — up to 5× difference between strong and weak domains.
 - Strong domains (Recall@10 > 0.50): SciFact (0.5591), ArguAna (0.5092).
-- Weak domains (Recall@10 < 0.20): NFCorpus (0.1697), FiQA (0.1056).
+- Weak domains (Recall@10 < 0.20): NFCorpus (0.1697). **Note:** FiQA results were updated — dense Recall@10 = 0.5244 (see Detailed Results).
 
 **Important:** Performance differences indicate domain specialization in the model; it is strong for scientific and argumentative text but weak for specialized medical and financial content.
 
@@ -89,6 +89,7 @@ python scripts/run_beir_adapter.py \
 - **Queries:** 300 scientific claims
 - **Recall@10:** 0.5591
 - **MRR:** 0.3860
+- **nDCG@10:** 0.4206
 - **Verdict:** Model excels at scientific content.
 
 ### ArguAna (Argument Retrieval) ⭐
@@ -96,6 +97,7 @@ python scripts/run_beir_adapter.py \
 - **Queries:** 1,406 counter-argument queries
 - **Recall@10:** 0.5092
 - **MRR:** 0.1423
+- **nDCG@10:** 0.2287
 - **Verdict:** Strong retrieval, weaker ranking.
 
 ### NFCorpus (Medical / Nutrition) ❌
@@ -103,13 +105,23 @@ python scripts/run_beir_adapter.py \
 - **Queries:** 323 medical queries
 - **Recall@10:** 0.1697
 - **MRR:** 0.3195
+- **nDCG@10:** 0.1798
 - **Verdict:** Domain mismatch — needs a specialized model.
+
+### FiQA (Financial) — UPDATED ✅
+- **Corpus:** (financial QA)
+- **Queries:** 648
+- **Dense (top-k 50)** — **Recall@10:** 0.5244, **MRR:** 0.5195, **nDCG@10:** 0.4473
+- **BM25 (top-k 50)** — Recall@10: 0.5131, MRR: 0.2781, nDCG@10: 0.3206
+- **Hybrid (top-k 50)** — Recall@10: 0.5092, MRR: 0.2751, nDCG@10: 0.3174
+- **Verdict:** Stronger-than-expected performance on financial QA; dense embeddings perform best here.
 
 ### SciDocs (Scientific - Medium) ⚠️
 - **Corpus:** 25,657 documents
 - **Queries:** 1,000 queries
 - **Recall@10:** 0.0391
 - **MRR:** 0.1421
+- **nDCG@10:** 0.0749
 - **Verdict:** Data format issue — queries contain IDs instead of text, causing embeddings of IDs and artificially low performance. Recommend fixing query data.
 
 ### UltraDomain (Cross-Domain - Medium) 🚀
@@ -120,15 +132,16 @@ python scripts/run_beir_adapter.py \
 - **Verdict:** Exceptional performance across diverse structured domains.
 
 #### UltraDomain Subsets
-- **Politics:** Recall@10 = 0.9667 — 🚀 Perfect
-- **Agriculture:** Recall@10 = 1.0000 — 🚀 Perfect
-- **Legal:** Recall@10 = 0.4772 — ⭐ Very strong for legal text
+- **Politics:** Recall@10 = 0.9667, **nDCG@10:** 0.7976 — 🚀 Perfect
+- **Agriculture:** Recall@10 = 1.0000, **nDCG@10:** 0.7749 — 🚀 Perfect
+- **Legal:** Recall@10 = 0.4772, **nDCG@10:** 0.2884 — ⭐ Very strong for legal text
 
 ### RAGBench (Full Suite - Mixed Hard Sets) 🏗️
 - **Corpus:** 24,706 unique documents
 - **Queries:** 7,422 unique queries
 - **Recall@10:** 0.3030
 - **MRR:** 0.4114
+- **nDCG@10:** 0.4075
 - **Verdict:** Industry-standard performance; adding harder subsets reduces overall Recall@10 to ~0.30.
 
 ---
