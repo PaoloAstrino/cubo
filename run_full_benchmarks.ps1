@@ -4,7 +4,9 @@
 # ESTIMATED RUNTIME: 2-3 HOURS (Full) | 20-30 MIN (Quick)
 
 param(
-    [switch]$Quick
+    [switch]$Quick,
+    [string]$Dataset = "nfcorpus",
+    [switch]$Yes
 )
 
 $ErrorActionPreference = "Stop" # Stop on errors to avoid "fake" completions
@@ -21,25 +23,46 @@ Start-Transcript -Path $logFile
 
 try {
     # Prepare query subset if quick mode
-    $queryFile = "data/beir/nfcorpus/queries.jsonl"
+    $queryFile = "data/beir/$Dataset/queries.jsonl"
+    $corpusFile = "data/beir/$Dataset/corpus.jsonl"
+    $qrelsFile = "data/beir/$Dataset/qrels/test.tsv"
+
+    # Validate dataset files exist
+    if (!(Test-Path $corpusFile)) {
+        throw "Corpus file not found: $corpusFile"
+    }
+    if (!(Test-Path $queryFile)) {
+        throw "Queries file not found: $queryFile"
+    }
+
     if ($Quick) {
         Write-Host "Creating subset of 50 queries for quick mode..." -ForegroundColor Yellow
-        Get-Content $queryFile -TotalCount 50 | Out-File "data/beir/nfcorpus/queries_quick50.jsonl"
-        $queryFile = "data/beir/nfcorpus/queries_quick50.jsonl"
+        Get-Content $queryFile -TotalCount 50 | Out-File "data/beir/$Dataset/queries_quick50.jsonl"
+        $queryFile = "data/beir/$Dataset/queries_quick50.jsonl"
     }
 
     Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "BENCHMARK DATASET: $Dataset" -ForegroundColor Cyan
     if ($Quick) {
-        Write-Host "STARTING QUICK BENCHMARK (50 queries)" -ForegroundColor Cyan
+        Write-Host "MODE: Quick (50 queries)" -ForegroundColor Cyan
         Write-Host "Estimated runtime: 20-30 minutes" -ForegroundColor Yellow
     }
     else {
-        Write-Host "STARTING FULL BENCHMARK SUITE (323 queries)" -ForegroundColor Cyan
-        Write-Host "Estimated runtime: 2-3 HOURS" -ForegroundColor Yellow
+        Write-Host "MODE: Full benchmark" -ForegroundColor Cyan
+        Write-Host "Estimated runtime: 1-3 hours" -ForegroundColor Yellow
     }
     Write-Host "Start Time: $(Get-Date)" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
+
+    # Confirmation prompt unless --Yes flag is set
+    if (!$Yes) {
+        $confirmation = Read-Host "Continue with benchmark run? (Y/N)"
+        if ($confirmation -ne 'Y' -and $confirmation -ne 'y') {
+            Write-Host "Benchmark cancelled by user." -ForegroundColor Yellow
+            exit 0
+        }
+    }
 
     # Check if scripts exist
     $requiredScripts = @("scripts/run_beir_adapter.py", "scripts/run_reranker_eval.py", "scripts/system_metrics.py", "scripts/run_ablation.py")
@@ -49,15 +72,15 @@ try {
         }
     }
 
-    # ===== STEP 1: Index NFCorpus (Baseline) =====
-    Write-Host "[1/5] Indexing NFCorpus corpus (~3,633 docs)..." -ForegroundColor Yellow
+    # ===== STEP 1: Index Corpus (Baseline) =====
+    Write-Host "[1/5] Indexing $Dataset corpus..." -ForegroundColor Yellow
     $step1Start = Get-Date
     python scripts/run_beir_adapter.py `
-        --corpus data/beir/nfcorpus/corpus.jsonl `
+        --corpus $corpusFile `
         --queries $queryFile `
         --reindex `
-        --output results/nfcorpus_bench.json `
-        --index-dir results/nfcorpus_bench_index `
+        --output "results/${Dataset}_bench.json" `
+        --index-dir "results/${Dataset}_bench_index" `
         --use-optimized --laptop-mode `
         --top-k 50
     $step1End = Get-Date
@@ -69,7 +92,7 @@ try {
     Write-Host "[2/5] Running Reranker Evaluation..." -ForegroundColor Yellow
     $step2Start = Get-Date
     python scripts/run_reranker_eval.py `
-        --index-dir results/nfcorpus_bench_index `
+        --index-dir "results/${Dataset}_bench_index" `
         --queries $queryFile `
         --top-k 10
     $step2End = Get-Date
@@ -81,9 +104,9 @@ try {
     Write-Host "[3/5] Collecting System Metrics..." -ForegroundColor Yellow
     $step3Start = Get-Date
     python scripts/system_metrics.py `
-        --corpus data/beir/nfcorpus/corpus.jsonl `
+        --corpus $corpusFile `
         --queries $queryFile `
-        --index-dir results/nfcorpus_sys_metrics `
+        --index-dir "results/${Dataset}_sys_metrics" `
         --top-k 10
     $step3End = Get-Date
     $step3Duration = ($step3End - $step3Start).TotalSeconds
@@ -94,7 +117,7 @@ try {
     Write-Host "[4/5] Running Ablation Study (Dense/Hybrid/BM25)..." -ForegroundColor Yellow
     $step4Start = Get-Date
     python scripts/run_ablation.py `
-        --dataset nfcorpus `
+        --dataset $Dataset `
         --queries $queryFile `
         --top-k 50 `
         --index-dir results `
@@ -108,12 +131,17 @@ try {
     Write-Host "[5/5] Finalizing metrics..." -ForegroundColor Yellow
     $step5Start = Get-Date
     foreach ($mode in @("dense", "hybrid", "bm25")) {
-        $runFile = "results/beir_run_nfcorpus_topk50_${mode}.json"
+        $runFile = "results/beir_run_${Dataset}_topk50_${mode}.json"
         if (Test-Path $runFile) {
-            python scripts/calculate_beir_metrics.py `
-                --results $runFile `
-                --qrels data/beir/nfcorpus/qrels/test.tsv `
-                --k 10
+            if (Test-Path $qrelsFile) {
+                python scripts/calculate_beir_metrics.py `
+                    --results $runFile `
+                    --qrels $qrelsFile `
+                    --k 10
+            }
+            else {
+                Write-Host "      ⚠ Skipping metrics for $mode (qrels not found: $qrelsFile)" -ForegroundColor Yellow
+            }
         }
     }
     $step5End = Get-Date

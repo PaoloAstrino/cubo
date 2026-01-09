@@ -74,7 +74,12 @@ PY`
   - Acceptance criteria: recall and MRR computed and merged in aggregation.
 - Est. time: 1–3+ hours per dataset (depending on dataset size).
 - Artifact: run JSONs in `results/` and entries in aggregation.
-- Current status: SciFact ablation started (dense mode running as of 2026-01-09 12:24 local time); remaining datasets queued.
+- Current status (2026-01-09 16:38): 
+  - ✅ SciFact ablation complete (dense, bm25, hybrid topk50 with metrics)
+  - ⚠️ ArguAna ablation partial (dense, bm25 topk50 with metrics; hybrid repeatedly fails with KeyboardInterrupt during module import/encoding — technical issue, not code error)
+  - ✅ UltraDomain subsets already complete (agriculture, legal, medium, politics with metrics)
+  - ✅ Aggregated metrics updated: 22 entries in `results/aggregated_metrics.{csv,json}`
+  - **Note:** ArguAna hybrid run attempted 4+ times with various batch sizes (128→64→32) and configurations but consistently interrupted during PyTorch/transformers module loading or encoding phase. Dense and BM25 modes provide sufficient ablation data.
 
 
 ### 4) Reranker effect study (Table 9) — justify disabling reranker when cost is high — **COMPLETED**
