@@ -7,10 +7,6 @@ import {
   FieldSet,
   FieldTitle,
 } from '@/components/ui/field'
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from '@/components/ui/radio-group'
 
 export function FieldChoiceCard() {
   return (
@@ -23,30 +19,14 @@ export function FieldChoiceCard() {
           <FieldDescription>
             Select the compute environment for your cluster.
           </FieldDescription>
-          <RadioGroup defaultValue="kubernetes">
-            <FieldLabel htmlFor="kubernetes-r2h">
-              <Field orientation="horizontal">
-                <RadioGroupItem value="kubernetes" id="kubernetes-r2h" />
-                <FieldContent>
-                  <FieldTitle>Kubernetes</FieldTitle>
-                  <FieldDescription>
-                    Run GPU workloads on a K8s configured cluster.
-                  </FieldDescription>
-                </FieldContent>
-              </Field>
-            </FieldLabel>
-            <FieldLabel htmlFor="vm-z4k">
-              <Field orientation="horizontal">
-                <RadioGroupItem value="vm" id="vm-z4k" />
-                <FieldContent>
-                  <FieldTitle>Virtual Machine</FieldTitle>
-                  <FieldDescription>
-                    Access a VM configured cluster to run workloads.
-                  </FieldDescription>
-                </FieldContent>
-              </Field>
-            </FieldLabel>
-          </RadioGroup>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Kubernetes</FieldTitle>
+              <FieldDescription>
+                Run GPU workloads on a K8s configured cluster.
+              </FieldDescription>
+            </FieldContent>
+          </Field>
         </FieldSet>
       </FieldGroup>
     </div>
