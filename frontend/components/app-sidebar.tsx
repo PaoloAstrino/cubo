@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { Settings, Upload, MessageSquare } from "lucide-react"
 import { CuboLogo } from "@/components/cubo-logo"
 import { cn } from "@/lib/utils"
+import useSWR from 'swr'
 import { getCollections, type Collection } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -45,22 +46,8 @@ export function AppSidebar() {
     const searchParams = useSearchParams()
     const activeCollectionId = searchParams.get('collection')
 
-    const [collections, setCollections] = React.useState<Collection[]>([])
-    const [isLoading, setIsLoading] = React.useState(true)
-
-    React.useEffect(() => {
-        const fetchCollections = async () => {
-            try {
-                const data = await getCollections()
-                setCollections(data)
-            } catch (error) {
-                console.error('Error fetching collections:', error)
-            } finally {
-                setIsLoading(false)
-            }
-        }
-        fetchCollections()
-    }, [])
+    const { data: collections, error } = useSWR<Collection[]>('/api/collections', getCollections)
+    const isLoading = !collections && !error
 
     return (
         <Sidebar>

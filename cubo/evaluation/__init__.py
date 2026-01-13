@@ -1,3 +1,0 @@
-"""
-Evaluation module for CUBO.
-"""

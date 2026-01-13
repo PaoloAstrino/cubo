@@ -6,9 +6,6 @@ Provides IR metrics (Recall@K, Precision@K, nDCG@K, MRR) and evaluation utilitie
 import math
 from typing import Any, Dict, List, Optional
 
-# Re-export from benchmarks
-from benchmarks.utils.metrics import AdvancedEvaluator, GroundTruthLoader
-
 
 class IRMetricsEvaluator:
     """Evaluator for Information Retrieval (IR) metrics."""
@@ -177,6 +174,4 @@ class IRMetricsEvaluator:
 
 __all__ = [
     "IRMetricsEvaluator",
-    "AdvancedEvaluator",
-    "GroundTruthLoader",
 ]

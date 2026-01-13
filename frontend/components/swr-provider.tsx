@@ -8,6 +8,7 @@ export function SWRProvider({ children }: { children: React.ReactNode }) {
     <SWRConfig
       value={{
         fetcher,
+        revalidateOnMount: true,
         revalidateOnFocus: true,
         dedupingInterval: 2000,
         shouldRetryOnError: true,

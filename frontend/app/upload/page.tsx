@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { CuboLogo } from "@/components/cubo-logo"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
     uploadFile,
     ingestDocuments,
@@ -240,6 +241,47 @@ export default function UploadPage() {
     // Confirmation dialog state
     const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
     const [deleteTarget, setDeleteTarget] = React.useState<string | 'all' | null>(null)
+
+    // Add-from-all-files modal state
+    const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
+    const [addModalCollectionId, setAddModalCollectionId] = React.useState<string | null>(null)
+    const [selectedDocs, setSelectedDocs] = React.useState<Set<string>>(new Set())
+    const [docFilter, setDocFilter] = React.useState<string>('')
+
+    const openAddModalFor = (collectionId: string) => {
+        setAddModalCollectionId(collectionId)
+        setSelectedDocs(new Set())
+        setDocFilter('')
+        setIsAddModalOpen(true)
+    }
+
+    const toggleDocSelection = (docName: string) => {
+        setSelectedDocs((prev) => {
+            const next = new Set(prev)
+            if (next.has(docName)) next.delete(docName)
+            else next.add(docName)
+            return next
+        })
+    }
+
+    const confirmAddSelected = async () => {
+        if (!addModalCollectionId) return
+        const docs = Array.from(selectedDocs)
+        if (docs.length === 0) {
+            toast({ title: 'No documents selected', description: 'Pick at least one document to add.', variant: 'destructive' })
+            return
+        }
+        try {
+            await addDocumentsToCollection(addModalCollectionId, docs)
+            mutate('/api/collections')
+            toast({ title: 'Added', description: `${docs.length} document(s) added to collection.` })
+            setIsAddModalOpen(false)
+            setAddModalCollectionId(null)
+            setSelectedDocs(new Set())
+        } catch (err) {
+            toast({ title: 'Add Failed', description: err instanceof Error ? err.message : 'Failed to add documents to collection', variant: 'destructive' })
+        }
+    }
 
 
     const performDelete = async () => {
@@ -512,27 +554,16 @@ export default function UploadPage() {
                                         </Button>
                                     </div>
 
-                                    {/* Bottom-right upload button (aligned with trash right offset) */}
+                                    {/* Bottom-right Add-from-All-Files button */}
                                     <div className="absolute bottom-3 right-3">
-                                        <Input
-                                            type="file"
-                                            className="hidden"
-                                            id={`file-upload-${collection.id}`}
-                                            data-collection-id={collection.id}
-                                            onChange={handleFileUpload}
-                                            onClick={(e) => e.stopPropagation()}
-                                            onMouseDown={(e) => e.stopPropagation()}
-                                            aria-label={`Upload to ${collection.name}`}
-                                        />
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="opacity-0 group-hover:opacity-100 transition-opacity h-9 w-9 bg-white/0 hover:bg-white/5"
-                                            onClick={(e) => e.stopPropagation()}
+                                            onClick={(e) => { e.stopPropagation(); openAddModalFor(collection.id) }}
+                                            aria-label={`Add existing documents to ${collection.name}`}
                                         >
-                                                <label htmlFor={`file-upload-${collection.id}`} className="cursor-pointer" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-                                                <Plus className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                                            </label>
+                                            <Plus className="h-4 w-4 text-muted-foreground hover:text-primary" />
                                         </Button>
                                     </div>
                                     <div className="mt-3">
@@ -654,6 +685,58 @@ export default function UploadPage() {
                     </ScrollArea>
                 </CardContent>
             </Card>
+
+            {/* Add-from-All-Files dialog (controlled globally) */}
+            <Dialog open={isAddModalOpen} onOpenChange={(open) => {
+                if (!open) {
+                    setAddModalCollectionId(null)
+                    setSelectedDocs(new Set())
+                    setDocFilter('')
+                }
+                setIsAddModalOpen(open)
+            }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Add documents to collection</DialogTitle>
+                        <DialogDescription>
+                            Pick documents from All Files to add to the selected collection.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-2">
+                        <Input placeholder="Filter documents" value={docFilter} onChange={(e) => setDocFilter(e.target.value)} />
+                    </div>
+                    <div className="max-h-[40vh] overflow-auto mt-2">
+                        {documents.length === 0 ? (
+                            <div className="p-4 text-sm text-muted-foreground">No documents available</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {documents
+                                    .filter((d) => d.name.toLowerCase().includes(docFilter.toLowerCase()))
+                                    .map((d) => (
+                                        <div key={d.name} className="flex items-center justify-between p-2 border rounded">
+                                            <div className="flex items-center gap-3">
+                                                <Checkbox checked={selectedDocs.has(d.name)} onCheckedChange={() => toggleDocSelection(d.name)} />
+                                                <div>
+                                                    <p className="font-medium">{d.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{d.uploadDate} • {d.size}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <div className="flex items-center justify-between w-full">
+                            <div className="text-sm text-muted-foreground">{selectedDocs.size} selected</div>
+                            <div className="flex gap-2">
+                                <Button variant="ghost" onClick={() => { setIsAddModalOpen(false); setSelectedDocs(new Set()) }}>Cancel</Button>
+                                <Button onClick={confirmAddSelected} disabled={selectedDocs.size === 0}>Add to Collection</Button>
+                            </div>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Delete confirmation dialog */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {

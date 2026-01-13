@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Suspense } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
   Card,
@@ -49,6 +49,22 @@ function ChatContent() {
     collectionId ? `/api/collections/${collectionId}` : null
   )
 
+  const router = useRouter()
+
+  // Prevent opening an empty collection for chatting: redirect back to /chat and notify
+  React.useEffect(() => {
+    if (!router) return
+    if (collectionId && activeCollection && activeCollection.document_count === 0) {
+      toast({
+        title: "Collection Empty",
+        description: "This collection has no documents. Please add documents to the collection before opening it for chat.",
+        variant: "destructive",
+      })
+      // Clear collection filter by replacing URL without query param
+      router.replace('/chat')
+    }
+  }, [collectionId, activeCollection, router, toast])
+
   type DocumentItem = { name: string; size: string; uploadDate: string }
 
   // SWR: Check documents
@@ -90,6 +106,15 @@ function ChatContent() {
       toast({
         title: "No Documents",
         description: "Please upload documents first before asking questions.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (collectionId && activeCollection && activeCollection.document_count === 0) {
+      toast({
+        title: "Collection Empty",
+        description: "This collection has no documents. Please add documents to this collection before starting a chat.",
         variant: "destructive",
       })
       return
