@@ -97,16 +97,20 @@ def parse_args():
 
 
 def main():
+    """Main function to build FAISS indexes from parquet data."""
     args = parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
+    # Validate input parquet file exists
     parquet_path = Path(args.parquet)
     if not parquet_path.exists():
         raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
 
+    # Load the parquet data
     df = pd.read_parquet(parquet_path)
 
+    # Apply deduplication if dedup map is provided
     if args.dedup_map:
         df = _filter_to_representatives(df, args.id_column, args.dedup_map)
         logger.info(f"Filtered down to {len(df)} canonical documents after dedup application.")
@@ -116,17 +120,18 @@ def main():
         logger.info("Building scaffold index...")
         generator = EmbeddingGenerator(batch_size=args.batch_size)
 
-        # Create enricher if needed
+        # Create enricher if needed for scaffold summaries
         enricher = None
         if args.enrich_chunks or not args.summary_column:
             logger.info("Creating enricher for scaffold summaries...")
             enricher = ChunkEnricher(llm_provider=create_response_generator())
 
+        # Initialize scaffold generator with enricher and embedding generator
         scaffold_gen = ScaffoldGenerator(
             enricher=enricher, embedding_generator=generator, scaffold_size=args.scaffold_size
         )
 
-        # Generate scaffolds
+        # Generate scaffolds from the dataframe
         scaffolds_result = scaffold_gen.generate_scaffolds(
             df, text_column=args.text_column, id_column=args.id_column
         )
@@ -175,11 +180,12 @@ def main():
         )
         manager.build_indexes(embeddings, ids)
 
-        # Sample search
+        # Sample search to validate the index
         sample_query = embeddings[0]
         hits = manager.search(sample_query, k=min(5, len(ids)))
         logger.info(f"Scaffold sample search returned {len(hits)} hits")
 
+        # Save the scaffold index if not a dry run
         if not args.dry_run:
             if args.index_root:
                 ts = int(time.time())
@@ -218,12 +224,14 @@ def main():
     texts = df[embed_column].fillna("").astype(str).tolist()
     ids = df[args.id_column].astype(str).tolist()
 
+    # Validate that we have data to process
     if not texts:
         logger.warning("No chunks found in parquet file; nothing to index")
         return
     if len(texts) != len(ids):
         raise ValueError("Text and id columns must have the same length")
 
+    # Generate embeddings for the texts
     generator = EmbeddingGenerator(batch_size=args.batch_size)
     # Use document prompt when embedding chunk text/summaries
     embeddings = generator.encode(texts, batch_size=args.batch_size, prompt_name="document")
@@ -231,6 +239,7 @@ def main():
     if dimension == 0:
         raise ValueError("Unable to determine embedding dimension")
 
+    # Create FAISS index manager and build the indexes
     manager = FAISSIndexManager(
         dimension=dimension,
         index_dir=Path(args.index_dir),
@@ -241,6 +250,8 @@ def main():
         opq_m=args.opq_m,
     )
     manager.build_indexes(embeddings, ids)
+    
+    # Perform sample search to validate the index
     sample_query = embeddings[0]
     hits = manager.search(sample_query, k=min(5, len(ids)))
     logger.info(
@@ -270,6 +281,7 @@ def main():
 
 
 def _filter_to_representatives(df: pd.DataFrame, id_column: str, map_path: str) -> pd.DataFrame:
+    """Filter dataframe to only include representative chunks from deduplication map."""
     logger.info("Applying deduplication map from %s", map_path)
     with open(map_path, encoding="utf-8") as f:
         payload = json.load(f)
@@ -288,6 +300,7 @@ def _filter_to_representatives(df: pd.DataFrame, id_column: str, map_path: str) 
 
 
 def _extract_canonical_ids(payload: Dict[str, Any]) -> Set[str]:
+    """Extract canonical chunk IDs from deduplication payload."""
     representatives = payload.get("representatives")
     if isinstance(representatives, dict) and representatives:
         ids = {str(rep.get("chunk_id")) for rep in representatives.values() if rep.get("chunk_id")}
@@ -298,6 +311,7 @@ def _extract_canonical_ids(payload: Dict[str, Any]) -> Set[str]:
 
 
 def _flatten_cluster_lookup(payload: Dict[str, Any]) -> Dict[str, int]:
+    """Create a lookup dictionary mapping chunk IDs to their cluster IDs."""
     clusters = payload.get("clusters")
     if not isinstance(clusters, dict):
         return {}

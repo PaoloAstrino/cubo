@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
-"""Migration tool to migrate chunk IDs from filename-based to file-hash-based IDs.
+"""
+Migration tool to migrate chunk IDs from filename-based to file-hash-based IDs.
+
+This script safely migrates chunk IDs in a ChromaDB collection from legacy filename-based
+identifiers to more robust file-hash-based identifiers. The migration process:
+
+1. Scans all chunks in the collection
+2. Generates new IDs based on file hash + position metadata
+3. Creates backup of metadata before changes
+4. Applies changes with verification
+5. Optionally removes old IDs after successful migration
 
 Usage:
-    python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-    python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
+    python tools/migrate_chunk_ids.py --collection cubo_documents --dry-run
+    python tools/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
+
+Features:
+- Dry-run mode to preview changes
+- Automatic backup creation
+- Safe application with verification
+- Progress tracking with verbose mode
+- Support for different chunk types (pages, sentences, tables)
 """
+
 # ruff: noqa: E402,F811
 import argparse
 import json
@@ -17,14 +35,6 @@ from cubo.config import config
 from cubo.retrieval.retriever import DocumentRetriever
 from cubo.utils.logger import logger
 
-#!/usr/bin/env python3
-"""Migration tool to migrate chunk IDs from filename-based to file-hash-based IDs.
-
-Usage:
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
-"""
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -223,8 +233,8 @@ if __name__ == "__main__":
 """Migration tool to migrate chunk IDs from filename-based to file-hash-based IDs.
 
 Usage:
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
+  python tools/migrate_chunk_ids.py --collection cubo_documents --dry-run
+  python tools/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
 from pathlib import Path
 from typing import Any, Dict, List
@@ -427,8 +437,8 @@ if __name__ == "__main__":
 """Migration tool to migrate chunk IDs from filename-based to file-hash-based IDs.
 
 Usage:
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
+  python tools/migrate_chunk_ids.py --collection cubo_documents --dry-run
+  python tools/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
 from pathlib import Path
 from typing import Any, Dict, List
@@ -734,8 +744,8 @@ if __name__ == "__main__":
 """Migration tool to migrate vector store chunk IDs from filename-based to file-hash-based IDs.
 
 Usage:
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
+  python tools/migrate_chunk_ids.py --collection cubo_documents --dry-run
+  python tools/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
 from pathlib import Path
 from typing import Any, Dict, List
@@ -933,8 +943,8 @@ if __name__ == "__main__":
 """Migration tool to migrate vector store chunk IDs from filename-based to file-hash-based IDs.
 
 Usage:
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
+  python tools/migrate_chunk_ids.py --collection cubo_documents --dry-run
+  python tools/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
 from pathlib import Path
 from typing import Any, Dict, List
@@ -1131,8 +1141,8 @@ if __name__ == "__main__":
 """Migration tool to migrate vector store chunk IDs from filename-based to file-hash-based IDs.
 
 Usage:
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --dry-run
-  python scripts/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
+  python tools/migrate_chunk_ids.py --collection cubo_documents --dry-run
+  python tools/migrate_chunk_ids.py --collection cubo_documents --apply --backup backup.jsonl
 """
 from pathlib import Path
 from typing import Any, Dict, List

@@ -5,8 +5,8 @@ This is a clean replacement of migrate_chunk_ids.py; the plan is to verify it an
 replace the original once validated.
 
 Usage:
-  python scripts/migrate_chunk_ids_clean.py --collection cubo_documents --dry-run
-  python scripts/migrate_chunk_ids_clean.py --collection cubo_documents --apply --backup backup.jsonl
+  python tools/migrate_chunk_ids_clean.py --collection cubo_documents --dry-run
+  python tools/migrate_chunk_ids_clean.py --collection cubo_documents --apply --backup backup.jsonl
 """
 import argparse
 import json

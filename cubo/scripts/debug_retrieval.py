@@ -5,7 +5,7 @@ Debug script to test retrieval behavior across multiple documents.
 import sys
 from pathlib import Path
 
-# Add src to path
+# Add src to path to import local modules
 sys.path.insert(0, str(Path(__file__).parent))
 
 from cubo.core import CuboCore
@@ -75,7 +75,7 @@ def test_retrieval():
     else:
         print("   Auto-merging retriever not available")
 
-    # Test queries
+    # Define test queries to evaluate retrieval performance
     test_queries = [
         "tell me about the frog",
         "tell me about the horse",
@@ -88,12 +88,13 @@ def test_retrieval():
     print("TESTING QUERIES")
     print("=" * 80)
 
+    # Iterate through each test query and test different retrieval methods
     for query in test_queries:
         print(f"\n{'='*80}")
         print(f"Query: '{security_manager.scrub(query)}'")
         print(f"{'='*80}")
 
-        # Test sentence window retrieval
+        # Test sentence window retrieval method
         print("\n  [Sentence Window Retrieval]")
         try:
             sentence_results = retriever._retrieve_sentence_window(query, top_k=3)
@@ -107,7 +108,7 @@ def test_retrieval():
         except Exception as e:
             print(f"  Error: {e}")
 
-        # Test auto-merging retrieval
+        # Test auto-merging retrieval method
         print("\n  [Auto-Merging Retrieval]")
         try:
             auto_results = retriever._retrieve_auto_merging_safe(query, top_k=3)
@@ -121,7 +122,7 @@ def test_retrieval():
         except Exception as e:
             print(f"  Error: {e}")
 
-        # Test hybrid retrieval
+        # Test hybrid retrieval combining multiple methods
         print("\n  [Hybrid Retrieval (Combined)]")
         try:
             hybrid_results = retriever.retrieve_top_documents(query, top_k=6)
@@ -136,5 +137,6 @@ def test_retrieval():
             print(f"  Error: {e}")
 
 
+# Main execution block - run the test when script is executed directly
 if __name__ == "__main__":
     test_retrieval()

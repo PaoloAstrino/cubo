@@ -19,13 +19,13 @@ class TestBatchWorkflow:
     
     def test_batch_script_exists(self):
         """Test that run_beir_batch.py exists."""
-        script_path = Path("scripts/run_beir_batch.py")
+        script_path = Path("tools/run_beir_batch.py")
         assert script_path.exists(), "run_beir_batch.py not found"
     
     def test_batch_script_help_flag(self):
         """Test that batch script responds to --help."""
         result = subprocess.run(
-            ["python", "scripts/run_beir_batch.py", "--help"],
+            ["python", "tools/run_beir_batch.py", "--help"],
             capture_output=True,
             text=True,
             timeout=30
@@ -44,7 +44,7 @@ class TestBatchWorkflow:
         
         # Command structure
         cmd = [
-            "python", "-u", "scripts/run_beir_batch.py",
+            "python", "-u", "tools/run_beir_batch.py",
             "--datasets", *datasets,
             "--output-dir", str(temp_results_dir),
             "--laptop-mode"
@@ -101,7 +101,7 @@ class TestBatchIndexManagement:
     def test_batch_with_reindex_flag(self):
         """Test batch execution with --reindex flag."""
         cmd = [
-            "python", "-u", "scripts/run_beir_batch.py",
+            "python", "-u", "tools/run_beir_batch.py",
             "--datasets", "nfcorpus",
             "--reindex"
         ]
@@ -229,7 +229,7 @@ class TestBatchMetricsComputation:
         
         # Command structure for metrics
         metrics_cmd = [
-            "python", "scripts/calculate_beir_metrics.py",
+            "python", "tools/calculate_beir_metrics.py",
             "--results", run_file,
             "--qrels", qrels_file,
             "--k", "10"
@@ -323,8 +323,8 @@ class TestBatchPerformance:
     
     def test_batch_laptop_mode_flag(self):
         """Test laptop mode reduces memory usage."""
-        cmd_normal = ["python", "scripts/run_beir_batch.py", "--datasets", "nfcorpus"]
-        cmd_laptop = ["python", "scripts/run_beir_batch.py", "--datasets", "nfcorpus", "--laptop-mode"]
+        cmd_normal = ["python", "tools/run_beir_batch.py", "--datasets", "nfcorpus"]
+        cmd_laptop = ["python", "tools/run_beir_batch.py", "--datasets", "nfcorpus", "--laptop-mode"]
         
         # Laptop mode should add flag
         assert "--laptop-mode" in cmd_laptop

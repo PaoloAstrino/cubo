@@ -35,4 +35,4 @@ If you want broader protection against real-world failures, the next best additi
 3) **Failure-mode stress**: force transient embedding failures/timeouts and assert retries/backoff + clean partial-state rollback.
 
 ## Optional tooling
-- `scripts/audit_tests.py` is a heuristic scanner that flags tests with suspiciously low assertion signal; it is intended to generate a review shortlist.
+- `tools/audit_tests.py` is a heuristic scanner that flags tests with suspiciously low assertion signal; it is intended to generate a review shortlist.

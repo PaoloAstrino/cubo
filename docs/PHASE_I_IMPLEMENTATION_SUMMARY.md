@@ -26,7 +26,7 @@ Implemented complete Phase I of the CUBO performance testing infrastructure per 
   - `load_custom_format()` - Load custom JSON ground truth
 
 ### 3. Enhanced RAG Testing Framework
-**File**: `scripts/run_rag_tests.py` (extensively modified)
+**File**: `tools/run_rag_tests.py` (extensively modified)
 - Added three test modes:
   - `full` - Complete RAG pipeline (retrieval + generation + evaluation)
   - `retrieval-only` - IR metrics without generation (isolates retrieval quality)
@@ -45,7 +45,7 @@ Implemented complete Phase I of the CUBO performance testing infrastructure per 
   - `--k-values` - Comma-separated K values for IR metrics
 
 ### 4. Ingestion Throughput Testing
-**File**: `scripts/test_ingestion_throughput.py` (new, 394 lines)
+**File**: `tools/test_ingestion_throughput.py` (new, 394 lines)
 - `IngestionTester` class measuring:
   - Ingestion time (seconds, minutes)
   - Throughput (GB/minute, chunks/second)
@@ -127,7 +127,7 @@ Implemented complete Phase I of the CUBO performance testing infrastructure per 
 
 ### Retrieval-Only Test (IR Metrics)
 ```powershell
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --questions test_questions.json `
     --data-folder data/ultradomain_sample `
     --ground-truth ground_truth/ultradomain_qrels.json `
@@ -138,7 +138,7 @@ python scripts/run_rag_tests.py `
 
 ### Full RAG Test with IR Metrics
 ```powershell
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --questions test_questions.json `
     --data-folder data/ultradomain_sample `
     --ground-truth ground_truth/ultradomain_qrels.json `
@@ -149,7 +149,7 @@ python scripts/run_rag_tests.py `
 
 ### Ingestion Throughput Test
 ```powershell
-python scripts/test_ingestion_throughput.py `
+python tools/test_ingestion_throughput.py `
     --data-folder data/ultradomain_sample `
     --output results/ingestion_test.json
 ```
@@ -252,12 +252,12 @@ pytest tests/performance/test_perf_utils.py -v
 ## Next Steps (Phase II)
 
 ### Priority 1: Benchmark Orchestration
-- [ ] Create `scripts/benchmark_runner.py` for dataset/config sweeps
+- [ ] Create `tools/benchmark_runner.py` for dataset/config sweeps
 - [ ] Add ablation config system (hot/cold, reranker on/off, BM25 weights)
 - [ ] Implement automated multi-dataset testing
 
 ### Priority 2: Visualization
-- [ ] Create `scripts/plot_results.py` for comparison plots
+- [ ] Create `tools/plot_results.py` for comparison plots
 - [ ] Generate 6 core figures from how_to_compare.txt
 - [ ] Export CSV summaries for external plotting
 
@@ -288,11 +288,11 @@ Run tests to validate implementation:
 pytest tests/performance/ -v
 
 # Quick smoke test (no ground truth required)
-python scripts/run_rag_tests.py --data-folder data --easy-limit 2 --mode full
+python tools/run_rag_tests.py --data-folder data --easy-limit 2 --mode full
 
 # Test IR metrics with sample ground truth
 # (Create sample ground truth first)
-python scripts/run_rag_tests.py --ground-truth sample_gt.json --mode retrieval-only --easy-limit 2
+python tools/run_rag_tests.py --ground-truth sample_gt.json --mode retrieval-only --easy-limit 2
 ```
 
 ## Summary

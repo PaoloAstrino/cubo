@@ -10,16 +10,16 @@ Features:
 
 Usage:
 - Configure `config.json` logging block to set `format` to `json`, choose file path, and enable rotation/retention.
-- Index logs incrementally with the `scripts/log_indexer.py` script:
+- Index logs incrementally with the `tools/log_indexer.py` script:
 
 ```pwsh
-python scripts/log_indexer.py --log-file ./logs/cubo_log.jsonl --db ./logs/index/logs.db
+python tools/log_indexer.py --log-file ./logs/cubo_log.jsonl --db ./logs/index/logs.db
 ```
 
-- Search logs using the CLI `scripts/logcli.py`:
+- Search logs using the CLI `tools/logcli.py`:
 
 ```pwsh
-python scripts/logcli.py --db ./logs/index/logs.db --query "error" --limit 20
+python tools/logcli.py --db ./logs/index/logs.db --query "error" --limit 20
 ```
 
 Notes:
@@ -29,10 +29,10 @@ Notes:
 Privacy and Query Scrubbing:
 - If you want to avoid storing plaintext user queries in logs, set `"scrub_queries": true` in `config.json` under the `logging` section.
 - When enabled, queries will be replaced with a hash before being written to logs.
-- To scrub queries from historical logs, use the `scripts/scrub_logs.py` helper:
+- To scrub queries from historical logs, use the `tools/scrub_logs.py` helper:
 
 ```pwsh
-python scripts/scrub_logs.py --input ./logs/cubo_log.jsonl --output ./logs/cubo_log.jsonl.scrubbed
+python tools/scrub_logs.py --input ./logs/cubo_log.jsonl --output ./logs/cubo_log.jsonl.scrubbed
 ```
 
 This will write a new file with queries replaced by their hash.

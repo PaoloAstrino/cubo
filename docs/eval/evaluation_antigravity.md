@@ -95,7 +95,7 @@ This table compares retrieval performance across three configurations with consi
   - Option A (quick): **increase `top_k`** for medical/financial queries when running evaluations. The `run_beir_adapter.py` script supports a global `--top-k` flag which controls how many results are retrieved per query. Example:
 
 ```
-python scripts/run_beir_adapter.py \
+python tools/run_beir_adapter.py \
   --corpus data/beir/ragbench_merged/corpus.jsonl \
   --queries data/beir/ragbench_merged/queries.jsonl \
   --reindex \

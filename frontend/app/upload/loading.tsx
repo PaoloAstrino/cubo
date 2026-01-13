@@ -1,6 +1,7 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
+// Skeleton loader for the Upload page shown while documents/collections are being fetched.
 export default function UploadLoading() {
   return (
     <div className="flex flex-col gap-6 h-full p-6">

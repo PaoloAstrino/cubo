@@ -51,7 +51,7 @@ This document summarizes the complete implementation of the CUBO RAG system's fr
 ### 3. E2E Testing ✅
 
 **Files Created:**
-- `scripts/e2e_smoke.py` - Complete E2E smoke test
+- `tools/e2e_smoke.py` - Complete E2E smoke test
 - `tests/api/__init__.py`
 - `tests/api/conftest.py` - Test fixtures
 - `tests/api/test_health.py` - Health endpoint tests
@@ -88,7 +88,7 @@ This document summarizes the complete implementation of the CUBO RAG system's fr
 
 **Files Created:**
 - `docs/API_INTEGRATION.md` - Complete integration guide
-- `scripts/start_fullstack.py` - Full stack startup script
+- `tools/start_fullstack.py` - Full stack startup script
 - `start.bat` - Windows quick start
 - `start.sh` - Linux/macOS quick start
 - Updated `README.md` with v1.3.0 features
@@ -240,7 +240,7 @@ All logs in JSON format:
 
 Searchable via:
 ```bash
-python scripts/logcli.py search --trace-id abc123
+python tools/logcli.py search --trace-id abc123
 ```
 
 ## Testing Strategy
@@ -277,7 +277,7 @@ python scripts/logcli.py search --trace-id abc123
 
 ```bash
 # Quick start
-python scripts/start_fullstack.py
+python tools/start_fullstack.py
 
 # Or manually
 python src/cubo/server/run.py --reload  # Backend
@@ -323,7 +323,7 @@ console.log(response.trace_id)
 
 ```bash
 # Run smoke test
-python scripts/e2e_smoke.py
+python tools/e2e_smoke.py
 
 # Run API tests
 pytest tests/api/ -v
@@ -388,7 +388,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ### Development
 ```bash
-python scripts/start_fullstack.py
+python tools/start_fullstack.py
 ```
 
 ### Production
@@ -413,7 +413,7 @@ pnpm start
 ### Logs
 - Location: `logs/cubo_log.txt`
 - Format: JSON with trace_id
-- Search: `python scripts/logcli.py`
+- Search: `python tools/logcli.py`
 
 ### Metrics
 - Request count per endpoint

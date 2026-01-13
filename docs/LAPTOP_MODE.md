@@ -277,7 +277,7 @@ Start the API server in a given mode using the new `--mode` flag:
 python start_api_server.py --mode laptop
 
 # Start full stack in laptop mode and pass a specific config file
-python scripts/start_fullstack.py --mode laptop --config-path configs/config_local.json
+python tools/start_fullstack.py --mode laptop --config-path configs/config_local.json
 ```
 
 You can also pass `--dry-run` to `start_api_server.py` to print the effective env vars and exit (useful when writing scripts or CI checks):

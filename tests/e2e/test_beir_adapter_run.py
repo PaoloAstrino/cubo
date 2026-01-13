@@ -19,13 +19,13 @@ class TestBEIRAdapterRun:
 
     def test_beir_adapter_script_exists(self):
         """Test that run_beir_adapter.py exists."""
-        script_path = Path("scripts/run_beir_adapter.py")
+        script_path = Path("tools/run_beir_adapter.py")
         assert script_path.exists(), "run_beir_adapter.py not found"
     
     def test_beir_adapter_help_flag(self):
         """Test that adapter responds to --help."""
         result = subprocess.run(
-            ["python", "scripts/run_beir_adapter.py", "--help"],
+            ["python", "tools/run_beir_adapter.py", "--help"],
             capture_output=True,
             text=True,
             timeout=30
@@ -339,8 +339,8 @@ class TestLoggingOutput:
     
     def test_verbose_flag_increases_logging(self):
         """Test that --verbose flag increases log output."""
-        cmd_normal = ["python", "scripts/run_beir_adapter.py", "--corpus", "corpus.jsonl"]
-        cmd_verbose = ["python", "scripts/run_beir_adapter.py", "--corpus", "corpus.jsonl", "--verbose"]
+        cmd_normal = ["python", "tools/run_beir_adapter.py", "--corpus", "corpus.jsonl"]
+        cmd_verbose = ["python", "tools/run_beir_adapter.py", "--corpus", "corpus.jsonl", "--verbose"]
         
         # Verbose should add flag
         assert "--verbose" in cmd_verbose
@@ -357,14 +357,14 @@ class TestMetricsIntegration:
         
         # Metrics command structure
         metrics_cmd = [
-            "python", "scripts/calculate_beir_metrics.py",
+            "python", "tools/calculate_beir_metrics.py",
             "--results", str(run_file),
             "--qrels", str(qrels_file),
             "--k", "10"
         ]
         
         assert "--results" in metrics_cmd
-        assert "scripts/calculate_beir_metrics.py" in metrics_cmd
+        assert "tools/calculate_beir_metrics.py" in metrics_cmd
     
     def test_metrics_output_file_naming(self):
         """Test metrics output file naming convention."""

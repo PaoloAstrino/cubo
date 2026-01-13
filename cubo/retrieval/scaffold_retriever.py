@@ -150,30 +150,19 @@ class ScaffoldRetriever:
             logger.warning(f"Scaffold mappings not found at {mapping_path}")
             return False
 
-        # Load FAISS index if available
+        # Load FAISS index if requested, otherwise fall back to numpy index
         if use_faiss:
             index_path = scaffold_dir / "scaffold_index.faiss"
-            if index_path.exists():
-                try:
-                    import faiss
+            if self._try_load_faiss_index(index_path):
+                return True
 
-                    self.scaffold_index = faiss.read_index(str(index_path))
-                    logger.info(
-                        f"Loaded scaffold FAISS index with {self.scaffold_index.ntotal} vectors"
-                    )
-                except ImportError:
-                    logger.warning("FAISS not available, using fallback")
-                    return self._load_numpy_index(scaffold_dir)
-                except Exception as e:
-                    logger.error(f"Failed to load FAISS index: {e}")
-                    return False
-            else:
-                logger.warning(f"Scaffold FAISS index not found at {index_path}")
-                return self._load_numpy_index(scaffold_dir)
+            # If FAISS not available or failed to load, try numpy fallback
+            return self._load_numpy_index(scaffold_dir)
         else:
             return self._load_numpy_index(scaffold_dir)
 
-        return True
+        # Should never reach here
+        return False
 
     def _load_numpy_index(self, scaffold_dir: Path) -> bool:
         """
@@ -198,6 +187,31 @@ class ScaffoldRetriever:
             return True
         except Exception as e:
             logger.error(f"Failed to load scaffold embeddings: {e}")
+            return False
+
+    def _try_load_faiss_index(self, index_path: Path) -> bool:
+        """Try to read a FAISS index from disk and assign to self.scaffold_index.
+
+        Returns:
+            True if FAISS index successfully loaded, False otherwise.
+        """
+        if not index_path.exists():
+            logger.warning(f"Scaffold FAISS index not found at {index_path}")
+            return False
+
+        try:
+            import faiss
+
+            self.scaffold_index = faiss.read_index(str(index_path))
+            logger.info(
+                f"Loaded scaffold FAISS index with {self.scaffold_index.ntotal} vectors"
+            )
+            return True
+        except ImportError:
+            logger.warning("FAISS not available, using fallback")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to load FAISS index: {e}")
             return False
 
     @property

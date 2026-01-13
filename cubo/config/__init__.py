@@ -260,7 +260,7 @@ class Config(ConfigAdapter):
 
 
 # Backwards compatibility aliases
-_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.json"
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "config.json"
 config = Config(
     _DEFAULT_CONFIG_PATH
 )  # legacy imports expecting config instance with defaults loaded

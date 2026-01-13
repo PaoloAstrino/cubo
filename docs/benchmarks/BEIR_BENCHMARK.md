@@ -6,10 +6,10 @@ This adapter allows you to run standard [BEIR](https://github.com/beir-cellar/be
 
 ```bash
 # Download BEIR dataset (e.g., FiQA)
-python scripts/download_beir_subsets.py --subsets fiqa nfcorpus --output-dir data/beir_hf
+python tools/download_beir_subsets.py --subsets fiqa nfcorpus --output-dir data/beir_hf
 
 # Run benchmark with reindexing
-python scripts/run_beir_adapter.py \
+python tools/run_beir_adapter.py \
     --corpus data/beir/beir_corpus.jsonl \
     --queries data/beir/queries.jsonl \
     --index-dir results/beir_adapter_index \
@@ -19,7 +19,7 @@ python scripts/run_beir_adapter.py \
     --top-k 100
 
 # Or with existing index (faster)
-python scripts/run_beir_adapter.py \
+python tools/run_beir_adapter.py \
     --queries data/beir/queries.jsonl \
     --index-dir results/beir_adapter_index \
     --evaluate \

@@ -15,6 +15,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 
+/**
+ * Example input group showcasing an inline info popover and a favorite toggle button.
+ * Small, self-contained demo used in the UI docs and storybook.
+ */
 export function InputGroupButtonExample() {
   const [isFavorite, setIsFavorite] = React.useState(false)
 

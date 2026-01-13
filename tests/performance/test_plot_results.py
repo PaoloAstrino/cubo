@@ -93,7 +93,7 @@ def test_plot_results(tmp_path):
     # Run the plot script via subprocess (ensures environment similar to CLI)
     cmd = [
         "python",
-        "scripts/plot_results.py",
+        "tools/plot_results.py",
         "--results-dir",
         str(results_dir),
         "--output-dir",

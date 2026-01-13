@@ -214,11 +214,11 @@ jobs:
 
 ```bash
 # Time profiling
-python -m cProfile -o profile.stats scripts/test_processing.py
+python -m cProfile -o profile.stats tools/test_processing.py
 python -m pstats profile.stats
 
 # Memory profiling
-python -m memory_profiler scripts/test_processing.py
+python -m memory_profiler tools/test_processing.py
 ```
 
 ## Common Issues

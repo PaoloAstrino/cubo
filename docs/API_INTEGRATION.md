@@ -153,7 +153,7 @@ pytest tests/api/ -v
 python src/cubo/server/run.py
 
 # In another terminal, run the E2E test
-python scripts/e2e_smoke.py
+python tools/e2e_smoke.py
 ```
 
 ### Frontend Tests
@@ -204,7 +204,7 @@ Enable debug logging in `config.json`:
 Search logs by trace_id:
 
 ```bash
-python scripts/logcli.py search --trace-id <trace-id>
+python tools/logcli.py search --trace-id <trace-id>
 ```
 
 ### CORS Configuration
@@ -299,4 +299,4 @@ NEXT_PUBLIC_API_URL=https://api.yourdomain.com
 For issues, check:
 - API docs: `http://localhost:8000/docs`
 - Logs: `logs/cubo_log.txt`
-- Test results: Run `python scripts/e2e_smoke.py`
+- Test results: Run `python tools/e2e_smoke.py`

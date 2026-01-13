@@ -26,14 +26,14 @@ Information Retrieval metrics:
 - `IRMetricsEvaluator` - Compute Recall@K, Precision@K, nDCG@K, MRR
 - `GroundTruthLoader` - Load BeIR-format or custom ground truth files
 
-### 3. RAG Testing Framework (`scripts/run_rag_tests.py`)
+### 3. RAG Testing Framework (`tools/run_rag_tests.py`)
 
 Main test orchestrator with three modes:
 - **Full RAG**: Complete retrieval + generation + evaluation
 - **Retrieval-only**: IR metrics without generation (isolates retrieval quality)
 - **Ingestion-only**: Data loading and indexing only
 
-### 4. Ingestion Throughput Testing (`scripts/test_ingestion_throughput.py`)
+### 4. Ingestion Throughput Testing (`tools/test_ingestion_throughput.py`)
 
 Measures:
 - Ingestion time (seconds/GB, GB/minute)
@@ -50,7 +50,7 @@ Measures:
 & .\.venv\Scripts\Activate.ps1
 
 # Run with ground truth for IR metrics
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --questions test_questions.json `
     --data-folder data/ultradomain_sample `
     --ground-truth ground_truth/ultradomain_qrels.json `
@@ -63,7 +63,7 @@ python scripts/run_rag_tests.py `
 
 ```powershell
 # Isolate retrieval quality without generation
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --questions test_questions.json `
     --data-folder data/ultradomain_sample `
     --ground-truth ground_truth/ultradomain_qrels.json `
@@ -76,7 +76,7 @@ python scripts/run_rag_tests.py `
 
 ```powershell
 # Measure ingestion performance
-python scripts/test_ingestion_throughput.py `
+python tools/test_ingestion_throughput.py `
     --data-folder data/ultradomain_sample `
     --output results/ingestion_test.json
 ```
@@ -239,7 +239,7 @@ q2\tdoc3\t2
 # "seed": 42
 
 # Run with fixed models
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --questions ultradomain_questions.json `
     --data-folder data/ultradomain_50gb `
     --ground-truth ultradomain_qrels.json `
@@ -253,18 +253,18 @@ python scripts/run_rag_tests.py `
 ### Phase II - Benchmark Orchestration
 
 Coming soon:
-- `scripts/benchmark_runner.py` - Sweep datasets, configs, ablations
-- `scripts/plot_results.py` - Generate comparison plots
+- `tools/benchmark_runner.py` - Sweep datasets, configs, ablations
+- `tools/plot_results.py` - Generate comparison plots
 - Ablation configs (hot/cold on/off, reranker on/off, BM25 weights)
 
-#### Using `scripts/benchmark_runner.py` (Phase II)
+#### Using `tools/benchmark_runner.py` (Phase II)
 
 The new `benchmark_runner.py` automates dataset/config/ablation sweeps and produces per-run JSON plus a `summary.csv` suitable for plotting. It integrates `test_ingestion_throughput.py` to include ingestion metrics in each run when requested.
 
 Example quick run:
 
 ```powershell
-python scripts/benchmark_runner.py `
+python tools/benchmark_runner.py `
   --datasets data/ultradomain_small:ultradomain `
   --configs configs/benchmark_config.json `
   --ablations configs/benchmark_ablations.json `
@@ -300,10 +300,10 @@ Phase II will provide more advanced orchestration (parallelism, gitlab/gh runner
 
 ### Phase IV - Plotting & Visualization
 
-- `scripts/plot_results.py` - Reads `results/benchmark_runs/summary.csv` and the per-run `benchmark_run.json` files and generates the Part 2 graphs (win rate, latency vs size, Recall@K, memory vs size, ingestion time, compression vs recall). Example usage:
+- `tools/plot_results.py` - Reads `results/benchmark_runs/summary.csv` and the per-run `benchmark_run.json` files and generates the Part 2 graphs (win rate, latency vs size, Recall@K, memory vs size, ingestion time, compression vs recall). Example usage:
 
 ```powershell
-python scripts/plot_results.py --results-dir results/benchmark_runs --output-dir results/plots
+python tools/plot_results.py --results-dir results/benchmark_runs --output-dir results/plots
 ```
 
 ### JSON Schema Validation
@@ -323,7 +323,7 @@ If the `jsonschema` package is not installed, the validator will report as not a
 ### 1. Quick Smoke Test (No Ground Truth)
 
 ```powershell
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --data-folder data/sample `
     --easy-limit 5 `
     --mode full
@@ -332,7 +332,7 @@ python scripts/run_rag_tests.py `
 ### 2. Full Evaluation on UltraDomain Subset
 
 ```powershell
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --questions ultradomain_agriculture_125q.json `
     --data-folder data/ultradomain_agri `
     --ground-truth ultradomain_agri_qrels.json `
@@ -344,7 +344,7 @@ python scripts/run_rag_tests.py `
 ### 3. Retrieval-Only Benchmark (Fast, No LLM)
 
 ```powershell
-python scripts/run_rag_tests.py `
+python tools/run_rag_tests.py `
     --questions beir_fiqa_queries.json `
     --data-folder data/beir_fiqa `
     --ground-truth beir_fiqa_qrels.tsv `
@@ -356,7 +356,7 @@ python scripts/run_rag_tests.py `
 ### 4. Ingestion Throughput on 100GB Corpus
 
 ```powershell
-python scripts/test_ingestion_throughput.py `
+python tools/test_ingestion_throughput.py `
     --data-folder data/wikipedia_100gb `
     --fast-pass `
     --output results/ingestion_wikipedia_100gb.json

@@ -24,7 +24,7 @@ def test_validate_sample_run(tmp_path):
     }
 
     file_path = tmp_path / "sample_run.json"
-    schema_path = Path("schemas/benchmark_output_schema.json")
+    schema_path = Path("cubo/schemas/benchmark_output_schema.json")
 
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(run, f)
@@ -40,7 +40,7 @@ def test_validate_invalid_run(tmp_path):
     # Missing required 'metadata' should be invalid
     run = {"results": {"easy": [], "medium": [], "hard": []}}
     file_path = tmp_path / "invalid_run.json"
-    schema_path = Path("schemas/benchmark_output_schema.json")
+    schema_path = Path("cubo/schemas/benchmark_output_schema.json")
 
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(run, f)

@@ -97,7 +97,7 @@ When using the CLI, pass the path to the `.npy` file with `--embeddings data/chu
 Alternatively, we provide a handy script you can use to generate embeddings locally without managing the embedding model directly:
 
 ```pwsh
-python scripts/generate_embeddings.py --parquet data/chunks.parquet --output data/chunk_embeddings.npy --text-column text
+python tools/generate_embeddings.py --parquet data/chunks.parquet --output data/chunk_embeddings.npy --text-column text
 ```
 
 ## Format of `output/dedup_clusters.json`

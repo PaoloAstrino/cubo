@@ -1,7 +1,7 @@
 """CLI script to run deep ingestion for a folder and persist chunks parquet.
 
 Usage:
-  python scripts/deep_ingest.py --input data/docs --output data/deep
+  python tools/deep_ingest.py --input data/docs --output data/deep
 """
 
 import argparse

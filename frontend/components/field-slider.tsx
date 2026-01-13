@@ -9,6 +9,10 @@ import {
 } from '@/components/ui/field'
 import { Slider } from '@/components/ui/slider'
 
+/**
+ * Field component exposing a double-thumb slider for selecting a numeric range.
+ * Used for price range selection (in dollars) in small forms.
+ */
 export function FieldSlider() {
   const [value, setValue] = useState([200, 800])
   return (

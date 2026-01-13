@@ -116,12 +116,12 @@ Run full benchmark suite for any dataset:
 
 Run ablation study (dense/bm25/hybrid):
 ```powershell
-python scripts/run_ablation.py --dataset arguana --top-k 50 --force-reindex
+python tools/run_ablation.py --dataset arguana --top-k 50 --force-reindex
 ```
 
 Compute metrics from existing runs:
 ```powershell
-python scripts/calculate_beir_metrics.py --results results/beir_run_<dataset>.json --qrels data/beir/<dataset>/qrels/test.tsv --k 10
+python tools/calculate_beir_metrics.py --results results/beir_run_<dataset>.json --qrels data/beir/<dataset>/qrels/test.tsv --k 10
 ```
 
 ## Test Status
