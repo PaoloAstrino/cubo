@@ -51,7 +51,7 @@ export function AppSidebar() {
 
     return (
         <Sidebar>
-            <SidebarHeader className="border-b px-4 py-3">
+            <SidebarHeader className="border-b px-4 h-16 !flex-row items-center">
                 <Link href="/" className="flex items-center gap-3 group">
                     <CuboLogo size={32} className="transition-transform group-hover:scale-105" />
                     <span className="text-lg font-bold tracking-tight">CUBO</span>
@@ -92,7 +92,7 @@ export function AppSidebar() {
                                         </SidebarMenuItem>
                                     ))}
                                 </>
-                            ) : collections.length === 0 ? (
+                            ) : !collections || collections.length === 0 ? (
                                 <div className="px-3 py-4 text-sm text-muted-foreground text-center">
                                     <p>No collections</p>
                                     <Link href="/upload" className="text-xs text-primary hover:underline">

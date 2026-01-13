@@ -37,7 +37,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
             <SidebarWithSuspense />
             <SidebarInset>
                 <ConnectionStatus />
-                <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+                <header className="app-header shrink-0 gap-2 border-b">
                     <SidebarTrigger className="-ml-1" />
                     <Separator orientation="vertical" className="mr-2 h-4" />
                     <Breadcrumb>

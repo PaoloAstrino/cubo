@@ -31,7 +31,6 @@ import {
     deleteCollection,
     deleteDocument,
     deleteAllDocuments,
-    getDeleteStatus,
     type Collection,
 } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
@@ -473,7 +472,7 @@ export default function UploadPage() {
             <div>
                 <h2 className="text-lg font-semibold mb-3">Collections</h2>
                 {isLoading ? (
-                    <div className="grid gap-6 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+                    <div className="grid gap-6 grid-cols-[repeat(auto-fit,minmax(180px,220px))]">
                         {Array.from({ length: 8 }).map((_, i) => (
                             <Skeleton key={i} className="h-20 rounded-xl" />
                         ))}
