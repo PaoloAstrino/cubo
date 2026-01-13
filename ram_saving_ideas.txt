@@ -12,7 +12,7 @@
    * Cost: 0MB RAM.
    * Benefit: The server remains responsive to health checks and other requests while processing.
 
-  2. Switch to Reciprocal Rank Fusion (RRF) (Retrieval Quality)
+  2. Switch to Reciprocal Rank Fusion (RRF) (Retrieval Quality) DONE
   The Issue: HybridScorer uses semantic_score * 0.7 + bm25_score * 0.3. This is fragile because BM25 scores are
   unbounded (can be 100+) while Cosine is 0-1.
   The Fix: Implement RRF in cubo/retrieval/fusion.py.
@@ -20,7 +20,7 @@
    * Cost: 0MB RAM.
    * Benefit: drastically better search results when keywords and meaning disagree.
 
-  3. Implement "Europocentric" Tokenization (Multilingual)
+  3. Implement "Europocentric" Tokenization (Multilingual) DONE
   The Issue: BM25PythonStore uses text.split(). It fails to match "gatto" with "gatti".
   The Fix: Inject a Stemming Tokenizer (using nltk.stem.SnowballStemmer or purely rule-based suffix strippers for
   IT/FR/DE) into BM25PythonStore.

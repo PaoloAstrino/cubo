@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from cubo.retrieval.bm25_store_factory import get_bm25_store
 from cubo.retrieval.constants import BM25_B, BM25_K1, BM25_NORMALIZATION_FACTOR
+from cubo.retrieval.multilingual_tokenizer import MultilingualTokenizer
 from cubo.utils.logger import logger
 
 
@@ -57,6 +58,12 @@ class BM25Searcher:
         self.chunks_jsonl = Path(chunks_jsonl) if chunks_jsonl else None
         self.bm25_stats = Path(bm25_stats) if bm25_stats else None
         self._store = get_bm25_store(backend=backend, **kwargs)
+        
+        # Initialize multilingual tokenizer
+        try:
+            self.tokenizer = MultilingualTokenizer()
+        except Exception:
+            self.tokenizer = None
 
         # Legacy fallback attributes to preserve wrapper behavior
         self.doc_lengths: Dict[str, int] = {}
@@ -288,16 +295,20 @@ class BM25Searcher:
             self.avg_doc_length = 0.0
 
     def _tokenize(self, text: str) -> List[str]:
-        """Tokenize text into lowercase words.
+        """Tokenize text using the multilingual tokenizer.
 
         Args:
             text: Input text string.
 
         Returns:
-            List of tokens (words with length > 2).
+            List of stemmed/processed tokens.
         """
-        normalized = "".join(c if c.isalnum() else " " for c in text.lower())
-        return [w for w in normalized.split() if len(w) > 2]
+        if self.tokenizer:
+            return self.tokenizer.tokenize(text)
+        
+        # Regex-based fallback (better than simple split)
+        import re
+        return [w for w in re.findall(r"\b\w+\b", text.lower()) if len(w) > 2]
 
     def compute_score(self, query_terms: List[str], doc_id: str, doc_text: str = None) -> float:
         """Compute BM25 score for a document.

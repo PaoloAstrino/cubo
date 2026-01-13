@@ -143,15 +143,15 @@ class BM25PythonStore(BM25Store):
         """
         Tokenize text with multilingual stemming support.
 
-        Uses MultilingualTokenizer for language-aware stemming when available,
-        falls back to naive tokenization otherwise.
+        Uses MultilingualTokenizer for language-aware stemming.
+        This method no longer falls back to naive whitespace splitting.
 
         Args:
             text: Input text to tokenize.
             language: Language code ('it', 'fr', 'de', 'es', 'en') or 'auto' for detection.
 
         Returns:
-            List of stemmed tokens (or lowercase tokens if multilingual disabled).
+            List of stemmed tokens.
         """
         if self.use_lemmatization and self.lemmatizer and self.lemmatizer.is_available():
             # Use MultilingualTokenizer for language detection if available
@@ -159,17 +159,15 @@ class BM25PythonStore(BM25Store):
                 language = self.tokenizer.detect_language(text)
 
             # Use simplemma for lemmatization
-            # Note: simplemma.text_lemmatizer handles tokenization too
             return self.lemmatizer.lemmatize_text(text, lang=language)
 
-        if self.use_multilingual and self.tokenizer:
-            # Use multilingual tokenizer with stemming
+        if self.tokenizer:
+            # Use multilingual tokenizer with stemming (Standard Top-Tier Logic)
             return self.tokenizer.tokenize(text, language=language)
-        else:
-            # Fallback to naive tokenization
-            normalized = "".join(c if c.isalnum() else " " for c in text.lower())
-            tokens = [w for w in normalized.split() if len(w) > 2]
-            return tokens
+        
+        # Absolute fallback if somehow tokenizer initialization failed but we reached here
+        import re
+        return [w for w in re.findall(r"\b\w+\b", text.lower()) if len(w) > 2]
 
     def compute_score(
         self, query_terms: List[str], doc_id: str, doc_text: Optional[str] = None
