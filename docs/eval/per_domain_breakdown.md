@@ -1,5 +1,7 @@
 # Per-Domain Breakdown: Recall@10 Performance
 
+> Canonical SOT: `docs/eval/evaluation_antigravity.md`
+
 This table summarizes retrieval performance (Recall@10) across different domains and datasets, highlighting where the `embeddinggemma-300m` model excels and where domain-specific limitations exist.
 
 ## Summary Table

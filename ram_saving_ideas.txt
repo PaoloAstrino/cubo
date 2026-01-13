@@ -1,0 +1,77 @@
+
+  1. Fix the "Fake Async" Server (Critical Stability) DONE
+  The Issue: Your api.py endpoints are async, but they call blocking functions like cubo_app.query(). This freezes the
+  entire server during a query.
+  The Fix: Wrap all blocking calls in cubo/server/api.py using run_in_threadpool.
+   1 # Before
+   2 results = cubo_app.retriever.retrieve_top_documents(...)
+   3
+   4 # After
+   5 from starlette.concurrency import run_in_threadpool
+   6 results = await run_in_threadpool(cubo_app.retriever.retrieve_top_documents, ...)
+   * Cost: 0MB RAM.
+   * Benefit: The server remains responsive to health checks and other requests while processing.
+
+  2. Switch to Reciprocal Rank Fusion (RRF) (Retrieval Quality)
+  The Issue: HybridScorer uses semantic_score * 0.7 + bm25_score * 0.3. This is fragile because BM25 scores are
+  unbounded (can be 100+) while Cosine is 0-1.
+  The Fix: Implement RRF in cubo/retrieval/fusion.py.
+   1 score = 1.0 / (k + rank_semantic) + 1.0 / (k + rank_bm25)
+   * Cost: 0MB RAM.
+   * Benefit: drastically better search results when keywords and meaning disagree.
+
+  3. Implement "Europocentric" Tokenization (Multilingual)
+  The Issue: BM25PythonStore uses text.split(). It fails to match "gatto" with "gatti".
+  The Fix: Inject a Stemming Tokenizer (using nltk.stem.SnowballStemmer or purely rule-based suffix strippers for
+  IT/FR/DE) into BM25PythonStore.
+   * Cost: Negligible (<5MB for the library).
+   * Benefit: Makes the system usable for non-English languages.
+
+  4. Modernize LLM Prompting (Generation Quality)
+  The Issue: llm_local.py sends raw text: Context: ... Question: .... Llama 3 and Mistral behave poorly with this.
+  The Fix: Use Jinja2 Chat Templates.
+   1 # For Llama 3
+   2 prompt = f"<|start_header_id|>user<|end_header_id|>\n\nContext: {context}\nQuestion: {query}
+     <|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+   * Cost: 0MB RAM.
+   * Benefit: Reduces hallucinations and formatting errors significantly.
+
+  5. Enable SQLite WAL Mode (Concurrency) DONE
+  The Issue: Your metadata.db likely runs in default mode. High concurrency (fast ingest + query) can cause "Database is
+  locked" errors.
+  The Fix: Execute PRAGMA journal_mode=WAL; on database connection startup in cubo/storage/metadata_manager.py.
+   * Cost: Slight disk usage increase, 0 RAM.
+   * Benefit: Readers don't block writers. Smoother background ingestion.
+
+  6. Enforce Float16 for All Embeddings (RAM Reduction) DONE
+  The Issue: SentenceTransformer often outputs float32 by default.
+  The Fix: In EmbeddingGenerator, force casting to float16 (or even int8 with quantization) before returning/storing.
+   1 embeddings = model.encode(texts).astype(np.float16)
+   * Cost: SAVES 50% RAM on the vector index.
+   * Benefit: Doubles the capacity of your "Hot" index.
+
+  7. Streaming API Responses (UX Speed) DONE
+  The Issue: api.py waits for the full answer before returning JSON. The user stares at a spinner for 5-10 seconds.
+  The Fix: Use FastAPI's StreamingResponse and update ResponseGenerator to yield tokens.
+   * Cost: 0MB RAM.
+   * Benefit: Perceived latency drops to <500ms (Time to First Token).
+
+  8. Structure-Aware Chunking (Precision)
+  The Issue: You are likely splitting by character/token count. This breaks tables and legal paragraphs.
+  The Fix: Update DeepIngestor to respect Markdown headers (#, ##) or double-newlines \n\n as hard break points. Only
+  chunk deeper if a section exceeds the limit.
+   * Cost: 0MB RAM.
+   * Benefit: Chunks are semantically complete, improving retrieval context.
+
+  9. Explicit Garbage Collection on Ingest (Stability) DONE
+  The Issue: Python holds onto memory during the heavy DeepIngest loops.
+  The Fix: Call import gc; gc.collect() manually after flushing every batch of chunks to Parquet.
+   * Cost: Minimal CPU time.
+   * Benefit: Prevents "creep" OOM (Out of Memory) crashes on 16GB laptops processing 50GB datasets.
+
+  10. "Warm-up" Route for Heavy Models (UX Consistency) DONE
+  The Issue: The first query takes 10s because it has to load the LLM/Embedding model into RAM.
+  The Fix: Create a background thread on startup that runs a dummy inference ("hello") through the models if the system
+  has >16GB RAM.
+   * Cost: RAM usage happens earlier, but not increased peak.
+   * Benefit: The first user interaction is instant.

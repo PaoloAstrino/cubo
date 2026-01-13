@@ -37,6 +37,7 @@ function ChatContent() {
 
   const { messages, setMessages, isHistoryLoaded } = useChatHistory(collectionId)
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isStreaming, setIsStreaming] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
   const [traceData, setTraceData] = React.useState<{ trace_id: string; events: Array<Record<string, unknown>> } | null>(null)
   const [isTraceOpen, setIsTraceOpen] = React.useState(false)
@@ -103,6 +104,7 @@ function ChatContent() {
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
     setIsLoading(true)
+    setIsStreaming(true)
 
     // Create placeholder assistant message
     const assistantMessageId = (Date.now() + 1).toString()
@@ -110,6 +112,7 @@ function ChatContent() {
       id: assistantMessageId,
       role: "assistant",
       content: "",
+      isStreaming: true, // Mark as streaming
     }
     setMessages((prev) => [...prev, assistantMessage])
 
@@ -133,6 +136,7 @@ function ChatContent() {
               : msg
           ))
         } else if (event.type === 'source' && event.content) {
+           // Store sources but don't display them yet (they'll show after streaming completes)
            setMessages((prev) => prev.map(msg => {
              if (msg.id !== assistantMessageId) return msg;
              const sources = msg.sources || [];
@@ -146,13 +150,24 @@ function ChatContent() {
              }
            }))
         } else if (event.type === 'done') {
+           // Mark streaming as complete - now sources will be visible
+           setIsStreaming(false)
            setMessages((prev) => prev.map(msg =>
             msg.id === assistantMessageId
-              ? { ...msg, content: event.answer || msg.content, trace_id: event.trace_id }
+              ? { ...msg, content: event.answer || msg.content, trace_id: event.trace_id, isStreaming: false }
               : msg
           ))
         } else if (event.type === 'error') {
-           throw new Error(event.message || "Stream error")
+           // Handle specific error messages
+           let errorMsg = event.message || "Stream error"
+           if (errorMsg.includes("Vector index empty")) {
+             errorMsg = "Please build the index first. Go to Upload → Add documents → Build Index"
+           } else if (errorMsg.includes("Retriever not initialized")) {
+             errorMsg = "System is initializing. Please wait a moment and try again."
+           } else if (errorMsg.includes("Collection") && (errorMsg.includes("no documents") || errorMsg.includes("has no documents"))) {
+             errorMsg = "This collection has no documents. Please add documents to the collection from the Upload page first."
+           }
+           throw new Error(errorMsg)
         }
       }, abortControllerRef.current.signal)
 
@@ -167,11 +182,12 @@ function ChatContent() {
 
       setMessages((prev) => prev.map(msg =>
         msg.id === assistantMessageId
-          ? { ...msg, content: "Sorry, I encountered an error processing your request. Please make sure documents are uploaded and indexed." }
+          ? { ...msg, content: "Sorry, I encountered an error processing your request. Please make sure documents are uploaded and indexed.", isStreaming: false }
           : msg
       ))
     } finally {
       setIsLoading(false)
+      setIsStreaming(false)
       abortControllerRef.current = null
     }
   }
@@ -297,8 +313,16 @@ function ChatContent() {
                         : "bg-muted/50 border"
                     )}>
                       {message.content}
+                      {/* Show skeleton loader while streaming */}
+                      {message.role === "assistant" && message.isStreaming && (
+                        <div className="flex flex-col gap-2 mt-2">
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-4 w-3/4" />
+                        </div>
+                      )}
                     </div>
-                    {message.sources && message.sources.length > 0 && (
+                    {/* Only show sources after streaming completes */}
+                    {message.sources && message.sources.length > 0 && !message.isStreaming && (
                       <SourcesList sources={message.sources} />
                     )}
                     {message.trace_id && (

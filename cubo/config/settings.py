@@ -72,6 +72,9 @@ class RetrievalSettings(BaseSettings):
     initial_retrieval_multiplier: int = Field(
         default=5, description="Multiplier for initial candidate retrieval"
     )
+    min_candidate_pool_size: int = Field(
+        default=50, description="Minimum number of candidates to retrieve for hybrid fusion"
+    )
     complexity_length_threshold: int = Field(
         default=12, description="Query length threshold for complexity"
     )

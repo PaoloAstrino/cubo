@@ -65,6 +65,7 @@ class FAISSIndexManager:
         if not vectors or not ids:
             return
 
+        # Ensure float32 for FAISS CPU operations
         array = np.asarray(vectors, dtype="float32")
         if len(array) != len(ids):
             raise ValueError("Embeddings and ids must have the same length")
@@ -124,6 +125,7 @@ class FAISSIndexManager:
     ) -> None:
         if vectors is None or len(vectors) == 0:
             raise ValueError("Cannot build FAISS indexes without embeddings")
+        # Ensure float32 for FAISS compatibility
         array = np.asarray(vectors, dtype="float32")
         if len(array) != len(ids):
             raise ValueError("Embeddings and ids must have the same length")
@@ -156,18 +158,20 @@ class FAISSIndexManager:
 
             # Get vectors from hot index
             if self.hot_index and self.hot_ids:
-                hot_vectors = self.hot_index.reconstruct_n(0, self.hot_index.ntotal)
+                # Reconstruct as float32
+                hot_vectors = self.hot_index.reconstruct_n(0, self.hot_index.ntotal).astype("float32")
                 existing_vectors.append(hot_vectors)
                 existing_ids.extend(self.hot_ids)
 
             # Get vectors from cold index if it exists
             if self.cold_index is not None and self.cold_ids:
-                cold_vectors = self.cold_index.reconstruct_n(0, self.cold_index.ntotal)
+                # Reconstruct as float32
+                cold_vectors = self.cold_index.reconstruct_n(0, self.cold_index.ntotal).astype("float32")
                 existing_vectors.append(cold_vectors)
                 existing_ids.extend(self.cold_ids)
 
             if existing_vectors:
-                all_vectors = np.vstack(existing_vectors + [array])
+                all_vectors = np.vstack(existing_vectors + [array]).astype("float32")
                 all_ids = existing_ids + ids
             else:
                 all_vectors = array
@@ -210,6 +214,7 @@ class FAISSIndexManager:
         if not vectors:
             return
 
+        # Ensure float32 for FAISS training
         array = np.asarray(vectors, dtype="float32")
         if self.normalize:
             faiss.normalize_L2(array)
@@ -236,6 +241,7 @@ class FAISSIndexManager:
         if len(vectors) != len(ids):
             raise ValueError("Vector and ID counts must match")
 
+        # Ensure float32 for FAISS compatibility
         array = np.asarray(vectors, dtype="float32")
         if self.normalize:
             faiss.normalize_L2(array)
@@ -455,6 +461,7 @@ class FAISSIndexManager:
         with self._lock:
             if not self.hot_index and not self.cold_index:
                 raise ValueError("No FAISS indexes built yet")
+            # Ensure float32 for query vector compatibility with FAISS CPU
             query_vec = np.asarray(query, dtype="float32").reshape(1, -1)
             # Normalize query to match indexed vectors
             if self.normalize:

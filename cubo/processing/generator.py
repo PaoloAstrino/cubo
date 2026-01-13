@@ -1,5 +1,5 @@
 import time
-from typing import Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 try:
     import ollama
@@ -197,6 +197,38 @@ class ResponseGenerator:
         duration = time.time() - start_time
         print(Fore.GREEN + f"Response generated in {duration:.2f} seconds." + Style.RESET_ALL)
         logger.info("Response generated successfully")
+
+    def generate_response_stream(
+        self,
+        query: str,
+        context: str,
+        messages: List[Dict[str, str]] = None,
+        trace_id: Optional[str] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        """Generate a streaming response using Ollama."""
+        conversation_messages = self._prepare_conversation_messages(messages)
+        self._add_user_message(conversation_messages, query, context)
+
+        model_name = (
+            config.get("llm.model_name")
+            or config.get("selected_llm_model")
+            or config.get("llm_model")
+            or "llama3"
+        )
+
+        try:
+            full_content = ""
+            for chunk in ollama.chat(model=model_name, messages=conversation_messages, stream=True):
+                token = chunk["message"]["content"]
+                full_content += token
+                yield {"type": "token", "content": token}
+
+            # Update history at the end
+            self._update_conversation_history(conversation_messages, full_content, messages)
+            yield {"type": "done", "trace_id": trace_id}
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield {"type": "error", "message": str(e)}
 
 
 def create_response_generator() -> ResponseGenerator:

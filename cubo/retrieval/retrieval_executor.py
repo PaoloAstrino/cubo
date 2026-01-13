@@ -273,27 +273,23 @@ class RetrievalExecutor:
             if not bm25_enabled:
                 return []
             # If BM25 store already has an index precomputed (docs loaded), prefer
-            # searching the internal store for performance (avoids reconstructing
-            # the docs list on each query). If a current_documents filter is
-            # requested, fall back to selecting a small subset of docs to search.
+            # searching the internal store for performance.
+            # Optimized path: if we have a filter, pass it as a set of IDs to the store.
+            # This allows the store to use set intersection with posting lists (O(K))
+            # instead of linearly scanning a filtered list of docs (O(N)).
             bm25_docs = getattr(self.bm25, "docs", [])
+            
             if not current_documents and bm25_docs:
-                # Fast path: use prebuilt BM25 index
+                # Fast path: full corpus search
                 results = self.bm25.search(query, top_k=top_k)
-            elif current_documents and bm25_docs and len(bm25_docs) > 0:
-                # Optimized path: if we have indexed docs, filter them without fetching from DB
+            elif current_documents and bm25_docs:
+                # Optimized path: Filtered search using inverted index intersection
+                # We pass the set of allowed IDs directly.
                 target_ids = set(current_documents)
-                docs_for_search = [
-                    d for d in bm25_docs 
-                    if d.get("doc_id") in target_ids or 
-                       (d.get("metadata") and d.get("metadata").get("filename") in target_ids)
-                ]
-                if docs_for_search:
-                    results = self.bm25.search(query, top_k=top_k, docs=docs_for_search)
-                else:
-                    results = []
+                results = self.bm25.search(query, top_k=top_k, doc_ids=target_ids)
             else:
                 # Fallback: retrieve explicit document list from the collection
+                # This path is only taken if BM25 index is empty/not built.
                 where_filter = (
                     {"filename": {"$in": list(current_documents)}} if current_documents else None
                 )
@@ -427,58 +423,15 @@ class RetrievalExecutor:
         }
 
     def _tokenize(self, text: str) -> List[str]:
-        """Tokenize text into words, removing stopwords."""
-        words = re.findall(r"\b\w+\b", text.lower())
-        stop_words = {
-            "tell",
-            "me",
-            "about",
-            "the",
-            "what",
-            "is",
-            "a",
-            "an",
-            "and",
-            "or",
-            "describe",
-            "explain",
-            "how",
-            "why",
-            "when",
-            "where",
-            "who",
-            "which",
-            "that",
-            "this",
-            "these",
-            "those",
-            "was",
-            "were",
-            "are",
-            "be",
-            "been",
-            "being",
-            "have",
-            "has",
-            "had",
-            "do",
-            "does",
-            "did",
-            "will",
-            "would",
-            "could",
-            "should",
-            "of",
-            "at",
-            "by",
-            "for",
-            "with",
-            "from",
-            "to",
-            "in",
-            "on",
-        }
-        return [w for w in words if w not in stop_words and len(w) > 2]
+        """Tokenize text into words using MultilingualTokenizer."""
+        try:
+            from cubo.retrieval.multilingual_tokenizer import tokenize_multilingual
+            # Auto-detect language and stem
+            return tokenize_multilingual(text, language="auto", use_stemming=True)
+        except ImportError:
+            # Fallback if dependencies missing
+            words = re.findall(r"\b\w+\b", text.lower())
+            return [w for w in words if len(w) > 2]
 
     def _to_text(self, doc: Any) -> str:
         """Converts a document payload into a plain text string.

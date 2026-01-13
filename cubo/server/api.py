@@ -57,6 +57,8 @@ from cubo.utils.trace_collector import trace_collector
 # Global app instance - uses CuboCore (no CLI side effects)
 cubo_app: Optional[CuboCore] = None
 service_manager: Optional[ServiceManager] = None
+# Global lock for heavy compute operations (indexing, querying) to prevent OOM
+compute_lock = asyncio.Lock()
 
 
 class _ReadinessSnapshot:
@@ -303,6 +305,23 @@ async def lifespan(app: FastAPI):
                 logger.info("Auto-initializing RAG components in background...")
                 try:
                     cubo_app.initialize_components()
+                    
+                    # Warm-up inference if RAM > 16GB (prevents cold start delay)
+                    try:
+                        import psutil
+                        mem = psutil.virtual_memory()
+                        total_gb = mem.total / (1024**3)
+                        
+                        if total_gb > 16:
+                            logger.info(f"System RAM ({total_gb:.1f}GB) > 16GB. Running warm-up inference...")
+                            # Run dummy retrieval to load embedding model and FAISS indexes into hot RAM
+                            cubo_app.query_retrieve(query="warmup", top_k=1)
+                            logger.info("Warm-up inference complete. System ready.")
+                        else:
+                            logger.info(f"System RAM ({total_gb:.1f}GB) <= 16GB. Skipping warm-up to save resources.")
+                    except Exception as e:
+                        logger.warning(f"Warm-up inference failed: {e}")
+
                 finally:
                     # Ensure caches reflect initialization as soon as possible
                     try:
@@ -460,12 +479,24 @@ async def generic_exception_handler(request: Request, exc: Exception):
     # Log full traceback for unexpected errors
     logger.error(f"Unhandled exception: {exc}", extra={"trace_id": trace_id}, exc_info=True)
 
+    # Prepare details; include stack trace only when verbose mode is enabled
+    details = {"original_error": str(exc)}
+    if os.environ.get("CUBO_VERBOSE") == "1":
+        try:
+            import traceback
+
+            details["exception_type"] = exc.__class__.__name__
+            details["stack"] = traceback.format_exc()
+        except Exception:
+            # If formatting the stack fails, don't block the error response
+            pass
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
             error_code="INTERNAL_SERVER_ERROR",
             message="An unexpected error occurred. Please check logs for trace_id.",
-            details={"original_error": str(exc)},  # Included for "easy debugging" as requested
+            details=details,
             trace_id=trace_id,
         ).model_dump(),
     )
@@ -1296,7 +1327,9 @@ async def ingest_documents(
         )
         return ingestor.ingest()
 
-    result = await run_in_threadpool(run_ingestor)
+    # Acquire lock to prevent OOM from concurrent heavy tasks
+    async with compute_lock:
+        result = await run_in_threadpool(run_ingestor)
 
     if not result:
         logger.warning("Deep ingestion produced no results")
@@ -1370,8 +1403,10 @@ async def build_index(
 
     logger.info("Index build started", extra={"force_rebuild": request_data.force_rebuild})
 
-    # Build index using CUBOApp's build_index method
-    doc_count = await run_in_threadpool(cubo_app.build_index)
+    # Build index using CUBOApp's build_index method with explicit data folder
+    # Acquire lock to prevent OOM
+    async with compute_lock:
+        doc_count = await run_in_threadpool(cubo_app.build_index, "data")
 
     logger.info(f"Index build completed with {doc_count} documents")
     trace_collector.record(
@@ -1436,39 +1471,40 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
         if where_filter:
             retrieve_kwargs["where"] = where_filter
 
-        retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
+        async with compute_lock:
+            retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
 
-        # Emit source events
-        for idx, doc in enumerate(retrieved_docs):
-            metadata = doc.get("metadata", {})
-            content = doc.get("document", doc.get("content", ""))
-            score = doc.get("similarity", doc.get("score", 0.0))
+            # Emit source events
+            for idx, doc in enumerate(retrieved_docs):
+                metadata = doc.get("metadata", {})
+                content = doc.get("document", doc.get("content", ""))
+                score = doc.get("similarity", doc.get("score", 0.0))
 
-            source_event = {
-                "type": "source",
-                "index": idx,
-                "content": content[:500],
-                "metadata": metadata,
-                "score": float(score) if score else 0.0,
-                "trace_id": request.state.trace_id,
-            }
-            yield (json.dumps(source_event) + "\n").encode()
+                source_event = {
+                    "type": "source",
+                    "index": idx,
+                    "content": content[:500],
+                    "metadata": metadata,
+                    "score": float(score) if score else 0.0,
+                    "trace_id": request.state.trace_id,
+                }
+                yield (json.dumps(source_event) + "\n").encode()
 
-        # Build context and stream generation
-        context = "\n\n".join(
-            [doc.get("document", doc.get("content", "")) for doc in retrieved_docs]
-        )
-
-        def _stream_generator():
-            return cubo_app.generate_response_stream(
-                query=request_data.query,
-                context=context,
-                trace_id=request.state.trace_id,
+            # Build context and stream generation
+            context = "\n\n".join(
+                [doc.get("document", doc.get("content", "")) for doc in retrieved_docs]
             )
 
-        # Stream tokens from generator
-        for event in await run_in_threadpool(_stream_generator):
-            yield (json.dumps(event) + "\n").encode()
+            def _stream_generator():
+                return cubo_app.generate_response_stream(
+                    query=request_data.query,
+                    context=context,
+                    trace_id=request.state.trace_id,
+                )
+
+            # Stream tokens from generator
+            for event in await run_in_threadpool(_stream_generator):
+                yield (json.dumps(event) + "\n").encode()
 
     except Exception as e:
         logger.error(f"Streaming query error: {e}")
@@ -1569,28 +1605,30 @@ async def query(request_data: QueryRequest, request: Request):
     if where_filter:
         retrieve_kwargs["where"] = where_filter
 
-    # Use CUBOApp query_retrieve wrapper which guards access to the retriever
-    retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
+    # Acquire lock for heavy retrieval and generation
+    async with compute_lock:
+        # Use CUBOApp query_retrieve wrapper which guards access to the retriever
+        retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
 
-    logger.info(f"Retrieved {len(retrieved_docs)} documents")
+        logger.info(f"Retrieved {len(retrieved_docs)} documents")
 
-    # Generate answer using the correct generator method
-    if hasattr(cubo_app, "generator") and cubo_app.generator:
-        # Build context from retrieved documents
-        context = "\n\n".join(
-            [doc.get("document", doc.get("content", "")) for doc in retrieved_docs]
-        )
-        answer = await run_in_threadpool(
-            lambda: cubo_app.generate_response_safe(
-                query=request_data.query, context=context, trace_id=request.state.trace_id
+        # Generate answer using the correct generator method
+        if hasattr(cubo_app, "generator") and cubo_app.generator:
+            # Build context from retrieved documents
+            context = "\n\n".join(
+                [doc.get("document", doc.get("content", "")) for doc in retrieved_docs]
             )
-        )
-    else:
-        # Fallback: return retrieved documents as context
-        answer = "Retrieved documents (no generator available):\n\n"
-        answer += "\n\n".join(
-            [doc.get("document", doc.get("content", ""))[:200] for doc in retrieved_docs[:3]]
-        )
+            answer = await run_in_threadpool(
+                lambda: cubo_app.generate_response_safe(
+                    query=request_data.query, context=context, trace_id=request.state.trace_id
+                )
+            )
+        else:
+            # Fallback: return retrieved documents as context
+            answer = "Retrieved documents (no generator available):\n\n"
+            answer += "\n\n".join(
+                [doc.get("document", doc.get("content", ""))[:200] for doc in retrieved_docs[:3]]
+            )
 
     # Format sources - handle both 'document' and 'content' keys
     sources = []

@@ -1,5 +1,7 @@
 # BEIR Multi-Dataset Benchmark Results
 
+> **Moved:** Canonical evaluation report now lives at `docs/eval/evaluation_antigravity.md` (single source of truth). Please update that file and not this one.
+
 **Generated:** 2026-01-05 15:52:00  
 **Model:** `embeddinggemma-300m`  
 **Configuration:** *Laptop Mode* (optimized batch retrieval, no reranking)

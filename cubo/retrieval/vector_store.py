@@ -457,8 +457,11 @@ class FaissStore(VectorStore):
         """Serialize numpy vector to bytes."""
         import numpy as np
 
-        if not isinstance(vector, np.ndarray):
-            vector = np.array(vector, dtype=np.float32)
+        # Use configured dtype for persistence (float16 saves 50% space)
+        target_dtype = config.get("vector_store.embedding_dtype", "float32")
+        
+        if not isinstance(vector, np.ndarray) or str(vector.dtype) != target_dtype:
+            vector = np.array(vector, dtype=target_dtype)
 
         return vector.tobytes(), str(vector.dtype), vector.shape[0]
 
@@ -1361,22 +1364,30 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
             List of unique filenames
         """
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            rows = conn.execute(
-                """
-                SELECT DISTINCT d.metadata
-                FROM documents d
-                JOIN collection_documents cd ON d.id = cd.document_id
-                WHERE cd.collection_id = ?
-                """,
+            # Get the document IDs stored in the collection (these are filenames from frontend)
+            collection_doc_ids = conn.execute(
+                "SELECT document_id FROM collection_documents WHERE collection_id = ?",
                 (collection_id,),
+            ).fetchall()
+            
+            if not collection_doc_ids:
+                return []
+            
+            collection_filenames = {row[0] for row in collection_doc_ids}
+            
+            # Now find all documents whose metadata contains these filenames
+            rows = conn.execute(
+                "SELECT DISTINCT metadata FROM documents"
             ).fetchall()
 
         filenames = set()
         for row in rows:
             try:
                 metadata = json.loads(row[0])
-                if "filename" in metadata:
-                    filenames.add(metadata["filename"])
+                doc_filename = metadata.get("filename", "")
+                # Check if this document's filename matches any of the collection's document IDs
+                if doc_filename in collection_filenames:
+                    filenames.add(doc_filename)
             except (json.JSONDecodeError, KeyError):
                 pass
 

@@ -9,6 +9,7 @@ export interface Message {
   content: string
   sources?: Source[]
   trace_id?: string
+  isStreaming?: boolean
 }
 
 const STORAGE_KEY_PREFIX = "cubo_chat_history_"

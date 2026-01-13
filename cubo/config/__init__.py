@@ -131,6 +131,7 @@ class Config(ConfigAdapter):
             "model_path": "./models/embeddinggemma-300m",
             "llm_model": "llama3.2:latest",
             "llm": {"n_ctx": 0},  # 0 = auto-detect
+            "vector_store": {"embedding_dtype": "float16"},
         }
         for key, value in defaults.items():
             self.set(key, value)
@@ -251,7 +252,7 @@ class Config(ConfigAdapter):
         self.set("ingestion.deep.n_workers", 4)
         self.set("retrieval.reranker_model", "default")
         self.set("vector_store.persist_embeddings", "npy")
-        self.set("vector_store.embedding_dtype", "float32")
+        self.set("vector_store.embedding_dtype", "float16")
         self.set("deduplication.max_candidates", 500)
         self.set("vector_index.hot_ratio", 0.5)
         self.set("vector_index.nlist", 4096)

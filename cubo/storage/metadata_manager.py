@@ -19,6 +19,14 @@ class MetadataManager:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         # Allow cross-thread use with a simple lock guard; set a small timeout to avoid busy errors.
         self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=5.0)
+
+        # Enable WAL mode for better concurrency (readers don't block writers)
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+        except Exception as e:
+            logger.warning(f"Failed to enable WAL mode for metadata DB: {e}")
+
         self._lock = threading.Lock()
         self._init_tables()
 

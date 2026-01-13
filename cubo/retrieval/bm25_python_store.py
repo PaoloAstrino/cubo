@@ -13,7 +13,7 @@ parameters, which work well for most retrieval tasks.
 import json
 import math
 from collections import Counter, defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from cubo.retrieval.bm25_store import BM25Store
 from cubo.retrieval.constants import BM25_B, BM25_K1, BM25_NORMALIZATION_FACTOR
@@ -243,7 +243,7 @@ class BM25PythonStore(BM25Store):
 
         return score
 
-    def search(self, query: str, top_k: int = 10, docs: Optional[List[Dict]] = None) -> List[Dict]:
+    def search(self, query: str, top_k: int = 10, docs: Optional[List[Dict]] = None, doc_ids: Optional[Set[str]] = None) -> List[Dict]:
         """
         Search for documents matching a query.
 
@@ -253,7 +253,8 @@ class BM25PythonStore(BM25Store):
         Args:
             query: Natural language search query.
             top_k: Maximum number of results to return.
-            docs: Optional document subset to search within.
+            docs: Optional document subset to search within (DEPRECATED: slow linear scan).
+            doc_ids: Optional set of document IDs to filter by (FAST: uses inverted index).
 
         Returns:
             List of result dicts with 'doc_id', 'similarity', 'metadata', 'text'.
@@ -263,61 +264,98 @@ class BM25PythonStore(BM25Store):
             return []
 
         results = []
-        docs_map_local = {}
-        # Determine candidate documents: either from provided docs or posting lists.
+        
+        # Determine filtering strategy
+        # 1. Linear Scan (Slowest): User provided 'docs' list
         if docs is not None:
-            docs_map_local = {d.get("doc_id"): d for d in docs}
-            candidate_docs = [d.get("doc_id") for d in docs if d.get("doc_id")]
-        else:
-            # To improve performance, pick the least frequent query terms (lowest df)
-            # and use their posting lists as the candidate set to minimize the
-            # number of documents scored.
-            term_dfs = [(term, self.term_doc_freq.get(term, 0)) for term in query_terms]
-            term_dfs.sort(key=lambda x: x[1])
-            candidate_set = set()
-            num_seed_terms = min(2, len(term_dfs))
-            for term, _ in term_dfs[:num_seed_terms]:
-                for did in self.postings.get(term, []):
-                    candidate_set.add(did)
-            # If seed selection produced no candidates (e.g., query terms not indexed),
-            # expand to union of all query term posting lists.
-            if not candidate_set:
-                for term in query_terms:
-                    for did in self.postings.get(term, []):
-                        candidate_set.add(did)
-            candidate_docs = list(candidate_set)
-            # Hard limit to avoid pathological queries from scanning entire corpus
-            MAX_CANDIDATES = 2000
-            if len(candidate_docs) > MAX_CANDIDATES:
-                candidate_docs = candidate_docs[:MAX_CANDIDATES]
-
-        for doc_id in candidate_docs:
-            if not doc_id:
-                continue
-            # Get doc dict from local map or global docs_map
-            d = (
-                docs_map_local.get(doc_id)
-                if doc_id in docs_map_local
-                else self.docs_map.get(doc_id)
-            )
-            if not d:
-                # fallback: try finding in docs list
-                d = next((x for x in self.docs if x.get("doc_id") == doc_id), None)
-            if not d:
-                continue
-            # Get document text
-            doc_text = d.get("text", "")
-            bm25_score = self._compute_bm25_score(query_terms, doc_id, doc_text)
-            norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
-            if norm_score > 0.0:
-                results.append(
-                    {
+            # Fallback to linear scan of provided docs (legacy behavior)
+            for d in docs:
+                doc_id = d.get("doc_id")
+                if not doc_id:
+                    continue
+                # If doc_ids filter is also present, respect it
+                if doc_ids and doc_id not in doc_ids:
+                    continue
+                    
+                doc_text = d.get("text", "")
+                bm25_score = self._compute_bm25_score(query_terms, doc_id, doc_text)
+                norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
+                if norm_score > 0.0:
+                    results.append({
                         "doc_id": doc_id,
                         "similarity": norm_score,
                         "metadata": d.get("metadata", {}),
                         "text": d.get("text", ""),
-                    }
-                )
+                    })
+            results.sort(key=lambda x: x["similarity"], reverse=True)
+            return results[:top_k]
+
+        # 2. Inverted Index Search (Fastest): Use posting lists + set intersection
+        
+        # Get candidates from posting lists
+        candidate_set = set()
+        
+        # Optimization: Pick terms with lowest document frequency (rarest terms) first
+        term_dfs = [(term, self.term_doc_freq.get(term, 0)) for term in query_terms]
+        term_dfs.sort(key=lambda x: x[1])
+        
+        # Start with posting list of rarest term
+        if term_dfs:
+            rarest_term = term_dfs[0][0]
+            initial_candidates = set(self.postings.get(rarest_term, []))
+            
+            # If a filter is provided, apply it immediately
+            if doc_ids:
+                initial_candidates.intersection_update(doc_ids)
+            
+            candidate_set = initial_candidates
+            
+            # Expand with other terms (OR logic), applying filter
+            num_seed_terms = min(3, len(term_dfs)) # Check top 3 rarest terms
+            for term, _ in term_dfs[1:num_seed_terms]:
+                term_postings = self.postings.get(term, [])
+                for did in term_postings:
+                    if doc_ids and did not in doc_ids:
+                        continue
+                    candidate_set.add(did)
+            
+            # If candidate set is still small, add remaining terms
+            if len(candidate_set) < top_k * 2:
+                for term, _ in term_dfs[num_seed_terms:]:
+                    term_postings = self.postings.get(term, [])
+                    for did in term_postings:
+                        if doc_ids and did not in doc_ids:
+                            continue
+                        candidate_set.add(did)
+        
+        # Hard limit to avoid blowing up on huge OR queries (e.g. stopword-heavy)
+        MAX_CANDIDATES = 5000
+        candidate_list = list(candidate_set)
+        if len(candidate_list) > MAX_CANDIDATES:
+             candidate_list = candidate_list[:MAX_CANDIDATES]
+
+        # Score candidates
+        for doc_id in candidate_list:
+            # Retrieve document data from internal map
+            d = self.docs_map.get(doc_id)
+            # Or fallback to list scan if map not populated (legacy stats loaded)
+            if not d:
+                 d = next((x for x in self.docs if x.get("doc_id") == doc_id), None)
+            
+            if not d:
+                continue
+
+            doc_text = d.get("text", "")
+            bm25_score = self._compute_bm25_score(query_terms, doc_id, doc_text)
+            norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
+            
+            if norm_score > 0.0:
+                results.append({
+                    "doc_id": doc_id,
+                    "similarity": norm_score,
+                    "metadata": d.get("metadata", {}),
+                    "text": d.get("text", ""),
+                })
 
         # Sort by score descending
         results.sort(key=lambda x: x["similarity"], reverse=True)

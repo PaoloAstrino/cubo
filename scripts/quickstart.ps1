@@ -41,7 +41,12 @@ Write-Output "Running preflight checks..."
 if (-not (Get-Command python -ErrorAction SilentlyContinue) -and -not (Get-Command python3 -ErrorAction SilentlyContinue)) {
     Fail "Python not found. Please install Python 3.11+"
 }
-$pyCmd = (Get-Command python -ErrorAction SilentlyContinue) ? 'python' : 'python3'
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    $pyCmd = 'python'
+} else {
+    $pyCmd = 'python3'
+}
+
 try {
     & $pyCmd -c "import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)" 2>$null
 } catch {

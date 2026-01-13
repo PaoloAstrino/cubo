@@ -131,10 +131,21 @@ class ModelInferenceThreading:
 
                 # Generate embeddings
                 try:
+                    import numpy as np
                     embeddings = embedding_model.encode(text_batch, batch_size=len(text_batch))
+                    # Cast to float16 to save 50% RAM
+                    if hasattr(embeddings, "astype"):
+                        embeddings = embeddings.astype(np.float16)
+                    elif isinstance(embeddings, list):
+                        embeddings = np.array(embeddings, dtype=np.float16)
                 except TypeError:
                     # Some mock models or older APIs may not accept batch_size kwarg
+                    import numpy as np
                     embeddings = embedding_model.encode(text_batch)
+                    if hasattr(embeddings, "astype"):
+                        embeddings = embeddings.astype(np.float16)
+                    else:
+                        embeddings = np.array(embeddings, dtype=np.float16)
 
                 # Convert to list if needed
                 if hasattr(embeddings, "tolist"):

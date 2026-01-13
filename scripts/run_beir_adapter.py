@@ -167,16 +167,42 @@ def main():
     if args.evaluate and not args.qrels:
         parser.error("--qrels is required when --evaluate is set")
 
+    # Ensure results/logs exists and add a file handler for verbose logs
+    from pathlib import Path
+    logs_dir = Path("results/logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    logfile = logs_dir / f"beir_adapter_{Path(args.output).stem}.log"
+    try:
+        fh = logging.FileHandler(str(logfile))
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        # Avoid adding duplicate file handlers
+        if not any(isinstance(h, logging.FileHandler) for h in log.handlers):
+            log.addHandler(fh)
+        # Ensure console output is visible: add StreamHandler if missing
+        if not any(isinstance(h, logging.StreamHandler) for h in log.handlers):
+            sh = logging.StreamHandler()
+            sh.setLevel(logging.INFO)
+            sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            log.addHandler(sh)
+        log.info(f"Logging to {logfile} and console")
+    except Exception as e:
+        log.warning(f"Could not create log file handler: {e}")
+
     log.info("Initializing CuboBeirAdapter...")
     adapter = CuboBeirAdapter(index_dir=args.index_dir, lightweight=False)
 
-    if args.reindex:
-        log.info(f"Reindexing corpus from {args.corpus}...")
-        adapter.index_corpus(corpus_path=args.corpus, index_dir=args.index_dir, limit=args.limit)
-    else:
-        log.info(f"Loading index from {args.index_dir}...")
-        adapter.load_index(args.index_dir)
-
+    try:
+        if args.reindex:
+            log.info(f"Reindexing corpus from {args.corpus}...")
+            adapter.index_corpus(corpus_path=args.corpus, index_dir=args.index_dir, limit=args.limit)
+        else:
+            log.info(f"Loading index from {args.index_dir}...")
+            adapter.load_index(args.index_dir)
+    except Exception as e:
+        log.exception(f"Index operation failed for {args.index_dir}: {e}")
+        print(f"Index operation failed: {e}. See log file: {logfile}", flush=True)
+        sys.exit(1)
     log.info(f"Loading queries from {args.queries}...")
     queries = load_queries(args.queries, args.corpus)
     if args.query_limit:
@@ -251,4 +277,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        log.exception("Unhandled exception in run_beir_adapter: %s", e)
+        print(f"Unhandled error: {e}. See logs in results/logs/")
+        sys.exit(2)

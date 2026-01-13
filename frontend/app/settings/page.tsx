@@ -1,6 +1,5 @@
 "use client"
 
-import { AppearanceSettings } from "@/components/appearance-settings"
 import { LLMSettings } from "@/components/llm-settings"
 import {
     Card,
@@ -29,17 +28,7 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Appearance</CardTitle>
-                    <CardDescription>
-                        Customize the look and feel of the application.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <AppearanceSettings />
-                </CardContent>
-            </Card>
+
         </div>
     )
 }

@@ -23,6 +23,7 @@ RRF_K = settings.retrieval.rrf_k
 DEFAULT_TOP_K = settings.retrieval.default_top_k
 DEFAULT_WINDOW_SIZE = settings.retrieval.default_window_size
 INITIAL_RETRIEVAL_MULTIPLIER = settings.retrieval.initial_retrieval_multiplier
+MIN_CANDIDATE_POOL_SIZE = settings.retrieval.min_candidate_pool_size
 COMPLEXITY_LENGTH_THRESHOLD = settings.retrieval.complexity_length_threshold
 
 # =============================================================================

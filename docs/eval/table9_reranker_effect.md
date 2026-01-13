@@ -13,6 +13,8 @@ Based on NFCorpus benchmark (from `evaluation_antigravity.md` Section 1).
 - **Latency Cost:** 50x slower (>250ms vs <5ms per query)
 - **Decision:** Reranker disabled by default in Laptop Mode to preserve speed and accessibility while maintaining competitive accuracy on general domains (0.50+ Recall on SciFact, ArguAna, UltraDomain).
 
+> Canonical SOT: `docs/eval/evaluation_antigravity.md`
+
 ## Justification
 The reranker provides modest gains on weak domains (NFCorpus medical: +5% Recall) but at extreme hardware cost. For the target audience (developers with <16GB RAM), dense-only retrieval is the optimal trade-off.
 

@@ -113,6 +113,11 @@ class DeepIngestor:
             df.to_parquet(temp_file, index=False, engine="pyarrow")
             self._temp_parquet_files.append(temp_file)
             logger.debug(f"Flushed {len(chunks)} chunks to {temp_file.name}")
+            
+            # Explicitly trigger GC to free memory from chunk dictionaries and df
+            del df
+            import gc
+            gc.collect()
         except Exception as e:
             logger.warning(f"Failed to flush chunk batch: {e}")
 

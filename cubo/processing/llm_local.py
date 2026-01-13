@@ -7,7 +7,7 @@ implements a synchronous generation via the service_manager to keep parity with 
 from __future__ import annotations
 
 import time
-from typing import Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from cubo.config import config
 from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT
@@ -117,7 +117,7 @@ class LocalResponseGenerator:
         """Generate a streaming response with local LLM.
 
         Yields NDJSON events:
-        - {'type': 'token', 'delta': '...', 'trace_id': '...'}
+        - {'type': 'token', 'content': '...', 'trace_id': '...'}
         - {'type': 'done', 'answer': '...', 'trace_id': '...', 'duration_ms': 123}
         """
         convo = []
@@ -155,7 +155,7 @@ class LocalResponseGenerator:
                             delta = chunk.get("choices", [{}])[0].get("text", "")
                             if delta:
                                 accumulated.append(delta)
-                                yield {"type": "token", "delta": delta, "trace_id": trace_id}
+                                yield {"type": "token", "content": delta, "trace_id": trace_id}
 
                     answer = "".join(accumulated)
                     duration_ms = int((time.time() - start_time) * 1000)
@@ -178,7 +178,7 @@ class LocalResponseGenerator:
             chunk_size = 10
             for i in range(0, len(answer), chunk_size):
                 delta = answer[i : i + chunk_size]
-                yield {"type": "token", "delta": delta, "trace_id": trace_id}
+                yield {"type": "token", "content": delta, "trace_id": trace_id}
 
             yield {
                 "type": "done",

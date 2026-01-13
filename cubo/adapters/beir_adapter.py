@@ -222,7 +222,7 @@ class CuboBeirAdapter:
                             count += len(batch_docs)
                             batch_docs = []
                             batch_ids = []
-                            if count % 10000 == 0:
+                            if count % 1000 == 0:
                                 logger.info(f"Indexed {count} documents...")
                 except json.JSONDecodeError:
                     continue
@@ -292,17 +292,22 @@ class CuboBeirAdapter:
             embeddings = embeddings / (norms + 1e-10)
 
         # Use build_indexes with append=True to add to existing index
-        faiss_manager.build_indexes(embeddings, ids, append=True)
+        try:
+            faiss_manager.build_indexes(embeddings, ids, append=True)
 
-        c = conn.cursor()
-        data = []
-        for doc_id, text in zip(ids, texts):
-            # We store metadata as JSON string
-            data.append((doc_id, text, json.dumps({"id": doc_id, "source": "beir"})))
-        c.executemany(
-            "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)", data
-        )
-        conn.commit()
+            c = conn.cursor()
+            data = []
+            for doc_id, text in zip(ids, texts):
+                # We store metadata as JSON string
+                data.append((doc_id, text, json.dumps({"id": doc_id, "source": "beir"})))
+            c.executemany(
+                "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)", data
+            )
+            conn.commit()
+        except Exception as e:
+            logger.exception(f"Batch processing failed while adding {len(ids)} docs: {e}")
+            # Reraise so caller can handle or stop indexing
+            raise
 
     def load_index(self, index_dir: str):
         """Load existing index."""
@@ -385,8 +390,16 @@ class CuboBeirAdapter:
                     batch_embs = batch_embs.cpu().numpy()
                 query_embeddings.extend(batch_embs)
 
-                if (i + len(batch)) % 1000 == 0:
+                if (i + len(batch)) % 100 == 0:
                     logger.info(f"Embedded {i + len(batch)}/{total} queries")
+                # Heartbeat log if embedding takes long
+                now = time.time()
+                if 'last_embed_log' in locals():
+                    if now - last_embed_log > 30:
+                        logger.info(f"Embedding progress: {i + len(batch)}/{total} (last progress >30s)")
+                        last_embed_log = now
+                else:
+                    last_embed_log = now
             except Exception as e:
                 logger.error(f"Error embedding batch {i}: {e}")
                 # Fallback to individual embeddings for this batch
@@ -484,8 +497,16 @@ class CuboBeirAdapter:
 
                 results[qid] = query_results
 
-                if (i + 1) % 1000 == 0:
+                if (i + 1) % 100 == 0:
                     logger.info(f"Processed {i + 1}/{total} queries")
+                # Time-based heartbeat
+                now = time.time()
+                if 'last_query_log' in locals():
+                    if now - last_query_log > 30:
+                        logger.info(f"Query processing progress: {i + 1}/{total} (last progress >30s)")
+                        last_query_log = now
+                else:
+                    last_query_log = now
 
         except Exception as e:
             logger.error(f"Batch FAISS search failed: {e}")

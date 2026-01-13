@@ -222,15 +222,6 @@ class CuboCore:
         Thread-safe: Uses _state_lock.
         """
         with self._state_lock:
-            if not hasattr(self.generator, "generate_response_stream"):
-                # Fallback for generators without streaming support
-                logger.warning("Generator does not support streaming; falling back")
-                answer = self.generator.generate_response(
-                    query=query, context=context, trace_id=trace_id
-                )
-                yield {"type": "done", "answer": answer, "trace_id": trace_id}
-                return
-
             yield from self.generator.generate_response_stream(
                 query=query, context=context, trace_id=trace_id
             )

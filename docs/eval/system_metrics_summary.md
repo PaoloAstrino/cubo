@@ -19,6 +19,8 @@ System hardware metrics measured on NFCorpus benchmark (laptop mode, CPU-only).
 Based on NFCorpus baseline:
 - **FiQA (648 queries):** ~1ms p50, ~5ms p95 query latency
 - **SciFact (1,109 queries):** ~1ms p50, ~6ms p95 query latency
+
+> Canonical SOT: `docs/eval/evaluation_antigravity.md`
 - **ArguAna (1,406 queries):** ~1ms p50, ~7ms p95 query latency
 - **UltraDomain (1,268 queries):** ~1ms p50, ~6ms p95 query latency
 
