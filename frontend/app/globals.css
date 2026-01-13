@@ -88,3 +88,24 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Typing indicator dots animation */
+@keyframes dot-bold {
+  0%, 60%, 100% { font-weight: 400; opacity: 0.6 }
+  30% { font-weight: 700; opacity: 1 }
+}
+.typing-dots {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+.typing-dot {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+  animation: dot-bold 1s infinite ease-in-out;
+}
+.typing-dot:nth-child(1) { animation-delay: 0s }
+.typing-dot:nth-child(2) { animation-delay: 0.15s }
+.typing-dot:nth-child(3) { animation-delay: 0.3s }
+.typing-dot:after { content: '\00A0'; /* ensure spacing */ }

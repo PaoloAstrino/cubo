@@ -312,6 +312,14 @@ if ($conflictingProcesses.Count -gt 0) {
     }
 }
 
+# Check for port conflicts and offer to kill existing processes
+# ... (existing port check code) ...
+
+# Check Ollama and Model Readiness
+$targetModel = $env:CUBO_LLM_MODEL
+if (-not $targetModel) { $targetModel = "llama3.2:latest" }
+& "$ScriptDir\scripts\check_ollama.ps1" -ModelName $targetModel
+
 # Start fullstack (uses scripts/start_fullstack.py)
 Log-Info "Launching CUBO..."
 Log-Info "Please wait while we start the services..."

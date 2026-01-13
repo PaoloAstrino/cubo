@@ -473,7 +473,7 @@ export default function UploadPage() {
             <div>
                 <h2 className="text-lg font-semibold mb-3">Collections</h2>
                 {isLoading ? (
-                    <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6">
+                    <div className="grid gap-6 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
                         {Array.from({ length: 8 }).map((_, i) => (
                             <Skeleton key={i} className="h-20 rounded-xl" />
                         ))}
@@ -487,11 +487,11 @@ export default function UploadPage() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <div className={`collections-section grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 ${draggingDocs ? 'z-40' : ''}`}>
+                    <div className={`collections-section grid gap-6 grid-cols-[repeat(auto-fit,minmax(180px,1fr))] ${draggingDocs ? 'z-40' : ''}`}>
                         {collections.map((collection) => (
                             <Card
                                 key={collection.id}
-                                className="group relative cursor-pointer hover:shadow-lg transition-all overflow-hidden aspect-square min-w-[200px]"
+                                className="group relative cursor-pointer hover:shadow-lg transition-all overflow-hidden aspect-square w-full min-w-0"
                                 style={{ aspectRatio: '1 / 1' }}
                                 onClick={() => handleOpenCollection(collection.id)}
                                 onDragOver={(e) => { e.preventDefault() }}

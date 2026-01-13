@@ -698,6 +698,7 @@ class SettingsResponse(BaseModel):
 
     llm_model: str
     llm_provider: str
+    accent: Optional[str] = None
     # Add other settings as needed
 
 
@@ -706,6 +707,7 @@ class SettingsUpdate(BaseModel):
 
     llm_model: Optional[str] = None
     llm_provider: Optional[str] = None
+    accent: Optional[str] = None
 
 
 # API Endpoints
@@ -762,6 +764,7 @@ async def get_settings(request: Request):
         or config.get("llm_model")
         or "llama3",
         llm_provider=config.get("llm.provider", "ollama"),
+        accent=config.get("ui.accent", "blue"),
     )
 
 
@@ -777,6 +780,10 @@ async def update_settings(settings: SettingsUpdate, request: Request):
     if settings.llm_provider:
         config.set("llm.provider", settings.llm_provider)
         updates["llm.provider"] = settings.llm_provider
+
+    if settings.accent:
+        config.set("ui.accent", settings.accent)
+        updates["ui.accent"] = settings.accent
 
     if updates:
         config.save()
@@ -1427,12 +1434,13 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
         scrubbed_query = security_manager.scrub(request_data.query)
 
         logger.info(
-            "Streaming query received",
+            "Streaming query generator started",
             extra={"query": scrubbed_query, "query_scrubbed": scrubbed_query != request_data.query},
         )
 
         # Check retriever initialization
         if not hasattr(cubo_app, "retriever") or not cubo_app.retriever:
+            logger.error("Retriever not initialized")
             yield (
                 json.dumps({"type": "error", "message": "Retriever not initialized"}) + "\n"
             ).encode()
@@ -1445,6 +1453,7 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             collection_count = 0
 
         if collection_count == 0:
+            logger.error("Vector index empty")
             yield (json.dumps({"type": "error", "message": "Vector index empty"}) + "\n").encode()
             return
 
@@ -1457,6 +1466,7 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             if filenames:
                 where_filter = {"filename": {"$in": filenames}}
             else:
+                logger.error(f"Collection {request_data.collection_id} has no documents")
                 yield (
                     json.dumps({"type": "error", "message": "Collection has no documents"}) + "\n"
                 ).encode()
@@ -1471,8 +1481,10 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
         if where_filter:
             retrieve_kwargs["where"] = where_filter
 
+        logger.info("Starting document retrieval")
         async with compute_lock:
             retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
+            logger.info(f"Retrieved {len(retrieved_docs)} documents")
 
             # Emit source events
             for idx, doc in enumerate(retrieved_docs):
@@ -1488,6 +1500,7 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
                     "score": float(score) if score else 0.0,
                     "trace_id": request.state.trace_id,
                 }
+                logger.debug(f"Emitting source event {idx}")
                 yield (json.dumps(source_event) + "\n").encode()
 
             # Build context and stream generation
@@ -1495,6 +1508,7 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
                 [doc.get("document", doc.get("content", "")) for doc in retrieved_docs]
             )
 
+            logger.info("Starting LLM streaming generation")
             def _stream_generator():
                 return cubo_app.generate_response_stream(
                     query=request_data.query,
@@ -1503,11 +1517,33 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
                 )
 
             # Stream tokens from generator
+            event_count = 0
             for event in await run_in_threadpool(_stream_generator):
+                event_count += 1
+                event_type = event.get('type')
+                logger.debug(f"Generator event {event_count}: {event_type}")
+                if event_type == 'done':
+                    logger.info(f"Done event from generator: type={event_type}, has_answer={'answer' in event}, answer_length={len(event.get('answer', ''))}")
+                    logger.info(f"Full done event: {event}")
                 yield (json.dumps(event) + "\n").encode()
+            
+            logger.info(f"Streaming completed with {event_count} events")
+            
+            # Safety: if no done event was sent, send one
+            if event_count == 0:
+                logger.error("No events generated from LLM")
+                yield (json.dumps({
+                    "type": "done",
+                    "answer": "I apologize, but I was unable to generate a response. Please try again.",
+                    "trace_id": request.state.trace_id
+                }) + "\n").encode()
 
     except Exception as e:
-        logger.error(f"Streaming query error: {e}")
+        logger.error(f"Streaming query error: {e}", exc_info=True)
+        yield (
+            json.dumps({"type": "error", "message": f"Server error: {str(e)}", "trace_id": request.state.trace_id})
+            + "\n"
+        ).encode()
         yield (
             json.dumps({"type": "error", "message": str(e), "trace_id": request.state.trace_id})
             + "\n"
@@ -1522,7 +1558,10 @@ async def query(request_data: QueryRequest, request: Request):
 
     # Check if streaming is requested and enabled
     streaming_enabled = config.get("llm.enable_streaming", False)
+    logger.info(f"Query endpoint: stream={request_data.stream}, streaming_enabled={streaming_enabled}")
+    
     if request_data.stream and streaming_enabled:
+        logger.info("Returning streaming response")
         # Return streaming response
         return StreamingResponse(
             _query_stream_generator(request_data, request),
@@ -1530,6 +1569,7 @@ async def query(request_data: QueryRequest, request: Request):
             headers={"X-Trace-ID": request.state.trace_id},
         )
 
+    logger.info("Returning non-streaming response")
     # Non-streaming path (existing logic)
     # Scrub query for logging
     scrubbed_query = security_manager.scrub(request_data.query)

@@ -221,6 +221,28 @@ export async function queryStream(
     throw new Error(`Query failed: ${response.statusText}`);
   }
 
+  const contentType = response.headers.get('content-type') || '';
+
+  // If the server returned a non-streaming JSON response (streaming disabled server-side),
+  // parse it and emit a single 'done' event so consumers receive the final answer and trace id.
+  if (contentType.includes('application/json')) {
+    console.log('[API] Non-streaming JSON response detected')
+    const data = await response.json();
+    console.log('[API] JSON data:', { answer: data.answer?.substring(0, 50), trace_id: data.trace_id, sources_count: data.sources?.length })
+
+    // Emit sources first if present (keep interface similar to streaming)
+    if (Array.isArray((data as any).sources)) {
+      for (const src of (data as any).sources) {
+        onEvent({ type: 'source', content: src.content, metadata: src.metadata, score: src.score, index: 0 } as StreamEvent)
+      }
+    }
+
+    // Emit final done event
+    onEvent({ type: 'done', answer: (data as any).answer, trace_id: (data as any).trace_id } as StreamEvent)
+    return
+  }
+
+  console.log('[API] NDJSON streaming response detected')
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -336,6 +358,7 @@ export interface LLMModel {
 export interface Settings {
   llm_model: string;
   llm_provider: string;
+  accent?: string;
 }
 
 export async function getLLMModels(): Promise<LLMModel[]> {

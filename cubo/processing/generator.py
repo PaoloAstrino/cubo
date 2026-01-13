@@ -158,23 +158,32 @@ class ResponseGenerator:
             self._update_conversation_history(conversation_messages, assistant_content, messages)
             duration_ms = int((time.time() - start_time) * 1000)
 
+            # Ensure we have content
+            if not assistant_content or not assistant_content.strip():
+                logger.warning("LLM returned empty response")
+                assistant_content = "I apologize, but I was unable to generate a response based on the provided context. Please try rephrasing your question."
+
+            logger.info(f"Stream completed: answer_length={len(assistant_content)}, tokens={len(accumulated)}")
+
             if trace_id:
                 try:
                     trace_collector.record(
                         trace_id,
                         "generator",
                         "generator.stream_completed",
-                        {"duration_ms": duration_ms, "tokens": len(accumulated)},
+                        {"duration_ms": duration_ms, "tokens": len(accumulated), "answer_length": len(assistant_content)},
                     )
                 except Exception:
                     pass
 
-            yield {
+            done_event = {
                 "type": "done",
                 "answer": assistant_content,
                 "trace_id": trace_id,
                 "duration_ms": duration_ms,
             }
+            logger.info(f"Yielding done event with answer length: {len(assistant_content)}")
+            yield done_event
             self._log_generation_time(start_time)
 
         except Exception as e:
@@ -197,38 +206,6 @@ class ResponseGenerator:
         duration = time.time() - start_time
         print(Fore.GREEN + f"Response generated in {duration:.2f} seconds." + Style.RESET_ALL)
         logger.info("Response generated successfully")
-
-    def generate_response_stream(
-        self,
-        query: str,
-        context: str,
-        messages: List[Dict[str, str]] = None,
-        trace_id: Optional[str] = None,
-    ) -> Iterator[Dict[str, Any]]:
-        """Generate a streaming response using Ollama."""
-        conversation_messages = self._prepare_conversation_messages(messages)
-        self._add_user_message(conversation_messages, query, context)
-
-        model_name = (
-            config.get("llm.model_name")
-            or config.get("selected_llm_model")
-            or config.get("llm_model")
-            or "llama3"
-        )
-
-        try:
-            full_content = ""
-            for chunk in ollama.chat(model=model_name, messages=conversation_messages, stream=True):
-                token = chunk["message"]["content"]
-                full_content += token
-                yield {"type": "token", "content": token}
-
-            # Update history at the end
-            self._update_conversation_history(conversation_messages, full_content, messages)
-            yield {"type": "done", "trace_id": trace_id}
-        except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            yield {"type": "error", "message": str(e)}
 
 
 def create_response_generator() -> ResponseGenerator:

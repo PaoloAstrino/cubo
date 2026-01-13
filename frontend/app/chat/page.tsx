@@ -30,6 +30,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Copy } from "lucide-react"
+import TypingIndicator from '@/components/typing-indicator'
 
 function ChatContent() {
   const searchParams = useSearchParams()
@@ -154,12 +155,18 @@ function ChatContent() {
         use_reranker: true,
         collection_id: collectionId ?? undefined,
       }, (event) => {
+        console.log('[Chat] Stream event:', event.type, event)
+        
         if (event.type === 'token' && event.delta) {
-          setMessages((prev) => prev.map(msg =>
-            msg.id === assistantMessageId
-              ? { ...msg, content: msg.content + event.delta }
-              : msg
-          ))
+          console.log('[Chat] Token received, delta length:', event.delta?.length)
+          setMessages((prev) => prev.map(msg => {
+            if (msg.id === assistantMessageId) {
+              const newContent = msg.content + event.delta
+              console.log('[Chat] Updated content length:', msg.content?.length, '->', newContent?.length)
+              return { ...msg, content: newContent }
+            }
+            return msg
+          }))
         } else if (event.type === 'source' && event.content) {
            // Store sources but don't display them yet (they'll show after streaming completes)
            setMessages((prev) => prev.map(msg => {
@@ -176,14 +183,40 @@ function ChatContent() {
            }))
         } else if (event.type === 'done') {
            // Mark streaming as complete - now sources will be visible
+           console.log('[Chat] Done event received, full event:', JSON.stringify(event))
+           console.log('[Chat] Done event keys:', Object.keys(event))
            setIsStreaming(false)
-           setMessages((prev) => prev.map(msg =>
-            msg.id === assistantMessageId
-              ? { ...msg, content: event.answer || msg.content, trace_id: event.trace_id, isStreaming: false }
-              : msg
-          ))
+           
+           setMessages((prev) => prev.map(msg => {
+             if (msg.id !== assistantMessageId) return msg
+             
+             console.log('[Chat] Current msg.content length before done:', msg.content?.length)
+             console.log('[Chat] Event has answer key:', 'answer' in event)
+             console.log('[Chat] Event answer value:', event.answer)
+             
+             // If answer is in the done event, use it; otherwise keep accumulated tokens
+             // Only use fallback if both are empty
+             let finalAnswer = msg.content // Start with accumulated tokens
+             if (event.answer !== undefined && event.answer !== null) {
+               finalAnswer = event.answer // Prefer answer from done event if present
+             }
+             if (!finalAnswer || !finalAnswer.trim()) {
+               finalAnswer = "I apologize, but I was unable to generate a response. Please try again."
+             }
+             
+             console.log('[Chat] Final answer length:', finalAnswer?.length)
+             console.log('[Chat] Using answer from:', event.answer ? 'event.answer' : msg.content ? 'msg.content' : 'fallback')
+             
+             return { 
+               ...msg, 
+               content: finalAnswer, 
+               trace_id: event.trace_id, 
+               isStreaming: false 
+             }
+           }))
         } else if (event.type === 'error') {
            // Handle specific error messages
+           console.error('[Chat] Error event:', event.message)
            let errorMsg = event.message || "Stream error"
            if (errorMsg.includes("Vector index empty")) {
              errorMsg = "Please build the index first. Go to Upload → Add documents → Build Index"
@@ -197,22 +230,43 @@ function ChatContent() {
       }, abortControllerRef.current.signal)
 
     } catch (error) {
+      console.error('[Chat] Stream error caught:', error)
       if (error instanceof Error && error.name === 'AbortError') return;
 
+      const errorMessage = error instanceof Error ? error.message : "Failed to process query"
+      
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to process query",
+        description: errorMessage,
         variant: "destructive",
       })
 
+      // Always show a message in the chat even on error
       setMessages((prev) => prev.map(msg =>
         msg.id === assistantMessageId
-          ? { ...msg, content: "Sorry, I encountered an error processing your request. Please make sure documents are uploaded and indexed.", isStreaming: false }
+          ? { 
+              ...msg, 
+              content: msg.content || "I apologize, but I encountered an error processing your request. Please make sure documents are uploaded and indexed, then try again.", 
+              isStreaming: false 
+            }
           : msg
       ))
     } finally {
       setIsLoading(false)
       setIsStreaming(false)
+      
+      // Final safety check: ensure assistant message has content
+      setMessages((prev) => prev.map(msg => {
+        if (msg.id === assistantMessageId && !msg.content) {
+          return {
+            ...msg,
+            content: "I apologize, but I was unable to generate a response. Please try your question again.",
+            isStreaming: false
+          }
+        }
+        return msg
+      }))
+      
       abortControllerRef.current = null
     }
   }
@@ -314,9 +368,13 @@ function ChatContent() {
                   )}
                 >
                   {message.role === "user" ? (
-                    <Avatar className="size-8 shrink-0">
-                      <AvatarFallback>ME</AvatarFallback>
-                    </Avatar>
+                    // Colored circle using the app accent color (from CSS variable --accent)
+                    <div
+                      className="h-8 w-8 rounded-full shrink-0 flex items-center justify-center"
+                      style={{ backgroundColor: 'hsl(var(--accent))' }}
+                      aria-hidden="true"
+                      title="You"
+                    />
                   ) : (
                     <div className="size-8 shrink-0 rounded-full overflow-hidden">
                       <CuboLogo size={32} />
@@ -338,11 +396,10 @@ function ChatContent() {
                         : "bg-muted/50 border"
                     )}>
                       {message.content}
-                      {/* Show skeleton loader while streaming */}
+                      {/* Show typing indicator while streaming */}
                       {message.role === "assistant" && message.isStreaming && (
-                        <div className="flex flex-col gap-2 mt-2">
-                          <Skeleton className="h-4 w-full" />
-                          <Skeleton className="h-4 w-3/4" />
+                        <div className="mt-2">
+                          <TypingIndicator />
                         </div>
                       )}
                     </div>
@@ -395,6 +452,12 @@ function ChatContent() {
               Trace ID: <code className="bg-muted px-1 py-0.5 rounded">{traceData?.trace_id}</code>
             </SheetDescription>
           </SheetHeader>
+
+          {/* Short explanation for the trace pane */}
+          <div className="px-4">
+            <p className="text-sm text-muted-foreground mb-3">💡 Traces capture the sequence of events (retrieval results, streaming tokens, and metadata) used to generate this answer. They help debug unexpected outputs and reproduce issues by showing which documents and tokens were involved.</p>
+          </div>
+
           <div className="flex-1 overflow-hidden mt-4 relative">
              <ScrollArea className="h-full border rounded-md p-4 bg-muted/30">
                <pre className="text-xs font-mono whitespace-pre-wrap break-all">

@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { Separator } from "@/components/ui/separator"
 import { ConnectionStatus } from "@/components/connection-status"
+import ApplyAccent from '@/components/apply-accent'
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -55,6 +56,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
                         </BreadcrumbList>
                     </Breadcrumb>
                 </header>
+                <ApplyAccent />
                 <div className="flex flex-1 flex-col gap-4 p-4">
                     {children}
                 </div>
