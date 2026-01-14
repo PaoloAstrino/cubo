@@ -198,18 +198,14 @@ class Logger:
         handler.setFormatter(self._get_formatter())
         return handler
 
-    def _setup_logging(self):
-        # Avoid re-configuring if already set up
-        if self.logger and getattr(self.logger, "handlers", None):
-            return
-
+    def _configure_root_logger(self):
+        """Configure root logger with level from config."""
         root_logger = logging.getLogger()
         root_logger.setLevel(getattr(logging, _cfg_logging_or("log_level", "INFO")))
+        return root_logger
 
-        queue_enabled = bool(_cfg_logging_or("enable_queue", True))
-        handler = self._setup_handlers()
-
-        # Filter attaching trace id to logging records
+    def _create_trace_filter(self):
+        """Create TraceIDFilter class for attaching trace_id to log records."""
         class TraceIDFilter(logging.Filter):
             def filter(self, record):
                 trace = get_current_trace_id()
@@ -218,94 +214,112 @@ class Logger:
                 except Exception:
                     pass
                 return True
+        return TraceIDFilter()
 
-        if queue_enabled:
-            self._queue = Queue(-1)
-            qhandler = QueueHandler(self._queue)
-            # Ensure queue handler also annotates record with trace_id before enqueue
-            try:
-                qhandler.addFilter(TraceIDFilter())
-            except Exception:
-                pass
-            root_logger.addHandler(qhandler)
-            self._listener = QueueListener(self._queue, handler, respect_handler_level=True)
-            self._listener.start()
-            # Give the listener a short moment to fully start in threaded environments
-            try:
-                time.sleep(0.01)
-            except Exception:
-                pass
-        else:
-            root_logger.addHandler(handler)
-
-        # Add a filter to attach trace_id to stdlib records
-
-        root_logger.addFilter(TraceIDFilter())
+    def _setup_queue_handler(self, root_logger, handler, trace_filter):
+        """Setup queue-based async logging with listener."""
+        self._queue = Queue(-1)
+        qhandler = QueueHandler(self._queue)
         try:
-            handler.addFilter(TraceIDFilter())
+            qhandler.addFilter(trace_filter)
         except Exception:
             pass
-        # Attach the filter to the module scoped logger 'cubo' as well so records
-        # created with that logger get the trace id before being passed to handlers.
+        root_logger.addHandler(qhandler)
+        self._listener = QueueListener(self._queue, handler, respect_handler_level=True)
+        self._listener.start()
+        # Give the listener a short moment to fully start
         try:
-            # At this moment self.logger may be a structlog BoundLogger or stdlib logger
+            time.sleep(0.01)
+        except Exception:
+            pass
+
+    def _setup_direct_handler(self, root_logger, handler):
+        """Setup direct file handler (non-queued logging)."""
+        root_logger.addHandler(handler)
+
+    def _configure_structlog(self, trace_filter):
+        """Configure structlog if available with trace_id injection."""
+        if not STRUCTLOG_AVAILABLE:
+            self.logger = logging.getLogger("cubo")
+            return
+        
+        # Add processor to attach trace_id from ContextVar to every event dict
+        def _structlog_add_trace_id(logger, method_name, event_dict):
+            try:
+                trace = get_current_trace_id()
+                if trace:
+                    event_dict["trace_id"] = trace
+            except Exception:
+                pass
+            return event_dict
+
+        structlog.configure(
+            processors=[
+                structlog.processors.TimeStamper(fmt="iso"),
+                structlog.processors.add_log_level,
+                structlog.processors.StackInfoRenderer(),
+                structlog.processors.format_exc_info,
+                _structlog_add_trace_id,
+                (
+                    structlog.processors.JSONRenderer()
+                    if _cfg_logging_or("format", "json") == "json"
+                    else structlog.dev.ConsoleRenderer()
+                ),
+            ],
+            context_class=dict,
+            logger_factory=structlog.stdlib.LoggerFactory(),
+            wrapper_class=structlog.stdlib.BoundLogger,
+            cache_logger_on_first_use=True,
+        )
+        self.logger = structlog.get_logger("cubo")
+        trace = get_current_trace_id()
+        if trace:
+            self.logger = self.logger.bind(trace_id=trace)
+
+    def _setup_logging(self):
+        # Avoid re-configuring if already set up
+        if self.logger and getattr(self.logger, "handlers", None):
+            return
+
+        root_logger = self._configure_root_logger()
+        queue_enabled = bool(_cfg_logging_or("enable_queue", True))
+        handler = self._setup_handlers()
+        trace_filter = self._create_trace_filter()
+
+        # Setup handler (queued or direct)
+        if queue_enabled:
+            self._setup_queue_handler(root_logger, handler, trace_filter)
+        else:
+            self._setup_direct_handler(root_logger, handler)
+
+        # Add trace_id filter to root logger and handler
+        root_logger.addFilter(trace_filter)
+        try:
+            handler.addFilter(trace_filter)
+        except Exception:
+            pass
+        
+        # Attach filter to logger instance if available
+        try:
             if hasattr(self.logger, "logger"):
-                # structlog BoundLogger wraps underlying stdlib logger at .logger
                 try:
-                    self.logger.logger.addFilter(TraceIDFilter())
+                    self.logger.logger.addFilter(trace_filter)
                 except Exception:
                     pass
             else:
                 try:
-                    self.logger.addFilter(TraceIDFilter())
+                    self.logger.addFilter(trace_filter)
                 except Exception:
                     pass
         except Exception:
             pass
 
-        # Configure structlog if available
-        if STRUCTLOG_AVAILABLE:
-            # Add a small processor to attach the trace id from our ContextVar to every
-            # event dict so structlog JSONRenderer includes it.
-            def _structlog_add_trace_id(logger, method_name, event_dict):
-                try:
-                    trace = get_current_trace_id()
-                    if trace:
-                        event_dict["trace_id"] = trace
-                except Exception:
-                    pass
-                return event_dict
-
-            structlog.configure(
-                processors=[
-                    structlog.processors.TimeStamper(fmt="iso"),
-                    structlog.processors.add_log_level,
-                    structlog.processors.StackInfoRenderer(),
-                    structlog.processors.format_exc_info,
-                    _structlog_add_trace_id,
-                    (
-                        structlog.processors.JSONRenderer()
-                        if _cfg_logging_or("format", "json") == "json"
-                        else structlog.dev.ConsoleRenderer()
-                    ),
-                ],
-                context_class=dict,
-                logger_factory=structlog.stdlib.LoggerFactory(),
-                wrapper_class=structlog.stdlib.BoundLogger,
-                cache_logger_on_first_use=True,
-            )
-            self.logger = structlog.get_logger("cubo")
-            trace = get_current_trace_id()
-            if trace:
-                self.logger = self.logger.bind(trace_id=trace)
-        else:
-            self.logger = logging.getLogger("cubo")
-        # Export the configured logger as module-level `logger` so external
-        # modules referencing `from cubo.utils.logger import logger` see
-        # the updated logger instance after reconfiguration.
+        # Configure structlog
+        self._configure_structlog(trace_filter)
+        
+        # Export logger as module-level variable
         try:
             import sys
-
             module = sys.modules[__name__]
             module.logger = self.logger
         except Exception:

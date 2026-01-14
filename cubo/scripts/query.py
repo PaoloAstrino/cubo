@@ -27,41 +27,70 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
-
-    # 1. Instantiate the components
+def _initialize_components(args):
+    """Initialize BM25, FAISS, and embedding components."""
     chunks_jsonl = config.get("chunks_jsonl_path", "data/chunks.jsonl")
     bm25_stats = config.get("bm25_stats_path", "data/bm25_stats.json")
     faiss_index_dir = config.get("faiss_index_dir", "faiss_index")
     faiss_index_root = config.get("faiss_index_root", None)
 
     bm25_searcher = BM25Searcher(chunks_jsonl=chunks_jsonl, bm25_stats=bm25_stats)
-
     embedding_generator = EmbeddingGenerator()
+    
     faiss_manager = FAISSIndexManager(
         dimension=0,
         index_dir=Path(faiss_index_dir),
         index_root=Path(faiss_index_root) if faiss_index_root else None,
     )
     faiss_manager.load()
+    
+    return bm25_searcher, embedding_generator, faiss_manager
 
-    # Optionally initialize reranker for improved ranking
-    reranker = None
+
+def _initialize_reranker(embedding_generator, top_k):
+    """Initialize reranker with fallback options."""
     try:
         reranker_model = config.get("retrieval.reranker_model", None)
         if reranker_model:
             from cubo.rerank.reranker import CrossEncoderReranker
-
-            reranker = CrossEncoderReranker(model_name=reranker_model, top_n=args.top_k)
+            return CrossEncoderReranker(model_name=reranker_model, top_n=top_k)
     except Exception:
-        # CrossEncoder unavailable or failed; try LocalReranker
-        try:
-            from cubo.rerank.reranker import LocalReranker
+        pass
+    
+    try:
+        from cubo.rerank.reranker import LocalReranker
+        return LocalReranker(embedding_generator.model)
+    except Exception:
+        return None
 
-            reranker = LocalReranker(embedding_generator.model)
-        except Exception:
-            reranker = None
+
+def _format_context(args, retrieved_docs):
+    """Format context from retrieved documents with optional parquet fallback."""
+    if args.parquet_path:
+        logger.info("Performing retrieval fallback to original chunks...")
+        df = pd.read_parquet(args.parquet_path)
+        doc_ids = [doc["doc_id"] for doc in retrieved_docs]
+        context_df = df[df["chunk_id"].isin(doc_ids)]
+        return "\n".join(context_df["text"].tolist())
+    return "\n".join([doc["text"] for doc in retrieved_docs])
+
+
+def _print_results(response, retrieved_docs, parquet_path):
+    """Print response and source documents."""
+    print("\n--- Response ---")
+    print(response)
+    print("\n--- Sources ---")
+    for doc in retrieved_docs:
+        print(f"- {doc['doc_id']} (Score: {doc.get('score', 'N/A'):.4f})")
+        if parquet_path:
+            print("  (Retrieved from summary, response generated from full text)")
+
+
+def main():
+    args = parse_args()
+
+    bm25_searcher, embedding_generator, faiss_manager = _initialize_components(args)
+    reranker = _initialize_reranker(embedding_generator, args.top_k)
 
     hybrid_retriever = HybridRetriever(
         bm25_searcher=bm25_searcher,
@@ -73,33 +102,15 @@ def main():
 
     response_generator = create_response_generator()
 
-    # 2. Retrieve documents
     logger.info(f"Retrieving documents for query: '{security_manager.scrub(args.query)}'")
     retrieved_docs = hybrid_retriever.search(args.query, top_k=args.top_k)
 
-    # 3. Format context with fallback to original chunks
-    if args.parquet_path:
-        logger.info("Performing retrieval fallback to original chunks...")
-        df = pd.read_parquet(args.parquet_path)
-        doc_ids = [doc["doc_id"] for doc in retrieved_docs]
-        # Assuming the parquet file has a 'chunk_id' and 'text' column
-        context_df = df[df["chunk_id"].isin(doc_ids)]
-        context = "\n".join(context_df["text"].tolist())
-    else:
-        context = "\n".join([doc["text"] for doc in retrieved_docs])
+    context = _format_context(args, retrieved_docs)
 
-    # 4. Generate response
     logger.info("Generating response...")
     response = response_generator.generate_response(args.query, context)
 
-    # 5. Print response and sources
-    print("\n--- Response ---")
-    print(response)
-    print("\n--- Sources ---")
-    for doc in retrieved_docs:
-        print(f"- {doc['doc_id']} (Score: {doc.get('score', 'N/A'):.4f})")
-        if args.parquet_path:
-            print("  (Retrieved from summary, response generated from full text)")
+    _print_results(response, retrieved_docs, args.parquet_path)
 
 
 if __name__ == "__main__":

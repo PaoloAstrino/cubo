@@ -368,19 +368,16 @@ class FAISSIndexManager:
         else:
             logger.info("Skipping cold index because no cold vectors were supplied")
 
-    def _build_cold_index(self, vectors: np.ndarray) -> faiss.Index:
-        # Ensure nlist is not larger than the number of training vectors
-        effective_nlist = min(self.nlist, max(1, vectors.shape[0] // 2))
-        if vectors.shape[0] <= effective_nlist:
-            logger.warning(
-                "Cold vector count smaller than nlist; falling back to flat index for cold set"
-            )
-            cold_index = faiss.IndexFlatL2(self.dimension)
-            cold_index.add(vectors)
-            return cold_index
+    def _build_flat_fallback(self, vectors: np.ndarray) -> faiss.Index:
+        """Build a fallback flat index when training vectors are insufficient."""
+        cold_index = faiss.IndexFlatL2(self.dimension)
+        cold_index.add(vectors)
+        return cold_index
 
-        quantizer = faiss.IndexFlatL2(self.dimension)
-
+    def _calculate_pq_parameters(self, vectors: np.ndarray, effective_nlist: int):
+        """Calculate optimal PQ parameters (m and nbits) for the given data."""
+        import math
+        
         # Ensure the number of subquantizers (m) divides our dimension
         m_to_use = self.m
         if self.dimension % m_to_use != 0:
@@ -392,47 +389,41 @@ class FAISSIndexManager:
             logger.info(
                 f"Adjusted PQ M value to {m_to_use} to be compatible with dimension {self.dimension}"
             )
-
-        # Determine an appropriate number of bits for PQ (2**nbits clusters per subquantizer)
-        import math
-
+        
+        # Determine an appropriate number of bits for PQ
         nbits = max(1, min(8, int(math.floor(math.log2(max(2, vectors.shape[0]))))))
+        return m_to_use, nbits
 
-        # FAISS requires a certain number of training points relative to nlist.
-        # A rule of thumb (used by FAISS warnings) is ~39 training points per centroid.
+    def _check_training_requirements(self, vectors: np.ndarray, effective_nlist: int) -> bool:
+        """Check if there are enough vectors for reliable IVFPQ training."""
         MIN_POINTS_PER_CENTROID = 39
         required_training_points = effective_nlist * MIN_POINTS_PER_CENTROID
+        
         if vectors.shape[0] < required_training_points:
             logger.warning(
                 f"Not enough training vectors for IVFPQ (required: {required_training_points}, got: {vectors.shape[0]}). Falling back to Flat index to avoid poor PQ training."
             )
-            cold_index = faiss.IndexFlatL2(self.dimension)
-            cold_index.add(vectors)
-            return cold_index
-
-        # If there are too few training vectors for reasonable clustering, fallback to flat
-        # Empirically, require roughly 40 training points per centroid to get stable clustering
+            return False
+        
+        # Empirically, require roughly 40 training points per centroid for stable clustering
         required_training = max(1, effective_nlist * 40)
         if vectors.shape[0] < required_training:
             logger.warning(
                 f"Not enough vectors ({vectors.shape[0]}) to reliably train an IVF+PQ index (need >= {required_training}); falling back to flat index"
             )
-            cold_index = faiss.IndexFlatL2(self.dimension)
-            cold_index.add(vectors)
-            return cold_index
+            return False
+        return True
 
+    def _create_ivfpq_index(self, quantizer, effective_nlist: int, m_to_use: int, nbits: int, vectors: np.ndarray) -> faiss.Index:
+        """Create and train an IVFPQ index with optional OPQ preprocessing."""
         if self.use_opq:
-            # Apply OPQ (Optimized Product Quantization) transform
             logger.info(f"Building cold index with OPQ (opq_m={self.opq_m})")
             opq_matrix = faiss.OPQMatrix(self.dimension, self.opq_m)
             try:
                 opq_matrix.train(vectors)
             except Exception as e:
                 logger.warning(f"OPQMatrix training failed (falling back to flat index): {e}")
-                cold_index = faiss.IndexFlatL2(self.dimension)
-                cold_index.add(vectors)
-                return cold_index
-            # Create IVFPQ index with OPQ preprocessing
+                return None
             cold_index = faiss.IndexPreTransform(
                 opq_matrix,
                 faiss.IndexIVFPQ(quantizer, self.dimension, effective_nlist, m_to_use, nbits),
@@ -441,71 +432,113 @@ class FAISSIndexManager:
             cold_index = faiss.IndexIVFPQ(
                 quantizer, self.dimension, effective_nlist, m_to_use, nbits
             )
-
+        
         try:
             cold_index.train(vectors)
         except Exception as e:
             logger.warning(f"FAISS index training failed, fallback to flat Index; error: {e}")
-            cold_index = faiss.IndexFlatL2(self.dimension)
-            cold_index.add(vectors)
-            return cold_index
+            return None
+        
+        # Set nprobe appropriately
         if hasattr(cold_index, "index"):
-            # For IndexPreTransform, set nprobe on the wrapped index
             cold_index.index.nprobe = min(effective_nlist, 8)
         else:
             cold_index.nprobe = min(effective_nlist, 8)
+        
+        return cold_index
+
+    def _build_cold_index(self, vectors: np.ndarray) -> faiss.Index:
+        # Ensure nlist is not larger than the number of training vectors
+        effective_nlist = min(self.nlist, max(1, vectors.shape[0] // 2))
+        if vectors.shape[0] <= effective_nlist:
+            logger.warning(
+                "Cold vector count smaller than nlist; falling back to flat index for cold set"
+            )
+            return self._build_flat_fallback(vectors)
+
+        quantizer = faiss.IndexFlatL2(self.dimension)
+        m_to_use, nbits = self._calculate_pq_parameters(vectors, effective_nlist)
+        
+        # Check if we have enough training data
+        if not self._check_training_requirements(vectors, effective_nlist):
+            return self._build_flat_fallback(vectors)
+        
+        # Create and train the IVFPQ index
+        cold_index = self._create_ivfpq_index(quantizer, effective_nlist, m_to_use, nbits, vectors)
+        
+        if cold_index is None:
+            return self._build_flat_fallback(vectors)
+        
         cold_index.add(vectors)
         return cold_index
+
+    def _prepare_query_vector(self, query: List[float]) -> np.ndarray:
+        """Prepare and normalize query vector for FAISS search."""
+        query_vec = np.asarray(query, dtype="float32").reshape(1, -1)
+        if self.normalize:
+            faiss.normalize_L2(query_vec)
+        return query_vec
+
+    def _search_hot_index(self, query_vec: np.ndarray, k: int, seen_ids: set) -> List[Dict[str, Any]]:
+        """Search the hot index and return unique results."""
+        if not self.hot_index or not self.hot_ids:
+            return []
+        
+        results = []
+        dists, labels = self.hot_index.search(query_vec, k)
+        for idx, dist in zip(labels[0], dists[0]):
+            if idx == -1:
+                continue
+            if idx < len(self.hot_ids):
+                doc_id = self.hot_ids[int(idx)]
+                if doc_id not in seen_ids:
+                    results.append({
+                        "id": doc_id,
+                        "distance": float(dist),
+                        "source": "hot",
+                    })
+                    seen_ids.add(doc_id)
+        return results
+
+    def _search_cold_index(self, query_vec: np.ndarray, k: int, seen_ids: set) -> List[Dict[str, Any]]:
+        """Search the cold index and return unique results not in seen_ids."""
+        if not self.cold_index or not self.cold_ids:
+            return []
+        
+        results = []
+        dists, labels = self.cold_index.search(query_vec, k)
+        for idx, dist in zip(labels[0], dists[0]):
+            if idx == -1:
+                continue
+            if idx < len(self.cold_ids):
+                doc_id = self.cold_ids[int(idx)]
+                if doc_id not in seen_ids:
+                    results.append({
+                        "id": doc_id,
+                        "distance": float(dist),
+                        "source": "cold",
+                    })
+                    seen_ids.add(doc_id)
+        return results
+
+    def _merge_and_rank_results(self, hot_results: List[Dict[str, Any]], cold_results: List[Dict[str, Any]], k: int) -> List[Dict[str, Any]]:
+        """Merge hot and cold results, sort by distance, and return top-k."""
+        all_results = hot_results + cold_results
+        all_results.sort(key=lambda r: r["distance"])
+        return all_results[:k]
 
     def search(self, query: List[float], k: int = 5) -> List[Dict[str, Any]]:
         with self._lock:
             if not self.hot_index and not self.cold_index:
                 raise ValueError("No FAISS indexes built yet")
-            # Ensure float32 for query vector compatibility with FAISS CPU
-            query_vec = np.asarray(query, dtype="float32").reshape(1, -1)
-            # Normalize query to match indexed vectors
-            if self.normalize:
-                faiss.normalize_L2(query_vec)
-
-            results: List[Dict[str, Any]] = []
+            
+            query_vec = self._prepare_query_vector(query)
             seen_ids = set()
-
-            if self.hot_index and self.hot_ids:
-                dists, labels = self.hot_index.search(query_vec, k)
-                for idx, dist in zip(labels[0], dists[0]):
-                    if idx == -1:
-                        continue
-                    # Safety check for index bounds
-                    if idx < len(self.hot_ids):
-                        doc_id = self.hot_ids[int(idx)]
-                        if doc_id not in seen_ids:
-                            result = {
-                                "id": doc_id,
-                                "distance": float(dist),
-                                "source": "hot",
-                            }
-                            results.append(result)
-                            seen_ids.add(doc_id)
-
-            if self.cold_index and self.cold_ids:
-                dists, labels = self.cold_index.search(query_vec, k)
-                for idx, dist in zip(labels[0], dists[0]):
-                    if idx == -1:
-                        continue
-                    # Safety check for index bounds
-                    if idx < len(self.cold_ids):
-                        doc_id = self.cold_ids[int(idx)]
-                        if doc_id not in seen_ids:
-                            result = {
-                                "id": doc_id,
-                                "distance": float(dist),
-                                "source": "cold",
-                            }
-                            results.append(result)
-                            seen_ids.add(doc_id)
-
-            results.sort(key=lambda r: r["distance"])
-            return results[:k]
+            
+            hot_results = self._search_hot_index(query_vec, k, seen_ids)
+            cold_results = self._search_cold_index(query_vec, k, seen_ids)
+            
+            return self._merge_and_rank_results(hot_results, cold_results, k)
 
     def save(self, path: Optional[Path] = None) -> None:
         save_dir = path or self.index_dir

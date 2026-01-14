@@ -17,70 +17,85 @@ from cubo.utils.logger import logger
 POINTER_FILENAME = "current_index.json"
 
 
-def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
-    """Verify that the FAISS index directory is loadable.
-    Returns metadata dict read from metadata.json if successful.
-    Raises Exception on failure.
-    """
+def _load_and_validate_metadata(dir_path: Path) -> tuple:
+    """Load metadata and validate dimension."""
     meta_path = dir_path / "metadata.json"
     if not meta_path.exists():
         raise FileNotFoundError(f"metadata.json missing in {dir_path}")
     with open(meta_path, encoding="utf-8") as fh:
         metadata = json.load(fh)
-
+    
     dimension = metadata.get("dimension")
     if dimension is None:
         raise ValueError("Missing dimension in metadata")
+    return metadata, dimension
 
-    # Try to read indexes
+
+def _verify_index_files(dir_path: Path, metadata: dict):
+    """Verify index files exist and are readable."""
     hot_path = dir_path / "hot.index"
     cold_path = dir_path / "cold.index"
-    # If they exist, try to read via faiss
+    hot_ids = metadata.get("hot_ids", []) or []
+    cold_ids = metadata.get("cold_ids", []) or []
+
+    if hot_ids and not hot_path.exists():
+        raise RuntimeError("metadata claims hot_ids but hot.index is missing")
+    if cold_ids and not cold_path.exists():
+        raise RuntimeError("metadata claims cold_ids but cold.index is missing")
+
+    if hot_path.exists():
+        faiss.read_index(str(hot_path))
+    if cold_path.exists():
+        faiss.read_index(str(cold_path))
+
+
+def _get_index_totals(manager):
+    """Get total counts from hot and cold indexes."""
     try:
-        # If metadata references hot_ids/cold_ids, ensure index files exist and are readable
-        hot_ids = metadata.get("hot_ids", []) or []
-        cold_ids = metadata.get("cold_ids", []) or []
+        ntotal_hot = manager.hot_index.ntotal if manager.hot_index is not None else 0
+    except Exception:
+        ntotal_hot = 0
+    try:
+        ntotal_cold = manager.cold_index.ntotal if manager.cold_index is not None else 0
+    except Exception:
+        ntotal_cold = 0
+    return ntotal_hot, ntotal_cold
 
-        if hot_ids and not hot_path.exists():
-            raise RuntimeError("metadata claims hot_ids but hot.index is missing")
-        if cold_ids and not cold_path.exists():
-            raise RuntimeError("metadata claims cold_ids but cold.index is missing")
 
-        if hot_path.exists():
-            faiss.read_index(str(hot_path))
-        if cold_path.exists():
-            faiss.read_index(str(cold_path))
+def _run_sanity_check(manager, ntotal_hot: int, ntotal_cold: int):
+    """Run sanity check search on index manager."""
+    if (ntotal_hot + ntotal_cold) == 0:
+        return
+    
+    import numpy as _np
+    sample_vec = _np.zeros((manager.dimension,), dtype="float32")
+    results = manager.search(sample_vec.tolist(), k=1)
+    
+    if (ntotal_hot + ntotal_cold) > 0 and len(results) == 0:
+        raise RuntimeError("Index loaded but sanity search returned zero results")
+
+
+def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
+    """Verify that the FAISS index directory is loadable.
+    Returns metadata dict read from metadata.json if successful.
+    Raises Exception on failure.
+    """
+    metadata, dimension = _load_and_validate_metadata(dir_path)
+    
+    # Verify index files
+    try:
+        _verify_index_files(dir_path, metadata)
     except Exception as exc:
         raise RuntimeError(f"Failed to read index artifacts: {exc}")
 
-    # We can attempt to load into a local FAISSIndexManager and sample a search
+    # Load and sanity check
     try:
         from cubo.indexing.faiss_index import FAISSIndexManager
-
         manager = FAISSIndexManager(dimension=dimension, index_dir=dir_path)
         manager.load()
-        # Run a minimal sanity check if any index has entries
-        sample_vec = None
-        ntotal_hot = 0
-        ntotal_cold = 0
-        try:
-            ntotal_hot = manager.hot_index.ntotal if manager.hot_index is not None else 0
-        except Exception:
-            ntotal_hot = 0
-        try:
-            ntotal_cold = manager.cold_index.ntotal if manager.cold_index is not None else 0
-        except Exception:
-            ntotal_cold = 0
-        if (ntotal_hot + ntotal_cold) > 0:
-            # Construct a simple zero vector to attempt a search and ensure query path works
-            import numpy as _np
-
-            sample_vec = _np.zeros((manager.dimension,), dtype="float32")
-            # search top 1
-            results = manager.search(sample_vec.tolist(), k=1)
-            # If metadata claims presence (ids) but search returns empty, fail
-            if (ntotal_hot + ntotal_cold) > 0 and len(results) == 0:
-                raise RuntimeError("Index loaded but sanity search returned zero results")
+        
+        ntotal_hot, ntotal_cold = _get_index_totals(manager)
+        _run_sanity_check(manager, ntotal_hot, ntotal_cold)
     except Exception as exc:
         raise RuntimeError(f"Failed to load indexes into FAISSIndexManager: {exc}")
 

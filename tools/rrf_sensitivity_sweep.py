@@ -42,6 +42,56 @@ def load_run_as_list(run_path):
     return out
 
 
+def _compute_rrf_fusion(dense_list, bm25_list, k, sw, bw, top_k):
+    """Compute RRF fusion scores for dense and BM25 lists."""
+    scores = {}
+    # BM25 ranks
+    for idx, entry in enumerate(bm25_list[:top_k]):
+        rank = idx + 1
+        doc = entry.get('doc_id')
+        scores[doc] = scores.get(doc, 0.0) + bw * (1.0 / (k + rank))
+    # Semantic ranks
+    for idx, entry in enumerate(dense_list[:top_k]):
+        rank = idx + 1
+        doc = entry.get('doc_id')
+        scores[doc] = scores.get(doc, 0.0) + sw * (1.0 / (k + rank))
+    # Sort by fused score
+    ordered = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return {doc: float(score) for doc, score in ordered[:top_k]}
+
+
+def _write_and_compute_metrics(fused_results, out_run, qrels):
+    """Write fused results to file and compute metrics."""
+    # Write run json
+    with open(out_run, 'w', encoding='utf-8') as f:
+        json.dump(fused_results, f, indent=2)
+
+    # Compute metrics via existing script
+    cmd = ["python", "tools/calculate_beir_metrics.py", "--results", str(out_run), "--qrels", str(qrels), "--k", "10"]
+    try:
+        subprocess.run(cmd, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def _collect_sweep_result(out_metrics, dataset, tag, k, sw, bw):
+    """Load metrics from file and return sweep result entry."""
+    if out_metrics.exists():
+        m = json.load(open(out_metrics, 'r', encoding='utf-8'))
+        return {
+            "dataset": dataset,
+            "tag": tag,
+            "k": k,
+            "sw": sw,
+            "bw": bw,
+            "recall": m.get('recall_at_k'),
+            "mrr": m.get('mrr'),
+            "ndcg": m.get('ndcg')
+        }
+    return None
+
+
 def run_sweep_for_dataset(dataset):
     dense_file = RESULTS_DIR / f"beir_run_{dataset}_topk50_dense.json"
     bm25_file = RESULTS_DIR / f"beir_run_{dataset}_topk50_bm25.json"
@@ -60,49 +110,26 @@ def run_sweep_for_dataset(dataset):
         out_run = RESULTS_DIR / f"beir_run_{dataset}_topk50_hybrid_{tag}.json"
         out_metrics = RESULTS_DIR / f"beir_run_{dataset}_topk50_hybrid_{tag}_metrics_k10.json"
 
-        # prepare fused run: for each qid, fuse lists using local rrf implementation
+        # Prepare fused run: for each qid, fuse lists using RRF
         fused_results = {}
         for qid in dense.keys():
-            # get lists (fallback empty)
             dense_list = dense.get(qid, [])
             bm25_list = bm25.get(qid, [])
-            # call internal rrf fuser by running a small subprocess that imports fusion (avoid duplicating logic)
-            # But simpler: implement local rank-based scoring here
-            scores = {}
-            # BM25 ranks
-            for idx, entry in enumerate(bm25_list[:TOP_K]):
-                rank = idx + 1
-                doc = entry.get('doc_id')
-                scores[doc] = scores.get(doc, 0.0) + bw * (1.0 / (k + rank))
-            # Semantic ranks
-            for idx, entry in enumerate(dense_list[:TOP_K]):
-                rank = idx + 1
-                doc = entry.get('doc_id')
-                scores[doc] = scores.get(doc, 0.0) + sw * (1.0 / (k + rank))
-            # sort by fused score
-            ordered = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-            fused_results[qid] = {doc: float(score) for doc, score in ordered[:TOP_K]}
+            fused_results[qid] = _compute_rrf_fusion(dense_list, bm25_list, k, sw, bw, TOP_K)
 
-        # write run json
-        with open(out_run, 'w', encoding='utf-8') as f:
-            json.dump(fused_results, f, indent=2)
-
-        # compute metrics via existing script
-        cmd = ["python", "tools/calculate_beir_metrics.py", "--results", str(out_run), "--qrels", str(qrels), "--k", "10"]
-        try:
-            subprocess.run(cmd, check=True)
-        except subprocess.CalledProcessError:
+        # Write and compute metrics
+        if not _write_and_compute_metrics(fused_results, out_run, qrels):
             print(f"Metric computation failed for {dataset} {tag}")
             continue
 
-        # load metrics
-        if out_metrics.exists():
-            m = json.load(open(out_metrics, 'r', encoding='utf-8'))
-            combos.append({"dataset": dataset, "tag": tag, "k": k, "sw": sw, "bw": bw, "recall": m.get('recall_at_k'), "mrr": m.get('mrr'), "ndcg": m.get('ndcg')})
+        # Collect result
+        result = _collect_sweep_result(out_metrics, dataset, tag, k, sw, bw)
+        if result:
+            combos.append(result)
         else:
             print(f"Missing metrics file for {dataset} {tag}")
 
-    # sort combos by recall desc
+    # Sort combos by recall desc
     combos.sort(key=lambda x: float(x['recall'] or 0.0), reverse=True)
     return combos
 

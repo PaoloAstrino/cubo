@@ -247,6 +247,68 @@ class RAGTester:
         logger.info("Testing completed")
         return self.results
 
+    def _collect_evaluation_scores(self, results, evaluation_metrics):
+        """Collect evaluation scores from results."""
+        relevance_scores = []
+        context_scores = []
+        groundedness_scores = []
+
+        for r in results:
+            if "evaluation" in r and r["evaluation"]:
+                eval_data = r["evaluation"]
+                if "answer_relevance" in eval_data and eval_data["answer_relevance"] is not None:
+                    relevance_scores.append(eval_data["answer_relevance"])
+                    evaluation_metrics["answer_relevance"].append(eval_data["answer_relevance"])
+                if "context_relevance" in eval_data and eval_data["context_relevance"] is not None:
+                    context_scores.append(eval_data["context_relevance"])
+                    evaluation_metrics["context_relevance"].append(eval_data["context_relevance"])
+                if "groundedness" in eval_data and eval_data["groundedness"] is not None:
+                    groundedness_scores.append(eval_data["groundedness"])
+                    evaluation_metrics["groundedness"].append(eval_data["groundedness"])
+
+        return relevance_scores, context_scores, groundedness_scores
+
+    def _compute_average_scores(self, relevance_scores, context_scores, groundedness_scores):
+        """Compute average evaluation scores."""
+        avg_relevance = sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0
+        avg_context = sum(context_scores) / len(context_scores) if context_scores else 0
+        avg_groundedness = sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
+        return avg_relevance, avg_context, avg_groundedness
+
+    def _calculate_difficulty_stats(self, difficulty, results, evaluation_metrics):
+        """Calculate statistics for a specific difficulty level."""
+        total = len(results)
+        successful = sum(1 for r in results if r.get("success", False))
+        avg_time = sum(r.get("processing_time", 0) for r in results) / total if total > 0 else 0
+
+        relevance_scores, context_scores, groundedness_scores = self._collect_evaluation_scores(
+            results, evaluation_metrics
+        )
+
+        avg_relevance, avg_context, avg_groundedness = self._compute_average_scores(
+            relevance_scores, context_scores, groundedness_scores
+        )
+
+        return {
+            "total": total,
+            "successful": successful,
+            "success_rate": successful / total if total > 0 else 0,
+            "avg_processing_time": avg_time,
+            "avg_answer_relevance": avg_relevance,
+            "avg_context_relevance": avg_context,
+            "avg_groundedness": avg_groundedness,
+        }
+
+    def _calculate_overall_metrics(self, evaluation_metrics):
+        """Calculate overall evaluation metrics."""
+        overall_metrics = {}
+        for metric_name, scores in evaluation_metrics.items():
+            if scores:
+                overall_metrics[f"avg_{metric_name}"] = sum(scores) / len(scores)
+            else:
+                overall_metrics[f"avg_{metric_name}"] = 0
+        return overall_metrics
+
     def calculate_statistics(self):
         """Calculate test statistics including evaluation metrics."""
         all_results = []
@@ -255,66 +317,16 @@ class RAGTester:
         for difficulty in ["easy", "medium", "hard"]:
             results = self.results["results"][difficulty]
             all_results.extend(results)
-
-            # Difficulty-specific stats
-            total = len(results)
-            successful = sum(1 for r in results if r.get("success", False))
-            avg_time = sum(r.get("processing_time", 0) for r in results) / total if total > 0 else 0
-
-            # Collect evaluation metrics
-            relevance_scores = []
-            context_scores = []
-            groundedness_scores = []
-
-            for r in results:
-                if "evaluation" in r and r["evaluation"]:
-                    eval_data = r["evaluation"]
-                    if (
-                        "answer_relevance" in eval_data
-                        and eval_data["answer_relevance"] is not None
-                    ):
-                        relevance_scores.append(eval_data["answer_relevance"])
-                        evaluation_metrics["answer_relevance"].append(eval_data["answer_relevance"])
-                    if (
-                        "context_relevance" in eval_data
-                        and eval_data["context_relevance"] is not None
-                    ):
-                        context_scores.append(eval_data["context_relevance"])
-                        evaluation_metrics["context_relevance"].append(
-                            eval_data["context_relevance"]
-                        )
-                    if "groundedness" in eval_data and eval_data["groundedness"] is not None:
-                        groundedness_scores.append(eval_data["groundedness"])
-                        evaluation_metrics["groundedness"].append(eval_data["groundedness"])
-
-            avg_relevance = sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0
-            avg_context = sum(context_scores) / len(context_scores) if context_scores else 0
-            avg_groundedness = (
-                sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
+            
+            difficulty_stats = self._calculate_difficulty_stats(
+                difficulty, results, evaluation_metrics
             )
+            self.results["metadata"]["questions_by_difficulty"][difficulty] = difficulty_stats
 
-            self.results["metadata"]["questions_by_difficulty"][difficulty] = {
-                "total": total,
-                "successful": successful,
-                "success_rate": successful / total if total > 0 else 0,
-                "avg_processing_time": avg_time,
-                "avg_answer_relevance": avg_relevance,
-                "avg_context_relevance": avg_context,
-                "avg_groundedness": avg_groundedness,
-            }
-
-        # Overall stats
         total_questions = len(all_results)
         successful_questions = sum(1 for r in all_results if r.get("success", False))
         overall_success_rate = successful_questions / total_questions if total_questions > 0 else 0
-
-        # Overall evaluation metrics
-        overall_metrics = {}
-        for metric_name, scores in evaluation_metrics.items():
-            if scores:
-                overall_metrics[f"avg_{metric_name}"] = sum(scores) / len(scores)
-            else:
-                overall_metrics[f"avg_{metric_name}"] = 0
+        overall_metrics = self._calculate_overall_metrics(evaluation_metrics)
 
         self.results["metadata"].update(
             {
@@ -335,25 +347,57 @@ class RAGTester:
         except Exception as e:
             logger.error(f"Failed to save results: {e}")
 
-    def print_summary(self):
-        """Print test summary with evaluation metrics."""
-        meta = self.results["metadata"]
-
+    def _print_header(self):
+        """Print summary header."""
         print("\n" + "=" * 60)
         print("CUBO RAG TESTING SUMMARY")
         print("=" * 60)
 
+    def _print_overall_stats(self, meta):
+        """Print overall statistics."""
         print(f"Total Questions Tested: {meta['total_questions']}")
-        print(".1f")
-        print(".2f")
+        print(f"Successful: {meta['successful_questions']}")
+        print(f"Success Rate: {meta['success_rate']:.1%}")
+        print(f"Total Processing Time: {meta['total_processing_time']:.2f}s")
+
+    def _print_evaluation_metrics(self, meta):
+        """Print evaluation metrics if available."""
+        if "avg_answer_relevance" in meta:
+            print(f"\nAverage Answer Relevance: {meta['avg_answer_relevance']:.3f}")
+        if "avg_context_relevance" in meta:
+            print(f"Average Context Relevance: {meta['avg_context_relevance']:.3f}")
+        if "avg_groundedness" in meta:
+            print(f"Average Groundedness: {meta['avg_groundedness']:.3f}")
+
+    def _print_difficulty_breakdown(self, meta):
+        """Print breakdown by difficulty level."""
+        print("\nBreakdown by Difficulty:")
+        for difficulty in ["easy", "medium", "hard"]:
+            if difficulty in meta.get("questions_by_difficulty", {}):
+                stats = meta["questions_by_difficulty"][difficulty]
+                print(f"\n{difficulty.upper()}:")
+                print(f"  Total: {stats['total']}")
+                print(f"  Success Rate: {stats['success_rate']:.1%}")
+                print(f"  Avg Time: {stats['avg_processing_time']:.2f}s")
+
+    def _print_metric_if_present(self, data, key, label, fmt=".3f"):
+        """Print metric if present and non-zero in data."""
+        if key in data and data[key] > 0:
+            print(f"{label}: {data[key]:{fmt}}")
+
+    def print_summary(self):
+        """Print test summary with evaluation metrics."""
+        meta = self.results["metadata"]
+        self._print_header()
+        self._print_overall_stats(meta)
+        self._print_evaluation_metrics(meta)
+        self._print_difficulty_breakdown(meta)
+        print("=" * 60)
 
         # Print overall evaluation metrics
-        if "avg_answer_relevance" in meta and meta["avg_answer_relevance"] > 0:
-            print(".3f")
-        if "avg_context_relevance" in meta and meta["avg_context_relevance"] > 0:
-            print(".3f")
-        if "avg_groundedness" in meta and meta["avg_groundedness"] > 0:
-            print(".3f")
+        self._print_metric_if_present(meta, "avg_answer_relevance", "Avg Answer Relevance")
+        self._print_metric_if_present(meta, "avg_context_relevance", "Avg Context Relevance")
+        self._print_metric_if_present(meta, "avg_groundedness", "Avg Groundedness")
 
         print("\nBy Difficulty:")
         for difficulty, stats in meta["questions_by_difficulty"].items():
@@ -361,12 +405,9 @@ class RAGTester:
             print(f"    Questions: {stats['total']}")
             print(".1f")
             print(".2f")
-            if "avg_answer_relevance" in stats and stats["avg_answer_relevance"] > 0:
-                print(".3f")
-            if "avg_context_relevance" in stats and stats["avg_context_relevance"] > 0:
-                print(".3f")
-            if "avg_groundedness" in stats and stats["avg_groundedness"] > 0:
-                print(".3f")
+            self._print_metric_if_present(stats, "avg_answer_relevance", "      Avg Answer Relevance")
+            self._print_metric_if_present(stats, "avg_context_relevance", "      Avg Context Relevance")
+            self._print_metric_if_present(stats, "avg_groundedness", "      Avg Groundedness")
 
         print("\nDetailed results saved to test_results.json")
 

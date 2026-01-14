@@ -121,6 +121,38 @@ class DeepIngestor:
         except Exception as e:
             logger.warning(f"Failed to flush chunk batch: {e}")
 
+    def _load_existing_parquet(self, final_path: Path) -> pd.DataFrame | None:
+        """Load existing parquet file if it exists."""
+        if not final_path.exists():
+            return None
+        try:
+            df = pd.read_parquet(final_path)
+            logger.info(f"Loaded existing parquet with {len(df)} rows for append")
+            return df
+        except Exception as e:
+            logger.warning(f"Failed to read existing parquet for resume: {e}")
+            return None
+
+    def _load_temp_parquets(self) -> list:
+        """Load all temporary parquet files."""
+        return [pd.read_parquet(f) for f in self._temp_parquet_files if f.exists()]
+
+    def _save_appended_parquet(self, final_path: Path) -> Path | None:
+        """Save appended-only parquet file containing new temp files."""
+        try:
+            appended_dfs = self._load_temp_parquets()
+            if not appended_dfs:
+                return None
+            
+            appended_df = pd.concat(appended_dfs, ignore_index=True)
+            appended_path = final_path.with_name(f"chunks_deep_appended_{self._run_id}.parquet")
+            appended_df.to_parquet(appended_path, index=False, engine="pyarrow")
+            logger.info(f"Saved appended chunks parquet to {appended_path}")
+            return appended_path
+        except Exception:
+            logger.warning("Failed to save appended-only parquet for resume")
+            return None
+
     def _merge_temp_parquets(self, final_path: Path, resume: bool = False) -> Path | None:
         """Merge all temporary parquet files into the final output.
 
@@ -135,40 +167,25 @@ class DeepIngestor:
             all_dfs = []
 
             # If resuming, load existing data first
-            if resume and final_path.exists():
-                try:
-                    existing_df = pd.read_parquet(final_path)
+            if resume:
+                existing_df = self._load_existing_parquet(final_path)
+                if existing_df is not None:
                     all_dfs.append(existing_df)
-                    logger.info(f"Loaded existing parquet with {len(existing_df)} rows for append")
-                except Exception as e:
-                    logger.warning(f"Failed to read existing parquet for resume: {e}")
 
-            for temp_file in self._temp_parquet_files:
-                if temp_file.exists():
-                    all_dfs.append(pd.read_parquet(temp_file))
+            # Load all temp parquets
+            all_dfs.extend(self._load_temp_parquets())
 
             if all_dfs:
                 merged_df = pd.concat(all_dfs, ignore_index=True)
                 merged_df.to_parquet(final_path, index=False, engine="pyarrow")
-                # If resuming, also write appended-only parquet containing only new temp files
+                
+                # If resuming, also write appended-only parquet
+                result = None
                 if resume:
-                    try:
-                        appended_dfs = [
-                            pd.read_parquet(f) for f in self._temp_parquet_files if f.exists()
-                        ]
-                        if appended_dfs:
-                            appended_df = pd.concat(appended_dfs, ignore_index=True)
-                            appended_path = final_path.with_name(
-                                f"chunks_deep_appended_{self._run_id}.parquet"
-                            )
-                            appended_df.to_parquet(appended_path, index=False, engine="pyarrow")
-                            logger.info(f"Saved appended chunks parquet to {appended_path}")
-                            return appended_path
-                    except Exception:
-                        logger.warning("Failed to save appended-only parquet for resume")
-                logger.info(
-                    f"Merged {len(self._temp_parquet_files)} temp files into {final_path.name}"
-                )
+                    result = self._save_appended_parquet(final_path)
+                
+                logger.info(f"Merged {len(self._temp_parquet_files)} temp files into {final_path.name}")
+                return result
         finally:
             # Clean up temp files
             self._cleanup_temp_files()
@@ -183,6 +200,172 @@ class DeepIngestor:
                 pass
         self._temp_parquet_files.clear()
 
+    def _get_processed_files(self, resume: bool) -> set:
+        """Get set of already processed files when resuming."""
+        if not resume:
+            return set()
+        
+        existing_parquet = self.output_dir / "chunks_deep.parquet"
+        if not existing_parquet.exists():
+            return set()
+        
+        try:
+            existing_df = pd.read_parquet(existing_parquet)
+            processed_set = set(existing_df["file_path"].tolist())
+            logger.info(
+                f"Resuming deep ingest; skipping {len(processed_set)} already processed files"
+            )
+            return processed_set
+        except Exception:
+            logger.warning(
+                "Failed reading existing chunks parquet for resume; full reprocess will occur"
+            )
+            return set()
+
+    def _initialize_run(self, manager, run_id: str):
+        """Initialize ingestion run in metadata manager."""
+        if self._manage_run:
+            try:
+                manager.record_ingestion_run(run_id, str(self.input_folder), 0, None)
+            except Exception:
+                logger.warning("Failed to record deep ingestion run (auto)")
+        
+        try:
+            manager.update_ingestion_status(
+                run_id, "running", started_at=pd.Timestamp.utcnow().isoformat()
+            )
+        except Exception:
+            logger.warning(f"Failed to update run status to running for {run_id}")
+
+    def _process_files_parallel(self, files_to_process, manager, run_id):
+        """Process files using parallel workers."""
+        current_batch = []
+        total_chunks = 0
+        processed_files = []
+
+        logger.info(
+            f"Ingesting {len(files_to_process)} files with {self.n_workers} workers"
+        )
+        
+        with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+            future_to_path = {
+                executor.submit(self._process_file, p): p for p in files_to_process
+            }
+
+            for future in as_completed(future_to_path):
+                path = future_to_path[future]
+                size_bytes = self._get_file_size(path)
+
+                try:
+                    chunks = future.result()
+                    if chunks:
+                        current_batch.extend(chunks)
+                    processed_files.append(str(path))
+
+                    if len(current_batch) >= self.chunk_batch_size:
+                        self._flush_chunk_batch(current_batch)
+                        total_chunks += len(current_batch)
+                        current_batch = []
+
+                    self._mark_file_success(manager, run_id, path, size_bytes)
+                except Exception as exc:
+                    logger.warning(f"Failed processing file {path}: {exc}")
+                    self._mark_file_failure(manager, run_id, path, exc, size_bytes)
+        
+        return current_batch, total_chunks, processed_files
+
+    def _process_files_sequential(self, files_to_process, manager, run_id):
+        """Process files sequentially in a single worker."""
+        current_batch = []
+        total_chunks = 0
+        processed_files = []
+
+        for path in files_to_process:
+            size_bytes = self._get_file_size(path)
+
+            try:
+                manager.mark_file_processing(run_id, str(path), size_bytes=size_bytes)
+            except Exception:
+                logger.debug("Unable to mark file processing; continuing")
+
+            try:
+                chunks = self._process_file(path)
+                if chunks:
+                    current_batch.extend(chunks)
+                processed_files.append(str(path))
+
+                if len(current_batch) >= self.chunk_batch_size:
+                    self._flush_chunk_batch(current_batch)
+                    total_chunks += len(current_batch)
+                    current_batch = []
+
+                self._mark_file_success(manager, run_id, path, size_bytes)
+            except Exception as exc:
+                logger.warning(f"Failed processing file {path}: {exc}")
+                self._mark_file_failure(manager, run_id, path, exc, size_bytes)
+                continue
+        
+        return current_batch, total_chunks, processed_files
+
+    def _get_file_size(self, path: Path) -> Optional[int]:
+        """Get file size in bytes, returns None if unable to stat."""
+        try:
+            return path.stat().st_size
+        except Exception:
+            return None
+
+    def _mark_file_success(self, manager, run_id: str, path: Path, size_bytes: Optional[int]):
+        """Mark file as successfully processed."""
+        try:
+            manager.mark_file_succeeded(run_id, str(path), size_bytes=size_bytes)
+        except Exception:
+            logger.debug("Unable to mark file succeeded; continuing")
+
+    def _mark_file_failure(self, manager, run_id: str, path: Path, exc: Exception, size_bytes: Optional[int]):
+        """Mark file as failed with error message."""
+        try:
+            manager.mark_file_failed(run_id, str(path), error=str(exc), size_bytes=size_bytes)
+        except Exception:
+            logger.debug("Unable to mark file failed; continuing")
+
+    def _finalize_ingestion(self, manager, run_id: str, total_chunks: int, processed_files: List[str], resume: bool) -> Dict[str, Any]:
+        """Finalize ingestion by merging temp files and creating manifest."""
+        if total_chunks == 0 and not self._temp_parquet_files:
+            logger.warning("Deep ingest produced no chunks")
+            manager.update_ingestion_status(
+                run_id, "completed", finished_at=pd.Timestamp.utcnow().isoformat()
+            )
+            return {}
+
+        parquet_path = self.output_dir / "chunks_deep.parquet"
+        appended_parquet = None
+        if self._temp_parquet_files:
+            appended_parquet = self._merge_temp_parquets(parquet_path, resume=resume)
+
+        manifest_path = self._write_manifest(total_chunks, processed_files)
+
+        try:
+            manager.update_ingestion_run_details(
+                run_id,
+                chunks_count=total_chunks,
+                output_parquet=str(parquet_path),
+                status="completed",
+                finished_at=pd.Timestamp.utcnow().isoformat(),
+            )
+        except Exception:
+            logger.warning("Failed to update deep ingestion run details")
+
+        result = {
+            "run_id": run_id,
+            "chunks_parquet": str(parquet_path),
+            "manifest": str(manifest_path),
+            "chunks_count": total_chunks,
+            "processed_files": processed_files,
+        }
+        if appended_parquet:
+            result["appended_parquet"] = str(appended_parquet)
+        return result
+
     def ingest(self, resume: bool = False) -> Dict[str, Any]:
         """Process every supported document and persist chunks to parquet.
 
@@ -192,25 +375,10 @@ class DeepIngestor:
             raise FileNotFoundError(f"Input folder {self.input_folder} does not exist")
 
         files = list(self._discover_files())
-        # If resuming and previous parquet exists, skip files already processed
-        processed_set = set()
-        if resume:
-            existing_parquet = self.output_dir / "chunks_deep.parquet"
-            if existing_parquet.exists():
-                try:
-                    existing_df = pd.read_parquet(existing_parquet)
-                    processed_set = set(existing_df["file_path"].tolist())
-                    logger.info(
-                        f"Resuming deep ingest; skipping {len(processed_set)} already processed files"
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed reading existing chunks parquet for resume; full reprocess will occur"
-                    )
+        processed_set = self._get_processed_files(resume)
 
-        processed_files: List[str] = []
-        current_batch: List[Dict[str, Any]] = []
-        total_chunks = 0
+        files = list(self._discover_files())
+        processed_set = self._get_processed_files(resume)
 
         manager = self._metadata_manager or get_metadata_manager()
         run_id = (
@@ -218,19 +386,7 @@ class DeepIngestor:
             or f"deep_{os.path.basename(str(self.input_folder))}_{int(pd.Timestamp.utcnow().timestamp())}"
         )
 
-        if self._manage_run:
-            try:
-                manager.record_ingestion_run(run_id, str(self.input_folder), 0, None)
-            except Exception:
-                logger.warning("Failed to record deep ingestion run (auto)")
-
-        # Update status to running
-        try:
-            manager.update_ingestion_status(
-                run_id, "running", started_at=pd.Timestamp.utcnow().isoformat()
-            )
-        except Exception:
-            logger.warning(f"Failed to update run status to running for {run_id}")
+        self._initialize_run(manager, run_id)
 
         # Reset temp files for this run
         self._temp_parquet_files = []
@@ -240,132 +396,20 @@ class DeepIngestor:
 
         try:
             if self.n_workers > 1:
-                logger.info(
-                    f"Ingesting {len(files_to_process)} files with {self.n_workers} workers"
+                current_batch, total_chunks, processed_files = self._process_files_parallel(
+                    files_to_process, manager, run_id
                 )
-                with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-                    future_to_path = {
-                        executor.submit(self._process_file, p): p for p in files_to_process
-                    }
-
-                    for future in as_completed(future_to_path):
-                        path = future_to_path[future]
-                        size_bytes = None
-                        try:
-                            size_bytes = path.stat().st_size
-                        except Exception:
-                            pass
-
-                        try:
-                            chunks = future.result()
-                            if chunks:
-                                current_batch.extend(chunks)
-                            processed_files.append(str(path))
-
-                            if len(current_batch) >= self.chunk_batch_size:
-                                self._flush_chunk_batch(current_batch)
-                                total_chunks += len(current_batch)
-                                current_batch = []
-
-                            try:
-                                manager.mark_file_succeeded(
-                                    run_id, str(path), size_bytes=size_bytes
-                                )
-                            except Exception:
-                                pass
-                        except Exception as exc:
-                            logger.warning(f"Failed processing file {path}: {exc}")
-                            try:
-                                manager.mark_file_failed(
-                                    run_id, str(path), error=str(exc), size_bytes=size_bytes
-                                )
-                            except Exception:
-                                pass
             else:
-                for path in files_to_process:
-                    size_bytes = None
-                    try:
-                        size_bytes = path.stat().st_size
-                    except Exception:
-                        pass
-
-                    try:
-                        manager.mark_file_processing(run_id, str(path), size_bytes=size_bytes)
-                    except Exception:
-                        logger.debug("Unable to mark file processing; continuing")
-
-                    try:
-                        chunks = self._process_file(path)
-                        if chunks:
-                            current_batch.extend(chunks)
-                        processed_files.append(str(path))
-
-                        # Flush to disk when batch size reached (streaming save)
-                        if len(current_batch) >= self.chunk_batch_size:
-                            self._flush_chunk_batch(current_batch)
-                            total_chunks += len(current_batch)
-                            current_batch = []  # Clear to free memory
-
-                        try:
-                            manager.mark_file_succeeded(run_id, str(path), size_bytes=size_bytes)
-                        except Exception:
-                            logger.debug("Unable to mark file succeeded; continuing")
-                    except Exception as exc:
-                        logger.warning(f"Failed processing file {path}: {exc}")
-                        try:
-                            manager.mark_file_failed(
-                                run_id, str(path), error=str(exc), size_bytes=size_bytes
-                            )
-                        except Exception:
-                            logger.debug("Unable to mark file failed; continuing")
-                        continue
+                current_batch, total_chunks, processed_files = self._process_files_sequential(
+                    files_to_process, manager, run_id
+                )
 
             # Flush any remaining chunks
             if current_batch:
                 self._flush_chunk_batch(current_batch)
                 total_chunks += len(current_batch)
 
-            if total_chunks == 0 and not self._temp_parquet_files:
-                logger.warning("Deep ingest produced no chunks")
-                # Mark as completed even if empty? Or failed?
-                # Let's mark as completed with 0 chunks.
-                manager.update_ingestion_status(
-                    run_id, "completed", finished_at=pd.Timestamp.utcnow().isoformat()
-                )
-                return {}
-
-            # Merge temp files into final parquet
-            parquet_path = self.output_dir / "chunks_deep.parquet"
-            appended_parquet = None
-            if self._temp_parquet_files:
-                appended_parquet = self._merge_temp_parquets(parquet_path, resume=resume)
-
-            manifest_path = self._write_manifest(total_chunks, processed_files)
-
-            # Update ingestion run details
-            try:
-                manager.update_ingestion_run_details(
-                    run_id,
-                    chunks_count=total_chunks,
-                    output_parquet=str(parquet_path),
-                    status="completed",
-                    finished_at=pd.Timestamp.utcnow().isoformat(),
-                )
-            except Exception:
-                logger.warning("Failed to update deep ingestion run details")
-
-            result = {
-                "run_id": run_id,
-                "chunks_parquet": str(parquet_path),
-                "manifest": str(manifest_path),
-                "chunks_count": total_chunks,
-                "processed_files": processed_files,
-            }
-            if appended_parquet:
-                result["appended_parquet"] = str(appended_parquet)
-                # Keep `chunks_parquet` pointing to the merged final parquet file
-                # so callers receive the combined output when resuming.
-            return result
+            return self._finalize_ingestion(manager, run_id, total_chunks, processed_files, resume)
 
         except Exception as e:
             logger.error(f"Ingestion failed: {e}")
@@ -496,93 +540,121 @@ class DeepIngestor:
 
         return chunks
 
+    def _fallback_pdf_extraction(self, path: Path) -> List[Dict[str, Any]]:
+        """Fallback PDF extraction when pdfplumber is not available."""
+        raw = self.loader.load_single_document(str(path), self.chunking_config)
+        return [
+            {
+                "text": c.get("text") or c.get("document"),
+                "type": c.get("type", "text"),
+                "chunk_index": c.get("chunk_index", idx),
+                "sentence_index": c.get("sentence_index"),
+            }
+            for idx, c in enumerate(raw)
+        ]
+
+    def _extract_page_text(self, page, page_num: int) -> list:
+        """Extract and chunk text from a PDF page."""
+        text = page.extract_text()
+        if not text:
+            return []
+        
+        pdf_chunker = self.chunker_factory.for_pdf()
+        s_chunks = pdf_chunker.chunk(text, window_size=self.chunking_config.get("window_size", 3))
+        
+        for c in s_chunks:
+            c["type"] = "text"
+            c["page"] = page_num
+            c["page_index"] = page_num
+            c["chunk_index"] = c.get("chunk_index", 0)
+        
+        return s_chunks
+
+    def _extract_page_tables(self, page, page_num: int, chunk_count: int) -> list:
+        """Extract tables from a PDF page and format as chunks."""
+        import csv
+        from io import StringIO
+
+        chunks = []
+        tables = page.extract_tables()
+        
+        for t_idx, table in enumerate(tables):
+            if not table:
+                continue
+            
+            # Build structured CSV text
+            sio = StringIO()
+            writer = csv.writer(sio)
+            for row in table:
+                writer.writerow([cell if cell is not None else "" for cell in row])
+            table_text = sio.getvalue()
+            
+            # Extract metadata
+            n_rows = len(table)
+            n_cols = max((len(r) for r in table), default=0)
+            sample_rows = table[:3]
+            
+            chunks.append({
+                "text": table_text,
+                "type": "table",
+                "chunk_index": chunk_count + len(chunks),
+                "page": page_num,
+                "table_index": t_idx,
+                "table_metadata": {
+                    "n_rows": n_rows,
+                    "n_cols": n_cols,
+                    "sample_rows": sample_rows,
+                },
+            })
+        
+        return chunks
+
+    def _ocr_fallback(self, path: Path) -> list:
+        """Apply OCR fallback for scanned PDFs."""
+        if not self.ocr_processor.enabled:
+            return []
+        
+        logger.info(f"No text found in {path}, attempting OCR fallback")
+        ocr_text = self.ocr_processor.extract_text(str(path))
+        if not ocr_text:
+            return []
+        
+        pdf_chunker = self.chunker_factory.for_pdf()
+        s_chunks = pdf_chunker.chunk(ocr_text, window_size=self.chunking_config.get("window_size", 3))
+        
+        for c in s_chunks:
+            c["type"] = "text_ocr"
+            c["chunk_index"] = c.get("chunk_index", 0)
+        
+        return s_chunks
+
     def _process_pdf(self, path: Path) -> List[Dict[str, Any]]:
         """Use pdfplumber for page-wise text + table extraction, with OCR fallback for scanned PDFs."""
         if pdfplumber is None:
-            # Fallback: use loader's default PDF parsing which returns a single text blob
             logger.warning("pdfplumber not available, using fallback PDF extraction")
-            raw = self.loader.load_single_document(str(path), self.chunking_config)
-            return [
-                {
-                    "text": c.get("text") or c.get("document"),
-                    "type": c.get("type", "text"),
-                    "chunk_index": c.get("chunk_index", idx),
-                    "sentence_index": c.get("sentence_index"),
-                }
-                for idx, c in enumerate(raw)
-            ]
+            return self._fallback_pdf_extraction(path)
 
         chunks: List[Dict[str, Any]] = []
         has_text = False
+        
         try:
             with pdfplumber.open(str(path)) as pdf:
                 for page_num, page in enumerate(pdf.pages):
                     # Extract page text
-                    text = page.extract_text()
-                    if text:
+                    text_chunks = self._extract_page_text(page, page_num)
+                    if text_chunks:
                         has_text = True
-                        # Use sentence window chunking across page content if it's large
-                        # We'll call Utils.create_sentence_window_chunks for more granular matching
-                        pdf_chunker = self.chunker_factory.for_pdf()
-                        s_chunks = pdf_chunker.chunk(
-                            text, window_size=self.chunking_config.get("window_size", 3)
-                        )
-                        for c in s_chunks:
-                            c["type"] = "text"
-                            c["page"] = page_num
-                            c["page_index"] = page_num
-                            c["chunk_index"] = c.get("chunk_index", 0)
-                            chunks.append(c)
-
-                    # Extract tables (prettify and add metadata)
-                    tables = page.extract_tables()
-                    for t_idx, table in enumerate(tables):
-                        if table:
-                            # Build structured CSV text for the table
-                            import csv
-                            from io import StringIO
-
-                            sio = StringIO()
-                            writer = csv.writer(sio)
-                            for row in table:
-                                # Normalize None entries to empty strings
-                                writer.writerow([cell if cell is not None else "" for cell in row])
-                            table_text = sio.getvalue()
-                            # Basic metadata: rows and columns
-                            n_rows = len(table)
-                            n_cols = max((len(r) for r in table), default=0)
-                            sample_rows = table[:3]
-                            chunks.append(
-                                {
-                                    "text": table_text,
-                                    "type": "table",
-                                    "chunk_index": len(chunks),
-                                    "page": page_num,
-                                    "table_index": t_idx,
-                                    "table_metadata": {
-                                        "n_rows": n_rows,
-                                        "n_cols": n_cols,
-                                        "sample_rows": sample_rows,
-                                    },
-                                }
-                            )
+                        chunks.extend(text_chunks)
+                    
+                    # Extract tables
+                    table_chunks = self._extract_page_tables(page, page_num, len(chunks))
+                    chunks.extend(table_chunks)
         except Exception as exc:
             logger.warning(f"Error processing PDF with pdfplumber {path}: {exc}")
 
-        # OCR fallback for scanned PDFs (no text extracted)
-        if not has_text and self.ocr_processor.enabled:
-            logger.info(f"No text found in {path}, attempting OCR fallback")
-            ocr_text = self.ocr_processor.extract_text(str(path))
-            if ocr_text:
-                # Chunk the OCR text using sentence window chunking
-                pdf_chunker = self.chunker_factory.for_pdf()
-                s_chunks = pdf_chunker.chunk(
-                    ocr_text, window_size=self.chunking_config.get("window_size", 3)
-                )
-                for c in s_chunks:
-                    c["type"] = "text_ocr"  # Mark as OCR-extracted
-                    c["chunk_index"] = c.get("chunk_index", 0)
-                    chunks.append(c)
+        # OCR fallback for scanned PDFs
+        if not has_text:
+            chunks.extend(self._ocr_fallback(path))
 
         return chunks
 

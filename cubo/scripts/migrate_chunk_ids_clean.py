@@ -61,6 +61,22 @@ def _compute_base(meta: Dict[str, Any], use_file_hash: bool) -> str:
     return meta.get("filename") or meta.get("filepath") or "unknown"
 
 
+def _build_id_with_sentence(base: str, sentence_index: int, page: int, table_index: int) -> str:
+    """Build chunk ID with sentence index."""
+    if table_index is not None:
+        return f"{base}_p{page}_t{table_index}_s{sentence_index}"
+    if page is not None:
+        return f"{base}_p{page}_s{sentence_index}"
+    return f"{base}_s{sentence_index}"
+
+
+def _build_id_with_page(base: str, page: int, table_index: int, chunk_index: int, idx: int) -> str:
+    """Build chunk ID with page index."""
+    if table_index is not None:
+        return f"{base}_p{page}_t{table_index}"
+    return f"{base}_p{page}_chunk_{chunk_index or idx}"
+
+
 def _generate_new_id(meta: Dict[str, Any], idx: int, use_file_hash: bool) -> str:
     base = _compute_base(meta, use_file_hash)
     sentence_index = meta.get("sentence_index")
@@ -68,16 +84,10 @@ def _generate_new_id(meta: Dict[str, Any], idx: int, use_file_hash: bool) -> str
     table_index = meta.get("table_index")
     chunk_index = meta.get("chunk_index")
 
-    if sentence_index is not None and page is not None and table_index is not None:
-        return f"{base}_p{page}_t{table_index}_s{sentence_index}"
-    if sentence_index is not None and page is not None:
-        return f"{base}_p{page}_s{sentence_index}"
     if sentence_index is not None:
-        return f"{base}_s{sentence_index}"
-    if page is not None and table_index is not None:
-        return f"{base}_p{page}_t{table_index}"
+        return _build_id_with_sentence(base, sentence_index, page, table_index)
     if page is not None:
-        return f"{base}_p{page}_chunk_{chunk_index or idx}"
+        return _build_id_with_page(base, page, table_index, chunk_index, idx)
     if chunk_index is not None:
         return f"{base}_chunk_{chunk_index}"
     return f"{base}_chunk_{idx}"
@@ -160,54 +170,82 @@ def _safe_verify(collection, applied: List[Dict[str, Any]]) -> None:
         raise RuntimeError("Safe-apply verification failed")
 
 
-def main():
-    args = parse_args()
+def _initialize_collection(args):
+    """Initialize database configuration and collection."""
     if args.db_path:
         config.set("vector_store_path", args.db_path)
     config.set("collection_name", args.collection)
     retriever = DocumentRetriever(model=None)
-    coll = retriever.collection
+    return retriever.collection
 
+
+def _load_collection_data(coll):
+    """Load all data from collection."""
     all_data = coll.get()
-    ids = all_data.get("ids", [])
-    metadatas = all_data.get("metadatas", [])
-    documents = all_data.get("documents", [])
-    embeddings = all_data.get("embeddings", []) if "embeddings" in all_data else []
+    return (
+        all_data.get("ids", []),
+        all_data.get("metadatas", []),
+        all_data.get("documents", []),
+        all_data.get("embeddings", []) if "embeddings" in all_data else []
+    )
+
+
+def _handle_dry_run(planned_changes):
+    """Handle dry-run mode by printing planned changes."""
+    for change in planned_changes:
+        print(f"Would change {change['old_id']} -> {change['new_id']}")
+
+
+def _delete_old_ids(coll, applied):
+    """Delete old IDs after successful migration."""
+    old_ids = [change["old_id"] for change in applied]
+    if not old_ids:
+        return
+    
+    try:
+        if hasattr(coll, "delete"):
+            coll.delete(ids=old_ids)
+            logger.info(f"Deleted {len(old_ids)} old ids after migration")
+        else:
+            logger.warning(
+                "Vector store backend does not support direct deletion; manual removal required"
+            )
+    except Exception as exc:
+        logger.error(f"Failed to delete old ids: {exc}")
+        raise
+
+
+def main():
+    args = parse_args()
+    coll = _initialize_collection(args)
+    ids, metadatas, documents, embeddings = _load_collection_data(coll)
 
     planned_changes = _plan_changes(
         ids, metadatas, documents, embeddings, args.chunk_id_use_file_hash, args.verbose
     )
     logger.info(f"Found {len(planned_changes)} ids that will change")
+    
     if not planned_changes:
         logger.info("No planned changes detected. Nothing to migrate.")
         return
+    
     if args.dry_run:
-        for change in planned_changes:
-            print(f"Would change {change['old_id']} -> {change['new_id']}")
+        _handle_dry_run(planned_changes)
         return
+    
     if args.backup:
         _backup_metadata(planned_changes, Path(args.backup))
+    
     if not args.apply:
         logger.info("No changes applied. Run with --apply to actually execute the migration.")
         return
 
     applied = _apply_changes(coll, planned_changes, args.verbose)
+    
     if args.safe_apply:
         _safe_verify(coll, applied)
 
-    old_ids = [change["old_id"] for change in applied]
-    if old_ids:
-        try:
-            if hasattr(coll, "delete"):
-                coll.delete(ids=old_ids)
-                logger.info(f"Deleted {len(old_ids)} old ids after migration")
-            else:
-                logger.warning(
-                    "Vector store backend does not support direct deletion; manual removal required"
-                )
-        except Exception as exc:
-            logger.error(f"Failed to delete old ids: {exc}")
-            raise
+    _delete_old_ids(coll, applied)
     logger.info(f"Migration completed: {len(applied)} entries changed")
 
 

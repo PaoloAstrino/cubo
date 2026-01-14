@@ -241,26 +241,3 @@ The current `embeddinggemma-300m` + FAISS pipeline fits the "Laptop Mode" design
 ---
 
 *Generated and formatted from the original `evaluation_antigravity.txt` file and system benchmarks.*
-
-## RRF Sensitivity Sweep (summary)
-
-- **arguana** best: rrf_k20_sw0p7_bw0p7 (Recall@10=0.8962, nDCG=0.4705)
-- **fiqa** best: rrf_k20_sw1p3_bw0p7 (Recall@10=0.5208, nDCG=0.4445)
-- **nfcorpus** best: rrf_k20_sw1p3_bw0p7 (Recall@10=0.1526, nDCG=0.1513)
-- **scifact** best: rrf_k20_sw0p7_bw0p7 (Recall@10=0.9026, nDCG=0.7736)
-
-
-## RRF Sensitivity Sweep (summary)
-
-- **arguana** best: rrf_k20_sw0p7_bw0p7 (Recall@10=0.8962, nDCG=0.4705)
-- **fiqa** best: rrf_k20_sw1p3_bw0p7 (Recall@10=0.5208, nDCG=0.4445)
-- **nfcorpus** best: rrf_k20_sw1p3_bw0p7 (Recall@10=0.1526, nDCG=0.1513)
-- **scifact** best: rrf_k20_sw0p7_bw0p7 (Recall@10=0.9026, nDCG=0.7736)
-
-
-## RRF Sensitivity Sweep (summary)
-
-- **arguana** best: rrf_k20_sw0p7_bw0p7 (Recall@10=0.8962, nDCG=0.4705)
-- **fiqa** best: rrf_k20_sw1p3_bw0p7 (Recall@10=0.5208, nDCG=0.4445)
-- **nfcorpus** best: rrf_k20_sw1p3_bw0p7 (Recall@10=0.1526, nDCG=0.1513)
-- **scifact** best: rrf_k20_sw0p7_bw0p7 (Recall@10=0.9026, nDCG=0.7736)

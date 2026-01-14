@@ -14,22 +14,16 @@ import json
 import os
 
 
-def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
-    """Calculate BEIR evaluation metrics from retrieval results.
-
-    Args:
-        results_path: Path to JSON file containing retrieval results
-        qrels_path: Path to qrels file (TSV or JSON format)
-        k: Number of top results to evaluate (default: 10)
-    """
-    print(f"Loading results from {results_path}...")
+def _load_results(results_path: str) -> dict:
+    """Load and filter results from JSON file."""
     with open(results_path, "r") as f:
         data = json.load(f)
-
     # Filter out metadata fields (those starting with underscore)
-    results = {k: v for k, v in data.items() if not k.startswith("_")}
+    return {k: v for k, v in data.items() if not k.startswith("_")}
 
-    print(f"Loading qrels from {qrels_path}...")
+
+def _load_qrels(qrels_path: str) -> dict:
+    """Load qrels from TSV or JSON format."""
     if qrels_path.endswith(".tsv"):
         qrels = {}
         with open(qrels_path, "r") as f:
@@ -41,55 +35,100 @@ def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
                     if qid not in qrels:
                         qrels[qid] = {}
                     qrels[qid][did] = score
+        return qrels
     else:
         with open(qrels_path, "r") as f:
-            qrels = json.load(f)
+            return json.load(f)
+
+
+def _get_relevant_ids(q_data):
+    """Extract relevant document IDs from qrels data."""
+    if isinstance(q_data, dict):
+        return set(str(k) for k in q_data.keys())
+    elif isinstance(q_data, list):
+        return set(str(k) for k in q_data)
+    return set()
+
+
+def _calculate_recall(relevant_ids: set, hit_ids: list, k: int) -> float:
+    """Calculate Recall@k metric."""
+    if not relevant_ids:
+        return 0
+    num_relevant_retrieved = len(relevant_ids.intersection(set(hit_ids)))
+    return num_relevant_retrieved / min(k, len(relevant_ids))
+
+
+def _calculate_mrr(relevant_ids: set, hit_ids: list) -> float:
+    """Calculate Mean Reciprocal Rank for a single query."""
+    for i, hid in enumerate(hit_ids):
+        if hid in relevant_ids:
+            return 1 / (i + 1)
+    return 0
+
+
+def _dcg(rels):
+    """Calculate Discounted Cumulative Gain for a list of relevance scores."""
+    import math
+    return sum((2 ** r - 1) / math.log2(i + 2) for i, r in enumerate(rels))
+
+
+def _calculate_ndcg(qrels: dict, results: dict, k: int) -> list:
+    """Calculate nDCG@k for all queries."""
+    ndcgs = []
+    for qid, hits in results.items():
+        if qid not in qrels:
+            continue
+        q_rel = qrels[qid]
+        sorted_hits = sorted(hits.items(), key=lambda x: x[1], reverse=True)[:k]
+        rels = [q_rel.get(hid, 0) for hid, _ in sorted_hits]
+        ideal_rels = sorted(q_rel.values(), reverse=True)[:k]
+        ideal_d = _dcg(ideal_rels) if any(ideal_rels) else 0
+        cur_d = _dcg(rels)
+        ndcgs.append(cur_d / ideal_d if ideal_d > 0 else 0)
+    return ndcgs
+
+
+def _save_metrics(results_path: str, metrics: dict, k: int):
+    """Save metrics to JSON file."""
+    metrics_file = results_path.replace('.json', f'_metrics_k{k}.json')
+    with open(metrics_file, 'w', encoding='utf-8') as mf:
+        json.dump(metrics, mf, indent=2)
+    print(f"Metrics saved to {metrics_file}")
+
+
+def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
+    """Calculate BEIR evaluation metrics from retrieval results.
+
+    Args:
+        results_path: Path to JSON file containing retrieval results
+        qrels_path: Path to qrels file (TSV or JSON format)
+        k: Number of top results to evaluate (default: 10)
+    """
+    print(f"Loading results from {results_path}...")
+    results = _load_results(results_path)
+
+    print(f"Loading qrels from {qrels_path}...")
+    qrels = _load_qrels(qrels_path)
 
     # Initialize metric accumulators
     recall_at_k = []
     mrr = []
-
     found_queries = 0
+
     for qid, hits in results.items():
         if qid not in qrels:
             continue
 
         found_queries += 1
-        # Handle dict/list qrels format
-        q_data = qrels[qid]
-        relevant_ids = set()
-        if isinstance(q_data, dict):
-            relevant_ids = set(str(k) for k in q_data.keys())
-        elif isinstance(q_data, list):
-            relevant_ids = set(str(k) for k in q_data)
-
+        relevant_ids = _get_relevant_ids(qrels[qid])
+        
         # Sort hits by score descending and take top-k
         sorted_hits = sorted(hits.items(), key=lambda x: x[1], reverse=True)[:k]
         hit_ids = [str(hid) for hid, score in sorted_hits]
 
-        # Calculate Recall@k
-        num_relevant_retrieved = len(relevant_ids.intersection(set(hit_ids)))
-        if len(relevant_ids) > 0:
-            recall_at_k.append(num_relevant_retrieved / min(k, len(relevant_ids)))
-
-        # Calculate MRR (Mean Reciprocal Rank)
-        mrr_val = 0
-        for i, hid in enumerate(hit_ids):
-            if hid in relevant_ids:
-                mrr_val = 1 / (i + 1)
-                break
-        mrr.append(mrr_val)
-        num_relevant_retrieved = len(relevant_ids.intersection(set(hit_ids)))
-        if len(relevant_ids) > 0:
-            recall_at_k.append(num_relevant_retrieved / min(k, len(relevant_ids)))
-
-        # MRR
-        mrr_val = 0
-        for i, hid in enumerate(hit_ids):
-            if hid in relevant_ids:
-                mrr_val = 1 / (i + 1)
-                break
-        mrr.append(mrr_val)
+        # Calculate metrics
+        recall_at_k.append(_calculate_recall(relevant_ids, hit_ids, k))
+        mrr.append(_calculate_mrr(relevant_ids, hit_ids))
 
     if not found_queries:
         print("No matching queries found between results and qrels!")
@@ -98,25 +137,8 @@ def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
     avg_recall = sum(recall_at_k) / len(recall_at_k) if recall_at_k else 0
     avg_mrr = sum(mrr) / len(mrr) if mrr else 0
 
-    # Compute nDCG@k (Normalized Discounted Cumulative Gain)
-    def dcg(rels):
-        """Calculate Discounted Cumulative Gain for a list of relevance scores."""
-        import math
-        return sum((2 ** r - 1) / math.log2(i + 2) for i, r in enumerate(rels))
-
-    ndcgs = []
-    for qid, hits in results.items():
-        if qid not in qrels:
-            continue
-        # Build relevance list for top-k results
-        q_rel = qrels[qid]
-        sorted_hits = sorted(hits.items(), key=lambda x: x[1], reverse=True)[:k]
-        rels = [q_rel.get(hid, 0) for hid, _ in sorted_hits]
-        ideal_rels = sorted(q_rel.values(), reverse=True)[:k]
-        ideal_d = dcg(ideal_rels) if any(ideal_rels) else 0
-        cur_d = dcg(rels)
-        ndcgs.append(cur_d / ideal_d if ideal_d > 0 else 0)
-
+    # Compute nDCG@k
+    ndcgs = _calculate_ndcg(qrels, results, k)
     avg_ndcg = sum(ndcgs) / len(ndcgs) if ndcgs else 0
 
     # Display results
@@ -135,11 +157,7 @@ def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
         "ndcg": avg_ndcg,
         "k": k,
     }
-
-    metrics_file = results_path.replace('.json', f'_metrics_k{k}.json')
-    with open(metrics_file, 'w', encoding='utf-8') as mf:
-        json.dump(metrics, mf, indent=2)
-    print(f"Metrics saved to {metrics_file}")
+    _save_metrics(results_path, metrics, k)
 
 
 if __name__ == "__main__":

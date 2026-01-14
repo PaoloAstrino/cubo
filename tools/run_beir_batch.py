@@ -37,16 +37,12 @@ DATASET_INFO = {
 }
 
 
-def run_benchmark(dataset_name: str, laptop_mode: bool = True, no_reindex: bool = False) -> dict:
-    """Run benchmark on a single dataset."""
-    print(f"\n{'='*60}")
-    print(f"Running benchmark on: {dataset_name}")
-    print(f"{'='*60}")
-
+def _validate_dataset(dataset_name: str) -> tuple:
+    """Validate dataset exists and return file paths."""
     dataset_dir = Path(f"data/beir/{dataset_name}")
     if not dataset_dir.exists():
         print(f"Dataset not found: {dataset_dir}")
-        return None
+        return None, None, None, None
 
     corpus_path = dataset_dir / "corpus.jsonl"
     queries_path = dataset_dir / "queries.jsonl"
@@ -54,13 +50,15 @@ def run_benchmark(dataset_name: str, laptop_mode: bool = True, no_reindex: bool 
 
     if not corpus_path.exists() or not queries_path.exists():
         print(f"Missing required files in {dataset_dir}")
-        return None
+        return None, None, None, None
+    
+    return corpus_path, queries_path, qrels_path, dataset_dir
 
-    # Run BEIR adapter
-    output_file = f"results/beir_run_{dataset_name}.json"
-    index_dir = f"results/beir_index_{dataset_name}"
 
-    # Use the same Python executable and force unbuffered output for reliable streaming
+def _build_benchmark_command(dataset_name: str, corpus_path: Path, queries_path: Path, 
+                             index_dir: str, output_file: str, laptop_mode: bool, 
+                             no_reindex: bool) -> list:
+    """Build the command to run BEIR adapter."""
     cmd = [
         sys.executable,
         "-u",
@@ -76,78 +74,78 @@ def run_benchmark(dataset_name: str, laptop_mode: bool = True, no_reindex: bool 
         "--use-optimized",
     ]
 
-    # Only add --reindex if requested (default: reindex). Allow caller to use --no-reindex to skip.
     if not no_reindex:
         cmd.insert(-2, "--reindex")
 
     if laptop_mode:
         cmd.append("--laptop-mode")
 
-    # Log the chosen behavior
     print(f"Indexing behavior: {'reindex' if not no_reindex else 'no-reindex (use existing indexes)'}")
-
     print(f"Command: {' '.join(cmd)}")
+    
+    return cmd
 
-    # Stream subprocess output to console and file so users see progress in real time
-    logs_dir = Path("results/logs")
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    logfile = logs_dir / f"beir_{dataset_name}.log"
-    print(f"Streaming benchmark logs to: {logfile}", flush=True)
 
-    start_time = time.time()
-    with open(logfile, "w", encoding="utf-8") as lf:
-        env = os.environ.copy()
-        env["PYTHONUNBUFFERED"] = "1"
-        # Line-buffered text mode
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, env=env)
-        try:
-            # Stream stdout/stderr line by line and emit a periodic heartbeat if there is no output
+def _stream_process_output(process, dataset_name: str, logfile: Path):
+    """Stream subprocess output with heartbeat monitoring."""
+    last_output = time.time()
+    heartbeat_interval = 30  # seconds
+    
+    while True:
+        line = process.stdout.readline()
+        if line:
             last_output = time.time()
-            heartbeat_interval = 30  # seconds
-            while True:
-                line = process.stdout.readline()
-                if line:
-                    last_output = time.time()
-                    lf.write(line)
-                    lf.flush()
-                    # Prefix lines with dataset label for clarity
-                    print(f"[{dataset_name}] {line.rstrip()}", flush=True)
-                else:
-                    if process.poll() is not None:
-                        break
-                    # If no output for a while emit a heartbeat to show activity
-                    if time.time() - last_output > heartbeat_interval:
-                        print(f"[{dataset_name}] ...still running (no recent output). Check {logfile} for detailed logs", flush=True)
-                        lf.write(f"[heartbeat] {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                        lf.flush()
-                        last_output = time.time()
-                    # small sleep to avoid busy-looping
-                    time.sleep(0.5)
+            logfile.write(line)
+            logfile.flush()
+            print(f"[{dataset_name}] {line.rstrip()}", flush=True)
+        else:
+            if process.poll() is not None:
+                break
+            
+            if time.time() - last_output > heartbeat_interval:
+                print(f"[{dataset_name}] ...still running (no recent output). Check {logfile.name} for detailed logs", flush=True)
+                logfile.write(f"[heartbeat] {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                logfile.flush()
+                last_output = time.time()
+            
+            time.sleep(0.5)
 
-            rc = process.wait()
-            elapsed = time.time() - start_time
-            if rc != 0:
-                print(f"ERROR: Benchmark failed (exit {rc}) — see {logfile}", flush=True)
-                return None
-            print(f"OK: Benchmark completed in {elapsed:.1f}s (logs: {logfile})", flush=True)
-        except Exception as e:
-            process.kill()
-            print(f"ERROR: Benchmark crashed: {e}. Check partial logs at {logfile}", flush=True)
-            return None
 
-    # Calculate metrics
+def _run_subprocess(cmd: list, dataset_name: str, logfile: Path) -> bool:
+    """Run subprocess and stream output, return success status."""
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    
+    process = subprocess.Popen(
+        cmd, 
+        stdout=subprocess.PIPE, 
+        stderr=subprocess.STDOUT, 
+        text=True, 
+        bufsize=1, 
+        env=env
+    )
+    
+    try:
+        _stream_process_output(process, dataset_name, logfile)
+        rc = process.wait()
+        return rc == 0
+    except Exception as e:
+        process.kill()
+        print(f"ERROR: Benchmark crashed: {e}. Check partial logs at {logfile}", flush=True)
+        return False
+
+
+def _calculate_dataset_metrics(dataset_name: str, output_file: str, qrels_path: Path) -> dict:
+    """Calculate metrics for the dataset."""
     if not qrels_path.exists():
         print(f"Warning: No qrels found at {qrels_path}, skipping metrics")
         return {"dataset": dataset_name, "status": "no_qrels"}
 
     print("Calculating metrics...")
     try:
-        # Import and run metrics calculation
-        # Capture metrics
         import io
         from contextlib import redirect_stdout
-
-        from scripts.calculate_beir_metrics import calculate_metrics
+        from tools.calculate_beir_metrics import calculate_metrics
 
         f = io.StringIO()
         with redirect_stdout(f):
@@ -155,7 +153,6 @@ def run_benchmark(dataset_name: str, laptop_mode: bool = True, no_reindex: bool 
 
         output = f.getvalue()
 
-        # Parse metrics from output
         metrics = {"dataset": dataset_name, "status": "success"}
         for line in output.split("\n"):
             if "Queries Evaluated:" in line:
@@ -169,6 +166,50 @@ def run_benchmark(dataset_name: str, laptop_mode: bool = True, no_reindex: bool 
     except Exception as e:
         print(f"✗ Metrics calculation failed: {e}")
         return {"dataset": dataset_name, "status": "metrics_failed", "error": str(e)}
+
+
+def run_benchmark(dataset_name: str, laptop_mode: bool = True, no_reindex: bool = False) -> dict:
+    """Run benchmark on a single dataset."""
+    print(f"\n{'='*60}")
+    print(f"Running benchmark on: {dataset_name}")
+    print(f"{'='*60}")
+
+    # Validate dataset
+    corpus_path, queries_path, qrels_path, dataset_dir = _validate_dataset(dataset_name)
+    if not corpus_path:
+        return None
+
+    # Setup paths
+    output_file = f"results/beir_run_{dataset_name}.json"
+    index_dir = f"results/beir_index_{dataset_name}"
+
+    # Build command
+    cmd = _build_benchmark_command(
+        dataset_name, corpus_path, queries_path, index_dir, 
+        output_file, laptop_mode, no_reindex
+    )
+
+    # Setup logging
+    logs_dir = Path("results/logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    logfile_path = logs_dir / f"beir_{dataset_name}.log"
+    print(f"Streaming benchmark logs to: {logfile_path}", flush=True)
+
+    # Run subprocess
+    start_time = time.time()
+    with open(logfile_path, "w", encoding="utf-8") as logfile:
+        success = _run_subprocess(cmd, dataset_name, logfile)
+    
+    elapsed = time.time() - start_time
+    
+    if not success:
+        print(f"ERROR: Benchmark failed — see {logfile_path}", flush=True)
+        return None
+    
+    print(f"OK: Benchmark completed in {elapsed:.1f}s (logs: {logfile_path})", flush=True)
+
+    # Calculate metrics
+    return _calculate_dataset_metrics(dataset_name, output_file, qrels_path)
 
 
 def generate_summary_markdown(results: list, output_path: Path):

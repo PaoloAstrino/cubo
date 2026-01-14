@@ -19,6 +19,71 @@ import os
 from pathlib import Path
 
 
+def _process_parquet_file(fpath, base_path, corpus, queries, limit_per_file):
+    """Process a single parquet file and extract queries and documents."""
+    print(f"Reading {fpath.relative_to(base_path)}...")
+    df = pd.read_parquet(fpath)
+
+    if limit_per_file:
+        df = df.head(limit_per_file)
+
+    for idx, row in df.iterrows():
+        question = row["question"]
+        docs_list = row["documents"]
+        qid = str(row["id"]) if "id" in row else f"{fpath.stem}_{idx}"
+
+        relevant_doc_ids = []
+        for doc_text in docs_list:
+            doc_id = hashlib.md5(doc_text.encode("utf-8")).hexdigest()
+            if doc_id not in corpus:
+                corpus[doc_id] = doc_text
+            relevant_doc_ids.append(doc_id)
+
+        queries.append({
+            "_id": qid,
+            "text": question,
+            "relevant_ids": relevant_doc_ids
+        })
+
+
+def _find_and_process_files(base_path, corpus, queries, limit_per_file):
+    """Find and process all test split parquet files."""
+    print(f"Searching in {base_path.absolute()}...")
+    for fpath in base_path.rglob("*.parquet"):
+        print(f"Found candidate: {fpath}")
+        if "test" not in fpath.name.lower():
+            continue
+        _process_parquet_file(fpath, base_path, corpus, queries, limit_per_file)
+
+
+def _save_corpus(dest_dir, corpus):
+    """Save corpus in BEIR format."""
+    print("Saving corpus.jsonl...")
+    with open(dest_dir / "corpus.jsonl", "w", encoding="utf-8") as f:
+        for doc_id, text in corpus.items():
+            f.write(json.dumps({"_id": doc_id, "text": text, "title": ""}) + "\n")
+
+
+def _save_queries(dest_dir, queries):
+    """Save queries in BEIR format."""
+    print("Saving queries.jsonl...")
+    with open(dest_dir / "queries.jsonl", "w", encoding="utf-8") as f:
+        for q in queries:
+            f.write(json.dumps({"_id": q["_id"], "text": q["text"]}) + "\n")
+
+
+def _save_qrels(dest_dir, queries):
+    """Save qrels in BEIR format."""
+    print("Saving qrels/test.tsv...")
+    qrels_dir = dest_dir / "qrels"
+    qrels_dir.mkdir(exist_ok=True)
+    with open(qrels_dir / "test.tsv", "w", encoding="utf-8") as f:
+        f.write("query-id\tcorpus-id\tscore\n")
+        for q in queries:
+            for did in q["relevant_ids"]:
+                f.write(f"{q['_id']}\t{did}\t1\n")
+
+
 def prepare_ragbench(limit_per_file=None):
     """Prepare RAGBench dataset for BEIR evaluation.
 
@@ -35,68 +100,18 @@ def prepare_ragbench(limit_per_file=None):
     dest_dir = Path("data/beir/ragbench_merged")
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    corpus = {}  # doc_hash -> doc_content
-    queries = [] # list of (qid, text, relevant_docs)
+    corpus = {}
+    queries = []
 
     print("Processing RAGBench parquet files...")
-
-    print(f"Searching in {base_path.absolute()}...")
-    for fpath in base_path.rglob("*.parquet"):
-        print(f"Found candidate: {fpath}")
-        # Skip if it's not a test split
-        if "test" not in fpath.name.lower():
-            continue
-
-        print(f"Reading {fpath.relative_to(base_path)}...")
-        df = pd.read_parquet(fpath)
-
-        if limit_per_file:
-            df = df.head(limit_per_file)
-
-        for idx, row in df.iterrows():
-            question = row["question"]
-            docs_list = row["documents"] # list of strings
-
-            qid = str(row["id"]) if "id" in row else f"{fpath.stem}_{idx}"
-
-            relevant_doc_ids = []
-            for doc_text in docs_list:
-                # Use hash of text as doc_id to handle duplicates
-                doc_id = hashlib.md5(doc_text.encode("utf-8")).hexdigest()
-                if doc_id not in corpus:
-                    corpus[doc_id] = doc_text
-                relevant_doc_ids.append(doc_id)
-
-            queries.append({
-                "_id": qid,
-                "text": question,
-                "relevant_ids": relevant_doc_ids
-            })
+    _find_and_process_files(base_path, corpus, queries, limit_per_file)
 
     print(f"Total Queries: {len(queries)}")
     print(f"Total Unique Documents: {len(corpus)}")
 
-    # Save corpus.jsonl - BEIR format for documents
-    print("Saving corpus.jsonl...")
-    with open(dest_dir / "corpus.jsonl", "w", encoding="utf-8") as f:
-        for doc_id, text in corpus.items():
-            f.write(json.dumps({"_id": doc_id, "text": text, "title": ""}) + "\n")
-
-    # Save queries.jsonl - BEIR format for queries
-    print("Saving queries.jsonl...")
-    with open(dest_dir / "queries.jsonl", "w", encoding="utf-8") as f:
-        for q in queries:
-            f.write(json.dumps({"_id": q["_id"], "text": q["text"]}) + "\n")
-
-    # Save qrels/test.tsv - BEIR format for relevance judgments
-    print("Saving qrels/test.tsv...")
-    qrels_dir = dest_dir / "qrels"
-    qrels_dir.mkdir(exist_ok=True)
-    with open(qrels_dir / "test.tsv", "w", encoding="utf-8") as f:
-        f.write("query-id\tcorpus-id\tscore\n")
-        for q in queries:
-            for did in q["relevant_ids"]:
-                f.write(f"{q['_id']}\t{did}\t1\n")
+    _save_corpus(dest_dir, corpus)
+    _save_queries(dest_dir, queries)
+    _save_qrels(dest_dir, queries)
 
     print(f"✓ RAGBench merged ready at {dest_dir}")
 

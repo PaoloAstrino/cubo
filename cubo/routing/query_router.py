@@ -76,65 +76,74 @@ class QueryRouter:
         # Simple in-memory TTL cache for LLM classification
         self._llm_cache = {}
 
+    def _check_cache(self, text):
+        """Check LLM classification cache."""
+        cached = self._llm_cache.get(text)
+        if not cached:
+            return None
+        
+        now = time.time()
+        if now - cached["ts"] < self.llm_cache_ttl:
+            return cached["label"], cached["confidence"], True
+        return None
+
+    def _call_llm_classifier(self, text):
+        """Call LLM classifier and cache result."""
+        try:
+            label_str, conf_llm, reason = self._llm_client.classify(text)
+            now = time.time()
+            self._llm_cache[text] = {
+                "label": label_str,
+                "confidence": conf_llm,
+                "reason": reason,
+                "ts": now,
+            }
+            try:
+                qtype_llm = QueryType(label_str)
+            except Exception:
+                qtype_llm = QueryType.EXPLORATORY
+            return qtype_llm, conf_llm, True
+        except Exception:
+            return None
+
+    def _try_llm_fallback(self, text, current_confidence):
+        """Try LLM fallback if confidence is low."""
+        if current_confidence >= self.confidence_threshold or not self._llm_client:
+            return None
+        
+        cached = self._check_cache(text)
+        if cached:
+            return cached
+        
+        return self._call_llm_classifier(text)
+
+    def _classify_by_pattern(self, text):
+        """Classify query by regex patterns."""
+        for qtype, pat in QueryRouter._patterns:
+            if pat.search(text):
+                confidence = 0.9 if pat.match(text) else 0.7
+                llm_result = self._try_llm_fallback(text, confidence)
+                if llm_result and llm_result[1] > confidence:
+                    return llm_result
+                return qtype, confidence, False
+        return None
+
     def classify(self, query: str) -> Tuple[QueryType, float, bool]:
-        # Simple regex-based classifier with confidence heuristics
+        """Classify query using regex patterns and optional LLM fallback."""
         text = (query or "").strip()
         if not text:
             return QueryType.EXPLORATORY, 0.5, False
-        for qtype, pat in QueryRouter._patterns:
-            if pat.search(text):
-                # Confidence: higher if pattern is anchored or exact prefix
-                confidence = 0.9 if pat.match(text) else 0.7
-                # If confidence is low and LLM fallback enabled, call LLM classifier
-                if confidence < self.confidence_threshold and self._llm_client:
-                    # Check cache
-                    cached = self._llm_cache.get(text)
-                    now = time.time()
-                    if cached and (now - cached["ts"] < self.llm_cache_ttl):
-                        return cached["label"], cached["confidence"], True
-                    try:
-                        label_str, conf_llm, reason = self._llm_client.classify(text)
-                        self._llm_cache[text] = {
-                            "label": label_str,
-                            "confidence": conf_llm,
-                            "reason": reason,
-                            "ts": now,
-                        }
-                        # Map to QueryType enum if possible
-                        try:
-                            qtype_llm = QueryType(label_str)
-                        except Exception:
-                            qtype_llm = QueryType.EXPLORATORY
-                        # Prefer LLM if confidence higher
-                        if conf_llm > confidence:
-                            return qtype_llm, conf_llm, True
-                    except Exception:
-                        pass
-                return qtype, confidence, False
-        # Fallback: exploratory. If low confidence, call LLM fallback when enabled
-        qtype = QueryType.EXPLORATORY
-        confidence = 0.5
-        if confidence < self.confidence_threshold and self._llm_client:
-            cached = self._llm_cache.get(text)
-            now = time.time()
-            if cached and (now - cached["ts"] < self.llm_cache_ttl):
-                return cached["label"], cached["confidence"], True
-            try:
-                label_str, conf_llm, reason = self._llm_client.classify(text)
-                self._llm_cache[text] = {
-                    "label": label_str,
-                    "confidence": conf_llm,
-                    "reason": reason,
-                    "ts": now,
-                }
-                try:
-                    qtype_llm = QueryType(label_str)
-                except Exception:
-                    qtype_llm = QueryType.EXPLORATORY
-                return qtype_llm, conf_llm, True
-            except Exception:
-                pass
-        return qtype, confidence, False
+        
+        pattern_result = self._classify_by_pattern(text)
+        if pattern_result:
+            return pattern_result
+        
+        # Fallback: exploratory with optional LLM
+        llm_result = self._try_llm_fallback(text, 0.5)
+        if llm_result:
+            return llm_result
+        
+        return QueryType.EXPLORATORY, 0.5, False
 
     def extract_temporal_filter(
         self, query: str
