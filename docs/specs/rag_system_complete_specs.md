@@ -200,17 +200,25 @@ pip install prometheus-client==0.19.0
 
 **LLM Models (choose one):**
 
-```bash
-# Download from Hugging Face
-# Phi-3 Mini 3.8B Q4_K_M (RECOMMENDED)
-wget https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf
+Download or place a compatible local GGUF model in the `models/` directory and set your model path via the configuration API or environment. Model availability and naming on Hugging Face changes frequently, so prefer curated releases or models you have verified.
 
-# Alternative: Mistral 3B
-wget https://huggingface.co/TheBloke/Mistral-3B-GGUF/resolve/main/mistral-3b.Q4_K_M.gguf
+Examples (illustrative):
 
-# Alternative: Llama 3.1 3B
-wget https://huggingface.co/bartowski/Llama-3.1-3B-GGUF/resolve/main/Llama-3.1-3B-Q4_K_M.gguf
+- Microsoft Phi-3 family (example: `Phi-3-mini-4k-instruct-q4.gguf`) — may require manual download from a trusted source
+- Mistral 3B (example: `mistral-3b.Q4_K_M.gguf`)
+- Llama 3 family (example: `Llama-3.1-3B-Q4_K_M.gguf`)
+
+Set the model path in code at startup or via tests:
+
+```python
+# Using the repo config API (preferred)
+from cubo.config import config
+config.set("local_llama_model_path", "models/your-model.gguf")
+
+# Or set `llm.model_path` in your environment/config file if you manage one
 ```
+
+Note: this doc no longer hard-codes a single recommended file name — please pick a model that fits your hardware (VRAM/CPU) and licensing constraints.
 
 **Embedding Models:**
 
@@ -735,7 +743,10 @@ def process_chunks_with_llm(chunks_df, llm, batch_size=10):
     return pd.DataFrame(processed)
 
 # Usage
-llm = LocalLLM('models/Phi-3-mini-4k-instruct-q4.gguf')
+# Use configured model path (set via config API or environment)
+from cubo.config import config
+llm_path = config.get('local_llama_model_path', 'models/<your-llm-model>.gguf')
+llm = LocalLLM(llm_path)
 processed_df = process_chunks_with_llm(chunks_df, llm)
 processed_df.to_parquet('output/chunks_llm_processed.parquet')
 ```
@@ -1865,9 +1876,12 @@ output/
 │   └── virtual_tables.json             # Table dedup results
 │
 ├── models/
-│   ├── Phi-3-mini-4k-instruct-q4.gguf # LLM
-│   ├── minilm-l6-v2/                   # Embedding model
-│   └── colbert-v2/                     # Reranker (optional)
+│   ├── dolphin/                        # Example local model directory (check your install)
+│   ├── embeddinggemma-300m/            # Example embedding model available in repo
+│   └── <your-llm-model>.gguf           # Place your local GGUF model here, then set via config API or env
+│   
+│   Note: model filenames and availability change frequently; verify and download models from
+│   trusted sources and configure the model path in the repository configuration (see LLM section).
 │
 └── cache/
     └── query_cache.pkl                 # Semantic cache
@@ -1941,7 +1955,9 @@ hardware:
 
 # LLM Configuration
 llm:
-  model_path: "models/Phi-3-mini-4k-instruct-q4.gguf"
+  # Path to a local GGUF model file or runtime identifier. Use the repo config API to set this value, e.g.:
+  #    config.set("local_llama_model_path", "models/your-model.gguf")
+  model_path: "models/<your-llm-model>.gguf"
   n_ctx: 4096
   n_gpu_layers: 35
   temperature: 0.3
@@ -2243,7 +2259,7 @@ nvidia-smi
 python -c "import torch; print(torch.cuda.is_available())"
 
 # 3. Test model loading
-python -c "from llama_cpp import Llama; llm = Llama('models/Phi-3-mini-4k-instruct-q4.gguf', n_ctx=512)"
+python -c "from llama_cpp import Llama; import os; model_path = os.environ.get('LOCAL_LLAMA_MODEL_PATH', 'models/<your-llm-model>.gguf'); llm = Llama(model_path, n_ctx=512)"
 
 # 4. Verify disk space
 df -h  # Need 150GB+ free
@@ -2288,15 +2304,18 @@ def download_models():
 
     # LLM must be downloaded manually
     print("⚠ Please download LLM manually:")
-    print("  wget https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf")
-    print("  mv Phi-3-mini-4k-instruct-q4.gguf models/")
+    # Example: download a local GGUF model and move it to models/
+    print("  # Example: download a GGUF model and move it to models/ (filename will vary)")
+    print("  # wget <model_url> -P models/")
+    print("  # mv <model_file> models/")
+    print("  # Then set the path in the repo config: config.set('local_llama_model_path', 'models/<model_file>')")
 
 def verify_setup():
     """Verify all components are ready"""
     checks = {
         'Output directory': Path('output').exists(),
         'Models directory': Path('models').exists(),
-        'LLM model': Path('models/Phi-3-mini-4k-instruct-q4.gguf').exists(),
+        'LLM model': Path(config.get('local_llama_model_path', 'models/<your-llm-model>.gguf')).exists(),  # Ensure this path points to your local model
         'Embedding model': Path('models/minilm-l6-v2').exists(),
         'Config file': Path('config.yaml').exists()
     }
@@ -3424,7 +3443,9 @@ conda activate rag_local
 pip install -r requirements.txt
 
 # 2. Download models
-wget https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf -P models/
+# Download a compatible local GGUF model and place it in the `models/` directory. Example (illustrative):
+#   wget <model_url> -P models/
+# Model filenames and availability change frequently; pick a model compatible with your hardware and license.
 
 # 3. Initialize system
 python setup.py
@@ -3455,6 +3476,16 @@ python api.py
 ---
 
 **Document Version**: 1.0
-**Last Updated**: 2024
+**Last Updated**: 2026-01-14
+
+**Recent changes since previous version:**
+- Fixed streaming token field mismatch and improved NDJSON streaming handling in generator (backend) ✅
+- Restored and improved accent color settings with backend persistence and ApplyAccent component (frontend) ✅
+- Replaced user avatar with accent-colored circle and added trace explanation text in chat UI ✅
+- Fixed collection card overlap with responsive CSS grid and capped tile max size ✅
+- Implemented uniform header height system and adjusted sidebar header for vertical centering ✅
+- Added short doc comments to several frontend components and refactored `scaffold_retriever.load_scaffold_index` for clarity ✅
+
+Note: This document contains practical examples; verify model file names and paths against your local `models/` directory before running the pipeline.
 **Author**: RAG System Design Team
 **License**: MIT

@@ -1,0 +1,81 @@
+[🇬🇧 English](README.md) | [🇮🇹 Italiano](README.it.md) | [🇨🇳 中文](README.zh.md)
+
+<div align="center">
+
+# 🧊 CUBO
+### The Industrial-Grade Local RAG
+
+**Run enterprise document search on a consumer laptop. 100% Offline. GDPR Compliant.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Testing: Pytest](https://img.shields.io/badge/tests-passing-green.svg)](tests/)
+
+</div>
+
+---
+
+**CUBO** is a Retrieval-Augmented Generation (RAG) system built for **privacy-first** environments. It runs entirely on your local machine, ingesting gigabytes of documents without sending a single byte to the cloud.
+
+Unlike simple RAG wrappers, CUBO is engineered for **constrained hardware** (16GB RAM laptops) and **European languages**.
+
+## ✨ Why CUBO?
+
+| Feature | Why it matters |
+| :--- | :--- |
+| **🚀 Laptop Mode** | Intelligent resource management (Float16, Lazy Loading) lets you run massive indexes on **8GB/16GB RAM**. |
+| **🌍 European Core** | Advanced tokenization for **Italian, French, German, and Spanish**. Matches "gatto" with "gatti" automatically. |
+| **🛡️ 100% Offline** | No OpenAI. No Pinecone. No Weaviate. Your data **never** leaves your SSD. |
+| **⚡ Streaming** | Real-time token generation feels instant, even on CPU-only hardware. |
+| **🧠 Smart Ingestion** | Streaming Parquet ingestion handles **50GB+ corpora** without crashing RAM. |
+
+## 🚀 Quick Start
+
+**Windows (PowerShell):**
+```powershell
+.\run_local.ps1
+```
+*This script will check for Python, Node.js, and Ollama, download the required models (~2GB), and launch the app.*
+
+**Manual Install:**
+```bash
+pip install -r requirements.txt
+python scripts/start_fullstack.py --mode laptop
+```
+
+## 📚 Documentation
+
+Detailed guides for developers and researchers:
+
+- **[Installation Guide](docs/API_INTEGRATION.md)** - Full setup instructions.
+- **[Architecture & Optimization](docs/optimization/resource_architecture.md)** - How we saved 50% RAM.
+- **[Benchmarks](docs/eval/evaluation_antigravity.md)** - Recall@10, nDCG, and speed stats.
+- **[Scientific Paper](paper/paper.pdf)** - The academic theory behind CUBO.
+
+## 🛠️ Architecture
+
+CUBO uses a **Tiered Hybrid Retrieval** strategy:
+1.  **Ingestion:** Documents are chunked (Structure-Aware) and streamed to disk.
+2.  **Indexing:** Vectors are quantized (Float16) and stored in SQLite (Metadata) + FAISS (Search).
+3.  **Retrieval:** **Reciprocal Rank Fusion (RRF)** combines BM25 (Keywords) and Embedding (Semantic) scores.
+4.  **Generation:** Local LLM (Llama 3, Mistral) via Ollama generates the answer with citations.
+
+## 🧪 Evaluation
+
+We believe in measuring, not guessing.
+*   **Recall@10:** 0.96 (Politics), 0.82 (Cross-Domain).
+*   **Latency:** < 300ms per query (cached).
+*   **Ingestion:** ~150 pages/second.
+
+See [examples/04_evaluation_benchmarking.ipynb](examples/04_evaluation_benchmarking.ipynb) to run your own benchmarks.
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details on our code of conduct and development process.
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ for Privacy and Efficiency.</sub>
+</div>
