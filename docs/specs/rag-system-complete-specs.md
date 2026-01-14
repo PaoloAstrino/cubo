@@ -1,4 +1,4 @@
-# 🚀 RAG 100GB Full-Local System - Complete Implementation Guide
+# RAG 100GB Full-Local System - Complete Implementation Guide
 
 **Version:** 1.0
 **Target Hardware:** RTX 4050 6GB VRAM, 32GB RAM
@@ -7,21 +7,21 @@
 
 ---
 
-## 📋 TABLE OF CONTENTS
+## TABLE OF CONTENTS
 
 1. [System Architecture Overview](#1-system-architecture-overview)
 2. [Hardware Requirements & Constraints](#2-hardware-requirements--constraints)
 3. [Software Stack & Dependencies](#3-software-stack--dependencies)
-4. [Layer 1: Ingestion Pipeline](#4-layer-1-ingestion-pipeline)
-5. [Layer 2: LLM Processing](#5-layer-2-llm-processing)
-6. [Layer 3: Embedding Generation](#6-layer-3-embedding-generation)
-7. [Layer 4: Deduplication System](#7-layer-4-deduplication-system)
-8. [Layer 5: Semantic Compression](#8-layer-5-semantic-compression)
-9. [Layer 6: Vector Indexing](#9-layer-6-vector-indexing)
-10. [Layer 7: Query Routing](#10-layer-7-query-routing)
-11. [Layer 8: Hybrid Retrieval](#11-layer-8-hybrid-retrieval)
-12. [Layer 9: Caching System](#12-layer-9-caching-system)
-13. [Layer 10: Response Generation](#13-layer-10-response-generation)
+4. [Ingestion Pipeline](#4-layer-1-ingestion-pipeline)
+5. [LLM Processing](#5-layer-2-llm-processing)
+6. [Embedding Generation](#6-layer-3-embedding-generation)
+7. [Deduplication System](#7-layer-4-deduplication-system)
+8. [Semantic Compression](#8-layer-5-semantic-compression)
+9. [Vector Indexing](#9-layer-6-vector-indexing)
+10. [Query Routing](#10-layer-7-query-routing)
+11. [Hybrid Retrieval](#11-layer-8-hybrid-retrieval)
+12. [Caching System](#12-layer-9-caching-system)
+13. [Response Generation](#13-layer-10-response-generation)
 14. [Database Schema & Storage](#14-database-schema--storage)
 15. [Configuration Files](#15-configuration-files)
 16. [Performance Tuning](#16-performance-tuning)

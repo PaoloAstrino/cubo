@@ -1,5 +1,11 @@
 # Reciprocal Rank Fusion (RRF)
 
+> **Category:** Feature | **Status:** Active
+
+Technical details on how RRF combines dense and sparse retrieval scores for robust hybrid search.
+
+---
+
 CUBO uses **Reciprocal Rank Fusion (RRF)** to combine semantic (dense) and BM25 (sparse) retrieval results.
 
 ## Why RRF?

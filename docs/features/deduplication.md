@@ -1,5 +1,11 @@
 # Deduplication (Semantic + Hybrid)
 
+> **Category:** Feature | **Status:** Active
+
+Explanation of the semantic and hybrid deduplication pipeline used to reduce index redundancy.
+
+---
+
 This document explains how the deduplication (semantic + hybrid) pipeline works in CUBO and how to use the CLI to generate dedup maps and apply them to FAISS index builds.
 
 ## Overview

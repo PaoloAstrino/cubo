@@ -1,5 +1,11 @@
 # Chunking Strategies (CUBO)
 
+> **Category:** Feature | **Status:** Active
+
+Overview of chunking strategies available in CUBO, including structure-preserving and sentence-window approaches.
+
+---
+
 This repository now exposes a small set of chunking strategies through a unified interface in `cubo/ingestion/chunkers.py`.
 
 ## Strategies
