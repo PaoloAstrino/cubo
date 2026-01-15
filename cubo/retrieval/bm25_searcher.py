@@ -58,7 +58,7 @@ class BM25Searcher:
         self.chunks_jsonl = Path(chunks_jsonl) if chunks_jsonl else None
         self.bm25_stats = Path(bm25_stats) if bm25_stats else None
         self._store = get_bm25_store(backend=backend, **kwargs)
-        
+
         # Initialize multilingual tokenizer
         try:
             self.tokenizer = MultilingualTokenizer()
@@ -305,9 +305,10 @@ class BM25Searcher:
         """
         if self.tokenizer:
             return self.tokenizer.tokenize(text)
-        
+
         # Regex-based fallback (better than simple split)
         import re
+
         return [w for w in re.findall(r"\b\w+\b", text.lower()) if len(w) > 2]
 
     def compute_score(self, query_terms: List[str], doc_id: str, doc_text: str = None) -> float:

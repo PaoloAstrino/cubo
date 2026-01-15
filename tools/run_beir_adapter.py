@@ -136,7 +136,7 @@ def load_queries(queries_path: str, corpus_path: str = None) -> Dict[str, str]:
             queries = _load_queries_from_jsonl(f)
 
     if corpus_path and _needs_id_resolution(queries):
-        print(f"Detected ID-based queries. Resolving against corpus...")
+        print("Detected ID-based queries. Resolving against corpus...")
         corpus_map = _build_corpus_map(corpus_path)
         _resolve_query_ids(queries, corpus_map)
             

@@ -1,6 +1,5 @@
 import json
 import os
-import tempfile
 from scripts.calculate_beir_metrics import calculate_metrics
 
 

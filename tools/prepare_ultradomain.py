@@ -5,7 +5,6 @@ Converts data/ultradomain_processed files into data/beir/ultradomain_medium BEIR
 """
 
 import json
-import os
 import shutil
 from pathlib import Path
 

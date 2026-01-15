@@ -6,7 +6,6 @@ import json
 import subprocess
 from pathlib import Path
 from itertools import product
-import math
 
 DATASETS = ["arguana", "fiqa", "nfcorpus", "scifact"]
 K_VALUES = [20, 60, 120]

@@ -15,7 +15,6 @@ and merges them into a single BEIR-compatible dataset.
 import pandas as pd
 import json
 import hashlib
-import os
 from pathlib import Path
 
 

@@ -1,0 +1,353 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cubo"
+version = "1.2.0"
+description = "A modular Retrieval-Augmented Generation (RAG) system with FastAPI backend and Next.js frontend"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Paolo Astrino", email = "paolo@example.com"}
+]
+maintainers = [
+    {name = "Paolo Astrino", email = "paolo@example.com"}
+]
+keywords = [
+    "rag",
+    "retrieval-augmented-generation",
+    "nlp",
+    "llm",
+    "embedding",
+    "semantic-search",
+    "document-qa",
+    "fastapi",
+    "ollama"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    # Document parsing (lightweight)
+    "python-docx>=1.0.0",
+    "pypdf>=3.0.0",
+    "pdfplumber>=0.10.3",
+    "nltk>=3.8.1",
+    "simplemma>=0.9.0",
+    "pymupdf>=1.23.0",
+    "easyocr>=1.7.0",
+    "openpyxl>=3.1.0",
+    "pyarrow>=13.0.0,<15.0.0",
+
+    # Logging & CLI
+    "colorama>=0.4.0",
+    "structlog",
+    "python-json-logger",
+    "tqdm>=4.64.0",
+
+    # Core utilities
+    "numpy>=1.21.0,<2.0.0",
+    "pandas>=1.3.0",
+    "psutil>=5.9.0",
+    "cryptography>=40.0.0",
+    "datasketch",
+    "networkx",
+    "Pillow>=10.0.0",
+
+    # NLP (lightweight)
+    "nltk>=3.8.1",
+    "langdetect>=1.0.9",
+    "markdown-it-py>=3.0.0",
+]
+
+[project.optional-dependencies]
+# ML embeddings (heavy! ~2.5GB)
+embeddings = [
+    "torch>=2.0.0,<2.5.0",
+    "torchvision>=0.15.0,<0.20.0",
+    "transformers>=4.46.0,<4.48.0",
+    "sentence-transformers>=3.0.0,<3.4.0",
+    "tokenizers>=0.15.0,<0.21.0",
+    "protobuf>=3.20.0,<5.0.0",
+]
+
+# API server
+server = [
+    "fastapi>=0.104.0,<0.116.0",
+    "uvicorn[standard]>=0.24.0,<0.33.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.2.0",
+]
+
+# Ollama LLM backend
+ollama = [
+    "ollama>=0.3.0,<0.5.0",
+    "google-generativeai>=0.8.0",
+]
+
+# OCR for scanned PDFs
+ocr = [
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.16.3",
+]
+
+# Dense retrieval with FAISS
+faiss = [
+    "faiss-cpu==1.7.4",
+]
+
+# Scaffold generation (clustering)
+scaffolds = [
+    "scikit-learn>=1.3.0,<1.6.0",
+]
+
+# GUI dependencies
+gui = [
+    "PySide6>=6.5.0",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "reportlab>=4.0.0",
+]
+
+# Benchmarking (LightRAG-style evaluation)
+benchmark = [
+    "ragas>=0.1.0",
+    "datasets>=2.14.0",
+    "langchain-openai>=0.0.5",
+    "llama-index>=0.10.0",
+]
+
+# Full install (replaces previous default behavior)
+full = [
+    "cubo[embeddings,server,ollama,ocr,faiss,scaffolds]",
+]
+
+# All optional dependencies combined
+all = [
+    "cubo[full,gui,dev,benchmark]",
+]
+
+# Convenience extras for common install sizes
+minimal = [
+    # Web server
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+
+    # Document processing
+    "python-docx>=1.0.0",
+    "pypdf>=3.0.0",
+    "pdfplumber>=0.10.3",
+    "Pillow>=10.0.0",
+    "openpyxl>=3.1.0",
+
+    # Vector store (lightweight)
+    "faiss-cpu==1.7.4",
+
+    # LLM via Ollama (no torch)
+    "ollama>=0.3.0",
+
+    # Utilities
+    "numpy>=1.21.0,<2.0.0",
+]
+
+core = [
+    # Core features + lighter embedding support
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+    "pypdf>=3.0.0",
+    "Pillow>=10.0.0",
+    "faiss-cpu==1.7.4",
+    "sentence-transformers>=3.0.0,<6.0.0",
+    "ollama>=0.3.0",
+]
+
+ci = [
+    "fastapi>=0.104.0,<0.116.0",
+    "uvicorn[standard]>=0.24.0,<0.33.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.2.0",
+    "pypdf>=3.0.0",
+    "pdfplumber>=0.10.3",
+    "Pillow>=10.0.0",
+    "faiss-cpu==1.7.4",
+    "numpy>=1.21.0,<2.0.0",
+]
+
+lint = [
+    "ruff>=0.7.0",
+    "black>=24.0.0",
+    "isort>=5.13.0",
+    "bandit[toml]>=1.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/PaoloAstrino/cubo"
+Documentation = "https://github.com/PaoloAstrino/cubo#readme"
+Repository = "https://github.com/PaoloAstrino/cubo"
+"Bug Tracker" = "https://github.com/PaoloAstrino/cubo/issues"
+
+[project.scripts]
+cubo = "cubo.main:main"
+cubo-server = "cubo.server.run:main"
+cubo-gui = "cubo.gui.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cubo*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+cubo = ["py.typed", "*.json", "*.yaml", "*.yml"]
+
+# Black configuration
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.eggs
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["cubo"]
+multi_line_output = 3
+
+
+# Ruff configuration (modern Python linter)
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.lint.ruff]
+line-length = 100
+target-version = "py38"
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+]
+ignore = [
+    "E501",
+    "B008",
+    "C901",
+]
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+per-file-ignores = {"__init__.py" = ["F401"]}
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true  # Enforce type hints on all functions
+ignore_missing_imports = true
+exclude = [
+    "build",
+    "dist",
+    ".venv",
+]
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests", "integration_tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--showlocals",
+]
+markers = [
+    "requires_faiss: marks tests that require FAISS installation",
+    "requires_whoosh: (deprecated) marks tests that required Whoosh installation",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "e2e: marks tests as end-to-end tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src/cubo"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# Bandit security scanner configuration
+[tool.bandit]
+exclude_dirs = ["tests", "integration_tests", ".venv", "build", "dist"]
+skips = ["B101", "B601"]  # Skip assert_used and paramiko calls

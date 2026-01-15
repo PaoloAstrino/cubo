@@ -203,9 +203,7 @@ class ScaffoldRetriever:
             import faiss
 
             self.scaffold_index = faiss.read_index(str(index_path))
-            logger.info(
-                f"Loaded scaffold FAISS index with {self.scaffold_index.ntotal} vectors"
-            )
+            logger.info(f"Loaded scaffold FAISS index with {self.scaffold_index.ntotal} vectors")
             return True
         except ImportError:
             logger.warning("FAISS not available, using fallback")

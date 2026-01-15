@@ -9,7 +9,7 @@ def create_smart_corpus(
     output_path="data/beir/beir_corpus_smart.jsonl",
     target_size=10000,
 ):
-    print(f"--- Creating Smart Benchmark Corpus ---")
+    print("--- Creating Smart Benchmark Corpus ---")
 
     # 1. Inspect valid queries to get relevant doc IDs
     print(f"Loading queries from {queries_input}...")
@@ -37,7 +37,7 @@ def create_smart_corpus(
     print(f"Relevant documents to rescue: {len(needed_doc_ids)}")
 
     # 3. Scan Corpus and Rescue Documents
-    print(f"Scanning full corpus to extract relevant docs + distractors...")
+    print("Scanning full corpus to extract relevant docs + distractors...")
 
     rescued_docs = []
     distractor_candidates = []

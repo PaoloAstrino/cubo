@@ -29,7 +29,7 @@ def _set_environment_variables(env_vars, target_str, dry_run):
         if not dry_run:
             os.environ[var] = target_str
             logger.info(f"Set {var}={target_str}")
-    
+
     return changes
 
 
@@ -37,9 +37,10 @@ def _set_mkl_threads(profile, target_threads, dry_run):
     """Set MKL threads if MKL backend is available."""
     if dry_run or profile.blas_backend != "mkl":
         return
-    
+
     try:
         import mkl
+
         mkl.set_num_threads(target_threads)
         logger.info(f"Called mkl.set_num_threads({target_threads})")
     except ImportError:

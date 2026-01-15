@@ -132,7 +132,7 @@ def main():
     latency_path = figs_dir / "latency_vs_corpus_size.png"
     p50, p95 = generate_latency_plot(latency_path)
     
-    print(f"\nLatency estimates:")
+    print("\nLatency estimates:")
     sizes = [0.01, 1, 2, 4, 8, 10]
     for size, l50, l95 in zip(sizes, p50, p95):
         print(f"  {size:5.2f} GB: p50={l50:6.2f}ms, p95={l95:6.2f}ms")
@@ -142,7 +142,7 @@ def main():
     memory_path = figs_dir / "memory_breakdown.png"
     memory = generate_memory_breakdown_plot(memory_path)
     
-    print(f"\nMemory breakdown (10GB corpus):")
+    print("\nMemory breakdown (10GB corpus):")
     for comp, mem in memory.items():
         print(f"  {comp:15s}: {mem:.1f} GB")
     print(f"  {'Total':15s}: {sum(memory.values()):.1f} GB")

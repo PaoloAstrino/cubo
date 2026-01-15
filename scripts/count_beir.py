@@ -9,10 +9,8 @@ Output:
 - Console table: Summary of all datasets found
 """
 
-import os
-import json
 import csv
-from pathlib import Path
+import os
 
 
 def count_lines(filepath):
@@ -25,7 +23,7 @@ def count_lines(filepath):
         Number of lines, or 0 if file cannot be read
     """
     try:
-        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             return sum(1 for _ in f)
     except Exception:
         return 0
@@ -45,9 +43,9 @@ def analyze_dataset(root, dataset_name):
         Dictionary with dataset analysis results
     """
     # Standard BEIR structure
-    corpus_path = os.path.join(root, dataset_name, 'corpus.jsonl')
-    queries_path = os.path.join(root, dataset_name, 'queries.jsonl')
-    qrels_path = os.path.join(root, dataset_name, 'qrels')
+    corpus_path = os.path.join(root, dataset_name, "corpus.jsonl")
+    queries_path = os.path.join(root, dataset_name, "queries.jsonl")
+    qrels_path = os.path.join(root, dataset_name, "qrels")
 
     # Check for direct qrels file if folder doesn't exist
     if not os.path.exists(qrels_path):
@@ -56,13 +54,13 @@ def analyze_dataset(root, dataset_name):
         pass
 
     results = {
-        'dataset': dataset_name,
-        'path': os.path.join(root, dataset_name),
-        'corpus_exists': os.path.exists(corpus_path),
-        'queries_exists': os.path.exists(queries_path),
-        'qrels_exists': os.path.exists(qrels_path) and os.listdir(qrels_path),
-        'corpus_count': count_lines(corpus_path) if os.path.exists(corpus_path) else 0,
-        'queries_count': count_lines(queries_path) if os.path.exists(queries_path) else 0
+        "dataset": dataset_name,
+        "path": os.path.join(root, dataset_name),
+        "corpus_exists": os.path.exists(corpus_path),
+        "queries_exists": os.path.exists(queries_path),
+        "qrels_exists": os.path.exists(qrels_path) and os.listdir(qrels_path),
+        "corpus_count": count_lines(corpus_path) if os.path.exists(corpus_path) else 0,
+        "queries_count": count_lines(queries_path) if os.path.exists(queries_path) else 0,
     }
     return results
 
@@ -74,7 +72,11 @@ def main():
         print(f"Root {root} not found")
         return
 
-    datasets = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)) and not d.startswith('.')]
+    datasets = [
+        d
+        for d in os.listdir(root)
+        if os.path.isdir(os.path.join(root, d)) and not d.startswith(".")
+    ]
 
     manifest_data = []
     print(f"Found {len(datasets)} potential datasets in {root}")
@@ -97,7 +99,9 @@ def main():
     print(f"{'Dataset':<25} | {'Docs':<10} | {'Queries':<10} | {'Qrels':<5}")
     print("-" * 60)
     for info in manifest_data:
-        print(f"{info['dataset']:<25} | {info['corpus_count']:<10} | {info['queries_count']:<10} | {'Yes' if info['qrels_exists'] else 'No':<5}")
+        print(
+            f"{info['dataset']:<25} | {info['corpus_count']:<10} | {info['queries_count']:<10} | {'Yes' if info['qrels_exists'] else 'No':<5}"
+        )
 
 
 if __name__ == "__main__":

@@ -186,7 +186,7 @@ def _load_collection_data(coll):
         all_data.get("ids", []),
         all_data.get("metadatas", []),
         all_data.get("documents", []),
-        all_data.get("embeddings", []) if "embeddings" in all_data else []
+        all_data.get("embeddings", []) if "embeddings" in all_data else [],
     )
 
 
@@ -201,7 +201,7 @@ def _delete_old_ids(coll, applied):
     old_ids = [change["old_id"] for change in applied]
     if not old_ids:
         return
-    
+
     try:
         if hasattr(coll, "delete"):
             coll.delete(ids=old_ids)
@@ -224,24 +224,24 @@ def main():
         ids, metadatas, documents, embeddings, args.chunk_id_use_file_hash, args.verbose
     )
     logger.info(f"Found {len(planned_changes)} ids that will change")
-    
+
     if not planned_changes:
         logger.info("No planned changes detected. Nothing to migrate.")
         return
-    
+
     if args.dry_run:
         _handle_dry_run(planned_changes)
         return
-    
+
     if args.backup:
         _backup_metadata(planned_changes, Path(args.backup))
-    
+
     if not args.apply:
         logger.info("No changes applied. Run with --apply to actually execute the migration.")
         return
 
     applied = _apply_changes(coll, planned_changes, args.verbose)
-    
+
     if args.safe_apply:
         _safe_verify(coll, applied)
 

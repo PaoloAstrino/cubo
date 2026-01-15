@@ -5,9 +5,7 @@ Provides simple APIs to run pending compaction jobs for FaissStore.
 
 from __future__ import annotations
 
-import logging
 import time
-from typing import Optional
 
 from cubo.utils.logger import logger
 

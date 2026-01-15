@@ -153,8 +153,7 @@ cells = [
     "    \n",
     "    # Prepare data for RAGAS\n",
     "    questions = list(ground_truth.keys())\n",
-    "    ground_truths_list = [[\"Paris, France\"], [\"Pizza and Colosseum\"], [\"Colosseum\"], [\"Sushi\"]]
-",
+    "    ground_truths_list = [[\"Paris, France\"], [\"Pizza and Colosseum\"], [\"Colosseum\"], [\"Sushi\"]]\n",
     "    \n",
     "    # Generate real answers\n",
     "    contexts = []\n",
@@ -217,7 +216,6 @@ notebook = {
     "nbformat_minor": 5
 }
 
-import os
 # Ensure directory exists
 os.makedirs("examples", exist_ok=True)
 with open("examples/04_evaluation_benchmarking.ipynb", "w", encoding="utf-8") as f:

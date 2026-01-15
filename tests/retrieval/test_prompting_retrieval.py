@@ -1,5 +1,4 @@
 from cubo.config import config
-from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.retrieval.retrieval_executor import RetrievalExecutor
 
 

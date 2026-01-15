@@ -164,9 +164,10 @@ class BM25PythonStore(BM25Store):
         if self.tokenizer:
             # Use multilingual tokenizer with stemming (Standard Top-Tier Logic)
             return self.tokenizer.tokenize(text, language=language)
-        
+
         # Absolute fallback if somehow tokenizer initialization failed but we reached here
         import re
+
         return [w for w in re.findall(r"\b\w+\b", text.lower()) if len(w) > 2]
 
     def compute_score(
@@ -241,7 +242,13 @@ class BM25PythonStore(BM25Store):
 
         return score
 
-    def search(self, query: str, top_k: int = 10, docs: Optional[List[Dict]] = None, doc_ids: Optional[Set[str]] = None) -> List[Dict]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        docs: Optional[List[Dict]] = None,
+        doc_ids: Optional[Set[str]] = None,
+    ) -> List[Dict]:
         """
         Search for documents matching a query.
 
@@ -262,7 +269,7 @@ class BM25PythonStore(BM25Store):
             return []
 
         results = []
-        
+
         # Determine filtering strategy
         # 1. Linear Scan (Slowest): User provided 'docs' list
         if docs is not None:
@@ -274,49 +281,51 @@ class BM25PythonStore(BM25Store):
                 # If doc_ids filter is also present, respect it
                 if doc_ids and doc_id not in doc_ids:
                     continue
-                    
+
                 doc_text = d.get("text", "")
                 bm25_score = self._compute_bm25_score(query_terms, doc_id, doc_text)
                 norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
                 if norm_score > 0.0:
-                    results.append({
-                        "doc_id": doc_id,
-                        "similarity": norm_score,
-                        "metadata": d.get("metadata", {}),
-                        "text": d.get("text", ""),
-                    })
+                    results.append(
+                        {
+                            "doc_id": doc_id,
+                            "similarity": norm_score,
+                            "metadata": d.get("metadata", {}),
+                            "text": d.get("text", ""),
+                        }
+                    )
             results.sort(key=lambda x: x["similarity"], reverse=True)
             return results[:top_k]
 
         # 2. Inverted Index Search (Fastest): Use posting lists + set intersection
-        
+
         # Get candidates from posting lists
         candidate_set = set()
-        
+
         # Optimization: Pick terms with lowest document frequency (rarest terms) first
         term_dfs = [(term, self.term_doc_freq.get(term, 0)) for term in query_terms]
         term_dfs.sort(key=lambda x: x[1])
-        
+
         # Start with posting list of rarest term
         if term_dfs:
             rarest_term = term_dfs[0][0]
             initial_candidates = set(self.postings.get(rarest_term, []))
-            
+
             # If a filter is provided, apply it immediately
             if doc_ids:
                 initial_candidates.intersection_update(doc_ids)
-            
+
             candidate_set = initial_candidates
-            
+
             # Expand with other terms (OR logic), applying filter
-            num_seed_terms = min(3, len(term_dfs)) # Check top 3 rarest terms
+            num_seed_terms = min(3, len(term_dfs))  # Check top 3 rarest terms
             for term, _ in term_dfs[1:num_seed_terms]:
                 term_postings = self.postings.get(term, [])
                 for did in term_postings:
                     if doc_ids and did not in doc_ids:
                         continue
                     candidate_set.add(did)
-            
+
             # If candidate set is still small, add remaining terms
             if len(candidate_set) < top_k * 2:
                 for term, _ in term_dfs[num_seed_terms:]:
@@ -325,12 +334,12 @@ class BM25PythonStore(BM25Store):
                         if doc_ids and did not in doc_ids:
                             continue
                         candidate_set.add(did)
-        
+
         # Hard limit to avoid blowing up on huge OR queries (e.g. stopword-heavy)
         MAX_CANDIDATES = 5000
         candidate_list = list(candidate_set)
         if len(candidate_list) > MAX_CANDIDATES:
-             candidate_list = candidate_list[:MAX_CANDIDATES]
+            candidate_list = candidate_list[:MAX_CANDIDATES]
 
         # Score candidates
         for doc_id in candidate_list:
@@ -338,22 +347,24 @@ class BM25PythonStore(BM25Store):
             d = self.docs_map.get(doc_id)
             # Or fallback to list scan if map not populated (legacy stats loaded)
             if not d:
-                 d = next((x for x in self.docs if x.get("doc_id") == doc_id), None)
-            
+                d = next((x for x in self.docs if x.get("doc_id") == doc_id), None)
+
             if not d:
                 continue
 
             doc_text = d.get("text", "")
             bm25_score = self._compute_bm25_score(query_terms, doc_id, doc_text)
             norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)
-            
+
             if norm_score > 0.0:
-                results.append({
-                    "doc_id": doc_id,
-                    "similarity": norm_score,
-                    "metadata": d.get("metadata", {}),
-                    "text": d.get("text", ""),
-                })
+                results.append(
+                    {
+                        "doc_id": doc_id,
+                        "similarity": norm_score,
+                        "metadata": d.get("metadata", {}),
+                        "text": d.get("text", ""),
+                    }
+                )
 
         # Sort by score descending
         results.sort(key=lambda x: x["similarity"], reverse=True)

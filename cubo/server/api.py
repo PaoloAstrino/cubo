@@ -305,20 +305,25 @@ async def lifespan(app: FastAPI):
                 logger.info("Auto-initializing RAG components in background...")
                 try:
                     cubo_app.initialize_components()
-                    
+
                     # Warm-up inference if RAM > 16GB (prevents cold start delay)
                     try:
                         import psutil
+
                         mem = psutil.virtual_memory()
                         total_gb = mem.total / (1024**3)
-                        
+
                         if total_gb > 16:
-                            logger.info(f"System RAM ({total_gb:.1f}GB) > 16GB. Running warm-up inference...")
+                            logger.info(
+                                f"System RAM ({total_gb:.1f}GB) > 16GB. Running warm-up inference..."
+                            )
                             # Run dummy retrieval to load embedding model and FAISS indexes into hot RAM
                             cubo_app.query_retrieve(query="warmup", top_k=1)
                             logger.info("Warm-up inference complete. System ready.")
                         else:
-                            logger.info(f"System RAM ({total_gb:.1f}GB) <= 16GB. Skipping warm-up to save resources.")
+                            logger.info(
+                                f"System RAM ({total_gb:.1f}GB) <= 16GB. Skipping warm-up to save resources."
+                            )
                     except Exception as e:
                         logger.warning(f"Warm-up inference failed: {e}")
 
@@ -996,7 +1001,10 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
     if not cubo_app:
         raise HTTPException(status_code=503, detail="CUBO app not initialized")
 
-    logger.info("Bulk document deletion requested", extra={"trace_id": request.state.trace_id, "force": bool(force)})
+    logger.info(
+        "Bulk document deletion requested",
+        extra={"trace_id": request.state.trace_id, "force": bool(force)},
+    )
 
     # Prefer cubo_app.state.documents_cache when present (tests may attach a DummyCache there),
     # otherwise fall back to request.app.state cache.
@@ -1019,12 +1027,21 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
                             name = getattr(d, "name", None) or getattr(d, "doc_id", None) or str(d)
                         if name:
                             documents.append(name)
-                    logger.info("Enumerated from cubo_app.state cache", extra={"count": len(documents), "trace_id": request.state.trace_id})
+                    logger.info(
+                        "Enumerated from cubo_app.state cache",
+                        extra={"count": len(documents), "trace_id": request.state.trace_id},
+                    )
                 except Exception as e:
-                    logger.warning("cubo_app.state.documents_cache.get failed", extra={"error": str(e), "trace_id": request.state.trace_id})
+                    logger.warning(
+                        "cubo_app.state.documents_cache.get failed",
+                        extra={"error": str(e), "trace_id": request.state.trace_id},
+                    )
                     documents = []
     except Exception as e:
-        logger.warning("Error checking cubo_app.state for documents_cache", extra={"error": str(e), "trace_id": request.state.trace_id})
+        logger.warning(
+            "Error checking cubo_app.state for documents_cache",
+            extra={"error": str(e), "trace_id": request.state.trace_id},
+        )
         documents = []
 
     # If not found, try request.app.state cache
@@ -1042,7 +1059,10 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
                     if name:
                         documents.append(name)
             except Exception as e:
-                logger.warning("documents_cache.get failed", extra={"error": str(e), "trace_id": request.state.trace_id})
+                logger.warning(
+                    "documents_cache.get failed",
+                    extra={"error": str(e), "trace_id": request.state.trace_id},
+                )
                 documents = []
 
     # If documents empty, try fallback: query vector store for doc ids
@@ -1065,10 +1085,19 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
 
     if not documents:
         # Nothing to delete (or couldn't enumerate)
-        logger.info("Bulk delete: no documents enumerated", extra={"trace_id": request.state.trace_id})
-        return {"deleted_count": 0, "queued": [], "message": "No documents found or could not enumerate documents"}
+        logger.info(
+            "Bulk delete: no documents enumerated", extra={"trace_id": request.state.trace_id}
+        )
+        return {
+            "deleted_count": 0,
+            "queued": [],
+            "message": "No documents found or could not enumerate documents",
+        }
 
-    logger.info("Bulk delete: enumerated documents", extra={"count": len(documents), "trace_id": request.state.trace_id})
+    logger.info(
+        "Bulk delete: enumerated documents",
+        extra={"count": len(documents), "trace_id": request.state.trace_id},
+    )
 
     queued_jobs = []
     deleted_count = 0
@@ -1078,7 +1107,9 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
         try:
             if hasattr(cubo_app, "vector_store") and cubo_app.vector_store:
                 if hasattr(cubo_app.vector_store, "enqueue_deletion"):
-                    job_id = cubo_app.vector_store.enqueue_deletion(doc_id, trace_id=request.state.trace_id, force=bool(force))
+                    job_id = cubo_app.vector_store.enqueue_deletion(
+                        doc_id, trace_id=request.state.trace_id, force=bool(force)
+                    )
                     queued_jobs.append({"doc_id": doc_id, "job_id": job_id})
                     deleted_count += 1
                 else:
@@ -1094,7 +1125,10 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
                 data_path = Path("data") / doc_id
                 if await run_in_threadpool(data_path.exists):
                     await run_in_threadpool(os.remove, data_path)
-                    logger.info("Removed uploaded file from disk (bulk)", extra={"path": str(data_path), "trace_id": request.state.trace_id})
+                    logger.info(
+                        "Removed uploaded file from disk (bulk)",
+                        extra={"path": str(data_path), "trace_id": request.state.trace_id},
+                    )
             except Exception as e:
                 logger.warning(f"Failed to remove uploaded file {doc_id} during bulk delete: {e}")
 
@@ -1119,7 +1153,6 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
     )
 
     return {"deleted_count": deleted_count, "queued": queued_jobs, "errors": errors}
-
 
 
 # =========================================================================
@@ -1158,7 +1191,7 @@ async def create_collection(collection_data: CollectionCreate, request: Request)
         collection = cubo_app.vector_store.create_collection(
             name=collection_data.name,
             color=collection_data.color,
-            emoji=collection_data.emoji if hasattr(collection_data, 'emoji') else None,
+            emoji=collection_data.emoji if hasattr(collection_data, "emoji") else None,
         )
     except ValueError as e:
         # Map ValueError from store to HTTP 409 for duplicate collections
@@ -1483,7 +1516,9 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
 
         logger.info("Starting document retrieval")
         async with compute_lock:
-            retrieved_docs = await run_in_threadpool(lambda: cubo_app.query_retrieve(**retrieve_kwargs))
+            retrieved_docs = await run_in_threadpool(
+                lambda: cubo_app.query_retrieve(**retrieve_kwargs)
+            )
             logger.info(f"Retrieved {len(retrieved_docs)} documents")
 
             # Emit source events
@@ -1509,6 +1544,7 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             )
 
             logger.info("Starting LLM streaming generation")
+
             def _stream_generator():
                 return cubo_app.generate_response_stream(
                     query=request_data.query,
@@ -1520,28 +1556,41 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             event_count = 0
             for event in await run_in_threadpool(_stream_generator):
                 event_count += 1
-                event_type = event.get('type')
+                event_type = event.get("type")
                 logger.debug(f"Generator event {event_count}: {event_type}")
-                if event_type == 'done':
-                    logger.info(f"Done event from generator: type={event_type}, has_answer={'answer' in event}, answer_length={len(event.get('answer', ''))}")
+                if event_type == "done":
+                    logger.info(
+                        f"Done event from generator: type={event_type}, has_answer={'answer' in event}, answer_length={len(event.get('answer', ''))}"
+                    )
                     logger.info(f"Full done event: {event}")
                 yield (json.dumps(event) + "\n").encode()
-            
+
             logger.info(f"Streaming completed with {event_count} events")
-            
+
             # Safety: if no done event was sent, send one
             if event_count == 0:
                 logger.error("No events generated from LLM")
-                yield (json.dumps({
-                    "type": "done",
-                    "answer": "I apologize, but I was unable to generate a response. Please try again.",
-                    "trace_id": request.state.trace_id
-                }) + "\n").encode()
+                yield (
+                    json.dumps(
+                        {
+                            "type": "done",
+                            "answer": "I apologize, but I was unable to generate a response. Please try again.",
+                            "trace_id": request.state.trace_id,
+                        }
+                    )
+                    + "\n"
+                ).encode()
 
     except Exception as e:
         logger.error(f"Streaming query error: {e}", exc_info=True)
         yield (
-            json.dumps({"type": "error", "message": f"Server error: {str(e)}", "trace_id": request.state.trace_id})
+            json.dumps(
+                {
+                    "type": "error",
+                    "message": f"Server error: {str(e)}",
+                    "trace_id": request.state.trace_id,
+                }
+            )
             + "\n"
         ).encode()
         yield (
@@ -1558,8 +1607,10 @@ async def query(request_data: QueryRequest, request: Request):
 
     # Check if streaming is requested and enabled
     streaming_enabled = config.get("llm.enable_streaming", False)
-    logger.info(f"Query endpoint: stream={request_data.stream}, streaming_enabled={streaming_enabled}")
-    
+    logger.info(
+        f"Query endpoint: stream={request_data.stream}, streaming_enabled={streaming_enabled}"
+    )
+
     if request_data.stream and streaming_enabled:
         logger.info("Returning streaming response")
         # Return streaming response
@@ -1769,18 +1820,27 @@ async def delete_document(doc_id: str, request: Request):
                     chunks_removed += 1
                 except Exception as e:
                     # If enqueue fails, attempt to remove the physical file as a fallback
-                    logger.warning(f"Vector store enqueue_deletion failed: {e}; attempting best-effort file removal", extra={"trace_id": request.state.trace_id})
+                    logger.warning(
+                        f"Vector store enqueue_deletion failed: {e}; attempting best-effort file removal",
+                        extra={"trace_id": request.state.trace_id},
+                    )
                     data_path = Path("data") / doc_id
                     try:
                         if await run_in_threadpool(data_path.exists):
                             await run_in_threadpool(os.remove, data_path)
-                            logger.info("Removed uploaded file from disk as fallback after enqueue failure", extra={"path": str(data_path), "trace_id": request.state.trace_id})
+                            logger.info(
+                                "Removed uploaded file from disk as fallback after enqueue failure",
+                                extra={"path": str(data_path), "trace_id": request.state.trace_id},
+                            )
                             deleted = True
                         else:
                             # No file to remove and enqueue failed -> not found
                             deleted = False
                     except Exception as e2:
-                        logger.warning(f"Failed to remove uploaded file during enqueue failure fallback: {e2}", extra={"trace_id": request.state.trace_id})
+                        logger.warning(
+                            f"Failed to remove uploaded file during enqueue failure fallback: {e2}",
+                            extra={"trace_id": request.state.trace_id},
+                        )
                         # Keep deleted as False in this case
             else:
                 # Fallback to immediate delete (legacy behavior)
@@ -1831,7 +1891,10 @@ async def delete_document(doc_id: str, request: Request):
         data_path = Path("data") / doc_id
         if await run_in_threadpool(data_path.exists):
             await run_in_threadpool(os.remove, data_path)
-            logger.info("Removed uploaded file from disk", extra={"path": str(data_path), "trace_id": request.state.trace_id})
+            logger.info(
+                "Removed uploaded file from disk",
+                extra={"path": str(data_path), "trace_id": request.state.trace_id},
+            )
     except Exception as e:
         logger.warning(f"Failed to remove uploaded file {doc_id}: {e}")
 

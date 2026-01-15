@@ -7,7 +7,7 @@ implements a synchronous generation via the service_manager to keep parity with 
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from cubo.config import config
 from cubo.config.prompt_defaults import DEFAULT_SYSTEM_PROMPT

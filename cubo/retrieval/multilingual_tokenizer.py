@@ -121,7 +121,7 @@ class MultilingualTokenizer:
             token_count = len(re.findall(r"\w+", text))
             # Relaxed constraint: try detection even for single words, but rely on
             # langdetect's internal probability (implied) or accept risk for better retrieval
-            if token_count < 1: 
+            if token_count < 1:
                 return "en"
         except Exception:
             pass

@@ -19,7 +19,7 @@ except ImportError:
 # 2. Check simplemma
 try:
     import simplemma
-    print(f"[OK] simplemma installed.")
+    print("[OK] simplemma installed.")
 except ImportError:
     print("[INFO] simplemma not installed (optional for lemmatization).")
 
@@ -51,7 +51,7 @@ except Exception as e:
 
 # 4. Check BM25 Configuration logic
 from cubo.config import config
-print(f"\n=== Configuration Check ===")
+print("\n=== Configuration Check ===")
 print(f"Laptop Mode: {config.get('laptop_mode')}")
 print(f"BM25 Use Multilingual (Implicit): {config.get('bm25.use_multilingual', 'Not Set')}")
 print(f"BM25 Use Lemmatization: {config.get('bm25.use_lemmatization', 'Not Set')}")

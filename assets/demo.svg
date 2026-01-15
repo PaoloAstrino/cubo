@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect width="100%" height="100%" fill="#0f172a"/>
+  <g fill="#fff" font-family="Helvetica, Arial, sans-serif" font-weight="700">
+    <text x="50%" y="40%" font-size="32" text-anchor="middle">CUBO Demo</text>
+    <text x="50%" y="54%" font-size="16" text-anchor="middle">90s demo: drag 5 GB contracts → ingest → query "clausola recesso"</text>
+  </g>
+  <g fill="#10b981">
+    <polygon points="240,240 240,120 360,180"/>
+  </g>
+</svg>

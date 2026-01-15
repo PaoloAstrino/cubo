@@ -1,6 +1,3 @@
-import pytest
-from fastapi.testclient import TestClient
-import sqlite3
 
 from cubo.retrieval.bm25_sqlite_store import BM25SqliteStore
 

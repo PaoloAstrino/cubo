@@ -7,8 +7,6 @@ baseline metrics, ensuring no performance degradation.
 
 import pytest
 import json
-from pathlib import Path
-from typing import Dict, List
 
 
 class TestRRFMetricsBaseline:

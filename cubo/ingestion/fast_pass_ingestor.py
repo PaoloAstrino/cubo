@@ -36,63 +36,70 @@ class FastPassIngestor:
         records = []
         texts = []
         doc_ids = []
-        
+
         for c in chunks:
             filename = c.get("filename", "unknown")
             file_hash = c.get("file_hash", "")
             chunk_index = c.get("chunk_index", 0)
             text = c.get("text", "") or c.get("document", "")
             token_count = c.get("token_count", len(text.split()))
-            
-            records.append({
-                "filename": filename,
-                "file_hash": file_hash,
-                "chunk_index": chunk_index,
-                "text": text,
-                "token_count": token_count,
-                "char_length": len(text),
-            })
+
+            records.append(
+                {
+                    "filename": filename,
+                    "file_hash": file_hash,
+                    "chunk_index": chunk_index,
+                    "text": text,
+                    "token_count": token_count,
+                    "char_length": len(text),
+                }
+            )
             texts.append(text)
             doc_id = (file_hash + f"_{chunk_index}") if file_hash else f"{filename}_{chunk_index}"
             doc_ids.append(doc_id)
-        
+
         return records, texts, doc_ids
 
     def _save_chunks_jsonl(self, records: list) -> Path:
         """Save chunks to JSONL file atomically."""
         chunks_jsonl = self.output_dir / "chunks.jsonl.tmp"
         final_chunks_jsonl = self.output_dir / "chunks.jsonl"
-        
+
         with open(chunks_jsonl, "w", encoding="utf-8") as f:
             for rec in records:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        
+
         os.replace(str(chunks_jsonl), str(final_chunks_jsonl))
         logger.info(f"Saved {len(records)} chunks to {final_chunks_jsonl}")
         return final_chunks_jsonl
 
-    def _build_bm25_index(self, texts: list, doc_ids: list, folder_path: str, records: list, final_chunks_jsonl: Path) -> Optional[Path]:
+    def _build_bm25_index(
+        self, texts: list, doc_ids: list, folder_path: str, records: list, final_chunks_jsonl: Path
+    ) -> Optional[Path]:
         """Build BM25 index and save stats."""
         try:
             from cubo.config import config
+
             backend = config.get("bm25.backend", "python")
             bm25 = BM25Searcher(backend=backend)
             docs = [{"doc_id": did, "text": txt} for did, txt in zip(doc_ids, texts)]
             bm25.index_documents(docs)
-            
+
             bm25_tmp = self.output_dir / "bm25_stats.json.tmp"
             bm25_path = self.output_dir / "bm25_stats.json"
             bm25.save_stats(str(bm25_tmp))
             os.replace(str(bm25_tmp), str(bm25_path))
-            
+
             # Record ingestion run
             try:
                 manager = get_metadata_manager()
                 run_id = f"fastpass_{os.path.basename(str(Path(folder_path)))}_{int(pd.Timestamp.utcnow().timestamp())}"
-                manager.record_ingestion_run(run_id, str(folder_path), len(records), str(final_chunks_jsonl))
+                manager.record_ingestion_run(
+                    run_id, str(folder_path), len(records), str(final_chunks_jsonl)
+                )
             except Exception:
                 logger.warning("Failed to record ingestion run to metadata DB")
-            
+
             return bm25_path
         except Exception as e:
             logger.error(f"Failed to build BM25 stats: {e}")
@@ -109,7 +116,7 @@ class FastPassIngestor:
         }
         manifest_path = self.output_dir / "ingestion_manifest.json.tmp"
         final_manifest_path = self.output_dir / "ingestion_manifest.json"
-        
+
         with open(manifest_path, "w", encoding="utf-8") as mf:
             json.dump(manifest, mf, ensure_ascii=False, indent=2)
         os.replace(str(manifest_path), str(final_manifest_path))
@@ -132,10 +139,10 @@ class FastPassIngestor:
         # Build records and save
         records, texts, doc_ids = self._build_records_from_chunks(chunks)
         final_chunks_jsonl = self._save_chunks_jsonl(records)
-        
+
         # Build BM25 index
         bm25_path = self._build_bm25_index(texts, doc_ids, folder_path, records, final_chunks_jsonl)
-        
+
         # Save manifest
         self._save_manifest(folder_path, len(records))
 
@@ -161,10 +168,10 @@ class FastPassIngestor:
         # Build records and save
         records, texts, doc_ids = self._build_records_from_chunks(chunks)
         final_chunks_jsonl = self._save_chunks_jsonl(records)
-        
+
         # Build BM25 index
         bm25_path = self._build_bm25_index(texts, doc_ids, folder_path, records, final_chunks_jsonl)
-        
+
         # Save manifest
         self._save_manifest(folder_path, len(records))
 

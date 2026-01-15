@@ -8,7 +8,6 @@ with `--limit` to index and measure query latencies for each sample size.
 """
 import argparse
 import json
-import math
 import os
 import glob
 import subprocess

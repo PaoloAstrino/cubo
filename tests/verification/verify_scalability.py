@@ -1,12 +1,10 @@
-import json
 import shutil
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import numpy as np
 
 from cubo.indexing.faiss_index import FAISSIndexManager
 from cubo.retrieval.bm25_sqlite_store import BM25SqliteStore

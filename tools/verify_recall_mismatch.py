@@ -1,5 +1,4 @@
 import json
-import os
 
 
 def _load_valid_queries(queries_path):
@@ -70,7 +69,7 @@ def _scan_corpus_for_matches(corpus_path, relevant_doc_ids, limit):
 
 def _report_coverage_results(limit, found_docs, total_relevant):
     """Report coverage results and provide conclusion."""
-    print(f"--- Results ---")
+    print("--- Results ---")
     print(f"Scanned Documents: {limit}")
     print(f"Relevant Documents Found: {found_docs} / {total_relevant}")
     print(f"Coverage: {(found_docs / total_relevant * 100):.2f}%")
@@ -84,7 +83,7 @@ def _report_coverage_results(limit, found_docs, total_relevant):
 
 def check_coverage(corpus_path, queries_path, qrels_path, limit=10000):
     """Check coverage of relevant documents in a limited corpus subset for recall evaluation."""
-    print(f"--- Debugging Recall Mismatch ---")
+    print("--- Debugging Recall Mismatch ---")
 
     valid_qids = _load_valid_queries(queries_path)
     relevant_doc_ids = _load_relevant_docs(qrels_path, valid_qids)

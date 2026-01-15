@@ -11,8 +11,15 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Testing: Pytest](https://img.shields.io/badge/tests-passing-green.svg)](tests/)
+[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
+[![Stars](https://img.shields.io/github/stars/PaoloAstrino/CUBO?style=social)](https://github.com/PaoloAstrino/CUBO)
 
 </div>
+
+<!-- Demo / GIF placeholder: sostituisci XXXXX con l'ID YouTube reale o aggiungi assets/demo.gif -->
+[![Guarda la demo di 90s](https://img.youtube.com/vi/XXXXX/0.jpg)](https://www.youtube.com/watch?v=XXXXX)
+_Demo 90s: trascina 5 GB di contratti → ingestione → query "clausola recesso" → risposta con citazione_  
+_oppure_ `![demo](assets/demo.svg)`
 
 ---
 
@@ -44,6 +51,13 @@ pip install -r requirements.txt
 python scripts/start_fullstack.py --mode laptop
 ```
 
+## Scarica ed Esegui
+
+[![Ultima Release](https://img.shields.io/github/v/release/PaoloAstrino/CUBO?color=green)](https://github.com/PaoloAstrino/CUBO/releases/latest)
+
+- Windows: [CUBO.exe](https://github.com/PaoloAstrino/CUBO/releases/latest/download/CUBO.exe) (~180 MB)  
+- Linux: [CUBO_linux](https://github.com/PaoloAstrino/CUBO/releases/latest/download/CUBO_linux) (PyInstaller)
+
 ## 📚 Documentazione
 
 Guide dettagliate per sviluppatori e ricercatori:
@@ -68,7 +82,25 @@ Crediamo nel misurare, non nell'indovinare.
 *   **Latenza:** < 300ms per query (cache).
 *   **Ingestione:** ~150 pagine/secondo.
 
+## Benchmark Reali (embedding-gemma-300m, laptop 16 GB)
+
+| Dataset           | Dominio       | Recall@10 | Verdetto       |
+|-------------------|---------------|-----------|----------------|
+| UltraDomain-Legal | Legale        | 0.48      | ⭐ Forte        |
+| Politics          | Strutturato   | 0.97      | 🚀 Perfetto    |
+| NFCorpus          | Medico        | 0.17      | ⚠️ Bias dominio|
+| RAGBench-full     | Misto difficile| 0.30     | ⭐ Industria ok|
+
+_Didascalia: Forte su testo legale strutturato (nostro caso d'uso principale), più debole su gergo specializzato (affrontabile con router)._ 
+
 Vedi [examples/04_evaluation_benchmarking.ipynb](examples/04_evaluation_benchmarking.ipynb) per eseguire i tuoi benchmark.
+
+## Per chi è CUBO?
+
+- Avvocati / studi legali italiani che non possono caricare fascicoli su cloud (89% secondo nostro survey)
+- Medici / odontoiatri con cartelle cliniche sensibili
+- Ricercatori indipendenti che vogliono RAG locale senza bolletta AWS
+- Chi ha solo un laptop da 16 GB e vuole privacy assoluta
 
 ## 🤝 Contribuire
 

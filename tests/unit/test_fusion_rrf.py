@@ -7,7 +7,6 @@ and score normalization across different input scenarios.
 
 import pytest
 import numpy as np
-from typing import List, Dict
 
 
 class TestRRFFusion:

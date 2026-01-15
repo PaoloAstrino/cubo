@@ -94,6 +94,7 @@ def load_queries(queries_path: str, corpus_path: str = None) -> Dict[str, str]:
         first_query = next(iter(queries.values()), "")
         # Heuristic: if it looks like a hex/ID and is long enough
         import re
+
         if re.match(r"^[a-f0-9\-]+$", first_query) and len(first_query) >= 20:
             print(f"Detected ID-based queries (e.g., '{first_query}'). Resolving against corpus...")
             corpus_map = {}
@@ -103,17 +104,19 @@ def load_queries(queries_path: str, corpus_path: str = None) -> Dict[str, str]:
                         item = json.loads(line)
                         cid = item.get("_id")
                         if cid:
-                            corpus_map[str(cid)] = (item.get("title", "") + " " + item.get("text", "")).strip()
+                            corpus_map[str(cid)] = (
+                                item.get("title", "") + " " + item.get("text", "")
+                            ).strip()
                     except json.JSONDecodeError:
                         continue
-            
+
             resolved_count = 0
             for qid, query_val in queries.items():
                 if query_val in corpus_map:
                     queries[qid] = corpus_map[query_val]
                     resolved_count += 1
             print(f"Resolved {resolved_count}/{len(queries)} queries.")
-            
+
     return queries
 
 
@@ -186,6 +189,7 @@ def main():
 
     # Ensure results/logs exists and add a file handler for verbose logs
     from pathlib import Path
+
     logs_dir = Path("results/logs")
     logs_dir.mkdir(parents=True, exist_ok=True)
     logfile = logs_dir / f"beir_adapter_{Path(args.output).stem}.log"
@@ -212,7 +216,9 @@ def main():
     try:
         if args.reindex:
             log.info(f"Reindexing corpus from {args.corpus}...")
-            adapter.index_corpus(corpus_path=args.corpus, index_dir=args.index_dir, limit=args.limit)
+            adapter.index_corpus(
+                corpus_path=args.corpus, index_dir=args.index_dir, limit=args.limit
+            )
         else:
             log.info(f"Loading index from {args.index_dir}...")
             adapter.load_index(args.index_dir)

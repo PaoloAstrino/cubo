@@ -6,7 +6,7 @@ for evaluating generation quality (Faithfulness, Answer Relevance, Context Preci
 """
 
 import logging
-from typing import List, Optional, Union, Any
+from typing import List, Optional, Any
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
@@ -25,7 +25,6 @@ from datasets import Dataset
 
 from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.processing.generator import create_response_generator
-from cubo.processing.llm_local import LocalResponseGenerator
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-import glob, os, re, subprocess, json
+import glob
+import os
+import re
+import subprocess
+import json
 
 runs = sorted([r for r in glob.glob('results/beir_run_*.json') if not r.endswith('_metrics_k10.json')])
 if not runs:

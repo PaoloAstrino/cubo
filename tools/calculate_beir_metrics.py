@@ -11,7 +11,6 @@ Metrics calculated:
 """
 
 import json
-import os
 
 
 def _load_results(results_path: str) -> dict:
@@ -147,7 +146,7 @@ def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
     print(f"Avg Recall@{k}: {avg_recall:.4f}")
     print(f"Mean Reciprocal Rank: {avg_mrr:.4f}")
     print(f"Avg nDCG@{k}: {avg_ndcg:.4f}")
-    print(f"----------------------------------")
+    print("----------------------------------")
 
     # Save metrics to file
     metrics = {

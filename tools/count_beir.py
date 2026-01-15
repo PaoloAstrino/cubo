@@ -10,9 +10,7 @@ Output:
 """
 
 import os
-import json
 import csv
-from pathlib import Path
 
 
 def count_lines(filepath):

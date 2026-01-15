@@ -7,8 +7,6 @@ import argparse
 import json
 import subprocess
 import time
-import os
-from pathlib import Path
 
 
 def _build_base_command(dataset, queries, index_dir, top_k, output_file):

@@ -5,8 +5,6 @@ Extracts ingestion time, approximate RAM usage, and latency from existing runs.
 """
 import json
 import glob
-import os
-from pathlib import Path
 
 def extract_system_metrics():
     """

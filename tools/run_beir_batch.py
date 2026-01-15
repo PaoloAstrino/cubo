@@ -216,8 +216,8 @@ def generate_summary_markdown(results: list, output_path: Path):
     """Generate markdown summary of all results."""
     md = ["# BEIR Multi-Dataset Benchmark Results\n"]
     md.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-    md.append(f"**Model**: `embeddinggemma-300m`\n")
-    md.append(f"**Configuration**: Laptop Mode (optimized batch retrieval, no reranking)\n")
+    md.append("**Model**: `embeddinggemma-300m`\n")
+    md.append("**Configuration**: Laptop Mode (optimized batch retrieval, no reranking)\n")
 
     md.append("\n## Results Summary\n")
     md.append("| Dataset | Domain | Size | Queries | Recall@10 | MRR | Status |")

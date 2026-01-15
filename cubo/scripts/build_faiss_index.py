@@ -107,7 +107,7 @@ def _load_and_prepare_data(args):
     if args.dedup_map:
         df = _filter_to_representatives(df, args.id_column, args.dedup_map)
         logger.info(f"Filtered down to {len(df)} canonical documents after dedup application.")
-    
+
     return df
 
 
@@ -138,6 +138,7 @@ def _build_scaffold_index(df, args):
 def _save_scaffold_run(scaffolds_result, df, args):
     """Save scaffold outputs and return paths."""
     from uuid import uuid4
+
     from cubo.processing.scaffold import save_scaffold_run
 
     run_id = f"scaffold_{int(time.time())}_{uuid4().hex[:8]}"
@@ -146,7 +147,7 @@ def _save_scaffold_run(scaffolds_result, df, args):
         if getattr(args, "scaffold_output_dir", None)
         else Path(args.scaffold_dir)
     )
-    
+
     res = save_scaffold_run(
         run_id,
         scaffolds_result,
@@ -155,7 +156,7 @@ def _save_scaffold_run(scaffolds_result, df, args):
         input_chunks_df=df,
         id_column=args.id_column,
     )
-    
+
     logger.info(f"Scaffold outputs saved to {res['run_dir']} (manifest: {res['manifest']})")
     return res
 
@@ -202,7 +203,7 @@ def _enrich_chunks_if_needed(df, args):
     """Enrich chunks with summaries and keywords if requested."""
     if not args.enrich_chunks:
         return df
-    
+
     logger.info("Enriching chunks...")
     enricher = ChunkEnricher(llm_provider=create_response_generator())
     enriched_data = enricher.enrich_chunks(df[args.text_column].tolist())
@@ -214,7 +215,7 @@ def _enrich_chunks_if_needed(df, args):
     if args.output_parquet:
         df.to_parquet(args.output_parquet)
         logger.info(f"Enriched data saved to {args.output_parquet}")
-    
+
     return df
 
 
@@ -227,17 +228,17 @@ def _generate_embeddings(df, args):
     if not texts:
         logger.warning("No chunks found in parquet file; nothing to index")
         return None, None, 0
-    
+
     if len(texts) != len(ids):
         raise ValueError("Text and id columns must have the same length")
 
     generator = EmbeddingGenerator(batch_size=args.batch_size)
     embeddings = generator.encode(texts, batch_size=args.batch_size, prompt_name="document")
     dimension = len(embeddings[0]) if embeddings else 0
-    
+
     if dimension == 0:
         raise ValueError("Unable to determine embedding dimension")
-    
+
     return embeddings, ids, dimension
 
 
@@ -253,14 +254,14 @@ def _build_and_validate_index(embeddings, ids, dimension, args):
         opq_m=args.opq_m,
     )
     manager.build_indexes(embeddings, ids)
-    
+
     # Perform sample search to validate the index
     sample_query = embeddings[0]
     hits = manager.search(sample_query, k=min(5, len(ids)))
     logger.info(
         f"Sample search returned {len(hits)} hits (first id: {hits[0]['id'] if hits else 'none'})"
     )
-    
+
     return manager
 
 
@@ -270,20 +271,21 @@ def _publish_versioned_index(manager, args):
     version_tmp = Path(args.index_root) / f"faiss_v{ts}.tmp"
     final_version = Path(args.index_root) / f"faiss_v{ts}"
     manager.save(path=version_tmp)
-    
+
     # Atomic rename of dir: use os.replace; retry on transient errors
     try:
         os.replace(str(version_tmp), str(final_version))
     except Exception:
         # On some platforms, os.replace may fail for dir; fallback to rename
         os.rename(str(version_tmp), str(final_version))
-    
+
     if args.publish:
         publish_version(final_version, Path(args.index_root))
         logger.info(f"Published version {final_version}")
-    
+
     if args.cleanup:
         from cubo.indexing.index_publisher import cleanup
+
         cleanup(Path(args.index_root), keep_last_n=args.retention)
 
 

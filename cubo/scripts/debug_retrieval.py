@@ -39,25 +39,26 @@ def _query_and_display_vector_store(retriever):
     """Query vector store and display file statistics."""
     print("\n3. Querying all documents in vector store...")
     all_data = retriever.collection.get()
-    
+
     if not all_data or not all_data.get("metadatas"):
         print("   No documents found in database!")
         return False
-    
+
     filenames_in_db = set()
     for metadata in all_data["metadatas"]:
         if "filename" in metadata:
             filenames_in_db.add(metadata["filename"])
-    
+
     print(f"   Files in database: {sorted(filenames_in_db)}")
     print(f"   Total chunks: {len(all_data['ids'])}")
 
     from collections import Counter
+
     file_counts = Counter(m.get("filename", "Unknown") for m in all_data["metadatas"])
     print("\n   Chunks per file:")
     for filename, count in file_counts.most_common():
         print(f"     - {filename}: {count} chunks")
-    
+
     return True
 
 
@@ -67,7 +68,7 @@ def _check_auto_merging_retriever(retriever):
     if not retriever.auto_merging_retriever:
         print("   Auto-merging retriever not available")
         return
-    
+
     auto_collection = retriever.auto_merging_retriever.collection.get()
     if auto_collection and auto_collection.get("metadatas"):
         auto_filenames = set()
@@ -133,7 +134,7 @@ def _test_query(retriever, query):
     print(f"\n{'='*80}")
     print(f"Query: '{security_manager.scrub(query)}'")
     print(f"{'='*80}")
-    
+
     _test_sentence_window(retriever, query)
     _test_auto_merging(retriever, query)
     _test_hybrid_retrieval(retriever, query)
@@ -148,11 +149,11 @@ def test_retrieval():
     core = CuboCore()
     retriever = _initialize_and_display_components(core)
     _check_database_contents(retriever)
-    
+
     has_data = _query_and_display_vector_store(retriever)
     if not has_data:
         return
-    
+
     _check_auto_merging_retriever(retriever)
 
     test_queries = [

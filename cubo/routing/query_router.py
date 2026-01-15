@@ -81,7 +81,7 @@ class QueryRouter:
         cached = self._llm_cache.get(text)
         if not cached:
             return None
-        
+
         now = time.time()
         if now - cached["ts"] < self.llm_cache_ttl:
             return cached["label"], cached["confidence"], True
@@ -110,11 +110,11 @@ class QueryRouter:
         """Try LLM fallback if confidence is low."""
         if current_confidence >= self.confidence_threshold or not self._llm_client:
             return None
-        
+
         cached = self._check_cache(text)
         if cached:
             return cached
-        
+
         return self._call_llm_classifier(text)
 
     def _classify_by_pattern(self, text):
@@ -133,16 +133,16 @@ class QueryRouter:
         text = (query or "").strip()
         if not text:
             return QueryType.EXPLORATORY, 0.5, False
-        
+
         pattern_result = self._classify_by_pattern(text)
         if pattern_result:
             return pattern_result
-        
+
         # Fallback: exploratory with optional LLM
         llm_result = self._try_llm_fallback(text, 0.5)
         if llm_result:
             return llm_result
-        
+
         return QueryType.EXPLORATORY, 0.5, False
 
     def extract_temporal_filter(

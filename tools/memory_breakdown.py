@@ -175,7 +175,7 @@ def main():
         ax.set_ylabel('Memory (MB)')
         plt.title('Memory breakdown (sample run)')
         plt.tight_layout()
-        out_png = PLOTS_DIR / f'memory_breakdown_sample.png'
+        out_png = PLOTS_DIR / 'memory_breakdown_sample.png'
         plt.savefig(out_png, dpi=200)
         print('Wrote plot to', out_png)
     except Exception as e:

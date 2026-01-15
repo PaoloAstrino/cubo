@@ -5,7 +5,6 @@ Converts data/ultradomain/{category}.jsonl files into data/beir/ultradomain_{cat
 """
 
 import json
-import os
 import hashlib
 from pathlib import Path
 
@@ -122,7 +121,7 @@ def prepare_category(category, limit_docs=2000):
     _load_data_from_source(src_file, corpus, queries, qrels, limit_docs)
     _write_corpus(dest_dir, corpus)
     
-    print(f"Writing queries and qrels...")
+    print("Writing queries and qrels...")
     valid_qids = _write_qrels_and_collect_valid_queries(dest_dir, corpus, qrels)
     _write_queries(dest_dir, queries, valid_qids)
 

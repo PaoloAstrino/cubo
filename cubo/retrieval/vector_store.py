@@ -396,7 +396,7 @@ class FaissStore(VectorStore):
                 # Add emoji column to existing DBs if missing (safe migration)
                 cursor = conn.execute("PRAGMA table_info('collections')")
                 columns = [row[1] for row in cursor.fetchall()]
-                if 'emoji' not in columns:
+                if "emoji" not in columns:
                     try:
                         conn.execute("ALTER TABLE collections ADD COLUMN emoji TEXT DEFAULT ''")
                         conn.commit()
@@ -459,7 +459,7 @@ class FaissStore(VectorStore):
 
         # Use configured dtype for persistence (float16 saves 50% space)
         target_dtype = config.get("vector_store.embedding_dtype", "float32")
-        
+
         if not isinstance(vector, np.ndarray) or str(vector.dtype) != target_dtype:
             vector = np.array(vector, dtype=target_dtype)
 
@@ -628,9 +628,9 @@ class FaissStore(VectorStore):
         training_vectors = []
 
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-             # Use parameterized LIMIT to avoid dynamic SQL construction flagged by security scanners
-             cursor = conn.execute("SELECT id FROM vectors LIMIT ?", (int(sample_size),))
-             sample_ids = [r[0] for r in cursor]
+            # Use parameterized LIMIT to avoid dynamic SQL construction flagged by security scanners
+            cursor = conn.execute("SELECT id FROM vectors LIMIT ?", (int(sample_size),))
+            sample_ids = [r[0] for r in cursor]
 
         if sample_ids:
             logger.info(f"Fetching training sample ({len(sample_ids)} vectors)...")
@@ -1155,7 +1155,9 @@ class FaissStore(VectorStore):
     # Collection Management Methods
     # =========================================================================
 
-    def create_collection(self, name: str, color: str = "#2563eb", emoji: Optional[str] = "") -> Dict[str, Any]:
+    def create_collection(
+        self, name: str, color: str = "#2563eb", emoji: Optional[str] = ""
+    ) -> Dict[str, Any]:
         """Create a new document collection.
 
         Args:
@@ -1179,7 +1181,7 @@ class FaissStore(VectorStore):
             try:
                 conn.execute(
                     "INSERT INTO collections (id, name, created_at, color, emoji) VALUES (?, ?, ?, ?, ?)",
-                    (collection_id, name, created_at, color, emoji or ''),
+                    (collection_id, name, created_at, color, emoji or ""),
                 )
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -1189,7 +1191,7 @@ class FaissStore(VectorStore):
             "id": collection_id,
             "name": name,
             "color": color,
-            "emoji": emoji or '',
+            "emoji": emoji or "",
             "created_at": created_at,
             "document_count": 0,
         }
@@ -1369,16 +1371,14 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                 "SELECT document_id FROM collection_documents WHERE collection_id = ?",
                 (collection_id,),
             ).fetchall()
-            
+
             if not collection_doc_ids:
                 return []
-            
+
             collection_filenames = {row[0] for row in collection_doc_ids}
-            
+
             # Now find all documents whose metadata contains these filenames
-            rows = conn.execute(
-                "SELECT DISTINCT metadata FROM documents"
-            ).fetchall()
+            rows = conn.execute("SELECT DISTINCT metadata FROM documents").fetchall()
 
         filenames = set()
         for row in rows:

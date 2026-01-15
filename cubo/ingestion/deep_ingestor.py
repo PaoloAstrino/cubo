@@ -113,10 +113,11 @@ class DeepIngestor:
             df.to_parquet(temp_file, index=False, engine="pyarrow")
             self._temp_parquet_files.append(temp_file)
             logger.debug(f"Flushed {len(chunks)} chunks to {temp_file.name}")
-            
+
             # Explicitly trigger GC to free memory from chunk dictionaries and df
             del df
             import gc
+
             gc.collect()
         except Exception as e:
             logger.warning(f"Failed to flush chunk batch: {e}")
@@ -143,7 +144,7 @@ class DeepIngestor:
             appended_dfs = self._load_temp_parquets()
             if not appended_dfs:
                 return None
-            
+
             appended_df = pd.concat(appended_dfs, ignore_index=True)
             appended_path = final_path.with_name(f"chunks_deep_appended_{self._run_id}.parquet")
             appended_df.to_parquet(appended_path, index=False, engine="pyarrow")
@@ -178,13 +179,15 @@ class DeepIngestor:
             if all_dfs:
                 merged_df = pd.concat(all_dfs, ignore_index=True)
                 merged_df.to_parquet(final_path, index=False, engine="pyarrow")
-                
+
                 # If resuming, also write appended-only parquet
                 result = None
                 if resume:
                     result = self._save_appended_parquet(final_path)
-                
-                logger.info(f"Merged {len(self._temp_parquet_files)} temp files into {final_path.name}")
+
+                logger.info(
+                    f"Merged {len(self._temp_parquet_files)} temp files into {final_path.name}"
+                )
                 return result
         finally:
             # Clean up temp files
@@ -204,11 +207,11 @@ class DeepIngestor:
         """Get set of already processed files when resuming."""
         if not resume:
             return set()
-        
+
         existing_parquet = self.output_dir / "chunks_deep.parquet"
         if not existing_parquet.exists():
             return set()
-        
+
         try:
             existing_df = pd.read_parquet(existing_parquet)
             processed_set = set(existing_df["file_path"].tolist())
@@ -229,7 +232,7 @@ class DeepIngestor:
                 manager.record_ingestion_run(run_id, str(self.input_folder), 0, None)
             except Exception:
                 logger.warning("Failed to record deep ingestion run (auto)")
-        
+
         try:
             manager.update_ingestion_status(
                 run_id, "running", started_at=pd.Timestamp.utcnow().isoformat()
@@ -243,14 +246,10 @@ class DeepIngestor:
         total_chunks = 0
         processed_files = []
 
-        logger.info(
-            f"Ingesting {len(files_to_process)} files with {self.n_workers} workers"
-        )
-        
+        logger.info(f"Ingesting {len(files_to_process)} files with {self.n_workers} workers")
+
         with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-            future_to_path = {
-                executor.submit(self._process_file, p): p for p in files_to_process
-            }
+            future_to_path = {executor.submit(self._process_file, p): p for p in files_to_process}
 
             for future in as_completed(future_to_path):
                 path = future_to_path[future]
@@ -271,7 +270,7 @@ class DeepIngestor:
                 except Exception as exc:
                     logger.warning(f"Failed processing file {path}: {exc}")
                     self._mark_file_failure(manager, run_id, path, exc, size_bytes)
-        
+
         return current_batch, total_chunks, processed_files
 
     def _process_files_sequential(self, files_to_process, manager, run_id):
@@ -304,7 +303,7 @@ class DeepIngestor:
                 logger.warning(f"Failed processing file {path}: {exc}")
                 self._mark_file_failure(manager, run_id, path, exc, size_bytes)
                 continue
-        
+
         return current_batch, total_chunks, processed_files
 
     def _get_file_size(self, path: Path) -> Optional[int]:
@@ -321,14 +320,18 @@ class DeepIngestor:
         except Exception:
             logger.debug("Unable to mark file succeeded; continuing")
 
-    def _mark_file_failure(self, manager, run_id: str, path: Path, exc: Exception, size_bytes: Optional[int]):
+    def _mark_file_failure(
+        self, manager, run_id: str, path: Path, exc: Exception, size_bytes: Optional[int]
+    ):
         """Mark file as failed with error message."""
         try:
             manager.mark_file_failed(run_id, str(path), error=str(exc), size_bytes=size_bytes)
         except Exception:
             logger.debug("Unable to mark file failed; continuing")
 
-    def _finalize_ingestion(self, manager, run_id: str, total_chunks: int, processed_files: List[str], resume: bool) -> Dict[str, Any]:
+    def _finalize_ingestion(
+        self, manager, run_id: str, total_chunks: int, processed_files: List[str], resume: bool
+    ) -> Dict[str, Any]:
         """Finalize ingestion by merging temp files and creating manifest."""
         if total_chunks == 0 and not self._temp_parquet_files:
             logger.warning("Deep ingest produced no chunks")
@@ -558,16 +561,16 @@ class DeepIngestor:
         text = page.extract_text()
         if not text:
             return []
-        
+
         pdf_chunker = self.chunker_factory.for_pdf()
         s_chunks = pdf_chunker.chunk(text, window_size=self.chunking_config.get("window_size", 3))
-        
+
         for c in s_chunks:
             c["type"] = "text"
             c["page"] = page_num
             c["page_index"] = page_num
             c["chunk_index"] = c.get("chunk_index", 0)
-        
+
         return s_chunks
 
     def _extract_page_tables(self, page, page_num: int, chunk_count: int) -> list:
@@ -577,55 +580,59 @@ class DeepIngestor:
 
         chunks = []
         tables = page.extract_tables()
-        
+
         for t_idx, table in enumerate(tables):
             if not table:
                 continue
-            
+
             # Build structured CSV text
             sio = StringIO()
             writer = csv.writer(sio)
             for row in table:
                 writer.writerow([cell if cell is not None else "" for cell in row])
             table_text = sio.getvalue()
-            
+
             # Extract metadata
             n_rows = len(table)
             n_cols = max((len(r) for r in table), default=0)
             sample_rows = table[:3]
-            
-            chunks.append({
-                "text": table_text,
-                "type": "table",
-                "chunk_index": chunk_count + len(chunks),
-                "page": page_num,
-                "table_index": t_idx,
-                "table_metadata": {
-                    "n_rows": n_rows,
-                    "n_cols": n_cols,
-                    "sample_rows": sample_rows,
-                },
-            })
-        
+
+            chunks.append(
+                {
+                    "text": table_text,
+                    "type": "table",
+                    "chunk_index": chunk_count + len(chunks),
+                    "page": page_num,
+                    "table_index": t_idx,
+                    "table_metadata": {
+                        "n_rows": n_rows,
+                        "n_cols": n_cols,
+                        "sample_rows": sample_rows,
+                    },
+                }
+            )
+
         return chunks
 
     def _ocr_fallback(self, path: Path) -> list:
         """Apply OCR fallback for scanned PDFs."""
         if not self.ocr_processor.enabled:
             return []
-        
+
         logger.info(f"No text found in {path}, attempting OCR fallback")
         ocr_text = self.ocr_processor.extract_text(str(path))
         if not ocr_text:
             return []
-        
+
         pdf_chunker = self.chunker_factory.for_pdf()
-        s_chunks = pdf_chunker.chunk(ocr_text, window_size=self.chunking_config.get("window_size", 3))
-        
+        s_chunks = pdf_chunker.chunk(
+            ocr_text, window_size=self.chunking_config.get("window_size", 3)
+        )
+
         for c in s_chunks:
             c["type"] = "text_ocr"
             c["chunk_index"] = c.get("chunk_index", 0)
-        
+
         return s_chunks
 
     def _process_pdf(self, path: Path) -> List[Dict[str, Any]]:
@@ -636,7 +643,7 @@ class DeepIngestor:
 
         chunks: List[Dict[str, Any]] = []
         has_text = False
-        
+
         try:
             with pdfplumber.open(str(path)) as pdf:
                 for page_num, page in enumerate(pdf.pages):
@@ -645,7 +652,7 @@ class DeepIngestor:
                     if text_chunks:
                         has_text = True
                         chunks.extend(text_chunks)
-                    
+
                     # Extract tables
                     table_chunks = self._extract_page_tables(page, page_num, len(chunks))
                     chunks.extend(table_chunks)

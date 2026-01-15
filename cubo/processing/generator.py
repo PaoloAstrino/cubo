@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 try:
     import ollama
@@ -163,7 +163,9 @@ class ResponseGenerator:
                 logger.warning("LLM returned empty response")
                 assistant_content = "I apologize, but I was unable to generate a response based on the provided context. Please try rephrasing your question."
 
-            logger.info(f"Stream completed: answer_length={len(assistant_content)}, tokens={len(accumulated)}")
+            logger.info(
+                f"Stream completed: answer_length={len(assistant_content)}, tokens={len(accumulated)}"
+            )
 
             if trace_id:
                 try:
@@ -171,7 +173,11 @@ class ResponseGenerator:
                         trace_id,
                         "generator",
                         "generator.stream_completed",
-                        {"duration_ms": duration_ms, "tokens": len(accumulated), "answer_length": len(assistant_content)},
+                        {
+                            "duration_ms": duration_ms,
+                            "tokens": len(accumulated),
+                            "answer_length": len(assistant_content),
+                        },
                     )
                 except Exception:
                     pass

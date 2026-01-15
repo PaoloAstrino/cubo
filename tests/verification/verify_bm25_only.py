@@ -1,9 +1,6 @@
-import json
 import shutil
-import sqlite3
 import tempfile
 import unittest
-from pathlib import Path
 
 # Only import BM25 store
 from cubo.retrieval.bm25_sqlite_store import BM25SqliteStore

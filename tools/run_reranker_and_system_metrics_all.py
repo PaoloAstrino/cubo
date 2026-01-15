@@ -3,7 +3,11 @@
 
 Usage: python tools/run_reranker_and_system_metrics_all.py
 """
-import subprocess, glob, os, shutil, time, json
+import subprocess
+import glob
+import os
+import shutil
+import time
 
 datasets = [
     'fiqa', 'scifact', 'arguana', 'nfcorpus', 'ultradomain_medium', 'ultradomain_legal', 'ultradomain_politics', 'ultradomain_agriculture', 'scidocs', 'ragbench_merged'

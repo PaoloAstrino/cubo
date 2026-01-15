@@ -4,8 +4,6 @@ import argparse
 import json
 import subprocess
 import time
-import os
-from statistics import median
 import psutil
 
 

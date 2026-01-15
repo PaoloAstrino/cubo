@@ -15,9 +15,7 @@ Notes:
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
-import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BEIR_DIR = REPO_ROOT / "data" / "beir"

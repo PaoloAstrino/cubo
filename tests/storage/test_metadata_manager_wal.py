@@ -1,6 +1,4 @@
 import sqlite3
-import pytest
-from pathlib import Path
 from cubo.storage.metadata_manager import MetadataManager
 
 def test_metadata_manager_wal_mode(tmp_path):

@@ -278,7 +278,7 @@ class RetrievalExecutor:
             # This allows the store to use set intersection with posting lists (O(K))
             # instead of linearly scanning a filtered list of docs (O(N)).
             bm25_docs = getattr(self.bm25, "docs", [])
-            
+
             if not current_documents and bm25_docs:
                 # Fast path: full corpus search
                 results = self.bm25.search(query, top_k=top_k)
@@ -426,6 +426,7 @@ class RetrievalExecutor:
         """Tokenize text into words using MultilingualTokenizer."""
         try:
             from cubo.retrieval.multilingual_tokenizer import tokenize_multilingual
+
             # Auto-detect language and stem
             return tokenize_multilingual(text, language="auto", use_stemming=True)
         except ImportError:

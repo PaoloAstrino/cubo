@@ -17,10 +17,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
 
-from evaluation.metrics import AdvancedEvaluator
-
 from cubo.main import CUBOApp
 from cubo.security.security import security_manager
+from evaluation.metrics import AdvancedEvaluator
 
 # Set up logging
 logging.basicConfig(
@@ -272,7 +271,9 @@ class RAGTester:
         """Compute average evaluation scores."""
         avg_relevance = sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0
         avg_context = sum(context_scores) / len(context_scores) if context_scores else 0
-        avg_groundedness = sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
+        avg_groundedness = (
+            sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
+        )
         return avg_relevance, avg_context, avg_groundedness
 
     def _calculate_difficulty_stats(self, difficulty, results, evaluation_metrics):
@@ -317,7 +318,7 @@ class RAGTester:
         for difficulty in ["easy", "medium", "hard"]:
             results = self.results["results"][difficulty]
             all_results.extend(results)
-            
+
             difficulty_stats = self._calculate_difficulty_stats(
                 difficulty, results, evaluation_metrics
             )
@@ -405,8 +406,12 @@ class RAGTester:
             print(f"    Questions: {stats['total']}")
             print(".1f")
             print(".2f")
-            self._print_metric_if_present(stats, "avg_answer_relevance", "      Avg Answer Relevance")
-            self._print_metric_if_present(stats, "avg_context_relevance", "      Avg Context Relevance")
+            self._print_metric_if_present(
+                stats, "avg_answer_relevance", "      Avg Answer Relevance"
+            )
+            self._print_metric_if_present(
+                stats, "avg_context_relevance", "      Avg Context Relevance"
+            )
             self._print_metric_if_present(stats, "avg_groundedness", "      Avg Groundedness")
 
         print("\nDetailed results saved to test_results.json")

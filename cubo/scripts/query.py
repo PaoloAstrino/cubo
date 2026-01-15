@@ -36,14 +36,14 @@ def _initialize_components(args):
 
     bm25_searcher = BM25Searcher(chunks_jsonl=chunks_jsonl, bm25_stats=bm25_stats)
     embedding_generator = EmbeddingGenerator()
-    
+
     faiss_manager = FAISSIndexManager(
         dimension=0,
         index_dir=Path(faiss_index_dir),
         index_root=Path(faiss_index_root) if faiss_index_root else None,
     )
     faiss_manager.load()
-    
+
     return bm25_searcher, embedding_generator, faiss_manager
 
 
@@ -53,12 +53,14 @@ def _initialize_reranker(embedding_generator, top_k):
         reranker_model = config.get("retrieval.reranker_model", None)
         if reranker_model:
             from cubo.rerank.reranker import CrossEncoderReranker
+
             return CrossEncoderReranker(model_name=reranker_model, top_n=top_k)
     except Exception:
         pass
-    
+
     try:
         from cubo.rerank.reranker import LocalReranker
+
         return LocalReranker(embedding_generator.model)
     except Exception:
         return None

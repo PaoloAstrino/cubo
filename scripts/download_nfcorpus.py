@@ -10,8 +10,6 @@ The script:
 3. Provides progress feedback during download
 """
 
-import os
-import shutil
 import zipfile
 from pathlib import Path
 
@@ -51,7 +49,7 @@ def download_nfcorpus(output_dir="data/beir/nfcorpus"):
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall("data/beir")
 
-    print(f"Data ready at data/beir/nfcorpus")
+    print("Data ready at data/beir/nfcorpus")
 
 
 if __name__ == "__main__":

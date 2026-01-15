@@ -615,8 +615,11 @@ class DocumentRetriever:
             query_embedding = self.executor.generate_query_embedding(query)
 
             # Increase initial candidate pool for better RRF fusion quality.
-            from cubo.retrieval.constants import INITIAL_RETRIEVAL_MULTIPLIER, MIN_CANDIDATE_POOL_SIZE
-            
+            from cubo.retrieval.constants import (
+                INITIAL_RETRIEVAL_MULTIPLIER,
+                MIN_CANDIDATE_POOL_SIZE,
+            )
+
             # Calculate pool size: max(min_pool, top_k * multiplier)
             default_k = max(MIN_CANDIDATE_POOL_SIZE, top_k * INITIAL_RETRIEVAL_MULTIPLIER)
             retrieval_k = int(strategy.get("k_candidates", default_k)) if strategy else default_k

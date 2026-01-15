@@ -1,7 +1,4 @@
-import gc
-import pytest
-from unittest.mock import MagicMock, patch
-import pandas as pd
+from unittest.mock import patch
 from cubo.ingestion.deep_ingestor import DeepIngestor
 
 def test_explicit_gc_on_flush(tmp_path):

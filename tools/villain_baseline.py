@@ -12,7 +12,7 @@ def get_ram_usage():
 
 
 def run_baseline_villain(corpus_path: str, limit: int = 100000):
-    print(f"--- Starting Baseline 'Villain' Test (In-Memory) ---")
+    print("--- Starting Baseline 'Villain' Test (In-Memory) ---")
     print(f"Loading corpus from {corpus_path}...")
 
     start_time = time.time()
@@ -38,7 +38,7 @@ def run_baseline_villain(corpus_path: str, limit: int = 100000):
 
         total_time = time.time() - start_time
         final_usage = get_ram_usage()
-        print(f"--- SUCCESS (or luck) ---")
+        print("--- SUCCESS (or luck) ---")
         print(f"Total Loaded: {len(memory_store)} docs")
         print(f"Final RAM: {final_usage:.2f} MB")
         print(f"Time: {total_time:.2f} seconds")

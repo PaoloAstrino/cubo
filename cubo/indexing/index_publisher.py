@@ -24,7 +24,7 @@ def _load_and_validate_metadata(dir_path: Path) -> tuple:
         raise FileNotFoundError(f"metadata.json missing in {dir_path}")
     with open(meta_path, encoding="utf-8") as fh:
         metadata = json.load(fh)
-    
+
     dimension = metadata.get("dimension")
     if dimension is None:
         raise ValueError("Missing dimension in metadata")
@@ -66,11 +66,12 @@ def _run_sanity_check(manager, ntotal_hot: int, ntotal_cold: int):
     """Run sanity check search on index manager."""
     if (ntotal_hot + ntotal_cold) == 0:
         return
-    
+
     import numpy as _np
+
     sample_vec = _np.zeros((manager.dimension,), dtype="float32")
     results = manager.search(sample_vec.tolist(), k=1)
-    
+
     if (ntotal_hot + ntotal_cold) > 0 and len(results) == 0:
         raise RuntimeError("Index loaded but sanity search returned zero results")
 
@@ -81,7 +82,7 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
     Raises Exception on failure.
     """
     metadata, dimension = _load_and_validate_metadata(dir_path)
-    
+
     # Verify index files
     try:
         _verify_index_files(dir_path, metadata)
@@ -91,9 +92,10 @@ def _verify_index_dir(dir_path: Path) -> Dict[str, Optional[str]]:
     # Load and sanity check
     try:
         from cubo.indexing.faiss_index import FAISSIndexManager
+
         manager = FAISSIndexManager(dimension=dimension, index_dir=dir_path)
         manager.load()
-        
+
         ntotal_hot, ntotal_cold = _get_index_totals(manager)
         _run_sanity_check(manager, ntotal_hot, ntotal_cold)
     except Exception as exc:

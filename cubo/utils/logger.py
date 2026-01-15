@@ -206,6 +206,7 @@ class Logger:
 
     def _create_trace_filter(self):
         """Create TraceIDFilter class for attaching trace_id to log records."""
+
         class TraceIDFilter(logging.Filter):
             def filter(self, record):
                 trace = get_current_trace_id()
@@ -214,6 +215,7 @@ class Logger:
                 except Exception:
                     pass
                 return True
+
         return TraceIDFilter()
 
     def _setup_queue_handler(self, root_logger, handler, trace_filter):
@@ -242,7 +244,7 @@ class Logger:
         if not STRUCTLOG_AVAILABLE:
             self.logger = logging.getLogger("cubo")
             return
-        
+
         # Add processor to attach trace_id from ContextVar to every event dict
         def _structlog_add_trace_id(logger, method_name, event_dict):
             try:
@@ -298,7 +300,7 @@ class Logger:
             handler.addFilter(trace_filter)
         except Exception:
             pass
-        
+
         # Attach filter to logger instance if available
         try:
             if hasattr(self.logger, "logger"):
@@ -316,10 +318,11 @@ class Logger:
 
         # Configure structlog
         self._configure_structlog(trace_filter)
-        
+
         # Export logger as module-level variable
         try:
             import sys
+
             module = sys.modules[__name__]
             module.logger = self.logger
         except Exception:

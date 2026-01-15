@@ -1,5 +1,4 @@
-import pytest
-from cubo.retrieval.multilingual_tokenizer import MultilingualTokenizer, tokenize_multilingual
+from cubo.retrieval.multilingual_tokenizer import MultilingualTokenizer
 from cubo.retrieval.bm25_python_store import BM25PythonStore
 
 def test_multilingual_stemming_italian():

@@ -7,8 +7,6 @@ index building, reuse, and proper output generation.
 
 import pytest
 import subprocess
-import tempfile
-import shutil
 import json
 from pathlib import Path
 

@@ -12,11 +12,11 @@ The script processes all test split parquet files in the data/ragbench directory
 and merges them into a single BEIR-compatible dataset.
 """
 
-import pandas as pd
-import json
 import hashlib
-import os
+import json
 from pathlib import Path
+
+import pandas as pd
 
 
 def prepare_ragbench(limit_per_file=None):
@@ -36,7 +36,7 @@ def prepare_ragbench(limit_per_file=None):
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     corpus = {}  # doc_hash -> doc_content
-    queries = [] # list of (qid, text, relevant_docs)
+    queries = []  # list of (qid, text, relevant_docs)
 
     print("Processing RAGBench parquet files...")
 
@@ -55,7 +55,7 @@ def prepare_ragbench(limit_per_file=None):
 
         for idx, row in df.iterrows():
             question = row["question"]
-            docs_list = row["documents"] # list of strings
+            docs_list = row["documents"]  # list of strings
 
             qid = str(row["id"]) if "id" in row else f"{fpath.stem}_{idx}"
 
@@ -67,11 +67,7 @@ def prepare_ragbench(limit_per_file=None):
                     corpus[doc_id] = doc_text
                 relevant_doc_ids.append(doc_id)
 
-            queries.append({
-                "_id": qid,
-                "text": question,
-                "relevant_ids": relevant_doc_ids
-            })
+            queries.append({"_id": qid, "text": question, "relevant_ids": relevant_doc_ids})
 
     print(f"Total Queries: {len(queries)}")
     print(f"Total Unique Documents: {len(corpus)}")

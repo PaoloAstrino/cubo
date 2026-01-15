@@ -6,11 +6,10 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from cubo.config import config
 from cubo.retrieval.bm25_store import BM25Store
-from cubo.utils.logger import logger
 
 
 class BM25SqliteStore(BM25Store):
@@ -244,7 +243,7 @@ class BM25SqliteStore(BM25Store):
             # So -5.0 (better) < -1.0 (worse).
             # So ORDER BY bm25(docs_fts) ASC puts -5.0 first. Correct.
 
-            sql = f"""
+            sql = """
                 SELECT id, text, metadata, bm25(docs_fts) as score 
                 FROM docs_fts 
                 WHERE docs_fts MATCH ? 
@@ -266,7 +265,9 @@ class BM25SqliteStore(BM25Store):
 
             # The FTS query string is composed from strictly alphanumeric, sanitized tokens
             # and passed as a parameter to avoid SQL injection; mark as nosec for Bandit B608
-            cursor = conn.execute(sql, (fts_query, top_k * 5 if subset_ids else top_k))  # nosec: B608
+            cursor = conn.execute(
+                sql, (fts_query, top_k * 5 if subset_ids else top_k)
+            )  # nosec: B608
             # Fetch more if we need to filter
 
             for row in cursor:

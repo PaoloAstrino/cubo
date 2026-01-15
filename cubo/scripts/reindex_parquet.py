@@ -38,7 +38,7 @@ def _load_parquet_data(parquet_path):
     if df is None or df.shape[0] == 0:
         logger.warning(f"Parquet {parquet_path} has no rows; nothing to reindex")
         return None, None, None
-    
+
     texts = df["text"].tolist()
     chunk_ids = df["chunk_id"].tolist()
     metadatas = df.drop(columns=["text"]).to_dict(orient="records")
@@ -49,10 +49,11 @@ def _wipe_index_if_requested(args):
     """Wipe FAISS index directory if requested."""
     if not args.wipe_db:
         return
-    
+
     index_path = config.get("vector_store_path", "./faiss_index")
     try:
         from shutil import rmtree
+
         rmtree(index_path)
         logger.info(f"Wiped FAISS index folder {index_path}")
     except Exception as e:
@@ -70,7 +71,7 @@ def _reset_collection_if_requested(args, retriever):
     """Reset collection if requested."""
     if not args.replace_collection:
         return
-    
+
     reset_fn = getattr(retriever.collection, "reset", None)
     if callable(reset_fn):
         reset_fn()

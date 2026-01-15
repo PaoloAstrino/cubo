@@ -43,7 +43,7 @@ class FileLoader:
         """Detect text column in DataFrame using heuristics."""
         if text_col:
             return text_col
-        
+
         if "text" in df.columns:
             return "text"
         elif "content" in df.columns:
@@ -60,7 +60,7 @@ class FileLoader:
         text = str(row.get(text_col, ""))
         if not text or text.strip() == "":
             return None
-        
+
         return {
             "filename": Path(csv_path).name,
             "file_hash": "",
