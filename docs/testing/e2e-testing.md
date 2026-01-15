@@ -1,4 +1,4 @@
-# Running E2E Integration Tests
+# End-to-End Integration Tests
 
 ## Quick Start
 

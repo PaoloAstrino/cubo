@@ -5,8 +5,11 @@ Usage: python tools/worker_retrieve.py --index-dir results/beir_index_nfcorpus -
 import argparse
 import json
 import time
+import sys
+from pathlib import Path
 from datetime import datetime
-from cubo.adapters.beir_adapter import CuboBeirAdapter
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from evaluation.beir_adapter import CuboBeirAdapter
 
 
 def load_queries(path):

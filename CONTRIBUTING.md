@@ -1,4 +1,4 @@
-# Contributing to Cubo
+# Contributing
 
 We welcome contributions! Please follow these steps:
 

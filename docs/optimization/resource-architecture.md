@@ -1,4 +1,4 @@
-# CUBO - Local RAG Architectural Optimization Guide
+# Local RAG Architectural Optimization Guide
 
 This document serves as the technical "Source of Truth" for the architectural decisions and optimizations implemented in the CUBO RAG system. These changes ensure top-tier performance, stability, and resource efficiency for a 100% offline document assistant running on personal hardware.
 

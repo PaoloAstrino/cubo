@@ -5,6 +5,8 @@ import json
 import subprocess
 import time
 import psutil
+import sys
+import os
 
 
 def monitor_process_and_wait(proc):
@@ -30,10 +32,11 @@ def monitor_process_and_wait(proc):
 
 
 def run_index_worker(corpus, index_dir, limit=0):
-    cmd = ['python', 'tools/worker_index.py', '--corpus', corpus, '--index-dir', index_dir]
+    # Use the same Python executable and module invocation to preserve package imports
+    cmd = [sys.executable, '-m', 'tools.worker_index', '--corpus', corpus, '--index-dir', index_dir]
     if limit:
         cmd += ['--limit', str(limit)]
-    proc = subprocess.Popen(cmd)
+    proc = subprocess.Popen(cmd, env=os.environ.copy())
     peak = monitor_process_and_wait(proc)
     if proc.returncode != 0:
         raise RuntimeError('index worker failed')
@@ -47,8 +50,8 @@ def run_index_worker(corpus, index_dir, limit=0):
 def run_query_benchmark(index_dir, queries, top_k):
     # Reuse worker_retrieve to get latencies and run
     out = f"results/system_query_run_topk{top_k}.json"
-    cmd = ['python', 'tools/worker_retrieve.py', '--index-dir', index_dir, '--queries', queries, '--output', out, '--top-k', str(top_k), '--mode', 'no_rerank']
-    proc = subprocess.Popen(cmd)
+    cmd = [sys.executable, '-m', 'tools.worker_retrieve', '--index-dir', index_dir, '--queries', queries, '--output', out, '--top-k', str(top_k), '--mode', 'no_rerank']
+    proc = subprocess.Popen(cmd, env=os.environ.copy())
     peak = monitor_process_and_wait(proc)
     if proc.returncode != 0:
         raise RuntimeError('query worker failed')

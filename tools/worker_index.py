@@ -4,7 +4,10 @@ Usage: python tools/worker_index.py --corpus data/beir/nfcorpus/corpus.jsonl --i
 """
 import argparse
 import time
-from cubo.adapters.beir_adapter import CuboBeirAdapter
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from evaluation.beir_adapter import CuboBeirAdapter
 
 
 def main():

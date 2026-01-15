@@ -245,7 +245,7 @@ reranker.save('models/colbert-v2')
 
 ---
 
-## 4. LAYER 1: INGESTION PIPELINE
+## 4. INGESTION PIPELINE
 
 ### 4.1 Fast Pass Ingestion (2-3 minutes)
 
@@ -604,7 +604,7 @@ print(f"Deep Processing Complete: {len(all_chunks)} chunks extracted")
 
 ---
 
-## 5. LAYER 2: LLM PROCESSING
+## 5. LLM PROCESSING
 
 ### 5.1 LLM Setup (llama.cpp)
 
@@ -758,7 +758,7 @@ processed_df.to_parquet('output/chunks_llm_processed.parquet')
 
 ---
 
-## 6. LAYER 3: EMBEDDING GENERATION
+## 6. EMBEDDING GENERATION
 
 ### 6.1 Dense Embeddings (Sentence-BERT)
 
@@ -857,7 +857,7 @@ sparse_results = bm25.search("machine learning algorithms", limit=500)
 
 ---
 
-## 7. LAYER 4: DEDUPLICATION SYSTEM
+## 7. DEDUPLICATION SYSTEM
 
 ### 7.1 Text Deduplication (Non-Destructive Graph)
 
@@ -1062,7 +1062,7 @@ with open('output/virtual_tables.json', 'w') as f:
 
 ---
 
-## 8. LAYER 5: SEMANTIC COMPRESSION
+## 8. SEMANTIC COMPRESSION
 
 ### 8.1 Semantic Scaffold Creation
 
@@ -1141,7 +1141,7 @@ print(f"Compression achieved: {scaffold_df['compression_ratio'].mean():.1f}x ave
 
 ---
 
-## 9. LAYER 6: VECTOR INDEXING
+## 9. VECTOR INDEXING
 
 ### 9.1 Hot/Cold Storage Implementation
 
@@ -1327,7 +1327,7 @@ print(f"Found {len(results)} results")
 
 ---
 
-## 10. LAYER 7: QUERY ROUTING
+## 10. QUERY ROUTING
 
 ### 10.1 Semantic Router Implementation
 
@@ -1453,7 +1453,7 @@ print(f"Temporal filter: {strategy['temporal_filter']}")
 
 ---
 
-## 11. LAYER 8: HYBRID RETRIEVAL
+## 11. HYBRID RETRIEVAL
 
 ### 11.1 Complete Hybrid Search Pipeline
 
@@ -1594,7 +1594,7 @@ for i, result in enumerate(results[:5]):
 
 ---
 
-## 12. LAYER 9: CACHING SYSTEM
+## 12. CACHING SYSTEM
 
 ### 12.1 Semantic Query Cache
 
@@ -1692,7 +1692,7 @@ else:
 
 ---
 
-## 13. LAYER 10: RESPONSE GENERATION
+## 13. RESPONSE GENERATION
 
 ### 13.1 Context Assembly
 

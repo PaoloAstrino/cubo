@@ -1,4 +1,4 @@
-# CUBO API Integration Guide
+# API Integration Guide
 
 This guide explains how to use the CUBO RAG system with the FastAPI backend and Next.js frontend.
 
