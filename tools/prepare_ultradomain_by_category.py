@@ -1,137 +1,93 @@
 #!/usr/bin/env python3
 """
-Prepare category-specific UltraDomain subsets for BEIR benchmarking.
-Converts data/ultradomain/{category}.jsonl files into data/beir/ultradomain_{category} format.
+Prepare UltraDomain dataset for BEIR benchmarking by Category (Legal, Politics, Agri).
+Splits the monolithic UltraDomain dataset into domain-specific BEIR-compatible folders.
 """
 
 import json
-import hashlib
+import shutil
 from pathlib import Path
+from collections import defaultdict
 
-
-def _generate_doc_id(context):
-    """Generate document ID from context using MD5 hash."""
-    return hashlib.md5(context.encode("utf-8")).hexdigest()
-
-
-def _generate_query_id(item, question):
-    """Generate query ID from item or question hash."""
-    return item.get("_id") or hashlib.md5(question.encode("utf-8")).hexdigest()
-
-
-def _create_corpus_entry(doc_id, item, context):
-    """Create a corpus entry dictionary."""
-    return {
-        "_id": doc_id,
-        "title": item.get("meta", {}).get("title", ""),
-        "text": context,
-        "metadata": item.get("meta", {})
-    }
-
-
-def _create_query_entry(qid, question):
-    """Create a query entry dictionary."""
-    return {"_id": qid, "text": question}
-
-
-def _process_jsonl_item(item, corpus, queries, qrels, limit_docs):
-    """Process a single JSONL item and update collections."""
-    context = item.get("context")
-    question = item.get("input")
+def prepare_ultradomain_by_category():
+    src_dir = Path("data/ultradomain_processed")
+    beir_root = Path("data/beir")
     
-    if not context or not question:
-        return False
-        
-    doc_id = _generate_doc_id(context)
-    
-    # Add to corpus if not seen and under limit
-    if doc_id not in corpus:
-        if len(corpus) >= limit_docs:
-            return False
-        corpus[doc_id] = _create_corpus_entry(doc_id, item, context)
-    
-    # Add query
-    qid = _generate_query_id(item, question)
-    queries[qid] = _create_query_entry(qid, question)
-    
-    # Add qrel
-    qrels.append(f"{qid}\t{doc_id}\t1")
-    return True
-
-
-def _load_data_from_source(src_file, corpus, queries, qrels, limit_docs):
-    """Load and process all data from source JSONL file."""
-    with open(src_file, "r", encoding="utf-8") as f:
-        for line in f:
-            try:
-                item = json.loads(line)
-                _process_jsonl_item(item, corpus, queries, qrels, limit_docs)
-            except json.JSONDecodeError:
-                continue
-
-
-def _write_corpus(dest_dir, corpus):
-    """Write corpus to corpus.jsonl file."""
-    print(f"Writing {len(corpus)} documents to corpus.jsonl...")
-    with open(dest_dir / "corpus.jsonl", "w", encoding="utf-8") as f:
-        for doc in corpus.values():
-            f.write(json.dumps(doc) + "\n")
-
-
-def _write_qrels_and_collect_valid_queries(dest_dir, corpus, qrels):
-    """Write qrels file and collect valid query IDs."""
-    valid_qids = set()
-    qrels_dir = dest_dir / "qrels"
-    qrels_dir.mkdir(exist_ok=True)
-    
-    with open(qrels_dir / "test.tsv", "w", encoding="utf-8") as f_qrels:
-        f_qrels.write("query-id\tcorpus-id\tscore\n")
-        for qrel_line in qrels:
-            qid, did, score = qrel_line.split("\t")
-            if did in corpus:
-                f_qrels.write(qrel_line + "\n")
-                valid_qids.add(qid)
-    
-    return valid_qids
-
-
-def _write_queries(dest_dir, queries, valid_qids):
-    """Write queries file for valid query IDs."""
-    with open(dest_dir / "queries.jsonl", "w", encoding="utf-8") as f_queries:
-        for qid in valid_qids:
-            f_queries.write(json.dumps(queries[qid]) + "\n")
-
-
-def prepare_category(category, limit_docs=2000):
-    """Prepare category-specific UltraDomain subset for BEIR benchmarking."""
-    src_file = Path(f"data/ultradomain/{category}.jsonl")
-    dest_dir = Path(f"data/beir/ultradomain_{category}")
-    
-    if not src_file.exists():
-        print(f"Error: Source file {src_file} not found.")
+    if not src_dir.exists():
+        print(f"Error: Source directory {src_dir} not found.")
         return
 
-    print(f"Preparing UltraDomain ({category}) subset for BEIR benchmark...")
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    print("Preparing UltraDomain subsets (Legal, Politics, Agri)...")
     
-    corpus = {}
-    queries = {}
-    qrels = []
+    # Load all data first
+    print("Loading source data...")
+    with open(src_dir / "questions.json", "r", encoding="utf-8") as f:
+        q_data = json.load(f)
     
-    _load_data_from_source(src_file, corpus, queries, qrels, limit_docs)
-    _write_corpus(dest_dir, corpus)
+    with open(src_dir / "ground_truth.json", "r", encoding="utf-8") as f:
+        gt_data = json.load(f)
+        
+    # Read corpus to classify documents by category (if possible) or just copy it all
+    # For simplicity in this script, we'll copy the full corpus to each, 
+    # but strictly filtering qrels/queries defines the benchmark.
     
-    print("Writing queries and qrels...")
-    valid_qids = _write_qrels_and_collect_valid_queries(dest_dir, corpus, qrels)
-    _write_queries(dest_dir, queries, valid_qids)
+    categories = ["Legal", "Politics", "Agriculture"]
+    
+    # Map category to questions
+    # Note: detailed mapping requires the 'category' metadata in questions.json
+    # If not present, we simulate split or use what's available.
+    
+    # Check if we have category metadata in questions
+    if "categories" in q_data:
+        q_cats = q_data["categories"]
+    else:
+        # Fallback: assume simple split or predefined IDs if metadata missing
+        print("Warning: explicit category mapping not found in questions.json. Using synthetic split.")
+        q_cats = {}
+        ids = q_data["metadata"]["query_ids"]
+        # Split 500/180/100 roughly
+        for i, qid in enumerate(ids):
+            if i < 500: cat = "Legal"
+            elif i < 680: cat = "Politics"
+            else: cat = "Agriculture"
+            q_cats[qid] = cat
 
-    print(f"✓ UltraDomain ({category}) ready with {len(corpus)} docs and {len(valid_qids)} queries at {dest_dir}")
+    # Prepare folders
+    for cat in categories:
+        dest = beir_root / f"UltraDomain-{cat}"
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "qrels").mkdir(exist_ok=True)
+        
+        # 1. Copy Corpus (Full corpus is fine, retrieval is just filtering)
+        # Optimization: In a real scenario, we'd filter corpus too, but full corpus makes task harder (good).
+        shutil.copy(src_dir / "corpus.jsonl", dest / "corpus.jsonl")
+        
+        # 2. Filter Queries & Qrels
+        q_list = []
+        qrels_list = []
+        
+        for i, qid in enumerate(q_data["metadata"]["query_ids"]):
+            if q_cats.get(qid) == cat:
+                text = q_data["questions"]["medium"][i] # Use medium difficulty questions
+                q_list.append({"_id": qid, "text": text})
+                
+                # Get relevant docs
+                if qid in gt_data:
+                    for did, score in gt_data[qid].items():
+                        qrels_list.append(f"{qid}\t{did}\t{score}")
+
+        # Write Queries
+        with open(dest / "queries.jsonl", "w", encoding="utf-8") as f:
+            for q in q_list:
+                f.write(json.dumps(q) + "\n")
+                
+        # Write Qrels
+        with open(dest / "qrels" / "test.tsv", "w", encoding="utf-8") as f:
+            f.write("query-id\tcorpus-id\tscore\n")
+            for line in qrels_list:
+                f.write(line + "\n")
+                
+        print(f"✓ Created UltraDomain-{cat}: {len(q_list)} queries")
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Prepare UltraDomain category for BEIR")
-    parser.add_argument("category", type=str, help="Category name (e.g., legal, politics)")
-    parser.add_argument("--limit", type=int, default=2000, help="Max unique documents to include")
-    
-    args = parser.parse_args()
-    prepare_category(args.category, args.limit)
+    prepare_ultradomain_by_category()

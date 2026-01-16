@@ -198,6 +198,13 @@ class Logger:
         handler.setFormatter(self._get_formatter())
         return handler
 
+    def _setup_console_handler(self):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+        )
+        return handler
+
     def _configure_root_logger(self):
         """Configure root logger with level from config."""
         root_logger = logging.getLogger()
@@ -286,13 +293,30 @@ class Logger:
         root_logger = self._configure_root_logger()
         queue_enabled = bool(_cfg_logging_or("enable_queue", True))
         handler = self._setup_handlers()
+        console_handler = self._setup_console_handler()
         trace_filter = self._create_trace_filter()
 
         # Setup handler (queued or direct)
         if queue_enabled:
-            self._setup_queue_handler(root_logger, handler, trace_filter)
+            self._queue = Queue(-1)
+            qhandler = QueueHandler(self._queue)
+            try:
+                qhandler.addFilter(trace_filter)
+            except Exception:
+                pass
+            root_logger.addHandler(qhandler)
+            self._listener = QueueListener(
+                self._queue, handler, console_handler, respect_handler_level=True
+            )
+            self._listener.start()
+            # Give the listener a short moment to fully start
+            try:
+                time.sleep(0.01)
+            except Exception:
+                pass
         else:
-            self._setup_direct_handler(root_logger, handler)
+            root_logger.addHandler(handler)
+            root_logger.addHandler(console_handler)
 
         # Add trace_id filter to root logger and handler
         root_logger.addFilter(trace_filter)

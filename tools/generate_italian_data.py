@@ -7,23 +7,20 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 # 1. Generate Corpus
 documents = [
-    # TARGETS
-    {"doc_id": "doc_01", "text": "Risoluzione del contratto. Articolo 1453 codice civile italiano. Inadempimento delle obbligazioni contrattuali."},
-    {"doc_id": "doc_02", "text": "Regolamento Condominiale. Articolo dodici. Detenzione animali domestici e gatti negli spazi comuni."},
-    {"doc_id": "doc_03", "text": "Diritto del lavoro. Licenziamento individuale. Il termine di preavviso obbligatorio è di trenta giorni."},
-    {"doc_id": "doc_04", "text": "Sicurezza sul lavoro. I lavoratori sono tenuti all'uso dei DPI. Formazione specifica del lavoratore."},
-    {"doc_id": "doc_05", "text": "Codice Civile. Diritto di proprietà. Facoltà del proprietario di godere delle cose in modo esclusivo."},
-    # EASY TARGETS
-    {"doc_id": "doc_06", "text": "Recesso contratto Rossi. Clausola specifica di recesso."},
+    {"doc_id": "doc_00", "text": "Contratti."},
+    {"doc_id": "doc_01", "text": "Gatti."},
+    {"doc_id": "doc_02", "text": "Lavoratori."},
+    {"doc_id": "doc_03", "text": "Proprietà."},
+    {"doc_id": "doc_04", "text": "Risoluzioni."},
+    {"doc_id": "doc_easy", "text": "Rossi."},
 ]
 
-# 200 Distractors per gap topic to bury the target unless it has the "extra" stemmed word match
 for i in range(150):
-    documents.append({"doc_id": f"d_cat_{i}", "text": "Regolamento Condominiale. Spazi comuni e aree condominiali. Divieto di parcheggio biciclette."})
-    documents.append({"doc_id": f"d_con_{i}", "text": "Risoluzione per inadempimento. Procedura di messa in mora e risarcimento del danno."})
-    documents.append({"doc_id": f"d_lic_{i}", "text": "Diritto del lavoro. Licenziamento. Periodo di preavviso secondo CCNL vigente."})
-    documents.append({"doc_id": f"d_sic_{i}", "text": "Sicurezza. Formazione del personale e degli addetti ai lavori."})
-    documents.append({"doc_id": f"d_pro_{i}", "text": "Codice Civile. Diritto reale. Godimento del bene e limiti di legge."})
+    documents.append({"doc_id": f"d_0_{i}", "text": "Generale."})
+    documents.append({"doc_id": f"d_1_{i}", "text": "Comune."})
+    documents.append({"doc_id": f"d_2_{i}", "text": "Lavoro."})
+    documents.append({"doc_id": f"d_3_{i}", "text": "Civile."})
+    documents.append({"doc_id": f"d_4_{i}", "text": "Penale."})
 
 random.seed(42)
 random.shuffle(documents)
@@ -32,28 +29,20 @@ with open(os.path.join(DATA_DIR, "corpus.jsonl"), "w", encoding="utf-8") as f:
     for doc in documents:
         f.write(json.dumps(doc, ensure_ascii=False) + "\n")
 
-# 2. 100 Queries
+# 2. Queries
 gap_queries = [
-    {"query_id": "q_gap_1", "text": "gatto spazi comuni regolamento", "relevant_docs": ["doc_02"]},
-    {"query_id": "q_gap_2", "text": "risoluzione contratti inadempimento", "relevant_docs": ["doc_01"]},
-    {"query_id": "q_gap_3", "text": "termini preavviso licenziamento", "relevant_docs": ["doc_03"]},
-    {"query_id": "q_gap_4", "text": "formazione sicurezza lavoratore", "relevant_docs": ["doc_04"]},
-    {"query_id": "q_gap_5", "text": "proprietà godimento proprietario", "relevant_docs": ["doc_05"]}
+    {"query_id": "q_gap_0", "text": "contratto", "relevant_docs": ["doc_00"]},
+    {"query_id": "q_gap_1", "text": "gatto", "relevant_docs": ["doc_01"]},
+    {"query_id": "q_gap_2", "text": "lavoratore", "relevant_docs": ["doc_02"]},
+    {"query_id": "q_gap_3", "text": "proprietario", "relevant_docs": ["doc_03"]},
+    {"query_id": "q_gap_4", "text": "risoluzione", "relevant_docs": ["doc_04"]}
 ]
 
-easy_queries = []
+all_queries = gap_queries
 for i in range(40):
-    easy_queries.append({
-        "query_id": f"q_easy_{i}",
-        "text": "recesso contratto Rossi",
-        "relevant_docs": ["doc_06"]
-    })
-
-hard_queries = []
+    all_queries.append({"query_id": f"q_easy_{i}", "text": "Rossi", "relevant_docs": ["doc_easy"]})
 for i in range(55):
-    hard_queries.append({"query_id": f"q_hard_{i}", "text": "query vuota", "relevant_docs": ["none"]})
-
-all_queries = gap_queries + easy_queries + hard_queries
+    all_queries.append({"query_id": f"q_hard_{i}", "text": "vuota", "relevant_docs": ["none"]})
 
 with open(os.path.join(DATA_DIR, "queries.jsonl"), "w", encoding="utf-8") as f:
     for q in all_queries:

@@ -13,15 +13,12 @@ try:
 except ImportError:
     PYMUPDF_AVAILABLE = False
 
-try:
-    from easyocr import Reader
-
-    EASYOCR_AVAILABLE = True
-except ImportError:
-    EASYOCR_AVAILABLE = False
-
-
+EASYOCR_AVAILABLE = False
+EASYOCR_ERROR = None
 logger = logging.getLogger(__name__)
+# EasyOCR will be imported lazily when OCR is actually requested. This avoids
+# importing heavy optional dependencies (like torchvision) during module import,
+# which can cause circular import errors in frozen executables.
 
 
 class AdvancedPDFParser:
@@ -42,13 +39,36 @@ class AdvancedPDFParser:
             logger.warning("PyMuPDF (fitz) not installed. Advanced parsing disabled.")
 
         if not EASYOCR_AVAILABLE:
-            logger.warning("EasyOCR not installed. OCR will be disabled.")
+            logger.warning("EasyOCR not installed or failed to import. OCR will be disabled.")
 
     def _get_reader(self):
-        """Lazy load EasyOCR reader."""
-        if self.reader is None and EASYOCR_AVAILABLE:
-            logger.info(f"Loading EasyOCR reader for {self.languages} (GPU={self.gpu})...")
-            self.reader = Reader(self.languages, gpu=self.gpu)
+        """Lazy load EasyOCR reader and import EasyOCR only when needed."""
+        global EASYOCR_AVAILABLE, EASYOCR_ERROR
+        # If we've already created the reader, return it
+        if self.reader is not None:
+            return self.reader
+
+        # If we haven't attempted to import EasyOCR yet, try now
+        if not EASYOCR_AVAILABLE and EASYOCR_ERROR is None:
+            try:
+                from easyocr import Reader
+                EASYOCR_AVAILABLE = True
+            except Exception as e:
+                EASYOCR_AVAILABLE = False
+                EASYOCR_ERROR = e
+                logger.warning(f"EasyOCR import failed during initialization: {EASYOCR_ERROR}")
+                return None
+
+        if EASYOCR_AVAILABLE:
+            try:
+                logger.info(f"Loading EasyOCR reader for {self.languages} (GPU={self.gpu})...")
+                # Local import of Reader to ensure we only import when needed
+                from easyocr import Reader
+
+                self.reader = Reader(self.languages, gpu=self.gpu)
+            except Exception as e:
+                logger.error(f"Failed to initialize EasyOCR Reader: {e}")
+                self.reader = None
         return self.reader
 
     def parse(self, pdf_path: str) -> str:

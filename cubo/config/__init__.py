@@ -129,6 +129,9 @@ class Config(ConfigAdapter):
         # Legacy defaults expected by tests and older callers
         defaults = {
             "model_path": "./models/embeddinggemma-300m",
+            "data_folder": "./data",
+            "supported_extensions": [".txt", ".docx", ".pdf", ".md"],
+            "log_file": "./logs/cubo_log.jsonl",
             "llm_model": "llama3.2:latest",
             "llm": {"n_ctx": 0},  # 0 = auto-detect
             "vector_store": {"embedding_dtype": "float16"},

@@ -1,6 +1,7 @@
 """Top-level package marker for the CUBO codebase."""
 
-from .core import CuboCore
+# Avoid importing heavy submodules at package import time. Use lazy attribute
+# access to fetch components like CuboCore on demand (PEP 562).
 
 __all__ = [
     "CuboCore",
@@ -20,3 +21,12 @@ __all__ = [
     "utils",
     "workers",
 ]
+
+
+def __getattr__(name: str):
+    """Lazily import and expose attributes to avoid heavy imports at module import time."""
+    if name == "CuboCore":
+        from .core import CuboCore
+
+        return CuboCore
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

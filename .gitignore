@@ -201,9 +201,14 @@ debug_output
 # Generated run results (often large and regeneratable)
 results/
 
-
+# to delete after writing the paper
 paper
 
 come_spaccare_il_digitale.txt
 
 videos
+
+the_final_analysis.txt
+the_final_analysis.md
+
+resolution_plan_critique_1.txt

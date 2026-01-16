@@ -24,6 +24,7 @@ from cubo.ingestion.document_loader import DocumentLoader
 from cubo.ingestion.ocr_processor import OCRProcessor
 from cubo.storage.metadata_manager import get_metadata_manager
 from cubo.utils.logger import logger
+from cubo.utils.memory_profiler import MemoryProfiler
 
 # Optional dependencies
 try:
@@ -51,6 +52,7 @@ class DeepIngestor:
         run_id: Optional[str] = None,
         metadata_manager=None,
         n_workers: Optional[int] = None,
+        profile_memory: bool = False,
     ):
         self.input_folder = Path(input_folder or settings.paths.data_folder)
         self.output_dir = Path(output_dir or settings.paths.deep_output_dir)
@@ -86,6 +88,13 @@ class DeepIngestor:
         self.ocr_processor = OCRProcessor(config)  # Initialize OCR processor
         self.input_folder.mkdir(parents=True, exist_ok=True)  # Ensure input folder exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Memory profiling for O(1) validation (ACL rebuttal)
+        self._memory_profiler = (
+            MemoryProfiler(self.output_dir / "memory_profile.jsonl")
+            if profile_memory
+            else None
+        )
         self._supported_extensions = set(self.loader.supported_extensions) | {".csv", ".xlsx"}
 
     def __getstate__(self):
@@ -119,6 +128,13 @@ class DeepIngestor:
             import gc
 
             gc.collect()
+            
+            # Record memory after GC for O(1) validation
+            if self._memory_profiler:
+                self._memory_profiler.record(
+                    f"batch_{batch_num}_flush_gc",
+                    extra={"chunks_flushed": len(chunks)}
+                )
         except Exception as e:
             logger.warning(f"Failed to flush chunk batch: {e}")
 
@@ -377,6 +393,10 @@ class DeepIngestor:
         if not self.input_folder.exists():
             raise FileNotFoundError(f"Input folder {self.input_folder} does not exist")
 
+        # Start memory profiling if enabled
+        if self._memory_profiler:
+            self._memory_profiler.record("ingest_start")
+
         files = list(self._discover_files())
         processed_set = self._get_processed_files(resume)
 
@@ -396,6 +416,9 @@ class DeepIngestor:
         self._run_id = uuid.uuid4().hex[:8]
 
         files_to_process = [p for p in files if not (resume and str(p) in processed_set)]
+        
+        if self._memory_profiler:
+            self._memory_profiler.record("files_discovered", extra={"file_count": len(files_to_process)})
 
         try:
             if self.n_workers > 1:
@@ -412,7 +435,14 @@ class DeepIngestor:
                 self._flush_chunk_batch(current_batch)
                 total_chunks += len(current_batch)
 
+            # Finalize memory profiling
+            if self._memory_profiler:
+                self._memory_profiler.record("ingest_end", extra={"total_chunks": total_chunks})
+                self._memory_profiler.save()
+                self._memory_profiler.print_summary()
+
             return self._finalize_ingestion(manager, run_id, total_chunks, processed_files, resume)
+
 
         except Exception as e:
             logger.error(f"Ingestion failed: {e}")

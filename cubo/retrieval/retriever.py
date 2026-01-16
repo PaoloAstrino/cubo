@@ -603,116 +603,58 @@ class DocumentRetriever:
         trace_id: Optional[str] = None,
     ) -> List[Dict]:
         """Retrieve using sentence window with three-tier retrieval."""
-        # Precompute weights used for recombination and possible fallback.
-        _bm25_weight = float(strategy.get("bm25_weight", 0.3)) if strategy else 0.3
-        _dense_weight = float(strategy.get("dense_weight", 0.7)) if strategy else 0.7
-
         def _operation():
             if not self.document_store.has_documents():
                 return []
 
-            # Generate query embedding
-            query_embedding = self.executor.generate_query_embedding(query)
+            query_embedding = []
+            bm25_weight = float(strategy.get("bm25_weight", 0.3)) if strategy else 0.3
+            dense_weight = float(strategy.get("dense_weight", 0.7)) if strategy else 0.7
 
-            # Increase initial candidate pool for better RRF fusion quality.
-            from cubo.retrieval.constants import (
-                INITIAL_RETRIEVAL_MULTIPLIER,
-                MIN_CANDIDATE_POOL_SIZE,
-            )
-
-            # Calculate pool size: max(min_pool, top_k * multiplier)
-            default_k = max(MIN_CANDIDATE_POOL_SIZE, top_k * INITIAL_RETRIEVAL_MULTIPLIER)
-            retrieval_k = int(strategy.get("k_candidates", default_k)) if strategy else default_k
+            # Only generate embedding if dense retrieval is actually used
+            if dense_weight > 0:
+                query_embedding = self.executor.generate_query_embedding(query)
+            
+            retrieval_k = int(strategy.get("k_candidates", top_k * 3)) if strategy else top_k * 3
 
             # Tiered retrieval
-            summary_ids, scaffold_ids, scaffold_scores = self.orchestrator.execute_tiered_retrieval(
-                query, np.array(query_embedding), self.summary_prefilter_k, max(5, top_k // 2)
-            )
-            try:
-                logger.debug(
-                    f"tiered summary_ids={len(summary_ids)} scaffold_ids={len(scaffold_ids)}"
+            summary_ids, scaffold_ids, scaffold_scores = set(), set(), {}
+            if dense_weight > 0 and (self.use_summary_prefilter or self.use_scaffold_compression):
+                summary_ids, scaffold_ids, scaffold_scores = self.orchestrator.execute_tiered_retrieval(
+                    query, np.array(query_embedding), self.summary_prefilter_k, max(5, top_k // 2)
                 )
-            except Exception:
-                pass
 
-            # Dense + BM25 retrieval
-            semantic = self.executor.query_dense(
-                query_embedding, retrieval_k, query, self.current_documents, trace_id
-            )
-            bm25 = self.executor.query_bm25(query, retrieval_k, self.current_documents)
-            try:
-                logger.debug(
-                    f"semantic_count={len(semantic)} bm25_count={len(bm25)} retrieval_k={retrieval_k}"
-                )
-            except Exception:
-                pass
+            # Dense retrieval
+            semantic = []
+            if dense_weight > 0:
+                semantic = self.executor.query_dense(query_embedding, retrieval_k, query, self.current_documents, trace_id)
+            
+            # BM25 retrieval
+            bm25 = []
+            if bm25_weight > 0:
+                bm25 = self.executor.query_bm25(query, retrieval_k, self.current_documents)
 
-            # Combine using Reciprocal Rank Fusion (RRF)
-            combined = self.retrieval_strategy.combine_results_rrf(semantic, bm25, retrieval_k)
-            try:
-                logger.debug(f"combined_count={len(combined)}")
-            except Exception:
-                pass
+            # Combine
+            combined = self.retrieval_strategy.combine_results(semantic, bm25, retrieval_k, dense_weight, bm25_weight)
 
             # Tiered boosting
             if summary_ids or scaffold_ids:
                 combined = self.orchestrator.tiered_manager.apply_tiered_boosting(
                     combined, summary_ids, scaffold_ids, scaffold_scores, extract_chunk_id
                 )
-                try:
-                    logger.debug(f"combined_after_boost={len(combined)}")
-                except Exception:
-                    pass
 
             # Postprocessing
             use_reranker = (
                 strategy.get("use_reranker", self.use_reranker) if strategy else self.use_reranker
             )
             return self.retrieval_strategy.apply_postprocessing(
-                combined,
-                top_k,
-                query,
+                combined, top_k, query,
                 self.window_postprocessor if self.use_sentence_window else None,
                 self.reranker if self.use_sentence_window else None,
                 use_reranker,
             )
 
-        # If postprocessing returned fewer than requested top_k results, try a fallback
-        # by expanding candidate set from semantic retrieval and recombining. This helps
-        # when candidate selection is unexpectedly small due to filtering or dedup.
-        results = self.service_manager.execute_sync("database_operation", _operation)
-        use_reranker = (
-            strategy.get("use_reranker", self.use_reranker) if strategy else self.use_reranker
-        )
-        if len(results) < top_k:
-            try:
-                expanded_k = min(
-                    max(100, top_k * 10), max(0, getattr(self.collection, "count", lambda: 0)())
-                )
-                logger.debug(
-                    f"fallback retrieval triggered: have={len(results)} need={top_k} expanded_k={expanded_k}"
-                )
-                # Re-run semantic and bm25 retrieval with larger candidate set
-                query_embedding = self.executor.generate_query_embedding(query)
-                semantic_full = self.executor.query_dense(
-                    query_embedding, expanded_k, query, self.current_documents, trace_id
-                )
-                bm25_full = self.executor.query_bm25(query, expanded_k, self.current_documents)
-                combined_full = self.retrieval_strategy.combine_results_rrf(
-                    semantic_full, bm25_full, expanded_k
-                )
-                results = self.retrieval_strategy.apply_postprocessing(
-                    combined_full,
-                    top_k,
-                    query,
-                    self.window_postprocessor if self.use_sentence_window else None,
-                    self.reranker if self.use_sentence_window else None,
-                    use_reranker,
-                )
-                logger.debug(f"fallback results count={len(results)}")
-            except Exception:
-                pass
-        return results
+        return self.service_manager.execute_sync("database_operation", _operation)
 
     def _retrieve_auto_merging(self, query: str, top_k: int) -> List[Dict]:
         """Retrieve using auto-merging."""

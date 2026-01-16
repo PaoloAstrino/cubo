@@ -15,11 +15,9 @@ from typing import Any, Dict, Iterator, List, Optional
 
 from cubo.config import config
 from cubo.config.settings import settings
-from cubo.embeddings.model_loader import model_manager
-from cubo.ingestion.document_loader import DocumentLoader
-from cubo.processing.generator import create_response_generator
-from cubo.retrieval.retriever import DocumentRetriever
 from cubo.utils.logger import logger
+# Delay importing heavy components until needed to avoid importing optional
+# dependencies at module import time (improves CLI responsiveness).
 
 
 class CuboCore:
@@ -67,6 +65,10 @@ class CuboCore:
 
         try:
             with self._state_lock:
+                # Import model_manager lazily to avoid heavy imports during
+                # module import time.
+                from cubo.embeddings.model_loader import model_manager
+
                 self.model = model_manager.get_model()
             logger.info(f"Model loaded successfully in {time.time() - start_time:.2f} seconds.")
         except Exception as e:
@@ -75,6 +77,11 @@ class CuboCore:
 
         # Initialize components - protect state mutation
         with self._state_lock:
+            # Lazy import of components that may import optional heavy deps
+            from cubo.ingestion.document_loader import DocumentLoader
+            from cubo.retrieval.retriever import DocumentRetriever
+            from cubo.processing.generator import create_response_generator
+
             self.doc_loader = DocumentLoader()
             # Inject settings directly from Pydantic models
             self.retriever = DocumentRetriever(
@@ -142,6 +149,8 @@ class CuboCore:
         folder = data_folder or config.get("data_folder")
         if not self.doc_loader:
             # Ensure doc loader available even if components not fully initialized
+            from cubo.ingestion.document_loader import DocumentLoader
+
             self.doc_loader = DocumentLoader()
         documents = self._load_all_documents(folder)
         return len(documents)

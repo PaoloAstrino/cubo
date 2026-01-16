@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -28,6 +29,8 @@ class CuboBeirAdapter:
         index_dir: Optional[str] = None,
         embedding_generator: Optional[EmbeddingGenerator] = None,
         lightweight: bool = False,
+        seed: int = 42,
+        hot_fraction: float = 0.2,
     ):
         """
         Initialize the adapter.
@@ -41,6 +44,8 @@ class CuboBeirAdapter:
         self.embedding_generator = embedding_generator
         self.retriever = None
         self.lightweight = lightweight
+        self.seed = seed
+        self.hot_fraction = hot_fraction
 
         # If not lightweight, initialize the full retriever stack
         if not self.lightweight:
@@ -114,6 +119,8 @@ class CuboBeirAdapter:
         batch_size: int = 512,
         limit: Optional[int] = None,
         normalize: bool = True,
+        hot_fraction: Optional[float] = None,
+        seed: Optional[int] = None,
     ) -> int:
         """
         Index a BEIR corpus (JSONL) into FAISS and SQLite.
@@ -166,10 +173,11 @@ class CuboBeirAdapter:
         faiss_manager = FAISSIndexManager(
             dimension=self.embedding_generator.model.get_sentence_embedding_dimension(),
             index_dir=index_path,
-            # Use 100% hot index (HNSW) for benchmarks - no IVF clustering needed
-            hot_fraction=1.0,
+            # Use hot_fraction from adapter if not overridden
+            hot_fraction=hot_fraction if hot_fraction is not None else self.hot_fraction,
             # Smaller nlist as fallback if cold index is ever used
             nlist=16,
+            seed=seed if seed is not None else self.seed,
         )
 
         db_path = index_path / "documents.db"
@@ -192,6 +200,9 @@ class CuboBeirAdapter:
 
         logger.info(f"Indexing corpus from {corpus_path}...")
 
+        all_embeddings = []
+        all_ids = []
+
         with open(corpus_path, "r", encoding="utf-8") as f:
             for line in f:
                 if limit and count >= limit:
@@ -205,41 +216,52 @@ class CuboBeirAdapter:
                     batch_docs.append(text)
                     batch_ids.append(doc_id)
                     if len(batch_docs) >= batch_size:
-                        # Respect 'limit' if provided: only process up to the remaining budget
+                        # Respect 'limit' if provided
                         if limit and (count + len(batch_docs)) > limit:
                             needed = limit - count
                             if needed > 0:
                                 to_docs = batch_docs[:needed]
                                 to_ids = batch_ids[:needed]
-                                self._process_batch(to_docs, to_ids, conn, normalize, faiss_manager)
+                                embs = self._process_batch_v2(to_docs, to_ids, conn, normalize)
+                                all_embeddings.append(embs)
+                                all_ids.extend(to_ids)
                                 count += len(to_docs)
-                            # We've reached the requested limit; break out of the loop
                             batch_docs = []
                             batch_ids = []
                             break
                         else:
-                            self._process_batch(batch_docs, batch_ids, conn, normalize, faiss_manager)
+                            embs = self._process_batch_v2(batch_docs, batch_ids, conn, normalize)
+                            all_embeddings.append(embs)
+                            all_ids.extend(batch_ids)
                             count += len(batch_docs)
                             batch_docs = []
                             batch_ids = []
                             if count % 1000 == 0:
-                                logger.info(f"Indexed {count} documents...")
+                                logger.info(f"Indexed {count} documents (DB)...")
                 except json.JSONDecodeError:
                     continue
 
         if batch_docs:
-            # Respect 'limit' for the final batch
             if limit and (count + len(batch_docs)) > limit:
                 needed = limit - count
                 if needed > 0:
                     to_docs = batch_docs[:needed]
                     to_ids = batch_ids[:needed]
-                    self._process_batch(to_docs, to_ids, conn, normalize, faiss_manager)
+                    embs = self._process_batch_v2(to_docs, to_ids, conn, normalize)
+                    all_embeddings.append(embs)
+                    all_ids.extend(to_ids)
                     count += len(to_docs)
             else:
-                self._process_batch(batch_docs, batch_ids, conn, normalize, faiss_manager)
+                embs = self._process_batch_v2(batch_docs, batch_ids, conn, normalize)
+                all_embeddings.append(embs)
+                all_ids.extend(batch_ids)
                 count += len(batch_docs)
 
+        logger.info(f"Building FAISS index with {count} vectors...")
+        if all_embeddings:
+            final_embeddings = np.vstack(all_embeddings)
+            faiss_manager.build_indexes(final_embeddings, all_ids, append=False)
+        
         logger.info("Saving FAISS index...")
         faiss_manager.save(index_path)
         conn.commit()
@@ -259,11 +281,8 @@ class CuboBeirAdapter:
         logger.info(f"Indexing complete. {count} documents indexed.")
         return count
 
-    def _process_batch(self, texts, ids, conn, normalize, faiss_manager):
-        """Helper to embed and add batch to FAISS and DB."""
-        # Use direct model.encode() for bulk indexing to avoid threading timeout issues
-        # Use smaller internal batch size to avoid GPU OOM
-        # Apply document prompt prefix if defined by model
+    def _process_batch_v2(self, texts, ids, conn, normalize):
+        """Helper to embed and insert into DB, returning embeddings."""
         try:
             prefix = EmbeddingGenerator.get_prompt_prefix_for_model(
                 config.get("model_path"), "document"
@@ -275,15 +294,13 @@ class CuboBeirAdapter:
         try:
             embeddings = self.embedding_generator.model.encode(
                 texts_to_encode,
-                batch_size=8,  # Small batch to avoid GPU OOM
+                batch_size=8,
                 show_progress_bar=False,
                 convert_to_numpy=True,
             )
         except TypeError:
-            # Fallback for models that don't support all parameters
             embeddings = self.embedding_generator.model.encode(texts_to_encode, batch_size=8)
 
-        # Convert to numpy if needed
         if hasattr(embeddings, "cpu"):
             embeddings = embeddings.cpu().numpy()
 
@@ -291,23 +308,21 @@ class CuboBeirAdapter:
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
             embeddings = embeddings / (norms + 1e-10)
 
-        # Use build_indexes with append=True to add to existing index
+        # SQLite update
         try:
-            faiss_manager.build_indexes(embeddings, ids, append=True)
-
             c = conn.cursor()
             data = []
             for doc_id, text in zip(ids, texts):
-                # We store metadata as JSON string
                 data.append((doc_id, text, json.dumps({"id": doc_id, "source": "beir"})))
             c.executemany(
                 "INSERT OR REPLACE INTO documents (id, content, metadata) VALUES (?, ?, ?)", data
             )
             conn.commit()
         except Exception as e:
-            logger.exception(f"Batch processing failed while adding {len(ids)} docs: {e}")
-            # Reraise so caller can handle or stop indexing
+            logger.exception(f"DB Batch processing failed: {e}")
             raise
+        
+        return embeddings.astype("float32")
 
     def load_index(self, index_dir: str):
         """Load existing index."""
@@ -485,17 +500,48 @@ class CuboBeirAdapter:
                 logger.info(f"Retrieved {len(all_doc_ids)} document IDs from database")
 
             # Map indices to doc_ids and distances to scores
-            for i, (qid, dists, idxs) in enumerate(zip(query_ids, distances, indices)):
-                query_results = {}
-                for dist, idx in zip(dists, idxs):
-                    if idx >= 0 and idx < len(all_doc_ids):
-                        doc_id = all_doc_ids[idx]
-                        # Convert distance to similarity (cosine similarity)
-                        # FAISS returns L2 distance for normalized vectors, convert to cosine
-                        similarity = 1.0 - (dist / 2.0)  # L2 to cosine for normalized vectors
-                        query_results[doc_id] = float(similarity)
+            # We need to distinguish between results from hot and cold indexes if we used both
+            
+            # For now, retrieve_bulk_optimized only loaded hot.index at line 445.
+            # Let's change it to optionally search cold too if it exists.
+            
+            cold_index_path = Path(self.index_dir) / "cold.index"
+            cold_ids = metadata.get("cold_ids", [])
+            hot_ids = metadata.get("hot_ids", [])
+            
+            # Already searched hot_index
+            hot_distances, hot_indices = distances, indices
+            
+            cold_search_done = False
+            if cold_index_path.exists() and cold_ids:
+                logger.info(f"Loading COLD FAISS index from {cold_index_path}")
+                cold_index = faiss.read_index(str(cold_index_path))
+                cold_distances, cold_indices = cold_index.search(query_embeddings, top_k)
+                cold_search_done = True
 
-                results[qid] = query_results
+            for i, qid in enumerate(query_ids):
+                query_results = {}
+                
+                # Add hot results
+                for dist, idx in zip(hot_distances[i], hot_indices[i]):
+                    if idx >= 0 and idx < len(hot_ids):
+                        doc_id = hot_ids[idx]
+                        similarity = 1.0 - (dist / 2.0)
+                        query_results[doc_id] = float(similarity)
+                
+                # Add cold results
+                if cold_search_done:
+                    for dist, idx in zip(cold_distances[i], cold_indices[i]):
+                        if idx >= 0 and idx < len(cold_ids):
+                            doc_id = cold_ids[idx]
+                            similarity = 1.0 - (dist / 2.0)
+                            # If doc already in results (shouldn't happen with hot/cold split, but for safety):
+                            if doc_id not in query_results or similarity > query_results[doc_id]:
+                                query_results[doc_id] = float(similarity)
+                
+                # Sort and trim to top_k
+                sorted_results = dict(sorted(query_results.items(), key=lambda x: x[1], reverse=True)[:top_k])
+                results[qid] = sorted_results
 
                 if (i + 1) % 100 == 0:
                     logger.info(f"Processed {i + 1}/{total} queries")

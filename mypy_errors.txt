@@ -1,0 +1,1033 @@
+cubo\utils\exceptions.py:23: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\launch_gui.py:14: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\vector_store_helpers.py:4: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store_helpers.py:19: error: Returning Any from function declared to return "list[float]"  [no-any-return]
+cubo\retrieval\vector_store_helpers.py:27: error: Returning Any from function declared to return "list[float]"  [no-any-return]
+cubo\retrieval\bm25_store.py:16: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_store.py:20: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_store.py:34: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_store.py:38: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_store.py:42: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_store.py:42: note: Use "-> None" if function does not return a value
+cubo\processing\chat_template_manager.py:7: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\chat_template_manager.py:7: note: Use "-> None" if function does not return a value
+scripts\count_beir.py:16: error: Function is missing a type annotation  [no-untyped-def]
+scripts\count_beir.py:32: error: Function is missing a type annotation  [no-untyped-def]
+scripts\count_beir.py:68: error: Function is missing a return type annotation  [no-untyped-def]
+scripts\count_beir.py:68: note: Use "-> None" if function does not return a value
+scripts\verify_recall_mismatch.py:4: error: Function is missing a type annotation  [no-untyped-def]
+scripts\verify_recall_mismatch.py:15: error: Function is missing a type annotation  [no-untyped-def]
+scripts\verify_recall_mismatch.py:27: error: Function is missing a type annotation  [no-untyped-def]
+scripts\verify_recall_mismatch.py:48: error: Function is missing a type annotation  [no-untyped-def]
+scripts\verify_recall_mismatch.py:70: error: Function is missing a type annotation  [no-untyped-def]
+scripts\verify_recall_mismatch.py:84: error: Function is missing a type annotation  [no-untyped-def]
+scripts\prepare_ragbench.py:22: error: Function is missing a type annotation  [no-untyped-def]
+scripts\inspect_datasets.py:18: error: Function is missing a return type annotation  [no-untyped-def]
+scripts\inspect_datasets.py:18: note: Use "-> None" if function does not return a value
+scripts\inspect_datasets.py:60: error: Function is missing a return type annotation  [no-untyped-def]
+scripts\inspect_datasets.py:60: note: Use "-> None" if function does not return a value
+scripts\calculate_beir_metrics.py:16: error: Function is missing a return type annotation  [no-untyped-def]
+scripts\calculate_beir_metrics.py:33: error: Need type annotation for "qrels" (hint: "qrels: dict[<type>, <type>] = ...")  [var-annotated]
+scripts\calculate_beir_metrics.py:78: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+scripts\calculate_beir_metrics.py:89: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+scripts\calculate_beir_metrics.py:101: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\logging_context.py:17: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logging_context.py:18: error: Argument 1 to "set" of "ContextVar" has incompatible type "str"; expected "None"  [arg-type]
+cubo\monitoring\metrics.py:3: error: Need type annotation for "_metrics" (hint: "_metrics: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\utils\error_recovery.py:63: error: Need type annotation for "error_counts" (hint: "error_counts: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\utils\error_recovery.py:64: error: Need type annotation for "last_errors" (hint: "last_errors: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\utils\error_recovery.py:67: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\utils\error_recovery.py:96: error: Unsupported operand types for + ("object" and "int")  [operator]
+cubo\utils\error_recovery.py:102: error: Argument 2 to "_execute_with_timeout" of "ErrorRecoveryManager" has incompatible type "object"; expected "float"  [arg-type]
+cubo\utils\error_recovery.py:120: error: Unsupported operand types for < ("int" and "object")  [operator]
+cubo\utils\error_recovery.py:125: error: Argument 1 to "sleep" has incompatible type "object"; expected "float"  [arg-type]
+cubo\utils\error_recovery.py:126: error: Unsupported operand types for * ("object" and "float")  [operator]
+cubo\utils\error_recovery.py:129: error: Unsupported operand types for + ("object" and "int")  [operator]
+cubo\utils\error_recovery.py:142: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\utils\error_recovery.py:150: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\error_recovery.py:150: note: Use "-> None" if function does not return a value
+cubo\utils\error_recovery.py:191: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\error_recovery.py:203: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\error_recovery.py:208: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\error_recovery.py:246: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\error_recovery.py:255: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\pdf_parser.py:30: error: Incompatible default for argument "languages" (default has type "None", argument has type "list[str]")  [assignment]
+cubo\ingestion\pdf_parser.py:30: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\pdf_parser.py:30: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\pdf_parser.py:47: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\pdf_parser.py:86: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\pdf_parser.py:100: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+scripts\run_isort_fix.py:1: error: Module "isort" has no attribute "SortImports"  [attr-defined]
+scripts\download_nfcorpus.py:20: error: Function is missing a type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:22: error: Need type annotation for "active_futures" (hint: "active_futures: set[<type>] = ...")  [var-annotated]
+cubo\workers\thread_manager.py:30: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\thread_manager.py:57: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:69: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:76: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:76: note: Use "-> None" if function does not return a value
+cubo\workers\thread_manager.py:105: error: Function is missing a type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:112: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\thread_manager.py:131: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:179: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:179: note: Use "-> None" if function does not return a value
+cubo\workers\thread_manager.py:207: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\thread_manager.py:219: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\lemmatizer.py:57: error: Incompatible types in assignment (expression has type "tuple[str]", variable has type "str | list[str]")  [assignment]
+cubo\utils\lemmatizer.py:59: error: Incompatible types in assignment (expression has type "tuple[str, ...]", variable has type "str | list[str]")  [assignment]
+cubo\utils\lemmatizer.py:61: error: Argument "lang" to "lemmatize" has incompatible type "str | list[str]"; expected "str | tuple[str, ...]"  [arg-type]
+cubo\utils\lemmatizer.py:78: error: Incompatible types in assignment (expression has type "tuple[str]", variable has type "str | list[str]")  [assignment]
+cubo\utils\lemmatizer.py:80: error: Incompatible types in assignment (expression has type "tuple[str, ...]", variable has type "str | list[str]")  [assignment]
+cubo\utils\lemmatizer.py:83: error: Argument "lang" to "text_lemmatizer" has incompatible type "str | list[str]"; expected "str | tuple[str, ...]"  [arg-type]
+cubo\utils\cpu_features.py:16: error: Incompatible types in assignment (expression has type "None", variable has type Module)  [assignment]
+cubo\utils\cpu_features.py:77: error: Need type annotation for "config" (hint: "config: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\utils\cpu_features.py:86: error: Module has no attribute "__config__"  [attr-defined]
+cubo\utils\cpu_features.py:88: error: Module has no attribute "__config__"  [attr-defined]
+cubo\utils\cpu_features.py:90: error: Module has no attribute "__config__"  [attr-defined]
+cubo\utils\cpu_features.py:94: error: Module has no attribute "__config__"  [attr-defined]
+cubo\utils\cpu_features.py:96: error: Module has no attribute "__config__"  [attr-defined]
+cubo\utils\cpu_features.py:98: error: Module has no attribute "__config__"  [attr-defined]
+cubo\storage\embedding_store.py:109: error: Dict entry 4 has incompatible type "str": "float"; expected "str": "int"  [dict-item]
+cubo\storage\embedding_store.py:313: error: Returning Any from function declared to return "ndarray[Any, Any] | None"  [no-any-return]
+cubo\storage\embedding_store.py:459: error: Returning Any from function declared to return "ndarray[Any, Any] | None"  [no-any-return]
+cubo\storage\embedding_store.py:724: error: Unsupported target for indexed assignment ("memmap[Any, Any] | None")  [index]
+cubo\storage\embedding_store.py:725: error: Item "None" of "memmap[Any, Any] | None" has no attribute "flush"  [union-attr]
+cubo\storage\embedding_store.py:743: error: Value of type "memmap[Any, Any] | None" is not indexable  [index]
+cubo\storage\embedding_store.py:768: error: Unsupported target for indexed assignment ("memmap[Any, Any] | None")  [index]
+cubo\storage\embedding_store.py:769: error: Item "None" of "memmap[Any, Any] | None" has no attribute "flush"  [union-attr]
+cubo\deduplication\table_deduplicator.py:24: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\deduplication\table_deduplicator.py:53: error: Returning Any from function declared to return "ndarray[Any, Any]"  [no-any-return]
+cubo\deduplication\table_deduplicator.py:71: error: Returning Any from function declared to return "ndarray[Any, Any]"  [no-any-return]
+cubo\deduplication\table_deduplicator.py:75: error: Returning Any from function declared to return "ndarray[Any, Any]"  [no-any-return]
+cubo\deduplication\semantic_deduplicator.py:192: error: Returning Any from function declared to return "ndarray[Any, Any]"  [no-any-return]
+cubo\ingestion\ocr_processor.py:12: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\hardware.py:69: error: Argument "device" to "HardwareProfile" has incompatible type "str"; expected "Literal['cuda', 'mps', 'cpu']"  [arg-type]
+cubo\models\model_manager.py:19: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\models\model_manager.py:26: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\models\model_manager.py:26: note: Use "-> None" if function does not return a value
+cubo\models\model_manager.py:29: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+cubo\models\model_manager.py:33: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\utils\cpu_tuner.py:11: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\cpu_tuner.py:20: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\cpu_tuner.py:36: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\cpu_tuner.py:84: error: Returning Any from function declared to return "dict[str, str]"  [no-any-return]
+cubo\retrieval\fusion.py:13: error: Incompatible default for argument "k" (default has type "None", argument has type "int")  [assignment]
+cubo\retrieval\fusion.py:13: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\fusion.py:13: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\fusion.py:86: error: Incompatible default for argument "semantic_weight" (default has type "None", argument has type "float")  [assignment]
+cubo\retrieval\fusion.py:86: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\fusion.py:86: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\fusion.py:87: error: Incompatible default for argument "bm25_weight" (default has type "None", argument has type "float")  [assignment]
+cubo\retrieval\fusion.py:87: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\fusion.py:87: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\fusion.py:88: error: Incompatible default for argument "top_k" (default has type "None", argument has type "int")  [assignment]
+cubo\retrieval\fusion.py:88: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\fusion.py:88: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\config\__init__.py:16: error: Need type annotation for "_overrides" (hint: "_overrides: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\config\__init__.py:18: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:18: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\config\__init__.py:41: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:41: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\config\__init__.py:74: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:93: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:99: error: Function is missing a type annotation  [no-untyped-def]
+cubo\config\__init__.py:115: error: Returning Any from function declared to return "dict[Any, Any]"  [no-any-return]
+cubo\config\__init__.py:118: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:128: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:128: note: Use "-> None" if function does not return a value
+cubo\config\__init__.py:142: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:142: note: Use "-> None" if function does not return a value
+cubo\config\__init__.py:154: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\config\__init__.py:154: note: Use "-> None" if function does not return a value
+cubo\config\__init__.py:268: error: Argument 1 to "Config" has incompatible type "Path"; expected "str | None"  [arg-type]
+cubo\utils\logger.py:28: error: Name "jsonlogger" already defined (by an import)  [no-redef]
+cubo\utils\logger.py:37: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:37: note: Use "-> None" if function does not return a value
+cubo\utils\logger.py:65: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:65: note: Use "-> None" if function does not return a value
+cubo\utils\logger.py:90: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:120: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:120: note: Use "-> None" if function does not return a value
+cubo\utils\logger.py:122: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+cubo\utils\logger.py:123: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+cubo\utils\logger.py:126: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:137: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\logger.py:160: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:201: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:208: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:214: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:218: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\logger.py:228: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\logger.py:245: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\logger.py:249: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\logger.py:256: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\logger.py:288: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:288: note: Use "-> None" if function does not return a value
+cubo\utils\logger.py:355: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:358: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\logger.py:358: note: Use "-> None" if function does not return a value
+cubo\retrieval\bm25_sqlite_store.py:23: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\bm25_sqlite_store.py:41: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_sqlite_store.py:41: note: Use "-> None" if function does not return a value
+cubo\retrieval\bm25_sqlite_store.py:76: error: Cannot override writeable attribute with read-only property  [override]
+cubo\retrieval\bm25_sqlite_store.py:96: error: Incompatible types in assignment (expression has type "list[dict[str, Any]]", variable has type "None")  [assignment]
+cubo\retrieval\bm25_sqlite_store.py:112: error: Need type annotation for "data_fts" (hint: "data_fts: list[<type>] = ...")  [var-annotated]
+cubo\retrieval\bm25_sqlite_store.py:113: error: Need type annotation for "data_lookup" (hint: "data_lookup: list[<type>] = ...")  [var-annotated]
+cubo\retrieval\bm25_sqlite_store.py:336: error: Returning Any from function declared to return "float"  [no-any-return]
+cubo\retrieval\bm25_sqlite_store.py:340: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_sqlite_store.py:344: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_sqlite_store.py:348: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_sqlite_store.py:348: note: Use "-> None" if function does not return a value
+cubo\deduplication\deduplicator.py:83: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\deduplication\deduplicator.py:184: error: Dict entry 2 has incompatible type "str": "int | None"; expected "str": "int"  [dict-item]
+scripts\run_beir_adapter.py:37: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+scripts\run_beir_adapter.py:70: error: Incompatible default for argument "corpus_path" (default has type "None", argument has type "str")  [assignment]
+scripts\run_beir_adapter.py:70: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+scripts\run_beir_adapter.py:70: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+scripts\run_beir_adapter.py:123: error: Function is missing a return type annotation  [no-untyped-def]
+scripts\run_beir_adapter.py:123: note: Use "-> None" if function does not return a value
+cubo\workers\enhanced_thread_manager.py:41: error: Need type annotation for "gpu_queue"  [var-annotated]
+cubo\workers\enhanced_thread_manager.py:63: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:69: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:75: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:77: error: Need type annotation for "future"  [var-annotated]
+cubo\workers\enhanced_thread_manager.py:79: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:79: note: Use "-> None" if function does not return a value
+cubo\workers\enhanced_thread_manager.py:94: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:94: note: Use "-> None" if function does not return a value
+cubo\workers\enhanced_thread_manager.py:109: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:123: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:123: note: Use "-> None" if function does not return a value
+cubo\workers\enhanced_thread_manager.py:130: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\enhanced_thread_manager.py:133: error: Unsupported operand types for + ("object" and "int")  [operator]
+cubo\workers\enhanced_thread_manager.py:134: error: "object" has no attribute "append"  [attr-defined]
+cubo\workers\enhanced_thread_manager.py:138: error: Argument 1 to "len" has incompatible type "object"; expected "Sized"  [arg-type]
+cubo\workers\enhanced_thread_manager.py:139: error: "object" has no attribute "pop"  [attr-defined]
+cubo\workers\enhanced_thread_manager.py:158: error: No overload variant of "sum" matches argument type "object"  [call-overload]
+cubo\workers\enhanced_thread_manager.py:158: note: Possible overload variants:
+cubo\workers\enhanced_thread_manager.py:158: note:     def sum(Iterable[bool], /, start: int = ...) -> int
+cubo\workers\enhanced_thread_manager.py:158: note:     def [_SupportsSumNoDefaultT: _SupportsSumWithNoDefaultGiven] sum(Iterable[_SupportsSumNoDefaultT], /) -> _SupportsSumNoDefaultT | Literal[0]
+cubo\workers\enhanced_thread_manager.py:158: note:     def [_AddableT1: SupportsAdd[Any, Any], _AddableT2: SupportsAdd[Any, Any]] sum(Iterable[_AddableT1], /, start: _AddableT2) -> _AddableT1 | _AddableT2
+cubo\workers\enhanced_thread_manager.py:158: error: Argument 1 to "len" has incompatible type "object"; expected "Sized"  [arg-type]
+cubo\workers\enhanced_thread_manager.py:176: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\deletion_compactor.py:13: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\deletion_compactor.py:39: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\deletion_compactor.py:39: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\background_task_manager.py:198: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\workers\background_task_manager.py:198: error: "bool" is invalid as return type for "__exit__" that always returns False  [exit-return]
+cubo\workers\background_task_manager.py:198: note: Use "typing.Literal[False]" as the return type or change it to "None"
+cubo\workers\background_task_manager.py:198: note: If return type of "__exit__" implies that it may return True, the context manager may swallow exceptions
+cubo\workers\background_task_manager.py:236: error: Function is missing a type annotation  [no-untyped-def]
+cubo\workers\background_task_manager.py:259: error: Cannot determine type of "_initialized"  [has-type]
+cubo\workers\background_task_manager.py:332: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\background_task_manager.py:430: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\background_task_manager.py:430: note: Use "-> None" if function does not return a value
+cubo\workers\background_task_manager.py:640: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\storage\metadata_manager.py:411: error: Argument 1 to "append" of "list" has incompatible type "str"; expected "int"  [arg-type]
+cubo\storage\metadata_manager.py:414: error: Argument 1 to "append" of "list" has incompatible type "str"; expected "int"  [arg-type]
+cubo\storage\metadata_manager.py:417: error: Argument 1 to "append" of "list" has incompatible type "str"; expected "int"  [arg-type]
+cubo\storage\metadata_manager.py:422: error: Argument 1 to "append" of "list" has incompatible type "str"; expected "int"  [arg-type]
+cubo\storage\metadata_manager.py:587: error: List comprehension has incompatible type List[dict[str, Any] | None]; expected List[dict[str, Any]]  [misc]
+cubo\storage\metadata_manager.py:607: error: Incompatible default for argument "metadata" (default has type "None", argument has type "dict[str, Any]")  [assignment]
+cubo\storage\metadata_manager.py:607: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\storage\metadata_manager.py:607: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\storage\memory_store.py:16: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\storage\memory_store.py:16: note: Use "-> None" if function does not return a value
+cubo\storage\memory_store.py:19: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\storage\memory_store.py:126: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\storage\memory_store.py:126: note: Use "-> None" if function does not return a value
+cubo\storage\memory_store.py:130: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\storage\memory_store.py:130: note: Use "-> None" if function does not return a value
+cubo\server\run.py:16: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\run.py:57: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\run.py:57: note: Use "-> None" if function does not return a value
+cubo\security\security.py:11: error: Cannot assign to a type  [misc]
+cubo\security\security.py:11: error: Incompatible types in assignment (expression has type "None", variable has type "type[Fernet]")  [assignment]
+cubo\security\security.py:22: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\security\security.py:22: note: Use "-> None" if function does not return a value
+cubo\security\security.py:31: error: Returning Any from function declared to return "bytes"  [no-any-return]
+cubo\security\security.py:141: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\security\security.py:141: error: Incompatible default for argument "details" (default has type "None", argument has type "dict[Any, Any]")  [assignment]
+cubo\security\security.py:141: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\security\security.py:141: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\security\security.py:147: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\strategy.py:14: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\strategy.py:14: note: Use "-> None" if function does not return a value
+cubo\retrieval\strategy.py:129: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\orchestrator.py:85: error: Item "None" of "ndarray[Any, Any] | None" has no attribute "shape"  [union-attr]
+cubo\retrieval\orchestrator.py:88: error: Item "None" of "ndarray[Any, Any] | None" has no attribute "shape"  [union-attr]
+cubo\retrieval\orchestrator.py:97: error: Argument 1 to "norm" has incompatible type "ndarray[Any, Any] | None"; expected "_SupportsArray[dtype[Any]] | _NestedSequence[_SupportsArray[dtype[Any]]] | bool | int | float | complex | str | bytes | _NestedSequence[bool | int | float | complex | str | bytes]"  [arg-type]
+cubo\retrieval\orchestrator.py:127: error: Item "None" of "Any | None" has no attribute "retrieve_scaffolds"  [union-attr]
+cubo\retrieval\orchestrator.py:147: error: Function "builtins.callable" is not valid as a type  [valid-type]
+cubo\retrieval\orchestrator.py:147: note: Perhaps you meant "typing.Callable" instead of "callable"?
+cubo\retrieval\orchestrator.py:167: error: callable? not callable  [misc]
+cubo\retrieval\orchestrator.py:314: error: Argument "semantic_weight" to "combine_semantic_and_bm25" has incompatible type "float | None"; expected "float"  [arg-type]
+cubo\retrieval\orchestrator.py:315: error: Argument "bm25_weight" to "combine_semantic_and_bm25" has incompatible type "float | None"; expected "float"  [arg-type]
+cubo\retrieval\orchestrator.py:595: error: Need type annotation for "scaffold_chunk_ids" (hint: "scaffold_chunk_ids: set[<type>] = ...")  [var-annotated]
+cubo\retrieval\orchestrator.py:596: error: Need type annotation for "scaffold_scores" (hint: "scaffold_scores: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\retrieval\orchestrator.py:616: error: Function "builtins.callable" is not valid as a type  [valid-type]
+cubo\retrieval\orchestrator.py:616: note: Perhaps you meant "typing.Callable" instead of "callable"?
+cubo\retrieval\orchestrator.py:660: error: Function "builtins.callable" is not valid as a type  [valid-type]
+cubo\retrieval\orchestrator.py:660: note: Perhaps you meant "typing.Callable" instead of "callable"?
+cubo\retrieval\bm25_python_store.py:44: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\bm25_python_store.py:56: error: Need type annotation for "doc_lengths" (hint: "doc_lengths: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\retrieval\bm25_python_store.py:58: error: Need type annotation for "term_doc_freq"  [var-annotated]
+cubo\retrieval\bm25_python_store.py:59: error: Need type annotation for "doc_term_freq" (hint: "doc_term_freq: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\retrieval\bm25_python_store.py:60: error: Need type annotation for "postings"  [var-annotated]
+cubo\retrieval\bm25_python_store.py:61: error: Need type annotation for "docs_map" (hint: "docs_map: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\retrieval\bm25_python_store.py:76: error: Incompatible types in assignment (expression has type "None", variable has type "MultilingualTokenizer")  [assignment]
+cubo\retrieval\bm25_python_store.py:347: error: Incompatible types in assignment (expression has type "Any | None", variable has type "dict[Any, Any]")  [assignment]
+cubo\retrieval\bm25_python_store.py:350: error: Argument 2 to "next" has incompatible type "None"; expected "dict[Any, Any]"  [arg-type]
+cubo\processing\postprocessor.py:40: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\background_manager.py:31: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\processing\background_manager.py:46: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\background_manager.py:46: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\processing\background_manager.py:77: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\background_manager.py:77: note: Use "-> None" if function does not return a value
+cubo\monitoring\health_monitor.py:72: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\monitoring\health_monitor.py:86: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\monitoring\health_monitor.py:131: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\monitoring\health_monitor.py:180: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\monitoring\health_monitor.py:180: note: Use "-> None" if function does not return a value
+cubo\monitoring\health_monitor.py:200: error: Incompatible return value type (got "None", expected "dict[str, Any]")  [return-value]
+cubo\monitoring\health_monitor.py:202: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_inference_threading.py:51: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\embeddings\model_inference_threading.py:124: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\embeddings\model_inference_threading.py:156: error: Returning Any from function declared to return "list[list[float]]"  [no-any-return]
+cubo\embeddings\model_inference_threading.py:162: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\embeddings\model_inference_threading.py:216: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\embeddings\model_inference_threading.py:250: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_inference_threading.py:250: note: Use "-> None" if function does not return a value
+cubo\embeddings\model_inference_threading.py:338: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_inference_threading.py:338: note: Use "-> None" if function does not return a value
+cubo\services\service_manager.py:41: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:41: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\services\service_manager.py:57: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:68: error: Argument "max_retries" to "submit_task_with_retry" of "ThreadManager" has incompatible type "object"; expected "int"  [arg-type]
+cubo\services\service_manager.py:75: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\services\service_manager.py:110: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:124: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:142: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:142: note: Use "-> None" if function does not return a value
+cubo\services\service_manager.py:213: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:224: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:224: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\services\service_manager.py:228: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:228: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\services\service_manager.py:232: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:232: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\services\service_manager.py:236: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:236: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\services\service_manager.py:257: error: Function is missing a type annotation  [no-untyped-def]
+cubo\services\service_manager.py:272: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:278: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:337: error: Incompatible default for argument "context_metadata" (default has type "None", argument has type "list[dict[str, Any]]")  [assignment]
+cubo\services\service_manager.py:337: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\services\service_manager.py:337: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\services\service_manager.py:512: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\services\service_manager.py:512: note: Use "-> None" if function does not return a value
+cubo\retrieval\bm25_store_factory.py:10: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_store_factory.py:10: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\bm25_migration.py:15: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\index_publisher.py:34: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\index_publisher.py:52: error: Function is missing a type annotation  [no-untyped-def]
+cubo\indexing\index_publisher.py:65: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\index_publisher.py:65: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\indexing\index_publisher.py:104: error: Returning Any from function declared to return "dict[str, str | None]"  [no-any-return]
+cubo\indexing\index_publisher.py:112: error: Function "builtins.callable" is not valid as a type  [valid-type]
+cubo\indexing\index_publisher.py:112: note: Perhaps you meant "typing.Callable" instead of "callable"?
+cubo\indexing\index_publisher.py:197: error: Argument 1 to "record_index_version" of "MetadataManager" has incompatible type "object"; expected "str"  [arg-type]
+cubo\indexing\index_publisher.py:200: error: callable? not callable  [misc]
+cubo\indexing\index_publisher.py:221: error: callable? not callable  [misc]
+cubo\indexing\index_publisher.py:237: error: callable? not callable  [misc]
+cubo\indexing\index_publisher.py:260: error: Function "builtins.callable" is not valid as a type  [valid-type]
+cubo\indexing\index_publisher.py:260: note: Perhaps you meant "typing.Callable" instead of "callable"?
+cubo\indexing\index_publisher.py:297: error: Argument 1 to "exists" has incompatible type "Any | None"; expected "int | str | bytes | PathLike[str] | PathLike[bytes]"  [arg-type]
+cubo\indexing\index_publisher.py:318: error: callable? not callable  [misc]
+cubo\indexing\index_publisher.py:329: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\faiss_index.py:109: error: Returning Any from function declared to return "ndarray[Any, Any] | None"  [no-any-return]
+cubo\indexing\faiss_index.py:117: error: Returning Any from function declared to return "ndarray[Any, Any] | None"  [no-any-return]
+cubo\indexing\faiss_index.py:205: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\faiss_index.py:205: note: Use "-> None" if function does not return a value
+cubo\indexing\faiss_index.py:339: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\faiss_index.py:379: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\faiss_index.py:419: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\indexing\faiss_index.py:550: error: Need type annotation for "seen_ids" (hint: "seen_ids: set[<type>] = ...")  [var-annotated]
+cubo\indexing\faiss_index.py:644: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:217: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:217: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store.py:230: error: Function is missing a type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:233: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:233: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store.py:252: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store.py:757: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:757: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store.py:813: error: Function is missing a type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:876: error: Function is missing a type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:925: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\vector_store.py:925: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store.py:1453: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store.py:1651: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\vector_store.py:1652: error: Incompatible default for argument "backend" (default has type "None", argument has type "str")  [assignment]
+cubo\retrieval\vector_store.py:1652: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\vector_store.py:1652: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\bm25_searcher.py:42: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\bm25_searcher.py:47: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\bm25_searcher.py:48: error: Incompatible default for argument "chunks_jsonl" (default has type "None", argument has type "str")  [assignment]
+cubo\retrieval\bm25_searcher.py:48: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\bm25_searcher.py:48: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\bm25_searcher.py:48: error: Incompatible default for argument "bm25_stats" (default has type "None", argument has type "str")  [assignment]
+cubo\retrieval\bm25_searcher.py:48: error: Incompatible default for argument "backend" (default has type "None", argument has type "str")  [assignment]
+cubo\retrieval\bm25_searcher.py:66: error: Incompatible types in assignment (expression has type "None", variable has type "MultilingualTokenizer")  [assignment]
+cubo\retrieval\bm25_searcher.py:162: error: Returning Any from function declared to return "None"  [no-any-return]
+cubo\retrieval\bm25_searcher.py:314: error: Incompatible default for argument "doc_text" (default has type "None", argument has type "str")  [assignment]
+cubo\retrieval\bm25_searcher.py:314: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\bm25_searcher.py:314: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\bm25_searcher.py:326: error: Returning Any from function declared to return "float"  [no-any-return]
+cubo\retrieval\bm25_searcher.py:331: error: Incompatible default for argument "doc_text" (default has type "None", argument has type "str")  [assignment]
+cubo\retrieval\bm25_searcher.py:331: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\bm25_searcher.py:331: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\bm25_searcher.py:448: error: Incompatible default for argument "docs" (default has type "None", argument has type "list[dict[Any, Any]]")  [assignment]
+cubo\retrieval\bm25_searcher.py:448: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\bm25_searcher.py:448: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\bm25_searcher.py:460: error: Returning Any from function declared to return "list[dict[Any, Any]]"  [no-any-return]
+cubo\processing\llm_local.py:49: error: Incompatible default for argument "messages" (default has type "None", argument has type "list[dict[str, str]]")  [assignment]
+cubo\processing\llm_local.py:49: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\processing\llm_local.py:49: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\processing\llm_local.py:79: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\llm_local.py:108: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\processing\llm_local.py:114: error: Incompatible default for argument "messages" (default has type "None", argument has type "list[dict[str, str]]")  [assignment]
+cubo\processing\llm_local.py:114: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\processing\llm_local.py:114: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\processing\llm_local.py:116: error: Function "builtins.any" is not valid as a type  [valid-type]
+cubo\processing\llm_local.py:116: note: Perhaps you meant "typing.Any" instead of "any"?
+cubo\indexing\tiered_index_manager.py:121: error: "object" has no attribute "append"  [attr-defined]
+cubo\indexing\tiered_index_manager.py:125: error: "object" has no attribute "append"  [attr-defined]
+cubo\indexing\tiered_index_manager.py:127: error: Unsupported target for indexed assignment ("object")  [index]
+cubo\indexing\tiered_index_manager.py:128: error: Unsupported target for indexed assignment ("object")  [index]
+cubo\indexing\tiered_index_manager.py:129: error: Unsupported target for indexed assignment ("object")  [index]
+cubo\indexing\tiered_index_manager.py:146: error: "object" has no attribute "append"  [attr-defined]
+cubo\indexing\tiered_index_manager.py:148: error: Unsupported target for indexed assignment ("object")  [index]
+cubo\indexing\tiered_index_manager.py:196: error: Function is missing a type annotation  [no-untyped-def]
+cubo\indexing\tiered_index_manager.py:225: error: Cannot determine type of "_initialized"  [has-type]
+cubo\indexing\tiered_index_manager.py:269: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\tiered_index_manager.py:284: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\indexing\tiered_index_manager.py:466: error: Returning Any from function declared to return "list[dict[Any, Any]]"  [no-any-return]
+cubo\indexing\tiered_index_manager.py:497: error: Returning Any from function declared to return "list[dict[Any, Any]]"  [no-any-return]
+cubo\scripts\inspect_db.py:14: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\inspect_db.py:21: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\inspect_db.py:21: note: Use "-> None" if function does not return a value
+cubo\scripts\clear_db.py:14: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\clear_db.py:24: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\clear_db.py:33: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\clear_db.py:33: note: Use "-> None" if function does not return a value
+cubo\scripts\bm25_query.py:12: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\bm25_query.py:12: note: Use "-> None" if function does not return a value
+cubo\processing\generator.py:9: error: Incompatible types in assignment (expression has type "None", variable has type Module)  [assignment]
+cubo\processing\generator.py:25: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\generator.py:25: note: Use "-> None" if function does not return a value
+cubo\processing\generator.py:32: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\generator.py:32: note: Use "-> None" if function does not return a value
+cubo\processing\generator.py:40: error: Incompatible default for argument "messages" (default has type "None", argument has type "list[dict[str, str]]")  [assignment]
+cubo\processing\generator.py:40: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\processing\generator.py:40: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\processing\generator.py:72: error: Incompatible default for argument "messages" (default has type "None", argument has type "list[dict[str, str]]")  [assignment]
+cubo\processing\generator.py:72: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\processing\generator.py:72: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\processing\generator.py:82: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\generator.py:92: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\generator.py:107: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\processing\generator.py:113: error: Incompatible default for argument "messages" (default has type "None", argument has type "list[dict[str, str]]")  [assignment]
+cubo\processing\generator.py:113: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\processing\generator.py:113: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\processing\generator.py:115: error: Function "builtins.any" is not valid as a type  [valid-type]
+cubo\processing\generator.py:115: note: Perhaps you meant "typing.Any" instead of "any"?
+cubo\processing\generator.py:199: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\generator.py:203: error: Incompatible default for argument "messages" (default has type "None", argument has type "list[dict[str, str]]")  [assignment]
+cubo\processing\generator.py:203: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\processing\generator.py:203: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\processing\generator.py:210: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\generator.py:228: error: Incompatible return value type (got "LocalResponseGenerator", expected "ResponseGenerator")  [return-value]
+cubo\processing\generator.py:243: error: Incompatible return value type (got "LocalResponseGenerator", expected "ResponseGenerator")  [return-value]
+cubo\routing\llm_classifier.py:32: error: Argument "messages" to "generate_response" of "ResponseGenerator" has incompatible type "None"; expected "list[dict[str, str]]"  [arg-type]
+cubo\processing\enrichment.py:33: error: Need type annotation for "enriched_chunks" (hint: "enriched_chunks: list[<type>] = ...")  [var-annotated]
+cubo\routing\query_router.py:77: error: Need type annotation for "_llm_cache" (hint: "_llm_cache: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\routing\query_router.py:79: error: Function is missing a type annotation  [no-untyped-def]
+cubo\routing\query_router.py:90: error: Function is missing a type annotation  [no-untyped-def]
+cubo\routing\query_router.py:109: error: Function is missing a type annotation  [no-untyped-def]
+cubo\routing\query_router.py:120: error: Function is missing a type annotation  [no-untyped-def]
+cubo\routing\query_router.py:139: error: Returning Any from function declared to return "tuple[QueryType, float, bool]"  [no-any-return]
+cubo\routing\query_router.py:144: error: Returning Any from function declared to return "tuple[QueryType, float, bool]"  [no-any-return]
+cubo\retrieval\router.py:15: error: Incompatible types in assignment (expression has type "None", variable has type "QueryRouter")  [assignment]
+cubo\retrieval\router.py:16: error: Cannot assign to a type  [misc]
+cubo\retrieval\router.py:16: error: Incompatible types in assignment (expression has type "None", variable has type "type[QueryType]")  [assignment]
+cubo\retrieval\router.py:34: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\router.py:34: note: Use "-> None" if function does not return a value
+cubo\retrieval\router.py:39: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\router.py:81: error: Returning Any from function declared to return "QueryType"  [no-any-return]
+cubo\retrieval\router.py:85: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\router.py:87: error: Library stubs not installed for "dateparser"  [import-untyped]
+cubo\retrieval\router.py:87: note: Hint: "python3 -m pip install types-dateparser"
+cubo\retrieval\router.py:87: note: (or run "mypy --install-types" to install all missing stub packages)
+cubo\retrieval\router.py:87: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+cubo\retrieval\router.py:121: error: Value of type "dict[Any, Any] | None" is not indexable  [index]
+cubo\utils\utils.py:13: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\utils.py:13: error: Incompatible default for argument "success_msg" (default has type "None", argument has type "str")  [assignment]
+cubo\utils\utils.py:13: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\utils\utils.py:13: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\utils\utils.py:22: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\utils.py:24: error: Function is missing a type annotation  [no-untyped-def]
+cubo\utils\utils.py:89: error: Incompatible default for argument "chunk_size" (default has type "None", argument has type "int")  [assignment]
+cubo\utils\utils.py:89: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\utils\utils.py:89: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\utils\utils.py:89: error: Incompatible default for argument "overlap" (default has type "None", argument has type "int")  [assignment]
+cubo\utils\utils.py:102: error: Incompatible default for argument "chunk_size" (default has type "None", argument has type "int")  [assignment]
+cubo\utils\utils.py:102: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\utils\utils.py:102: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\utils\utils.py:102: error: Incompatible default for argument "overlap" (default has type "None", argument has type "int")  [assignment]
+cubo\utils\utils.py:150: error: Returning Any from function declared to return "list[str]"  [no-any-return]
+cubo\utils\utils.py:155: error: Returning Any from function declared to return "list[str]"  [no-any-return]
+cubo\utils\utils.py:210: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\utils\utils.py:329: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\utils.py:329: note: Use "-> None" if function does not return a value
+cubo\utils\utils.py:332: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\utils.py:337: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\utils\utils.py:352: error: Returning Any from function declared to return "int"  [no-any-return]
+cubo\scripts\download_dolphin.py:16: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\download_dolphin.py:30: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\download_dolphin.py:43: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\download_dolphin.py:68: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\download_dolphin.py:89: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\download_dolphin.py:100: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\download_dolphin.py:109: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\models\dolphin_processor.py:37: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\models\dolphin_processor.py:37: note: Use "-> None" if function does not return a value
+cubo\models\dolphin_processor.py:55: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\models\dolphin_processor.py:55: note: Use "-> None" if function does not return a value
+cubo\models\dolphin_processor.py:61: error: Incompatible default for argument "prompt" (default has type "None", argument has type "str")  [assignment]
+cubo\models\dolphin_processor.py:61: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\models\dolphin_processor.py:61: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\models\dolphin_processor.py:84: error: Incompatible default for argument "prompt" (default has type "None", argument has type "str")  [assignment]
+cubo\models\dolphin_processor.py:84: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\models\dolphin_processor.py:84: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\models\dolphin_processor.py:96: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\models\dolphin_processor.py:98: error: "None" not callable  [misc]
+cubo\models\dolphin_processor.py:100: error: Function is missing a type annotation  [no-untyped-def]
+cubo\models\dolphin_processor.py:107: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\models\dolphin_processor.py:109: error: "None" has no attribute "batch_decode"  [attr-defined]
+cubo\models\dolphin_processor.py:110: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\models\dolphin_processor.py:131: error: Argument 2 to "process_image" of "DolphinProcessor" has incompatible type "str | None"; expected "str"  [arg-type]
+cubo\ingestion\hierarchical_chunker.py:88: error: Need type annotation for "hierarchy_stack" (hint: "hierarchy_stack: list[<type>] = ...")  [var-annotated]
+cubo\ingestion\hierarchical_chunker.py:178: error: Argument 2 to "record" has incompatible type "object"; expected "int"  [arg-type]
+cubo\ingestion\hierarchical_chunker.py:183: error: Unsupported operand types for <= ("float" and "object")  [operator]
+cubo\ingestion\hierarchical_chunker.py:214: error: Need type annotation for "chunks" (hint: "chunks: list[<type>] = ...")  [var-annotated]
+cubo\ingestion\hierarchical_chunker.py:224: error: Need type annotation for "current_chunk" (hint: "current_chunk: list[<type>] = ...")  [var-annotated]
+cubo\ingestion\hierarchical_chunker.py:228: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\hierarchical_chunker.py:228: note: Use "-> None" if function does not return a value
+cubo\ingestion\hierarchical_chunker.py:371: error: Need type annotation for "chunks" (hint: "chunks: list[<type>] = ...")  [var-annotated]
+cubo\ingestion\hierarchical_chunker.py:378: error: Need type annotation for "current_chunk" (hint: "current_chunk: list[<type>] = ...")  [var-annotated]
+cubo\ingestion\hierarchical_chunker.py:382: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\hierarchical_chunker.py:382: note: Use "-> None" if function does not return a value
+cubo\embeddings\lazy_model_manager.py:104: error: Incompatible return value type (got "SentenceTransformer | None", expected "SentenceTransformer")  [return-value]
+cubo\embeddings\lazy_model_manager.py:118: error: Incompatible types in assignment (expression has type "_LightweightModel", variable has type "SentenceTransformer | None")  [assignment]
+cubo\embeddings\lazy_model_manager.py:266: error: Function is missing a type annotation  [no-untyped-def]
+cubo\embeddings\lazy_model_manager.py:298: error: Function is missing a type annotation  [no-untyped-def]
+cubo\embeddings\lazy_model_manager.py:305: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:13: error: Incompatible default for argument "lazy" (default has type "None", argument has type "bool")  [assignment]
+cubo\embeddings\model_loader.py:13: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\embeddings\model_loader.py:13: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\embeddings\model_loader.py:34: error: Incompatible types in assignment (expression has type "None", variable has type "LazyModelManager")  [assignment]
+cubo\embeddings\model_loader.py:42: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\embeddings\model_loader.py:55: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:70: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:77: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:132: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:140: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:149: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:164: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\model_loader.py:172: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\embeddings\embedding_generator.py:22: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\embeddings\embedding_generator.py:33: error: Returning Any from function declared to return "str | None"  [no-any-return]
+cubo\embeddings\embedding_generator.py:87: error: Returning Any from function declared to return "str | None"  [no-any-return]
+cubo\retrieval\retrieval_executor.py:140: error: Returning Any from function declared to return "list[dict[Any, Any]]"  [no-any-return]
+cubo\retrieval\retrieval_executor.py:209: error: Need type annotation for "candidates" (hint: "candidates: list[<type>] = ...")  [var-annotated]
+cubo\retrieval\document_store.py:542: error: Returning Any from function declared to return "int"  [no-any-return]
+cubo\retrieval\document_store.py:567: error: Need type annotation for "doc_counts" (hint: "doc_counts: dict[<type>, <type>] = ...")  [var-annotated]
+cubo\rerank\reranker.py:237: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\rerank\reranker.py:300: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\rerank\reranker.py:300: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\rerank\reranker.py:471: error: Returning Any from function declared to return "ndarray[Any, Any]"  [no-any-return]
+cubo\processing\scaffold.py:53: error: Incompatible types in assignment (expression has type "None", variable has type "SemanticClusterer")  [assignment]
+cubo\processing\scaffold.py:152: error: Need type annotation for "groups"  [var-annotated]
+cubo\processing\scaffold.py:288: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\processing\scaffold.py:306: error: Function is missing a type annotation  [no-untyped-def]
+cubo\processing\scaffold.py:309: error: Argument "llm_provider" to "ChunkEnricher" has incompatible type "DummyLLM"; expected "ResponseGenerator"  [arg-type]
+cubo\processing\scaffold.py:345: error: No overload variant of "int" matches argument type "object"  [call-overload]
+cubo\processing\scaffold.py:345: note: Possible overload variants:
+cubo\processing\scaffold.py:345: note:     def int(str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+cubo\processing\scaffold.py:345: note:     def int(str | bytes | bytearray, /, base: SupportsIndex) -> int
+cubo\ingestion\enhanced_document_processor.py:20: error: Cannot assign to a type  [misc]
+cubo\ingestion\enhanced_document_processor.py:20: error: Incompatible types in assignment (expression has type "None", variable has type "type[DolphinProcessor]")  [assignment]
+cubo\ingestion\enhanced_document_processor.py:164: error: Item "None" of "Any | None" has no attribute "encode"  [union-attr]
+cubo\ingestion\enhanced_document_processor.py:212: error: Incompatible types in assignment (expression has type "Path", variable has type "str")  [assignment]
+cubo\ingestion\enhanced_document_processor.py:214: error: "str" has no attribute "exists"  [attr-defined]
+cubo\ingestion\enhanced_document_processor.py:218: error: "str" has no attribute "suffix"  [attr-defined]
+cubo\ingestion\enhanced_document_processor.py:223: error: "str" has no attribute "suffix"  [attr-defined]
+cubo\ingestion\enhanced_document_processor.py:228: error: "str" has no attribute "suffix"  [attr-defined]
+cubo\ingestion\enhanced_document_processor.py:231: error: "str" has no attribute "suffix"  [attr-defined]
+cubo\ingestion\enhanced_document_processor.py:246: error: Incompatible types in assignment (expression has type "Path", variable has type "str")  [assignment]
+cubo\ingestion\enhanced_document_processor.py:248: error: Argument 1 to "_is_supported_for_structured_extraction" of "EnhancedDocumentProcessor" has incompatible type "str"; expected "Path"  [arg-type]
+cubo\ingestion\enhanced_document_processor.py:252: error: Argument 1 to "_load_image_for_extraction" of "EnhancedDocumentProcessor" has incompatible type "str"; expected "Path"  [arg-type]
+cubo\ingestion\enhanced_document_processor.py:271: error: Incompatible return value type (got "Image | None", expected "Image")  [return-value]
+cubo\deduplication\custom_auto_merging.py:14: error: Cannot assign to a type  [misc]
+cubo\deduplication\custom_auto_merging.py:14: error: Incompatible types in assignment (expression has type "None", variable has type "type[SentenceTransformer]")  [assignment]
+cubo\deduplication\custom_auto_merging.py:25: error: Incompatible default for argument "chunk_sizes" (default has type "None", argument has type "list[int]")  [assignment]
+cubo\deduplication\custom_auto_merging.py:25: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\deduplication\custom_auto_merging.py:25: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\deduplication\custom_auto_merging.py:46: error: Need type annotation for "chunks" (hint: "chunks: list[<type>] = ...")  [var-annotated]
+cubo\deduplication\custom_auto_merging.py:254: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\deduplication\custom_auto_merging.py:263: error: Need type annotation for "doc_chunks"  [var-annotated]
+cubo\deduplication\custom_auto_merging.py:358: error: Returning Any from function declared to return "dict[str, Any] | None"  [no-any-return]
+cubo\deduplication\custom_auto_merging.py:398: error: Need type annotation for "loaded_documents" (hint: "loaded_documents: set[<type>] = ...")  [var-annotated]
+cubo\deduplication\custom_auto_merging.py:538: error: Returning Any from function declared to return "list[float]"  [no-any-return]
+cubo\deduplication\custom_auto_merging.py:542: error: Returning Any from function declared to return "dict[Any, Any]"  [no-any-return]
+cubo\deduplication\custom_auto_merging.py:605: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\deduplication\custom_auto_merging.py:605: note: Use "-> None" if function does not return a value
+cubo\retrieval\dependencies.py:30: error: Function "builtins.callable" is not valid as a type  [valid-type]
+cubo\retrieval\dependencies.py:30: note: Perhaps you meant "typing.Callable" instead of "callable"?
+cubo\ingestion\chunkers.py:19: error: Cannot assign to a type  [misc]
+cubo\ingestion\chunkers.py:19: error: Incompatible types in assignment (expression has type "None", variable has type "type[AutoMergingChunker]")  [assignment]
+cubo\ingestion\chunkers.py:23: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\chunkers.py:29: error: Function is missing a type annotation  [no-untyped-def]
+cubo\ingestion\chunkers.py:32: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\chunkers.py:33: error: Returning Any from function declared to return "list[dict[str, Any]]"  [no-any-return]
+cubo\ingestion\chunkers.py:43: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\chunkers.py:47: error: Returning Any from function declared to return "list[dict[str, Any]]"  [no-any-return]
+cubo\ingestion\chunkers.py:57: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\chunkers.py:60: error: Argument "chunk_size" to "chunk_text" of "Utils" has incompatible type "Any | None"; expected "int"  [arg-type]
+cubo\ingestion\chunkers.py:60: error: Argument "overlap" to "chunk_text" of "Utils" has incompatible type "Any | None"; expected "int"  [arg-type]
+cubo\ingestion\chunkers.py:70: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\chunkers.py:112: error: Argument "chunk_sizes" to "AutoMergingChunker" has incompatible type "list[int] | None"; expected "list[int]"  [arg-type]
+cubo\ingestion\chunkers.py:112: error: Function "_AutoMergingChunker" could always be true in boolean context  [truthy-function]
+cubo\ingestion\chunkers.py:115: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\chunkers.py:137: error: Incompatible return value type (got "TableChunker", expected "BaseChunker")  [return-value]
+cubo\ingestion\chunkers.py:137: note: Following member(s) of "TableChunker" have conflicts:
+cubo\ingestion\chunkers.py:137: note:     Expected:
+cubo\ingestion\chunkers.py:137: note:         def chunk(self, text: str, **kwargs: Any) -> list[dict[str, Any]]
+cubo\ingestion\chunkers.py:137: note:     Got:
+cubo\ingestion\chunkers.py:137: note:         def chunk(self, dataframe: Any, chunk_type: str = ..., metadata: dict[str, Any] | None = ...) -> list[dict[str, Any]]
+cubo\ingestion\chunkers.py:150: error: Incompatible return value type (got "TableChunker", expected "BaseChunker")  [return-value]
+cubo\ingestion\chunkers.py:150: note: Following member(s) of "TableChunker" have conflicts:
+cubo\ingestion\chunkers.py:150: note:     Expected:
+cubo\ingestion\chunkers.py:150: note:         def chunk(self, text: str, **kwargs: Any) -> list[dict[str, Any]]
+cubo\ingestion\chunkers.py:150: note:     Got:
+cubo\ingestion\chunkers.py:150: note:         def chunk(self, dataframe: Any, chunk_type: str = ..., metadata: dict[str, Any] | None = ...) -> list[dict[str, Any]]
+cubo\retrieval\retriever.py:25: error: Cannot assign to a type  [misc]
+cubo\retrieval\retriever.py:25: error: Incompatible types in assignment (expression has type "None", variable has type "type[SentenceTransformer]")  [assignment]
+cubo\retrieval\retriever.py:137: error: Incompatible types in assignment (expression has type "InMemoryCollection", variable has type "VectorStore")  [assignment]
+cubo\retrieval\retriever.py:154: error: "DocumentRetriever" has no attribute "_to_text"  [attr-defined]
+cubo\retrieval\retriever.py:311: error: Function is missing a type annotation  [no-untyped-def]
+cubo\retrieval\retriever.py:314: error: Function is missing a type annotation  [no-untyped-def]
+cubo\retrieval\retriever.py:330: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\retriever.py:358: error: Incompatible default for argument "filepath" (default has type "None", argument has type "str")  [assignment]
+cubo\retrieval\retriever.py:358: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\retriever.py:358: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\retriever.py:402: error: Returning Any from function declared to return "bool"  [no-any-return]
+cubo\retrieval\retriever.py:404: error: Argument 2 to "_do_add_document" of "DocumentRetriever" has incompatible type "list[dict[Any, Any]] | None"; expected "list[dict[Any, Any]]"  [arg-type]
+cubo\retrieval\retriever.py:439: error: Returning Any from function declared to return "bool"  [no-any-return]
+cubo\retrieval\retriever.py:451: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\retriever.py:610: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\retrieval\retriever.py:715: error: Returning Any from function declared to return "list[dict[Any, Any]]"  [no-any-return]
+cubo\retrieval\retriever.py:879: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\retrieval\retriever.py:879: error: Incompatible default for argument "top_k" (default has type "None", argument has type "int")  [assignment]
+cubo\retrieval\retriever.py:879: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\retrieval\retriever.py:879: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\retrieval\retriever.py:916: error: "BM25Searcher" has no attribute "add_document"; maybe "add_documents"?  [attr-defined]
+cubo\retrieval\retriever.py:942: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\document_loader.py:43: error: Argument 1 to "EnhancedDocumentProcessor" has incompatible type "Config"; expected "dict[str, Any]"  [arg-type]
+cubo\ingestion\document_loader.py:55: error: Incompatible default for argument "chunking_config" (default has type "None", argument has type "dict[Any, Any]")  [assignment]
+cubo\ingestion\document_loader.py:55: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\document_loader.py:55: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\document_loader.py:69: error: Incompatible return value type (got "EnhancedDocumentProcessor | Any | None", expected "bool")  [return-value]
+cubo\ingestion\document_loader.py:75: error: Item "None" of "EnhancedDocumentProcessor | None" has no attribute "process_document"  [union-attr]
+cubo\ingestion\document_loader.py:81: error: Incompatible default for argument "chunking_config" (default has type "None", argument has type "dict[Any, Any]")  [assignment]
+cubo\ingestion\document_loader.py:81: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\document_loader.py:81: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\document_loader.py:135: error: Incompatible default for argument "chunking_config" (default has type "None", argument has type "dict[Any, Any]")  [assignment]
+cubo\ingestion\document_loader.py:135: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\document_loader.py:135: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\document_loader.py:197: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\document_loader.py:262: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\document_loader.py:274: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\document_loader.py:280: error: Incompatible return value type (got "list[dict[Any, Any]]", expected "list[str]")  [return-value]
+cubo\main.py:37: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:37: note: Use "-> None" if function does not return a value
+cubo\main.py:46: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:46: note: Use "-> None" if function does not return a value
+cubo\main.py:143: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:143: note: Use "-> None" if function does not return a value
+cubo\main.py:159: error: Function is missing a type annotation  [no-untyped-def]
+cubo\main.py:165: error: Function is missing a type annotation  [no-untyped-def]
+cubo\main.py:175: error: Function is missing a type annotation  [no-untyped-def]
+cubo\main.py:184: error: Function is missing a type annotation  [no-untyped-def]
+cubo\main.py:202: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:202: note: Use "-> None" if function does not return a value
+cubo\main.py:212: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:212: note: Use "-> None" if function does not return a value
+cubo\main.py:218: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:218: note: Use "-> None" if function does not return a value
+cubo\main.py:227: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:246: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:267: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:267: note: Use "-> None" if function does not return a value
+cubo\main.py:291: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\main.py:294: error: Incompatible return value type (got "None", expected "str")  [return-value]
+cubo\main.py:300: error: Incompatible return value type (got "None", expected "list[Any]")  [return-value]
+cubo\main.py:304: error: Incompatible return value type (got "None", expected "list[Any]")  [return-value]
+cubo\main.py:308: error: Incompatible return value type (got "None", expected "list[Any]")  [return-value]
+cubo\main.py:333: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\main.py:336: error: Incompatible return value type (got "None", expected "str")  [return-value]
+cubo\main.py:339: error: Incompatible return value type (got "None", expected "str")  [return-value]
+cubo\main.py:351: error: Returning Any from function declared to return "list[Any]"  [no-any-return]
+cubo\main.py:354: error: Incompatible return value type (got "None", expected "list[Any]")  [return-value]
+cubo\main.py:356: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:371: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+cubo\main.py:373: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:385: error: Incompatible return value type (got "None", expected "str")  [return-value]
+cubo\main.py:388: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:403: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:414: error: Function is missing a type annotation  [no-untyped-def]
+cubo\main.py:432: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\main.py:435: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\main.py:438: error: Incompatible return value type (got "None", expected "str")  [return-value]
+cubo\main.py:448: error: Returning Any from function declared to return "list[Any]"  [no-any-return]
+cubo\main.py:450: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:455: error: Incompatible default for argument "data_folder" (default has type "None", argument has type "str")  [assignment]
+cubo\main.py:455: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\main.py:455: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\main.py:466: error: Incompatible default for argument "data_folder" (default has type "None", argument has type "str")  [assignment]
+cubo\main.py:466: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\main.py:466: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\main.py:489: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:507: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:507: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\main.py:508: error: Incompatible default for argument "top_k" (default has type "None", argument has type "int")  [assignment]
+cubo\main.py:508: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\main.py:508: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\main.py:518: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:525: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:541: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:541: note: Use "-> None" if function does not return a value
+cubo\main.py:553: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\main.py:577: error: Function is missing a type annotation  [no-untyped-def]
+cubo\main.py:596: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\core.py:44: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\core.py:44: note: Use "-> None" if function does not return a value
+cubo\core.py:95: error: Incompatible default for argument "data_folder" (default has type "None", argument has type "str")  [assignment]
+cubo\core.py:95: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\core.py:95: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\core.py:128: error: Incompatible default for argument "data_folder" (default has type "None", argument has type "str")  [assignment]
+cubo\core.py:128: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\core.py:128: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\core.py:149: error: Incompatible default for argument "data_folder" (default has type "None", argument has type "str")  [assignment]
+cubo\core.py:149: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\core.py:149: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\core.py:167: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\core.py:168: error: Incompatible default for argument "top_k" (default has type "None", argument has type "int")  [assignment]
+cubo\core.py:168: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\core.py:168: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\core.py:187: error: Returning Any from function declared to return "list[dict[str, Any]]"  [no-any-return]
+cubo\core.py:206: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\core.py:229: error: Incompatible default for argument "top_k" (default has type "None", argument has type "int")  [assignment]
+cubo\core.py:229: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\core.py:229: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\core.py:241: error: Returning Any from function declared to return "str"  [no-any-return]
+cubo\core.py:244: error: Incompatible default for argument "top_k" (default has type "None", argument has type "int")  [assignment]
+cubo\core.py:244: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\core.py:244: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\core.py:281: error: Returning Any from function declared to return "bool"  [no-any-return]
+cubo\core.py:292: error: Returning Any from function declared to return "list[dict[Any, Any]]"  [no-any-return]
+cubo\workers\async_document_processor.py:49: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\async_document_processor.py:49: note: Use "-> None" if function does not return a value
+cubo\workers\async_document_processor.py:54: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\async_document_processor.py:54: note: Use "-> None" if function does not return a value
+cubo\workers\async_document_processor.py:74: error: Need type annotation for "all_chunks" (hint: "all_chunks: list[<type>] = ...")  [var-annotated]
+cubo\workers\async_document_processor.py:122: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\async_document_processor.py:133: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\async_document_processor.py:139: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\workers\async_document_processor.py:139: note: Use "-> None" if function does not return a value
+cubo\workers\async_document_processor.py:183: error: Returning Any from function declared to return "list[dict[str, Any]]"  [no-any-return]
+cubo\workers\async_document_processor.py:183: error: "None" has no attribute "process_document"  [attr-defined]
+cubo\workers\async_document_processor.py:205: error: Function is missing a type annotation  [no-untyped-def]
+cubo\workers\async_document_processor.py:262: error: Missing positional argument "config" in call to "EnhancedDocumentProcessor"  [call-arg]
+cubo\scripts\retrieval_config_examples.py:12: error: Argument "model" to "DocumentRetriever" has incompatible type "None"; expected "SentenceTransformer"  [arg-type]
+cubo\scripts\retrieval_config_examples.py:21: error: Argument "model" to "DocumentRetriever" has incompatible type "None"; expected "SentenceTransformer"  [arg-type]
+cubo\scripts\retrieval_config_examples.py:30: error: Argument "model" to "DocumentRetriever" has incompatible type "None"; expected "SentenceTransformer"  [arg-type]
+cubo\scripts\reindex_parquet.py:15: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:35: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:48: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:63: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:70: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:83: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:95: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:102: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\reindex_parquet.py:102: note: Use "-> None" if function does not return a value
+cubo\scripts\query.py:20: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\query.py:30: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\query.py:50: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\query.py:69: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\query.py:80: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\query.py:91: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\query.py:91: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids_clean.py:23: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:60: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]
+cubo\scripts\migrate_chunk_ids_clean.py:88: error: Argument 3 to "_build_id_with_sentence" has incompatible type "Any | None"; expected "int"  [arg-type]
+cubo\scripts\migrate_chunk_ids_clean.py:88: error: Argument 4 to "_build_id_with_sentence" has incompatible type "Any | None"; expected "int"  [arg-type]
+cubo\scripts\migrate_chunk_ids_clean.py:90: error: Argument 3 to "_build_id_with_page" has incompatible type "Any | None"; expected "int"  [arg-type]
+cubo\scripts\migrate_chunk_ids_clean.py:90: error: Argument 4 to "_build_id_with_page" has incompatible type "Any | None"; expected "int"  [arg-type]
+cubo\scripts\migrate_chunk_ids_clean.py:130: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:164: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:173: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:182: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:193: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:199: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:218: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids_clean.py:218: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:39: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:76: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]
+cubo\scripts\migrate_chunk_ids.py:136: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:170: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:179: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:179: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:243: error: Name "parse_args" already defined on line 39  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:243: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:278: error: Name "_compute_base" already defined on line 74  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:280: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]
+cubo\scripts\migrate_chunk_ids.py:284: error: Name "_generate_new_id" already defined on line 80  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:306: error: Name "_plan_changes" already defined on line 102  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:333: error: Name "_backup_metadata" already defined on line 129  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:340: error: Name "_apply_changes" already defined on line 136  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:340: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:374: error: Name "_safe_verify" already defined on line 170  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:374: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:383: error: Name "main" already defined on line 179  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:383: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:383: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:447: error: Name "parse_args" already defined on line 39  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:447: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:482: error: Name "_compute_base" already defined on line 74  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:484: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]
+cubo\scripts\migrate_chunk_ids.py:488: error: Name "_generate_new_id" already defined on line 80  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:510: error: Name "_plan_changes" already defined on line 102  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:537: error: Name "_backup_metadata" already defined on line 129  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:544: error: Name "_apply_changes" already defined on line 136  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:544: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:578: error: Name "_safe_verify" already defined on line 170  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:578: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:587: error: Name "main" already defined on line 179  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:587: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:587: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:642: error: Name "main" already defined on line 179  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:642: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:642: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:754: error: Name "parse_args" already defined on line 39  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:754: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:789: error: Name "_compute_base" already defined on line 74  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:791: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]
+cubo\scripts\migrate_chunk_ids.py:795: error: Name "_generate_new_id" already defined on line 80  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:817: error: Name "_plan_changes" already defined on line 102  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:844: error: Name "_backup_metadata" already defined on line 129  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:851: error: Name "_apply_changes" already defined on line 136  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:851: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:885: error: Name "_safe_verify" already defined on line 170  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:885: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:894: error: Name "main" already defined on line 179  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:894: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:894: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:953: error: Name "parse_args" already defined on line 39  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:953: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:988: error: Name "_compute_base" already defined on line 74  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:990: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]
+cubo\scripts\migrate_chunk_ids.py:994: error: Name "_generate_new_id" already defined on line 80  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1016: error: Name "_plan_changes" already defined on line 102  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1043: error: Name "_backup_metadata" already defined on line 129  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1050: error: Name "_apply_changes" already defined on line 136  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1050: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1084: error: Name "_safe_verify" already defined on line 170  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1084: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1093: error: Name "main" already defined on line 179  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1093: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1093: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:1151: error: Name "parse_args" already defined on line 39  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1151: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1186: error: Name "_compute_base" already defined on line 74  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1188: error: Incompatible return value type (got "Any | None", expected "str")  [return-value]
+cubo\scripts\migrate_chunk_ids.py:1192: error: Name "_generate_new_id" already defined on line 80  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1214: error: Name "_plan_changes" already defined on line 102  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1241: error: Name "_backup_metadata" already defined on line 129  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1248: error: Name "_apply_changes" already defined on line 136  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1248: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1282: error: Name "_safe_verify" already defined on line 170  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1282: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1282: error: Function "builtins.any" is not valid as a type  [valid-type]
+cubo\scripts\migrate_chunk_ids.py:1282: note: Perhaps you meant "typing.Any" instead of "any"?
+cubo\scripts\migrate_chunk_ids.py:1291: error: Name "main" already defined on line 179  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1291: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1291: note: Use "-> None" if function does not return a value
+cubo\scripts\migrate_chunk_ids.py:1341: error: Name "parse_args" already defined on line 39  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1341: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1366: error: Name "main" already defined on line 179  [no-redef]
+cubo\scripts\migrate_chunk_ids.py:1366: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\migrate_chunk_ids.py:1366: note: Use "-> None" if function does not return a value
+cubo\scripts\debug_postprocessing.py:60: error: "DocumentRetriever" has no attribute "_apply_window_postprocessing"  [attr-defined]
+cubo\ingestion\file_loader.py:20: error: Incompatible default for argument "text_column" (default has type "None", argument has type "str")  [assignment]
+cubo\ingestion\file_loader.py:20: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\file_loader.py:20: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\file_loader.py:42: error: Function is missing a type annotation  [no-untyped-def]
+cubo\ingestion\file_loader.py:58: error: Function is missing a type annotation  [no-untyped-def]
+cubo\ingestion\fast_pass_ingestor.py:22: error: Incompatible default for argument "output_dir" (default has type "None", argument has type "str")  [assignment]
+cubo\ingestion\fast_pass_ingestor.py:22: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\fast_pass_ingestor.py:22: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\fast_pass_ingestor.py:108: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\fast_pass_ingestor.py:185: error: Incompatible default for argument "output_dir" (default has type "None", argument has type "str")  [assignment]
+cubo\ingestion\fast_pass_ingestor.py:185: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\fast_pass_ingestor.py:185: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\deep_ingestor.py:32: error: Incompatible types in assignment (expression has type "None", variable has type Module)  [assignment]
+cubo\ingestion\deep_ingestor.py:43: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:91: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:97: error: Function is missing a type annotation  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:157: error: Missing return statement  [return]
+cubo\ingestion\deep_ingestor.py:165: error: Return value expected  [return-value]
+cubo\ingestion\deep_ingestor.py:228: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:228: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:243: error: Function is missing a type annotation  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:276: error: Function is missing a type annotation  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:316: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:316: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:323: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:323: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:332: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:477: error: Incompatible default for argument "metadata" (default has type "None", argument has type "dict[str, Any]")  [assignment]
+cubo\ingestion\deep_ingestor.py:477: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\deep_ingestor.py:477: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\deep_ingestor.py:559: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:576: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\ingestion\deep_ingestor.py:581: error: Need type annotation for "chunks" (hint: "chunks: list[<type>] = ...")  [var-annotated]
+cubo\ingestion\deep_ingestor.py:755: error: Incompatible default for argument "output_dir" (default has type "None", argument has type "str")  [assignment]
+cubo\ingestion\deep_ingestor.py:755: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\ingestion\deep_ingestor.py:755: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\ingestion\deep_ingestor.py:755: error: Incompatible default for argument "csv_text_column" (default has type "None", argument has type "str")  [assignment]
+cubo\ingestion\deep_ingestor.py:774: error: Dict entry 0 has incompatible type "str": "Any | None"; expected "str": "str"  [dict-item]
+cubo\ingestion\deep_ingestor.py:774: error: Dict entry 1 has incompatible type "str": "Any | None"; expected "str": "str"  [dict-item]
+cubo\server\api.py:17: error: Library stubs not installed for "aiofiles"  [import-untyped]
+cubo\server\api.py:17: note: Hint: "python3 -m pip install types-aiofiles"
+cubo\server\api.py:65: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:65: note: Use "-> None" if function does not return a value
+cubo\server\api.py:67: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+cubo\server\api.py:76: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+cubo\server\api.py:228: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:259: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:259: note: Use "-> None" if function does not return a value
+cubo\server\api.py:304: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:304: note: Use "-> None" if function does not return a value
+cubo\server\api.py:377: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:377: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+cubo\server\api.py:430: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:463: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:480: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:596: error: Name "background" already defined on line 593  [no-redef]
+cubo\server\api.py:720: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:723: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:764: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:777: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:801: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:823: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:848: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:904: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:904: error: Incompatible default for argument "request" (default has type "None", argument has type "Request")  [assignment]
+cubo\server\api.py:904: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\server\api.py:904: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\server\api.py:967: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:993: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1012: error: Need type annotation for "documents" (hint: "documents: list[<type>] = ...")  [var-annotated]
+cubo\server\api.py:1164: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1185: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1209: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1222: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1241: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1261: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1281: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1301: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1342: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1363: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1408: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1428: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1437: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1463: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1475: error: Item "None" of "CuboCore | None" has no attribute "retriever"  [union-attr]
+cubo\server\api.py:1484: error: Item "None" of "CuboCore | None" has no attribute "retriever"  [union-attr]
+cubo\server\api.py:1495: error: Item "None" of "CuboCore | None" has no attribute "vector_store"  [union-attr]
+cubo\server\api.py:1496: error: Item "None" of "CuboCore | None" has no attribute "vector_store"  [union-attr]
+cubo\server\api.py:1520: error: Item "None" of "CuboCore | None" has no attribute "query_retrieve"  [union-attr]
+cubo\server\api.py:1548: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1603: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1775: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1781: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1790: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1924: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1939: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\api.py:1977: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:22: error: Module "evaluation.metrics" has no attribute "AdvancedEvaluator"  [attr-defined]
+cubo\scripts\run_rag_tests.py:74: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:74: note: Use "-> None" if function does not return a value
+cubo\scripts\run_rag_tests.py:126: error: Returning Any from function declared to return "dict[str, list[str]]"  [no-any-return]
+cubo\scripts\run_rag_tests.py:216: error: Incompatible default for argument "limit" (default has type "None", argument has type "int")  [assignment]
+cubo\scripts\run_rag_tests.py:216: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\scripts\run_rag_tests.py:216: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\scripts\run_rag_tests.py:233: error: Incompatible default for argument "easy_limit" (default has type "None", argument has type "int")  [assignment]
+cubo\scripts\run_rag_tests.py:233: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+cubo\scripts\run_rag_tests.py:233: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+cubo\scripts\run_rag_tests.py:233: error: Incompatible default for argument "medium_limit" (default has type "None", argument has type "int")  [assignment]
+cubo\scripts\run_rag_tests.py:233: error: Incompatible default for argument "hard_limit" (default has type "None", argument has type "int")  [assignment]
+cubo\scripts\run_rag_tests.py:239: error: Unsupported target for indexed assignment ("object")  [index]
+cubo\scripts\run_rag_tests.py:240: error: Unsupported target for indexed assignment ("object")  [index]
+cubo\scripts\run_rag_tests.py:241: error: Unsupported target for indexed assignment ("object")  [index]
+cubo\scripts\run_rag_tests.py:249: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:270: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:279: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:303: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:313: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:313: note: Use "-> None" if function does not return a value
+cubo\scripts\run_rag_tests.py:342: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:351: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:351: note: Use "-> None" if function does not return a value
+cubo\scripts\run_rag_tests.py:357: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:364: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:373: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:384: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:389: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:389: note: Use "-> None" if function does not return a value
+cubo\scripts\run_rag_tests.py:420: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\run_rag_tests.py:420: note: Use "-> None" if function does not return a value
+cubo\scripts\deep_ingest.py:14: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\deep_ingest.py:33: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\deep_ingest.py:33: note: Use "-> None" if function does not return a value
+cubo\scripts\debug_retrieval.py:15: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:26: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:38: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:65: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:84: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:100: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:116: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:132: error: Function is missing a type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:143: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\debug_retrieval.py:143: note: Use "-> None" if function does not return a value
+cubo\ingestion\ingestion_manager.py:19: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\ingestion\ingestion_manager.py:19: note: Use "-> None" if function does not return a value
+cubo\ingestion\ingestion_manager.py:46: error: Argument 2 to "build_bm25_index" has incompatible type "str | None"; expected "str"  [arg-type]
+cubo\ingestion\ingestion_manager.py:121: error: Returning Any from function declared to return "dict[str, Any] | None"  [no-any-return]
+cubo\server\run_hypercorn.py:19: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\server\run_hypercorn.py:36: error: Argument 1 to "serve" has incompatible type "FastAPI"; expected "Callable[[HTTPScope | WebsocketScope | LifespanScope, Callable[[], Awaitable[HTTPRequestEvent | HTTPDisconnectEvent | WebsocketConnectEvent | WebsocketReceiveEvent | WebsocketDisconnectEvent | LifespanStartupEvent | LifespanShutdownEvent]], Callable[[HTTPResponseStartEvent | HTTPResponseBodyEvent | HTTPResponseTrailersEvent | HTTPServerPushEvent | HTTPEarlyHintEvent | <10 more items>], Awaitable[None]]], Awaitable[None]] | Callable[[dict[Any, Any], Callable[..., Any]], Iterable[bytes]]"  [arg-type]
+cubo\server\run_hypercorn.py:39: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\fast_pass_ingest.py:15: error: Function is missing a return type annotation  [no-untyped-def]
+cubo\scripts\fast_pass_ingest.py:15: note: Use "-> None" if function does not return a value
+Found 813 errors in 99 files (checked 132 source files)

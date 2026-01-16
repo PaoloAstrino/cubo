@@ -3,6 +3,43 @@
 CUBO - AI Document Assistant
 A portable Retrieval-Augmented Generation system using embedding models and LLMs.
 """
+import sys
+import subprocess
+
+# Early short-circuit for lightweight CLI commands so we don't import heavy
+# optional dependencies when the user only wants to list models or check
+# the version. This keeps the executable responsive and robust in minimal
+# environments.
+if "--list-models" in sys.argv:
+    try:
+        result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            lines = result.stdout.strip().split("\n")
+            if len(lines) > 1:
+                print("Available models:")
+                for line in lines[1:]:
+                    parts = line.split()
+                    if parts:
+                        print(f" - {parts[0]}")
+            else:
+                print("No Ollama models found.")
+        else:
+            print("No Ollama models found or 'ollama' not available.")
+    except Exception as e:
+        print(f"Could not query Ollama models: {e}")
+    sys.exit(0)
+
+if "--version" in sys.argv or "-v" in sys.argv:
+    try:
+        from importlib.metadata import version, PackageNotFoundError
+
+        try:
+            print(f"CUBO version {version('cubo')}")
+        except PackageNotFoundError:
+            print("CUBO version 1.0.0")
+    except Exception:
+        print("CUBO version 1.0.0")
+    sys.exit(0)
 
 import argparse
 import os
@@ -18,14 +55,9 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
-from cubo.config import config
-from cubo.embeddings.model_loader import model_manager
-from cubo.ingestion.document_loader import DocumentLoader
-from cubo.processing.generator import create_response_generator
-from cubo.retrieval.retriever import DocumentRetriever
-from cubo.security.security import security_manager
-from cubo.utils.logger import logger
-from cubo.utils.utils import Utils, metrics
+# Defer importing package modules until they're needed by the interactive/setup flows.
+# This keeps simple CLI operations (like --list-models or --version) lightweight and
+# robust in frozen executables where optional dependencies may be missing or fail to import.
 
 # Initialize colorama
 init()
@@ -43,9 +75,44 @@ class CUBOApp:
         # Lock to protect state during build/query operations
         self._state_lock = threading.RLock()
 
-    def setup_wizard(self):
-        """Setup wizard for initial configuration and model checks."""
-        logger.info("Welcome to CUBO Setup Wizard!")
+    def _get_version(self) -> str:
+        """Return the package version, falling back to a sensible default.
+
+        Tries importlib.metadata.version('cubo') first; if that fails, uses the
+        literal fallback '1.0.0'. This ensures the `--version` path is safe and
+        does not trigger the setup wizard.
+        """
+        try:
+            from importlib.metadata import version, PackageNotFoundError
+
+            try:
+                return version("cubo")
+            except PackageNotFoundError:
+                return "1.0.0"
+        except Exception:
+            return "1.0.0"
+
+    def setup_wizard(self, args=None):
+        """Setup wizard for initial configuration and model checks.
+
+        Args may contain CLI-driven overrides (like --select-model or --no-interactive)
+        to make the flow non-interactive when requested.
+        """
+        # Lazy-import core package components used during setup so that
+        # lightweight CLI commands don't import heavy optional dependencies.
+        from cubo.config import config as _config
+        from cubo.security.security import security_manager as _security_manager
+        from cubo.utils.logger import logger as _logger
+        from cubo.utils.utils import Utils as _Utils, metrics as _metrics
+
+        # Expose to module-level names for methods that expect them
+        globals()["config"] = _config
+        globals()["security_manager"] = _security_manager
+        globals()["logger"] = _logger
+        globals()["Utils"] = _Utils
+        globals()["metrics"] = _metrics
+
+        _logger.info("Welcome to CUBO Setup Wizard!")
 
         if not self._validate_security_environment():
             return
@@ -62,8 +129,9 @@ class CUBOApp:
         if not self._setup_logs_folder():
             return
 
-        self._configure_llm_model()
-        self._optional_config_tweaks()
+        self._configure_llm_model(args)
+        self._optional_config_tweaks(args)
+
 
     def _validate_security_environment(self) -> bool:
         """Validate security environment variables."""
@@ -110,7 +178,9 @@ class CUBOApp:
     def _setup_data_folder(self) -> bool:
         """Ensure data folder exists."""
         try:
-            data_folder = config.get("data_folder")
+            data_folder = config.get("data_folder", "./data")
+            if data_folder is None:
+                data_folder = "./data"
             if not os.path.exists(data_folder):
                 logger.warning(f"Data folder '{data_folder}' not found. Creating it...")
                 os.makedirs(data_folder, exist_ok=True)
@@ -138,14 +208,46 @@ class CUBOApp:
             logger.error(f"Error handling logs folder: {e}")
             return False
 
-    def _configure_llm_model(self):
-        """Configure LLM model selection."""
+    def _configure_llm_model(self, args=None):
+        """Configure the LLM model selection and settings."""
         try:
+            no_interactive = bool(getattr(args, "no_interactive", False)) if args is not None else False
             logger.info("Checking available Ollama models...")
-            available_models = self.get_available_ollama_models()
+            available_models = self.get_available_ollama_models(non_interactive=no_interactive)
+
+            # If CLI requested a specific model, apply it non-interactively
+            if args is not None and getattr(args, "select_model", None):
+                requested = args.select_model
+                # If the requested model is among available (base-name match), accept it
+                if any(m.split(":")[0] == requested for m in available_models):
+                    config.set("selected_llm_model", requested)
+                    config.save()
+                    print(f"✓ Model set to: {requested}")
+                    logger.info(f"CLI requested model '{requested}' applied.")
+                    return
+                else:
+                    # Not available: if non-interactive, still set it (user asked explicitly)
+                    if no_interactive:
+                        config.set("selected_llm_model", requested)
+                        config.save()
+                        print(f"✓ Model set to: {requested} (not verified locally)")
+                        logger.warning(f"Requested model '{requested}' not found locally; saved in config.")
+                        return
+                    # Otherwise fall through to interactive selection
+
             if available_models:
                 self._display_available_models(available_models)
-                self._handle_model_selection(available_models)
+                if no_interactive:
+                    # Auto-select first model if none configured
+                    current_model = config.get("selected_llm_model", None)
+                    if current_model is None:
+                        selected = available_models[0]
+                        config.set("selected_llm_model", selected.split(":")[0])
+                        config.save()
+                        print(f"✓ Auto-selected model: {selected}")
+                        logger.info(f"Auto-selected model: {selected}")
+                else:
+                    self._handle_model_selection(available_models)
             else:
                 logger.warning(
                     "No Ollama models found. Please install and pull models using 'ollama pull <model_name>'"
@@ -153,6 +255,7 @@ class CUBOApp:
                 logger.warning("You can change the selected model later in config.json")
         except Exception as e:
             logger.error(f"Error checking Ollama models: {e}")
+
 
     def _display_available_models(self, available_models):
         """Display available Ollama models."""
@@ -164,6 +267,11 @@ class CUBOApp:
         """Handle user model selection."""
         current_model = config.get("selected_llm_model", "llama3.2")
         logger.info(f"Current selected model: {current_model}")
+
+        # Skip prompt if current model (base name) is already in available models
+        if any(m.split(":")[0] == current_model for m in available_models):
+            logger.info(f"Model '{current_model}' is available and configured. Skipping selection.")
+            return
 
         if len(available_models) == 1:
             self._auto_select_single_model(available_models[0], current_model)
@@ -181,7 +289,10 @@ class CUBOApp:
 
     def _prompt_model_selection(self, available_models):
         """Prompt user to select from multiple models."""
-        choice = input("Select a model by number (or press Enter to keep current): ")
+        print("\n" + "="*50)
+        print("Select a model by number (or press Enter to keep current):")
+        print("="*50)
+        choice = input("> ")
         if choice.strip():
             try:
                 index = int(choice) - 1
@@ -190,6 +301,7 @@ class CUBOApp:
                     config.set("selected_llm_model", selected_model)
                     config.save()
                     logger.info(f"LLM model updated to: {selected_model}")
+                    print(f"✓ Model updated to: {selected_model}")
                 else:
                     logger.warning("Invalid selection. Keeping current model.")
             except ValueError:
@@ -223,22 +335,63 @@ class CUBOApp:
             logger.info("Config updated.")
 
     def get_available_ollama_models(self):
-        """Get list of available Ollama models."""
+        """Get list of available Ollama models in a non-blocking, user-friendly way.
+
+        If the `ollama` CLI is missing or unresponsive, this function prompts the user to
+        retry or skip and returns an empty list when models cannot be determined.
+        """
         try:
             import subprocess
+            import shutil
 
-            result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                lines = result.stdout.strip().split("\n")
-                if len(lines) > 1:  # Skip header
-                    models = []
-                    for line in lines[1:]:
-                        parts = line.split()
-                        if parts:
-                            models.append(parts[0])  # First column is model name
-                    return models
-            return []
-        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+            # Quick check: is ollama available in PATH?
+            if shutil.which("ollama") is None:
+                logger.warning("'ollama' binary not found in PATH; skipping model detection.")
+                print("Ollama CLI not found in PATH. To use local LLMs install Ollama and run 'ollama pull <model_name>'.")
+                print("Press Enter to continue without local LLM or type 'retry' to try again.")
+                choice = input("> ").strip().lower()
+                if choice == "retry":
+                    # Fall through and attempt to run if the user insists
+                    pass
+                else:
+                    return []
+
+            # Try querying ollama with a short timeout and allow the user to retry
+            attempts = 0
+            while attempts < 3:
+                try:
+                    print("Checking Ollama models (this may take a few seconds)...")
+                    result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
+                    if result.returncode != 0:
+                        logger.warning(f"ollama list failed: {result.stderr.strip()}")
+                        print("Failed to query Ollama. Press Enter to continue without local LLM, or type 'retry' to try again.")
+                        choice = input("> ").strip().lower()
+                        if choice == "retry":
+                            attempts += 1
+                            continue
+                        return []
+
+                    lines = result.stdout.strip().split("\n")
+                    if len(lines) > 1:  # Skip header
+                        models = []
+                        for line in lines[1:]:
+                            parts = line.split()
+                            if parts:
+                                models.append(parts[0])  # First column is model name
+                        return models
+                    return []
+                except subprocess.TimeoutExpired:
+                    logger.warning("Ollama 'list' timed out.")
+                    print("Ollama did not respond within 5 seconds. Type 'retry' to try again, or press Enter to continue without local LLM.")
+                    choice = input("> ").strip().lower()
+                    if choice == "retry":
+                        attempts += 1
+                        continue
+                    return []
+        except Exception as e:
+            logger.error(f"Unexpected error when checking Ollama models: {e}")
+            print(f"Error checking Ollama: {e}. Press Enter to continue without local LLM.")
+            input("> ")
             return []
 
     def initialize_components(self):
@@ -247,11 +400,18 @@ class CUBOApp:
         logger.info("Loading embedding model... (this may take a few minutes)")
         start_time = time.time()
         try:
+            # Lazy-import heavy dependencies here to avoid import-time failures for CLI commands
+            from cubo.embeddings.model_loader import model_manager
+            from cubo.ingestion.document_loader import DocumentLoader
+            from cubo.processing.generator import create_response_generator
+            from cubo.retrieval.retriever import DocumentRetriever
+
             with self._state_lock:
                 self.model = model_manager.get_model()
             logger.info(f"Model loaded successfully in {time.time() - start_time:.2f} seconds.")
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
+            logger.error(f"Failed to load model or components: {e}")
+            print(f"✗ Failed to initialize models/components: {e}")
             return False
 
         # Initialize components - protect state mutation
@@ -281,14 +441,16 @@ class CUBOApp:
 
     def _get_data_folder_input(self) -> str:
         """Get and validate data folder input from user."""
-        data_folder_input = input(
-            f"Enter path to data folder " f"(default: {config.get('data_folder')}): "
-        ) or config.get("data_folder")
+        print("\n" + "="*50)
+        print(f"Enter path to data folder (default: {config.get('data_folder')})")
+        print("="*50)
+        data_folder_input = input("> ") or config.get("data_folder")
         data_folder_input = security_manager.sanitize_input(data_folder_input)
         try:
             return Utils.sanitize_path(data_folder_input, os.getcwd())
         except ValueError as e:
             logger.error(f"Invalid path: {e}")
+            print(f"✗ Invalid path: {e}")
             return None
 
     def _load_selected_document(self, data_folder: str) -> list:
@@ -309,10 +471,9 @@ class CUBOApp:
 
     def _get_supported_files(self, data_folder: str) -> list:
         """Get list of supported files in the data folder."""
+        supported_exts = config.get("supported_extensions", [".txt", ".docx", ".pdf", ".md"])
         files = [
-            f
-            for f in os.listdir(data_folder)
-            if any(f.endswith(ext) for ext in config.get("supported_extensions"))
+            f for f in os.listdir(data_folder) if any(f.endswith(ext) for ext in supported_exts)
         ]
         if not files:
             logger.error(
@@ -322,9 +483,13 @@ class CUBOApp:
 
     def _prompt_file_selection(self, files: list) -> str:
         """Display files and get user selection."""
+        print("\n" + "="*50)
+        print("Available files:")
         logger.info("Available files:")
         for i, f in enumerate(files, 1):
+            print(f"{i}. {f}")
             logger.info(f"{i}. {f}")
+        print("="*50)
 
         try:
             choice = int(input("Select file number: ")) - 1
@@ -332,9 +497,11 @@ class CUBOApp:
                 return files[choice]
             else:
                 logger.error("Invalid choice.")
+                print("✗ Invalid choice.")
                 return None
         except ValueError:
             logger.error("Invalid input. Please enter a number.")
+            print("✗ Invalid input. Please enter a number.")
             return None
 
     def _load_document_chunks(self, data_folder: str, selected_file: str) -> list:
@@ -541,8 +708,24 @@ class CUBOApp:
         """Main entry point."""
         start_time = time.time()
         try:
-            self.setup_wizard()
+            # Parse args first to check for quick-exit flags
             args = self._parse_command_line_arguments()
+
+            # If the user only wants to list Ollama models, do that and exit
+            if getattr(args, "list_models", False):
+                models = self.get_available_ollama_models(non_interactive=getattr(args, "no_interactive", False))
+                if models:
+                    print("Available models:")
+                    for m in models:
+                        print(f" - {m}")
+                else:
+                    print("No Ollama models found or Ollama not available.")
+                return
+
+            # Skip setup wizard if requested (or when asking only for version later)
+            if not getattr(args, "version", False) and not getattr(args, "skip_setup", False):
+                self.setup_wizard(args)
+
             self._run_application_mode(args)
         except Exception as e:
             logger.error(f"An error occurred: {e}")
@@ -557,6 +740,12 @@ class CUBOApp:
         parser.add_argument("--version", "-v", action="store_true", help="Show version and exit.")
         parser.add_argument("--data_folder", help="Path to the folder containing documents.")
         parser.add_argument("--query", help="The query to process.")
+
+        # Setup & selection options
+        parser.add_argument("--skip-setup", action="store_true", help="Skip the interactive setup wizard.")
+        parser.add_argument("--select-model", help="Select and save an Ollama model (non-interactive).")
+        parser.add_argument("--list-models", action="store_true", help="List available Ollama models and exit.")
+        parser.add_argument("--no-interactive", action="store_true", help="Run non-interactively and do not prompt the user.")
 
         # Laptop mode options
         laptop_group = parser.add_mutually_exclusive_group()

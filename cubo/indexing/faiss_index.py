@@ -39,6 +39,7 @@ class FAISSIndexManager:
         opq_m: int = 32,
         normalize: bool = True,
         model_path: Optional[str] = None,
+        seed: int = 42,
     ):
         self.dimension = dimension
         self.index_dir = Path(index_dir or Path.cwd() / "faiss_index")
@@ -52,6 +53,7 @@ class FAISSIndexManager:
         self.opq_m = opq_m
         self.normalize = normalize
         self.model_path = model_path
+        self.seed = seed
 
         self.hot_index: Optional[faiss.Index] = None
         self.cold_index: Optional[faiss.Index] = None
@@ -231,8 +233,9 @@ class FAISSIndexManager:
             self.hot_index.hnsw.efSearch = self.hnsw_ef
 
         # Initialize and Train cold index
-        # We use a modified version of _build_cold_index that returns an empty trained index
-        logger.info(f"Training cold index on {len(vectors)} vectors")
+        logger.info(f"Training cold index on {len(vectors)} vectors with seed {self.seed}")
+        # Set seeds for reproducibility of clustering
+        np.random.seed(self.seed)
         self.cold_index = self._create_trained_cold_index(array)
 
     def add_batch(
@@ -364,8 +367,9 @@ class FAISSIndexManager:
 
         if cold_vectors.size:
             logger.info(
-                f"Building cold index with {cold_vectors.shape[0]} vectors (nlist={self.nlist}, m={self.m})"
+                f"Building cold index with {cold_vectors.shape[0]} vectors (nlist={self.nlist}, m={self.m}, seed={self.seed})"
             )
+            np.random.seed(self.seed)
             self.cold_index = self._build_cold_index(cold_vectors)
         else:
             logger.info("Skipping cold index because no cold vectors were supplied")

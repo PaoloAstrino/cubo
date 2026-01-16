@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import sys
+import time
 from typing import Dict
 
 # Add project root to path for imports
@@ -24,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime
 
-from cubo.adapters.beir_adapter import CuboBeirAdapter
+from evaluation.beir_adapter import CuboBeirAdapter
 from cubo.config import config
 from cubo.config.settings import settings
 from cubo.utils.logger import Logger
@@ -187,6 +188,8 @@ def _parse_arguments():
         help="Enable laptop mode (lazy loading, no reranking, etc)",
     )
     parser.add_argument("--query-limit", type=int, help="Limit number of queries to process")
+    parser.add_argument("--num-seeds", type=int, default=1, help="Number of random seeds for statistical validation")
+    parser.add_argument("--hot-fraction", type=float, help="Override hot fraction (e.g. 0.2 to test IVF+PQ variance)")
 
     args = parser.parse_args()
 
@@ -241,10 +244,15 @@ def _setup_logging(args):
         return None
 
 
-def _initialize_adapter(args, logfile):
+def _initialize_adapter(args, logfile, seed=42):
     """Initialize and prepare the BEIR adapter with index."""
-    log.info("Initializing CuboBeirAdapter...")
-    adapter = CuboBeirAdapter(index_dir=args.index_dir, lightweight=False)
+    log.info(f"Initializing CuboBeirAdapter (seed={seed})...")
+    adapter = CuboBeirAdapter(
+        index_dir=args.index_dir, 
+        lightweight=False, 
+        seed=seed,
+        hot_fraction=args.hot_fraction if args.hot_fraction is not None else 0.2
+    )
 
     try:
         if args.reindex:
@@ -308,54 +316,95 @@ def _load_qrels(qrels_path: str) -> Dict:
     return qrels
 
 
-def _run_evaluation(results, args):
-    """Run BEIR evaluation metrics if requested."""
-    if not args.evaluate:
-        return
-    
-    try:
-        from beir.retrieval.evaluation import EvaluateRetrieval
-
-        log.info("Running BEIR evaluation...")
-        qrels = _load_qrels(args.qrels)
-
-        evaluator = EvaluateRetrieval()
-        ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, [1, 10, 100])
-
-        print("\n--- BEIR Evaluation Results ---")
-        print(f"NDCG@10: {ndcg['NDCG@10']:.4f}")
-        print(f"Recall@100: {recall['Recall@100']:.4f}")
-        print(f"Precision@10: {precision['P@10']:.4f}")
-
-        metrics_file = args.output.replace(".json", "_metrics.json")
-        with open(metrics_file, "w") as f:
-            json.dump(
-                {"ndcg": ndcg, "map": _map, "recall": recall, "precision": precision},
-                f,
-                indent=2,
-            )
-        log.info(f"Metrics saved to {metrics_file}")
-
-    except ImportError:
-        log.error("beir package not installed. Cannot run evaluation.")
-    except Exception as e:
-        log.error(f"Evaluation failed: {e}")
-
-
 def main():
     """Main function to run BEIR benchmark evaluation."""
     args = _parse_arguments()
     _apply_config_overrides(args)
     logfile = _setup_logging(args)
     
-    adapter = _initialize_adapter(args, logfile)
     queries = _load_and_limit_queries(args)
-    
     metadata = collect_benchmark_metadata(args, args.use_optimized)
-    results = _run_retrieval(adapter, queries, args)
     
-    _save_results(results, metadata, args)
-    _run_evaluation(results, args)
+    all_metrics = []
+    num_runs = args.num_seeds
+    
+    for i in range(num_runs):
+        seed = 42 + i
+        log.info(f"--- Starting Run {i+1}/{num_runs} with seed {seed} ---")
+        
+        # Initialize adapter with current seed
+        adapter = _initialize_adapter(args, logfile, seed=seed)
+        
+        # Retrieval
+        results = _run_retrieval(adapter, queries, args)
+        
+        # Evaluation (if requested)
+        if args.evaluate:
+            metrics = _calculate_metrics(results, args)
+            if metrics:
+                all_metrics.append(metrics)
+        
+        # Save individual run results
+        if metrics:
+            run_metrics_file = args.output.replace(".json", f"_run_{i+1}_metrics.json")
+            with open(run_metrics_file, "w") as f:
+                json.dump(metrics, f, indent=2)
+            log.info(f"Saved metrics for run {i+1} to {run_metrics_file}")
+
+        if num_runs == 1:
+            _save_results(results, metadata, args)
+            if args.evaluate:
+                _print_evaluation_results(all_metrics[0])
+                metrics_file = args.output.replace(".json", "_metrics.json")
+                with open(metrics_file, "w") as f:
+                    json.dump(all_metrics[0], f, indent=2)
+
+    if num_runs > 1 and all_metrics:
+        _aggregate_and_report_metrics(all_metrics, args)
+
+def _calculate_metrics(results, args):
+    """Run BEIR evaluation and return metrics dict."""
+    try:
+        from beir.retrieval.evaluation import EvaluateRetrieval
+        qrels = _load_qrels(args.qrels)
+        evaluator = EvaluateRetrieval()
+        ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, [1, 10, 100])
+        return {"ndcg": ndcg, "map": _map, "recall": recall, "precision": precision}
+    except Exception as e:
+        log.error(f"Metric calculation failed: {e}")
+        return None
+
+def _print_evaluation_results(metrics):
+    print("\n--- BEIR Evaluation Results ---")
+    print(f"NDCG@10: {metrics['ndcg']['NDCG@10']:.4f}")
+    print(f"Recall@100: {metrics['recall']['Recall@100']:.4f}")
+    print(f"Precision@10: {metrics['precision']['P@10']:.4f}")
+
+def _aggregate_and_report_metrics(all_metrics, args):
+    """Aggregate metrics from multiple runs and report mean ± std."""
+    import numpy as np
+    
+    metric_keys = ["ndcg", "recall", "precision"]
+    sub_keys = ["NDCG@10", "Recall@100", "P@10"]
+    
+    print(f"\n--- Statistical Results over {len(all_metrics)} runs ---")
+    
+    stats_out = {}
+    
+    for m_key in metric_keys:
+        for s_key in sub_keys:
+            if m_key in all_metrics[0] and s_key in all_metrics[0][m_key]:
+                vals = [m[m_key][s_key] for m in all_metrics]
+                mean = np.mean(vals)
+                std = np.std(vals)
+                print(f"{s_key}: {mean:.4f} ± {std:.4f}")
+                stats_out[s_key] = {"mean": float(mean), "std": float(std), "raw": [float(v) for v in vals]}
+    
+    stats_file = args.output.replace(".json", "_stats.json")
+    with open(stats_file, "w") as f:
+        json.dump(stats_out, f, indent=2)
+    log.info(f"Statistical results saved to {stats_file}")
+
 
 
 if __name__ == "__main__":

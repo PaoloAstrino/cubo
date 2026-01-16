@@ -7,7 +7,6 @@ from pypdf import PdfReader
 
 from cubo.config import config
 from cubo.ingestion.chunkers import ChunkerFactory
-from cubo.ingestion.pdf_parser import AdvancedPDFParser
 from cubo.utils.logger import logger
 from cubo.utils.utils import Utils
 
@@ -27,6 +26,10 @@ class DocumentLoader:
         self.advanced_parser = None
         if self.parser_type == "advanced":
             try:
+                # Import AdvancedPDFParser lazily to avoid importing heavy
+                # optional dependencies (e.g., EasyOCR) at module import time.
+                from .pdf_parser import AdvancedPDFParser
+
                 self.advanced_parser = AdvancedPDFParser()
             except Exception as e:
                 logger.warning(
