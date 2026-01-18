@@ -98,6 +98,46 @@ class ScaffoldRetriever:
 
         return results
 
+    def retrieve(self, query: str, top_k: int = 10, **kwargs) -> List[Dict[str, Any]]:
+        """Backward-compatible retrieval API for scaffold-based retrieval.
+
+        Returns a list of dicts compatible with downstream code that expects
+        items containing at least `doc_id` and `score`.
+
+        Behavior:
+        - Query scaffold index (k = min( top_k, num_scaffolds ))
+        - Expand scaffolds to chunk ids and return the top_k chunk ids
+        - If embedding generator is missing or expansion fails, return empty list
+        """
+        if top_k is None:
+            top_k = 10
+
+        # Retrieve a few scaffolds (allow over-retrieval to expand into chunks)
+        scaffold_candidates = self.retrieve_scaffolds(query, top_k= min(8, max(5, top_k)), expand_to_chunks=True)
+        if not scaffold_candidates:
+            return []
+
+        # Flatten scaffold -> chunk ids (preserve scaffold score ordering)
+        chunk_ids = []
+        for s in scaffold_candidates:
+            for cid in s.get("chunk_ids", []):
+                if cid not in chunk_ids:
+                    chunk_ids.append(cid)
+                if len(chunk_ids) >= top_k:
+                    break
+            if len(chunk_ids) >= top_k:
+                break
+
+        # Build result entries (minimal but compatible)
+        results = []
+        for rank, cid in enumerate(chunk_ids[:top_k]):
+            # Use scaffold-derived score if possible, otherwise uniform decay
+            score = 1.0 / (1 + rank)
+            results.append({"doc_id": cid, "score": float(score), "rank": rank})
+
+        logger.debug(f"ScaffoldRetriever.retrieve -> returning {len(results)} candidates for query")
+        return results
+
     def expand_scaffolds_to_chunks(self, scaffold_results: List[Dict[str, Any]]) -> List[str]:
         """
         Expand scaffold results to underlying chunk IDs.
@@ -226,9 +266,18 @@ class SimpleIndex:
     """Simple in-memory index for scaffolds (fallback when FAISS unavailable)."""
 
     def __init__(self, embeddings: np.ndarray):
-        """Initialize with embeddings array."""
-        self.embeddings = embeddings
-        self.ntotal = len(embeddings)
+        """Initialize with embeddings array.
+
+        Accept Python lists (from older loading paths) by coercing to a 2D numpy
+        array and validating shape to avoid runtime attribute errors like
+        "'list' object has no attribute 'shape'".
+        """
+        # Defensive coercion: accept lists or arrays
+        self.embeddings = np.asarray(embeddings)
+        if self.embeddings.ndim != 2:
+            raise ValueError(f"scaffold embeddings must be 2D (got shape={self.embeddings.shape})")
+        self.ntotal = int(self.embeddings.shape[0])
+
 
     def search(self, query: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -241,9 +290,16 @@ class SimpleIndex:
         Returns:
             Tuple of (distances, indices)
         """
-        # Compute cosine similarity
-        if len(query.shape) == 1:
+        # Defensive coercion: accept Python lists from older APIs
+        query = np.asarray(query)
+        if query.ndim == 1:
             query = query.reshape(1, -1)
+
+        # Validate dimensionality
+        if query.shape[1] != self.embeddings.shape[1]:
+            raise ValueError(
+                f"query embedding dim ({query.shape[1]}) does not match scaffold dim ({self.embeddings.shape[1]})"
+            )
 
         # Normalize
         query_norm = query / (np.linalg.norm(query, axis=1, keepdims=True) + 1e-8)

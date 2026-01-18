@@ -75,6 +75,12 @@ class QueryRouter:
         )
         # Simple in-memory TTL cache for LLM classification
         self._llm_cache = {}
+        
+        # Quantization-aware routing: adaptive α adjustment
+        self.quant_aware_enabled = bool(config.get("query_router", {}).get("quant_aware_routing", False))
+        self.quant_degradation_factor = float(config.get("query_router", {}).get("quant_degradation_factor", 0.0))
+        # quant_degradation_factor: measured dense recall drop due to quantization (0.0-1.0)
+        # Example: if dense_fp32_recall=0.85, dense_quant_recall=0.75, then factor = 0.10
 
     def _check_cache(self, text):
         """Check LLM classification cache."""
@@ -187,6 +193,21 @@ class QueryRouter:
         dense_weight = float(preset.get("dense_weight", 0.5))
         use_reranker = bool(preset.get("use_reranker", False))
         k_candidates = int(preset.get("k_candidates", 100))
+        
+        # Quantization-aware routing: adjust dense weight based on degradation
+        if self.quant_aware_enabled and self.quant_degradation_factor > 0:
+            # Reduce dense weight proportionally to quantization quality loss
+            # α_adjusted = α_base * (1 - β * degradation)
+            # where β controls sensitivity (default 1.0)
+            beta = float(config.get("query_router", {}).get("quant_sensitivity", 1.0))
+            adjustment = max(0.0, 1.0 - beta * self.quant_degradation_factor)
+            dense_weight = dense_weight * adjustment
+            # Renormalize to maintain sum = 1.0
+            total = bm25_weight + dense_weight
+            if total > 0:
+                bm25_weight = bm25_weight / total
+                dense_weight = dense_weight / total
+        
         temporal = None
         if qtype == QueryType.TEMPORAL:
             temporal = self.extract_temporal_filter(query)

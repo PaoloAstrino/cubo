@@ -49,13 +49,20 @@ from typing import Optional
 
 from colorama import init
 
+# Core lightweight imports moved to top level to support static analysis and CI/CD
+from cubo.config import config
+from cubo.security.security import security_manager
+from cubo.utils.logger import logger
+from cubo.utils.utils import Utils, metrics
+from cubo.ingestion.document_loader import DocumentLoader
+
 # Set global thread control environment variables to reduce OpenMP/BLAS noise
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
-# Defer importing package modules until they're needed by the interactive/setup flows.
+# Defer importing heavy package modules until they're needed by the interactive/setup flows.
 # This keeps simple CLI operations (like --list-models or --version) lightweight and
 # robust in frozen executables where optional dependencies may be missing or fail to import.
 
@@ -98,21 +105,7 @@ class CUBOApp:
         Args may contain CLI-driven overrides (like --select-model or --no-interactive)
         to make the flow non-interactive when requested.
         """
-        # Lazy-import core package components used during setup so that
-        # lightweight CLI commands don't import heavy optional dependencies.
-        from cubo.config import config as _config
-        from cubo.security.security import security_manager as _security_manager
-        from cubo.utils.logger import logger as _logger
-        from cubo.utils.utils import Utils as _Utils, metrics as _metrics
-
-        # Expose to module-level names for methods that expect them
-        globals()["config"] = _config
-        globals()["security_manager"] = _security_manager
-        globals()["logger"] = _logger
-        globals()["Utils"] = _Utils
-        globals()["metrics"] = _metrics
-
-        _logger.info("Welcome to CUBO Setup Wizard!")
+        logger.info("Welcome to CUBO Setup Wizard!")
 
         if not self._validate_security_environment():
             return
@@ -400,11 +393,9 @@ class CUBOApp:
         logger.info("Loading embedding model... (this may take a few minutes)")
         start_time = time.time()
         try:
-            # Lazy-import heavy dependencies here to avoid import-time failures for CLI commands
             from cubo.embeddings.model_loader import model_manager
-            from cubo.ingestion.document_loader import DocumentLoader
-            from cubo.processing.generator import create_response_generator
             from cubo.retrieval.retriever import DocumentRetriever
+            from cubo.processing.generator import create_response_generator
 
             with self._state_lock:
                 self.model = model_manager.get_model()

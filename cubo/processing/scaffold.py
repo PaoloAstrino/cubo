@@ -117,9 +117,14 @@ class ScaffoldGenerator:
         with open(input_dir / "scaffold_mapping.json", encoding="utf-8") as f:
             mapping = json.load(f)
         embeddings_path = input_dir / "scaffold_embeddings.npy"
-        scaffold_embeddings = []
+        scaffold_embeddings = None
         if embeddings_path.exists():
-            scaffold_embeddings = np.load(embeddings_path).tolist()
+            # Keep as numpy array to preserve shape and avoid accidental
+            # conversion to Python lists (which lack `.shape`). Callers can
+            # convert to list if they need JSON-serializable objects.
+            scaffold_embeddings = np.load(embeddings_path)
+        else:
+            scaffold_embeddings = np.array([]).reshape(0, 0)
         logger.info(f"Loaded {len(scaffolds_df)} scaffolds from {input_dir}")
         return {
             "scaffolds_df": scaffolds_df,

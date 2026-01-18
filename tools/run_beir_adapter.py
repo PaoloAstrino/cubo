@@ -224,18 +224,21 @@ def _setup_logging(args):
     logfile = logs_dir / f"beir_adapter_{Path(args.output).stem}.log"
     
     try:
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        
         fh = logging.FileHandler(str(logfile))
         fh.setLevel(logging.INFO)
         fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
         
-        if not any(isinstance(h, logging.FileHandler) for h in log.handlers):
-            log.addHandler(fh)
+        if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
+            root_logger.addHandler(fh)
         
-        if not any(isinstance(h, logging.StreamHandler) for h in log.handlers):
+        if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
             sh = logging.StreamHandler()
             sh.setLevel(logging.INFO)
             sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-            log.addHandler(sh)
+            root_logger.addHandler(sh)
         
         log.info(f"Logging to {logfile} and console")
         return logfile
@@ -257,7 +260,7 @@ def _initialize_adapter(args, logfile, seed=42):
     try:
         if args.reindex:
             log.info(f"Reindexing corpus from {args.corpus}...")
-            adapter.index_corpus(corpus_path=args.corpus, index_dir=args.index_dir, limit=args.limit)
+            adapter.index_corpus(corpus_path=args.corpus, index_dir=args.index_dir, limit=args.limit, batch_size=args.batch_size)
         else:
             log.info(f"Loading index from {args.index_dir}...")
             adapter.load_index(args.index_dir)
@@ -274,6 +277,20 @@ def _load_and_limit_queries(args):
     log.info(f"Loading queries from {args.queries}...")
     queries = load_queries(args.queries, args.corpus)
     
+    # If evaluating, filter queries to only those in qrels
+    if args.evaluate and args.qrels:
+        log.info(f"Filtering queries to match qrels in {args.qrels}...")
+        qrels_ids = set()
+        with open(args.qrels, "r") as f:
+            next(f) # Skip header
+            for line in f:
+                qid = line.strip().split("\t")[0]
+                qrels_ids.add(qid)
+        
+        original_count = len(queries)
+        queries = {qid: qtext for qid, qtext in queries.items() if qid in qrels_ids}
+        log.info(f"Filtered queries from {original_count} to {len(queries)} matching qrels.")
+
     if args.query_limit:
         log.info(f"Limiting to first {args.query_limit} queries...")
         queries = dict(list(queries.items())[: args.query_limit])
@@ -337,15 +354,17 @@ def main():
         
         # Retrieval
         results = _run_retrieval(adapter, queries, args)
-        
+
         # Evaluation (if requested)
+        # defensive: ensure `metrics` is defined even when evaluation is skipped or fails
+        metrics = None
         if args.evaluate:
             metrics = _calculate_metrics(results, args)
             if metrics:
                 all_metrics.append(metrics)
         
         # Save individual run results
-        if metrics:
+        if metrics is not None:
             run_metrics_file = args.output.replace(".json", f"_run_{i+1}_metrics.json")
             with open(run_metrics_file, "w") as f:
                 json.dump(metrics, f, indent=2)
@@ -353,11 +372,15 @@ def main():
 
         if num_runs == 1:
             _save_results(results, metadata, args)
-            if args.evaluate:
-                _print_evaluation_results(all_metrics[0])
-                metrics_file = args.output.replace(".json", "_metrics.json")
-                with open(metrics_file, "w") as f:
-                    json.dump(all_metrics[0], f, indent=2)
+            # Only attempt to print/write evaluation summary when we have metrics
+            if args.evaluate and all_metrics:
+                try:
+                    _print_evaluation_results(all_metrics[0])
+                    metrics_file = args.output.replace(".json", "_metrics.json")
+                    with open(metrics_file, "w") as f:
+                        json.dump(all_metrics[0], f, indent=2)
+                except Exception as e:
+                    log.warning(f"Could not print/save evaluation summary: {e}")
 
     if num_runs > 1 and all_metrics:
         _aggregate_and_report_metrics(all_metrics, args)

@@ -105,9 +105,19 @@ class RetrievalExecutor:
         except Exception:
             prefixed_query = query
 
+        # Instrumentation: measure embedding generation time
+        import time
+        start_time = time.perf_counter()
         query_embeddings = self.inference_threading.generate_embeddings_threaded(
             [prefixed_query], self.model
         )
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        
+        # Store timing in thread-local storage for profiling tools
+        if not hasattr(self, '_timing_stats'):
+            self._timing_stats = {}
+        self._timing_stats['last_embedding_ms'] = elapsed_ms
+        
         return query_embeddings[0] if query_embeddings else []
 
     def query_dense(
@@ -152,7 +162,15 @@ class RetrievalExecutor:
             if trace_id is not None:
                 query_params["trace_id"] = trace_id
 
+            # Instrumentation: measure FAISS query time
+            import time
+            start_faiss = time.perf_counter()
             results = self.collection.query(**query_params)
+            faiss_elapsed_ms = (time.perf_counter() - start_faiss) * 1000
+            if not hasattr(self, '_timing_stats'):
+                self._timing_stats = {}
+            self._timing_stats['last_faiss_ms'] = faiss_elapsed_ms
+            
             try:
                 raw_count = len(results.get("documents", [[]])[0]) if results else 0
                 logger.debug(
@@ -279,6 +297,10 @@ class RetrievalExecutor:
             # instead of linearly scanning a filtered list of docs (O(N)).
             bm25_docs = getattr(self.bm25, "docs", [])
 
+            # Instrumentation: measure BM25 search time
+            import time
+            start_bm25 = time.perf_counter()
+
             if not current_documents and bm25_docs:
                 # Fast path: full corpus search
                 results = self.bm25.search(query, top_k=top_k)
@@ -344,6 +366,12 @@ class RetrievalExecutor:
                         }
                     )
                 results = self.bm25.search(query, top_k=top_k, docs=docs_for_search)
+
+            # Complete BM25 timing instrumentation
+            bm25_elapsed_ms = (time.perf_counter() - start_bm25) * 1000
+            if not hasattr(self, '_timing_stats'):
+                self._timing_stats = {}
+            self._timing_stats['last_bm25_ms'] = bm25_elapsed_ms
 
             try:
                 logger.debug(

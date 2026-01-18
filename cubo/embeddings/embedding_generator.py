@@ -127,6 +127,16 @@ class EmbeddingGenerator:
         )
         return embeddings
 
+    def generate_embeddings(self, texts: List[str], batch_size: Optional[int] = None, prompt_name: Optional[str] = None) -> List[List[float]]:
+        """Backward-compatible alias for older callers.
+
+        Older tooling (and external callers) may call `generate_embeddings(...)` — delegate
+        to `encode(...)` to preserve behavior. Keep this shim lightweight and log a
+        deprecation-style debug message.
+        """
+        logger.debug("EmbeddingGenerator.generate_embeddings() called — delegating to encode()")
+        return self.encode(texts, batch_size=batch_size, prompt_name=prompt_name)
+
     def embed_chunks(
         self, df_rows: List[str], text_column: str = "text", batch_size: Optional[int] = None
     ) -> List[List[float]]:
