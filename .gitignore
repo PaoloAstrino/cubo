@@ -171,6 +171,12 @@ go.zip
 node_modules/
 frontend/.next/
 frontend/node_modules/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+*.tsbuildinfo
+
 
 # Internal/temporary files
 how_to_compare.txt
