@@ -115,7 +115,9 @@ def main():
             out_file, dur = run_system_metrics(corpus, index_dir, queries, args.top_k, limit=docs_limit)
             parsed = parse_system_metrics(out_file)
             parsed['duration_s'] = dur
-            print(f"  run {r+1}: p50={parsed['p50_ms']:.1f} ms, peak_rss={parsed['peak_rss_mb']:.1f} MB")
+            p50_str = f"{parsed['p50_ms']:.1f}" if parsed['p50_ms'] is not None else "N/A"
+            peak_str = f"{parsed['peak_rss_mb']:.1f}" if parsed['peak_rss_mb'] is not None else "N/A"
+            print(f"  run {r+1}: p50={p50_str} ms, peak_rss={peak_str} MB")
             size_results['runs'].append(parsed)
             # small sleep to avoid racing files
             time.sleep(1)
@@ -123,8 +125,8 @@ def main():
 
     # Aggregate medians
     x = [r['size_gb'] for r in records]
-    p50s = [statistics.median([run['p50_ms'] for run in r['runs'] if run['p50_ms'] is not None]) for r in records]
-    p95s = [statistics.median([run['p95_ms'] for run in r['runs'] if run['p95_ms'] is not None]) for r in records]
+    p50s = [statistics.median([run['p50_ms'] for run in r['runs'] if run['p50_ms'] is not None]) if any(run['p50_ms'] is not None for run in r['runs']) else None for r in records]
+    p95s = [statistics.median([run['p95_ms'] for run in r['runs'] if run['p95_ms'] is not None]) if any(run['p95_ms'] is not None for run in r['runs']) else None for r in records]
 
     # Plot
     plt.figure(figsize=(6,3))

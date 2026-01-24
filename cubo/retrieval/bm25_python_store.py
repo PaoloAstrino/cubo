@@ -156,6 +156,11 @@ class BM25PythonStore(BM25Store):
         if self.use_lemmatization and self.lemmatizer and self.lemmatizer.is_available():
             # Use MultilingualTokenizer for language detection if available
             if language == "auto" and self.tokenizer:
+                # Optimized for short queries: if only 1-2 words, avoid language detection 
+                # and use all supported languages for better recall.
+                if len(text.split()) <= 2:
+                    return self.lemmatizer.lemmatize_text(text, lang=None)
+                
                 language = self.tokenizer.detect_language(text)
 
             # Use simplemma for lemmatization

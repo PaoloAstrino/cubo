@@ -6,7 +6,7 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from cubo.config import config
 from cubo.retrieval.bm25_store import BM25Store
@@ -190,32 +190,26 @@ class BM25SqliteStore(BM25Store):
 
         self._docs_cache = None
 
-    def search(self, query: str, top_k: int = 10, docs: Optional[List[Dict]] = None) -> List[Dict]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        docs: Optional[List[Dict]] = None,
+        doc_ids: Optional[Set[str]] = None,
+    ) -> List[Dict]:
         """Search using FTS5 BM25."""
         if not query:
             return []
 
-        # FTS5 query syntax: tokens are implicitly ANDed.
-        # "search term" -> match "search" AND "term"
-        # We should sanitize the query to avoid syntax errors (defaults to standard parser)
-        # Replacing special chars might be needed.
+        # ... (sanitization logic remains the same)
         safe_query = query.replace('"', '""')  # minimal escaping
-        # Or just use the raw query and trust FTS5 to handle words.
-        # Ideally, we should tokenize properly, but FTS5 standard tokenizer does a decent job.
-        # Let's use simple tokenization join with OR/AND?
-        # Standard search usually implies OR for recall, AND for precision.
-        # BM25 usually works on "OR" of terms.
-
+        
         # Tokenize simply to construct an OR query
-        # Restrict tokens to alphanumeric and reasonably sized to avoid injection
         tokens = ["".join(c for c in w if c.isalnum()) for w in query.split()]
-        # Enforce max token length and filter empties
         tokens = [t for t in tokens if t and len(t) <= 64]
         if not tokens:
             return []
 
-        # Compose an FTS5-safe query by quoting each token; tokens are sanitized above
-        # Additional safety: enforce alphanumeric-only tokens, reasonable token count, and max length
         assert all(t.isalnum() for t in tokens), "FTS tokens must be alphanumeric"
         max_tokens = 50
         tokens = tokens[:max_tokens]
@@ -223,26 +217,6 @@ class BM25SqliteStore(BM25Store):
 
         results = []
         with sqlite3.connect(str(self.db_path)) as conn:
-            # Note: bm25() returns negative score (more negative is better) by default in some versions,
-            # or positive? SQLite docs say: "The value returned by bm25() is a real number ... smaller values indicate better matches"
-            # WAIT. SQLite bm25() returns *smaller* is better (weighted negative sum of IDF).
-            # So ORDER BY bm25(docs_fts) ASC.
-
-            # Correction: SQLite FTS5 bm25() returns a value where *lower* is better (more relevant).
-            # It's essentially -score.
-            # Wait, usually BM25 is positive.
-            # SQLite docs: "The value returned is... a negative value... magnitude is larger for better matches."
-            # So simpler: ORDER BY bm25(docs_fts). The most relevant are the most negative (smallest).
-
-            # Wait, let's verify.
-            # "The bm25() function returns a value that is less than or equal to 0.0. A value closer to 0.0 indicates a worse match."
-            # So -10.0 is BETTER than -1.0?
-            # "The value returned ... is calculated as the sum of the scores for each column... * -1.0"
-            # So yes, it returns negative scores. Lower (more negative) is better? Or smaller absolute value?
-            # "A value closer to 0.0 indicates a WORSE match".
-            # So -5.0 (better) < -1.0 (worse).
-            # So ORDER BY bm25(docs_fts) ASC puts -5.0 first. Correct.
-
             sql = """
                 SELECT id, text, metadata, bm25(docs_fts) as score 
                 FROM docs_fts 
@@ -251,28 +225,22 @@ class BM25SqliteStore(BM25Store):
                 LIMIT ?
             """
 
-            # If 'docs' is provided (subset search), we need to filter.
-            # FTS5 doesn't support IN list easily.
-            # If docs is small, we can generate SQL. If large, it's problematic.
-            # BM25PythonStore optimizes this by picking high-IDF terms.
-            # Scaling BM25 usually implies ignored `docs` subset if it's too large, or efficient filtering.
-            # For now, if `docs` is provided, we might have to filter in python or add WHERE id IN (...)
-
-            # Handling `docs` subset:
-            subset_ids = None
+            # Combine docs subset and doc_ids filter
+            allowed_ids = doc_ids
             if docs is not None:
                 subset_ids = {d.get("doc_id") for d in docs if d.get("doc_id")}
+                if allowed_ids:
+                    allowed_ids = allowed_ids.intersection(subset_ids)
+                else:
+                    allowed_ids = subset_ids
 
-            # The FTS query string is composed from strictly alphanumeric, sanitized tokens
-            # and passed as a parameter to avoid SQL injection; mark as nosec for Bandit B608
             cursor = conn.execute(
-                sql, (fts_query, top_k * 5 if subset_ids else top_k)
+                sql, (fts_query, top_k * 10 if allowed_ids else top_k)
             )  # nosec: B608
-            # Fetch more if we need to filter
 
             for row in cursor:
                 doc_id = row[0]
-                if subset_ids and doc_id not in subset_ids:
+                if allowed_ids and doc_id not in allowed_ids:
                     continue
 
                 score = row[3]  # negative value

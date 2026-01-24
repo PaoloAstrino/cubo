@@ -185,7 +185,7 @@ def main():
             print(f"{s['corpus_label']:<15} ERROR: {s['error']}")
             all_o1 = False
         else:
-            o1_str = "✅ Yes" if s["is_o1"] else "❌ No"
+            o1_str = "[YES]" if s["is_o1"] else "[NO]"
             print(
                 f"{s['corpus_label']:<15} {s['sample_count']:<10} "
                 f"{s['min_rss_mb']:<10.1f} {s['max_rss_mb']:<10.1f} "
@@ -196,7 +196,7 @@ def main():
     
     print("=" * 70)
     if all_o1:
-        print("✅ O(1) MEMORY CLAIM VALIDATED ACROSS ALL CORPUS SIZES")
+        print("[OK] O(1) MEMORY CLAIM VALIDATED ACROSS ALL CORPUS SIZES")
     else:
         print("⚠️  O(1) MEMORY CLAIM REQUIRES FURTHER INVESTIGATION")
     print("=" * 70)

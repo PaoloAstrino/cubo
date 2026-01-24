@@ -205,13 +205,21 @@ def main():
     with open(args.output, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     
-    logger.info(f"\n✅ Multilingual evaluation saved to {args.output}")
-    logger.info("\n=== Results Summary ===")
-    logger.info(f"Dataset: {results['dataset']}")
-    logger.info(f"Compound splitter: {results['config']['compound_splitter_enabled']}")
-    logger.info(f"Recall@10: {results['metrics']['recall@10']:.4f}")
-    logger.info(f"nDCG@10: {results['metrics']['ndcg@10']:.4f}")
-    logger.info(f"Queries/sec: {results['resource_usage']['queries_per_second']:.2f}")
+    # Log a concise, ASCII-safe summary. Handle skipped runs defensively.
+    if results.get('skipped'):
+        logger.info(f"\nMultilingual evaluation skipped for {results.get('dataset')}: {results.get('reason')}")
+        logger.info("\n=== Results Summary ===")
+        logger.info(f"Dataset: {results.get('dataset')}")
+        logger.info(f"Status: SKIPPED - {results.get('reason')}")
+    else:
+        logger.info(f"\nMultilingual evaluation saved to {args.output}")
+        logger.info("\n=== Results Summary ===")
+        logger.info(f"Dataset: {results['dataset']}")
+        cfg = results.get('config', {})
+        logger.info(f"Compound splitter: {cfg.get('compound_splitter_enabled', 'N/A')}")
+        logger.info(f"Recall@10: {results['metrics']['recall@10']:.4f}")
+        logger.info(f"nDCG@10: {results['metrics']['ndcg@10']:.4f}")
+        logger.info(f"Queries/sec: {results['resource_usage']['queries_per_second']:.2f}")
 
 
 if __name__ == "__main__":

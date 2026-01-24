@@ -9,7 +9,7 @@ import json
 import math
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from cubo.retrieval.bm25_store_factory import get_bm25_store
 from cubo.retrieval.constants import BM25_B, BM25_K1, BM25_NORMALIZATION_FACTOR
@@ -445,29 +445,39 @@ class BM25Searcher:
         denominator = tf + self.K1 * (1 - self.B + self.B * (doc_len / avg_len))
         return idf * (numerator / denominator)
 
-    def search(self, query: str, top_k: int = 10, docs: List[Dict] = None) -> List[Dict]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        docs: List[Dict] = None,
+        doc_ids: Optional[Set[str]] = None,
+    ) -> List[Dict]:
         """Search for documents matching query.
 
         Args:
             query: Search query string.
             top_k: Maximum number of results to return.
             docs: Optional list of docs to search (default: all indexed).
+            doc_ids: Optional set of doc IDs to filter by.
 
         Returns:
             List of result dicts with doc_id, similarity, metadata, text.
         """
         try:
-            return self._store.search(query, top_k=top_k, docs=docs)
+            return self._store.search(query, top_k=top_k, docs=docs, doc_ids=doc_ids)
         except Exception:
-            return self._search_fallback(query, top_k, docs)
+            return self._search_fallback(query, top_k, docs, doc_ids)
 
-    def _search_fallback(self, query: str, top_k: int, docs: Optional[List[Dict]]) -> List[Dict]:
+    def _search_fallback(
+        self, query: str, top_k: int, docs: Optional[List[Dict]], doc_ids: Optional[Set[str]]
+    ) -> List[Dict]:
         """Fallback search implementation using wrapper scoring.
 
         Args:
             query: Search query string.
             top_k: Maximum results.
             docs: Optional docs list to search.
+            doc_ids: Optional set of doc IDs to filter by.
 
         Returns:
             Sorted list of result dicts.
@@ -477,16 +487,19 @@ class BM25Searcher:
             return []
 
         docs_to_search = docs if docs is not None else self.docs
-        results = self._score_documents(query_terms, docs_to_search)
+        results = self._score_documents(query_terms, docs_to_search, doc_ids)
         results.sort(key=lambda x: x["similarity"], reverse=True)
         return results[:top_k]
 
-    def _score_documents(self, query_terms: List[str], docs_to_search: List[Dict]) -> List[Dict]:
+    def _score_documents(
+        self, query_terms: List[str], docs_to_search: List[Dict], doc_ids: Optional[Set[str]] = None
+    ) -> List[Dict]:
         """Score all documents against query terms.
 
         Args:
             query_terms: Tokenized query terms.
             docs_to_search: List of documents to score.
+            doc_ids: Optional set of doc IDs to filter by.
 
         Returns:
             List of result dicts with positive scores.
@@ -495,6 +508,8 @@ class BM25Searcher:
         for d in docs_to_search:
             doc_id = d.get("doc_id")
             if not doc_id:
+                continue
+            if doc_ids and doc_id not in doc_ids:
                 continue
             bm25_score = self._compute_bm25_score(query_terms, doc_id)
             norm_score = min(bm25_score / BM25_NORMALIZATION_FACTOR, 1.0)

@@ -3,7 +3,7 @@ BM25 store plugin interface.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 
 class BM25Store(ABC):
@@ -21,7 +21,13 @@ class BM25Store(ABC):
         """Add documents to the index incrementally."""
 
     @abstractmethod
-    def search(self, query: str, top_k: int = 10, docs: Optional[List[Dict]] = None) -> List[Dict]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        docs: Optional[List[Dict]] = None,
+        doc_ids: Optional[Set[str]] = None,
+    ) -> List[Dict]:
         """Search for the query and return top_k results."""
 
     @abstractmethod

@@ -23,12 +23,11 @@ def test_concurrent_build_and_query():
     mock_app.generator = MagicMock()
     mock_app.generate_response_safe.return_value = "Generated"
 
-    def fake_build_index():
+    def fake_build_index(*args, **kwargs):
         # Simulate long build, then set retriever count > 0
         time.sleep(0.5)
         mock_app.retriever.collection.count.return_value = 5
         return 3
-
     mock_app.build_index.side_effect = fake_build_index
 
     with patch("cubo.server.api.cubo_app", mock_app):

@@ -15,15 +15,13 @@ from cubo.retrieval.retriever import DocumentRetriever
 @pytest.fixture
 def mock_model():
     """Mock SentenceTransformer model."""
+    import numpy as np
     model = MagicMock(spec=SentenceTransformer)
 
     # Mock encode to return embeddings based on input length
-    def mock_encode(texts, convert_to_tensor=True):
-        mock_tensor = MagicMock()
-        # Return one embedding per input text
-        embeddings = [[0.1] * 768 for _ in texts]
-        mock_tensor.tolist.return_value = embeddings
-        return mock_tensor
+    def mock_encode(texts, **kwargs):
+        # Return one embedding per input text as a numpy array
+        return np.ones((len(texts), 768), dtype=np.float32) * 0.1
 
     model.encode.side_effect = mock_encode
     # Ensure embedding dimension is an int to avoid failing FAISS API calls

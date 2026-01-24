@@ -320,6 +320,7 @@ markers = [
     "requires_whoosh: (deprecated) marks tests that required Whoosh installation",
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "e2e: marks tests as end-to-end tests",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

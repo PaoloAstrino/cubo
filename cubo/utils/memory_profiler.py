@@ -129,9 +129,9 @@ class MemoryProfiler:
         print("-" * 60)
         
         if stats["is_o1"]:
-            print("✅ O(1) MEMORY CLAIM VALIDATED (delta < 500MB)")
+            print("[OK] O(1) MEMORY CLAIM VALIDATED (delta < 500MB)")
         else:
-            print("⚠️  O(1) MEMORY CLAIM REQUIRES INVESTIGATION (delta >= 500MB)")
+            print("[WARNING] O(1) MEMORY CLAIM REQUIRES INVESTIGATION (delta >= 500MB)")
         print("=" * 60 + "\n")
 
 

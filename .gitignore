@@ -208,7 +208,20 @@ come_spaccare_il_digitale.txt
 
 videos
 
+# Public release cleanup - Internal dev notes
+to_do.txt
+tecnical_limitation_to_resolve.txt
+validate_temp.py
+start_ollama.py
+mypy_errors.txt
+CRITICAL_ISSUES_ANALYSIS.md
+FIXES_APPLIED_SUMMARY.md
+REVISION_ROADMAP.md
+SUBMISSION_ROADMAP.md
+resolution_plan_critique_1.txt
 the_final_analysis.txt
 the_final_analysis.md
 
-resolution_plan_critique_1.txt
+# Build and log files
+*.spec
+*.log

@@ -1365,31 +1365,49 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
         Returns:
             List of unique filenames
         """
+        filenames = set()
         with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            # Get the document IDs stored in the collection (these are filenames from frontend)
-            collection_doc_ids = conn.execute(
-                "SELECT document_id FROM collection_documents WHERE collection_id = ?",
-                (collection_id,),
-            ).fetchall()
+            # 1. Get all document_ids in the collection
+            collection_doc_ids = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT document_id FROM collection_documents WHERE collection_id = ?",
+                    (collection_id,),
+                ).fetchall()
+            ]
 
             if not collection_doc_ids:
                 return []
 
-            collection_filenames = {row[0] for row in collection_doc_ids}
+            # 2. Check if any document_id itself looks like a filename (legacy/frontend direct)
+            for did in collection_doc_ids:
+                if "." in did and not did.startswith("doc"): # Simple heuristic
+                    filenames.add(did)
 
-            # Now find all documents whose metadata contains these filenames
-            rows = conn.execute("SELECT DISTINCT metadata FROM documents").fetchall()
-
-        filenames = set()
-        for row in rows:
+            # 3. Join with documents table to get filenames from metadata for all IDs in collection
+            # We use a temporary table for efficiency if there are many IDs
+            cur = conn.cursor()
+            cur.execute("CREATE TEMP TABLE IF NOT EXISTS _coll_ids(id TEXT PRIMARY KEY)")
             try:
-                metadata = json.loads(row[0])
-                doc_filename = metadata.get("filename", "")
-                # Check if this document's filename matches any of the collection's document IDs
-                if doc_filename in collection_filenames:
-                    filenames.add(doc_filename)
-            except (json.JSONDecodeError, KeyError):
-                pass
+                cur.executemany("INSERT OR REPLACE INTO _coll_ids(id) VALUES(?)", 
+                               ((did,) for did in collection_doc_ids))
+                
+                rows = conn.execute("""
+                    SELECT DISTINCT metadata FROM documents 
+                    WHERE id IN (SELECT id FROM _coll_ids)
+                """).fetchall()
+                
+                for row in rows:
+                    try:
+                        metadata = json.loads(row[0])
+                        fname = metadata.get("filename")
+                        if fname:
+                            filenames.add(fname)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+            finally:
+                cur.execute("DELETE FROM _coll_ids")
+                conn.commit()
 
         return list(filenames)
 
