@@ -655,7 +655,7 @@ python -m pyserini.index.lucene \
   --index indexes/scifact_bm25
 
 # Run queries with timing
-python scripts/run_bm25_baseline.py \
+python tools/benchmarking/run_bm25_baseline.py \
   --index indexes/scifact_bm25 \
   --queries data/scifact_queries.jsonl \
   --output results/bm25_latency.json \
