@@ -8,10 +8,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_quickstart_scripts_exist():
-    sh = REPO_ROOT / "run_local.sh"
-    ps1 = REPO_ROOT / "run_local.ps1"
-    assert sh.exists(), "run_local.sh must exist"
-    assert ps1.exists(), "run_local.ps1 must exist"
+    sh = REPO_ROOT / "scripts" / "run_local.sh"
+    ps1 = REPO_ROOT / "scripts" / "run_local.ps1"
+    assert sh.exists(), "scripts/run_local.sh must exist"
+    assert ps1.exists(), "scripts/run_local.ps1 must exist"
 
     # Both scripts should mention the main startup script
     content_sh = sh.read_text(encoding="utf-8")
@@ -42,7 +42,7 @@ def test_quickstart_scripts_exist():
 
 
 def test_run_local_sh_executable():
-    sh = REPO_ROOT / "run_local.sh"
+    sh = REPO_ROOT / "scripts" / "run_local.sh"
 
     # On Windows, executable bits are not meaningful in the same way, so skip that check
     if sys.platform.startswith("win"):

@@ -13,6 +13,9 @@ for arg in "$@"; do
   esac
 done
 
+# Ensure we are in the project root
+cd "$(dirname "$0")/.."
+
 log() { if [ "$VERBOSE" -eq 1 ]; then echo "$@"; fi }
 err() { echo "$@" >&2; }
 
@@ -104,15 +107,15 @@ else
   fi
 fi
 
-# Start fullstack (uses tools/start_fullstack.py)
+# Start fullstack (uses scripts/start_fullstack.py)
 log ""
 log "Starting CUBO full stack..."
 # Export verbosity env so start_fullstack.py can adjust its own verbosity
 if [ "$VERBOSE" -eq 1 ]; then
   export CUBO_VERBOSE=1
-  $PY tools/start_fullstack.py "$@"
+  $PY scripts/start_fullstack.py "$@"
 else
   export CUBO_VERBOSE=0
   # Keep start script quiet by default
-  CUBO_VERBOSE=0 $PY tools/start_fullstack.py "$@" >/dev/null 2>&1 &
+  CUBO_VERBOSE=0 $PY scripts/start_fullstack.py "$@" >/dev/null 2>&1 &
 fi

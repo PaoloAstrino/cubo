@@ -10,9 +10,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Change to the script's directory
+# Change to the project root directory (parent of scripts/)
 $ScriptDir = Split-Path -Parent $PSCommandPath
-Set-Location $ScriptDir
+Set-Location "$ScriptDir\.."
 
 # Quiet by default; pass -Verbose to be loud
 $IsVerbose = $Verbose -or ($env:CUBO_VERBOSE -eq '1')
@@ -318,9 +318,9 @@ if ($conflictingProcesses.Count -gt 0) {
 # Check Ollama and Model Readiness
 $targetModel = $env:CUBO_LLM_MODEL
 if (-not $targetModel) { $targetModel = "llama3.2:latest" }
-& "$ScriptDir\scripts\check_ollama.ps1" -ModelName $targetModel
+& "tools\debugging\check_ollama.ps1" -ModelName $targetModel
 
-# Start fullstack (uses tools/start_fullstack.py)
+# Start fullstack (uses scripts/start_fullstack.py)
 Log-Info "Launching CUBO..."
 Log-Info "Please wait while we start the services..."
 
@@ -329,13 +329,13 @@ try {
         $env:CUBO_VERBOSE = '1'
         Write-Host "`n=== Starting services in verbose mode ===" -ForegroundColor Cyan
         Write-Host "Press Ctrl+C to stop all services`n" -ForegroundColor Cyan
-        python tools/start_fullstack.py
+        python scripts/start_fullstack.py
     }
     else {
         $env:CUBO_VERBOSE = '0'
         
         # Start process and wait a bit to see if it crashes immediately
-        $process = Start-Process -FilePath "python" -ArgumentList "tools/start_fullstack.py" -WindowStyle Hidden -PassThru
+        $process = Start-Process -FilePath "python" -ArgumentList "scripts/start_fullstack.py" -WindowStyle Hidden -PassThru
         Start-Sleep -Seconds 5
         
         if ($process.HasExited) {

@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 # Set up Python path
-project_root = Path(__file__).parent
+# Assuming this script is in <root>/scripts/start_api_server.py
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 os.environ["PYTHONPATH"] = str(project_root)
 

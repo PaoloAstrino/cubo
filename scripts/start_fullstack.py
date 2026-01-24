@@ -41,7 +41,8 @@ def _start_backend(verbose, LOG_DIR):
     """Start backend server and return process and log file handles."""
     backend_env = os.environ.copy()
     backend_env["PYTHONPATH"] = str(ROOT)
-    backend_cmd = [sys.executable, "start_api_server.py"]
+    # Backend script is in scripts/ folder
+    backend_cmd = [sys.executable, "scripts/start_api_server.py"]
 
     if verbose:
         return subprocess.Popen(backend_cmd, cwd=ROOT, env=backend_env), None, None

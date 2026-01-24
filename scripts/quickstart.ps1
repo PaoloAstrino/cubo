@@ -30,8 +30,8 @@ if (Test-Path $Dir) {
 }
 
 Set-Location $Dir
-if (-not (Test-Path './run_local.ps1') -and -not (Test-Path './run_local.sh')) {
-    Fail "run_local.ps1 or run_local.sh not found in repo root. This quickstart expects the project to include one of these scripts."
+if (-not (Test-Path './scripts/run_local.ps1') -and -not (Test-Path './scripts/run_local.sh')) {
+    Fail "scripts/run_local.ps1 or scripts/run_local.sh not found in repo. This quickstart expects the project to include one of these scripts."
 }
 
 # Perform preflight checks in the target repo before launching
@@ -69,10 +69,10 @@ $drive = Get-PSDrive -Name $driveLetter -ErrorAction SilentlyContinue
 if (-not $drive) { $drive = Get-PSDrive -PSProvider FileSystem | Select-Object -First 1 }
 if ($drive.Free -lt 5GB) { Fail "Not enough disk space: at least 5GB free is required. Available: $([math]::Round($drive.Free/1GB,2)) GB" }
 
-if (Test-Path './run_local.ps1') {
-    Write-Output "Launching local dev environment with ./run_local.ps1"
-    powershell -ExecutionPolicy Bypass -File .\run_local.ps1
+if (Test-Path './scripts/run_local.ps1') {
+    Write-Output "Launching local dev environment with ./scripts/run_local.ps1"
+    powershell -ExecutionPolicy Bypass -File .\scripts\run_local.ps1
 } else {
-    Write-Output "Launching local dev environment with ./run_local.sh"
-    bash ./run_local.sh
+    Write-Output "Launching local dev environment with ./scripts/run_local.sh"
+    bash ./scripts/run_local.sh
 }

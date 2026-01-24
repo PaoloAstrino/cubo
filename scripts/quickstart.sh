@@ -33,11 +33,11 @@ else
   cd "$TARGET_DIR"
 fi
 
-if [ ! -f "./run_local.sh" ]; then
-  echo "Error: run_local.sh not found in repository root. This quickstart expects the project to include ./run_local.sh"
+if [ ! -f "./scripts/run_local.sh" ]; then
+  echo "Error: scripts/run_local.sh not found in repository. This quickstart expects the project to include ./scripts/run_local.sh"
   exit 4
 fi
 
-echo "Launching local dev environment with ./run_local.sh"
-chmod +x ./run_local.sh
-./run_local.sh
+echo "Launching local dev environment with ./scripts/run_local.sh"
+chmod +x ./scripts/run_local.sh
+./scripts/run_local.sh
