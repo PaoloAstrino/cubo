@@ -21,16 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ensure pnpm available
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Ensure pnpm available
-        uses: pnpm/action-setup@v3
-        with:
-          version: 10
 
       - name: Debug Node / pnpm cache
         run: |
@@ -79,7 +79,7 @@ jobs:
           python-version: "3.11"
       - name: Install Dependencies (Minimal)
         run: |
-          pip install --no-cache-dir -r requirements-ci.txt
+          pip install --no-cache-dir -r requirements/requirements-ci.txt
           pip install --no-cache-dir -r requirements/requirements-dev.txt
           pip install --no-cache-dir -e .
           # Using requirements-ci.txt: skips heavy ML packages

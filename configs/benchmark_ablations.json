@@ -1,0 +1,12 @@
+{
+  "configs": [
+    {
+      "name": "none",
+      "config_updates": {}
+    },
+    {
+      "name": "disable_reranker",
+      "config_updates": {"ingestion": {"fast_pass": {"skip_heavy_models": true}}, "auto_merging_collection_name": ""}
+    }
+  ]
+}

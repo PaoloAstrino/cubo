@@ -1,0 +1,147 @@
+{
+  "description": "Ablation configurations for CUBO paper experiments. Each config disables one optimization to measure its impact.",
+  "configs": [
+    {
+      "name": "full_cubo_laptop",
+      "description": "Full CUBO with all laptop-mode optimizations enabled (baseline)",
+      "config_updates": {
+        "laptop_mode": true,
+        "embedding_storage": "mmap",
+        "retrieval": {
+          "hybrid_enabled": true,
+          "semantic_cache": {"enabled": true, "threshold": 0.92, "max_entries": 500},
+          "use_reranker": false
+        },
+        "auto_merging_enabled": true,
+        "routing": {"enabled": true}
+      }
+    },
+    {
+      "name": "no_mmap",
+      "description": "Disable memory-mapped embeddings (expect +3.8 GB RAM)",
+      "config_updates": {
+        "laptop_mode": true,
+        "embedding_storage": "memory",
+        "retrieval": {
+          "hybrid_enabled": true,
+          "semantic_cache": {"enabled": true}
+        }
+      }
+    },
+    {
+      "name": "no_8bit_quantization",
+      "description": "Disable 8-bit quantization, use fp32 (expect +4.8 GB RAM)",
+      "config_updates": {
+        "laptop_mode": true,
+        "embedding_quantization": "fp32",
+        "embedding_storage": "mmap"
+      }
+    },
+    {
+      "name": "no_ivf_pq",
+      "description": "Use flat FAISS index instead of IVF+PQ (expect +3.4 GB RAM, +85ms latency)",
+      "config_updates": {
+        "laptop_mode": true,
+        "faiss_index_type": "flat",
+        "embedding_storage": "mmap"
+      }
+    },
+    {
+      "name": "no_bm25",
+      "description": "Disable BM25, use dense retrieval only (expect -10.5% Recall@10)",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "hybrid_enabled": false,
+          "dense_only": true,
+          "semantic_cache": {"enabled": true}
+        }
+      }
+    },
+    {
+      "name": "no_dense",
+      "description": "Disable dense retrieval, use BM25 only (expect -19.7% Recall@10)",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "hybrid_enabled": false,
+          "bm25_only": true,
+          "semantic_cache": {"enabled": true}
+        }
+      }
+    },
+    {
+      "name": "no_semantic_cache",
+      "description": "Disable semantic query cache (expect +180ms p95 latency)",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "hybrid_enabled": true,
+          "semantic_cache": {"enabled": false}
+        }
+      }
+    },
+    {
+      "name": "no_auto_merge",
+      "description": "Disable auto-merging hierarchical chunks (expect -3pp Recall@10)",
+      "config_updates": {
+        "laptop_mode": true,
+        "auto_merging_enabled": false,
+        "retrieval": {
+          "hybrid_enabled": true,
+          "semantic_cache": {"enabled": true}
+        }
+      }
+    },
+    {
+      "name": "no_query_routing",
+      "description": "Disable query routing (expect -4.2pp Recall@10 on legal docs)",
+      "config_updates": {
+        "laptop_mode": true,
+        "routing": {"enabled": false},
+        "retrieval": {
+          "hybrid_enabled": true,
+          "semantic_cache": {"enabled": true}
+        }
+      }
+    },
+    {
+      "name": "no_lazy_loading",
+      "description": "Disable lazy model loading (always keep model in RAM)",
+      "config_updates": {
+        "laptop_mode": true,
+        "model_idle_timeout": 0,
+        "lazy_loading": false
+      }
+    },
+    {
+      "name": "with_cross_encoder",
+      "description": "Enable cross-encoder reranking (expect +5pp Recall@10, +4.5GB RAM)",
+      "config_updates": {
+        "laptop_mode": false,
+        "retrieval": {
+          "hybrid_enabled": true,
+          "use_reranker": true,
+          "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        }
+      }
+    },
+    {
+      "name": "full_power_mode",
+      "description": "Full power mode with all features enabled (requires 32+ GB RAM)",
+      "config_updates": {
+        "laptop_mode": false,
+        "embedding_storage": "memory",
+        "embedding_quantization": "fp32",
+        "retrieval": {
+          "hybrid_enabled": true,
+          "use_reranker": true,
+          "semantic_cache": {"enabled": true, "max_entries": 2000}
+        },
+        "auto_merging_enabled": true,
+        "routing": {"enabled": true},
+        "lazy_loading": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "metrics": {
+    "fp32_recall_mean": 0.8495237721476075,
+    "quant_recall_mean": 0.7649854425590228,
+    "degradation_factor": 0.08453832958858476,
+    "k": 10,
+    "num_queries": 1109
+  },
+  "calibration": {
+    "quant_aware_routing": true,
+    "quant_degradation_factor": 0.08453832958858476,
+    "quant_sensitivity": 1.0,
+    "recommendation": {
+      "low_sensitivity": {
+        "beta": 0.5,
+        "description": "Conservative adjustment, preserves dense weight"
+      },
+      "medium_sensitivity": {
+        "beta": 1.0,
+        "description": "Balanced adjustment (recommended)"
+      },
+      "high_sensitivity": {
+        "beta": 1.5,
+        "description": "Aggressive adjustment, favors BM25 more"
+      }
+    }
+  },
+  "config_snippet": {
+    "query_router": {
+      "quant_aware_routing": true,
+      "quant_degradation_factor": 0.08453832958858476,
+      "quant_sensitivity": 1.0
+    }
+  }
+}

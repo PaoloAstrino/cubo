@@ -1,0 +1,185 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Enterprise Benchmark Configuration for CUBO RAG System",
+  
+  "benchmark": {
+    "n_warmup": 3,
+    "n_iterations": 10,
+    "collect_memory": true,
+    "remove_outliers": true,
+    "outlier_method": "iqr",
+    "random_seed": 42,
+    "gc_between_runs": true,
+    "_comments": {
+      "n_warmup": "Number of warm-up iterations to stabilize caches/JIT (not included in stats)",
+      "n_iterations": "Number of measured iterations for statistical analysis",
+      "collect_memory": "Whether to profile RAM usage during benchmarks",
+      "remove_outliers": "Whether to remove statistical outliers using IQR or z-score method",
+      "outlier_method": "Method for outlier detection: 'iqr' (default) or 'zscore'",
+      "random_seed": "Seed for reproducibility across all random operations",
+      "gc_between_runs": "Whether to run garbage collection between iterations"
+    }
+  },
+  
+  "retrieval": {
+    "k_values": [1, 3, 5, 10, 20, 50, 100],
+    "n_queries": 100,
+    "batch_sizes": [1, 10, 50],
+    "top_k_default": 10,
+    "metrics": ["recall", "precision", "ndcg", "mrr"],
+    "_comments": {
+      "k_values": "K values for computing Recall@K, Precision@K, nDCG@K",
+      "n_queries": "Number of queries to sample for evaluation (use -1 for all)",
+      "batch_sizes": "Batch sizes for testing batched retrieval performance",
+      "top_k_default": "Default top_k for retrieval when not testing k-values",
+      "metrics": "IR metrics to compute"
+    }
+  },
+  
+  "ingestion": {
+    "sizes_mb": [10, 50, 100, 500],
+    "file_types": ["txt", "pdf", "mixed"],
+    "chunk_sizes": [256, 512, 1024, 2048],
+    "test_data_style": "realistic",
+    "_comments": {
+      "sizes_mb": "Data sizes to test for scaling analysis",
+      "file_types": "File types to include in test data",
+      "chunk_sizes": "Chunk sizes to test for chunking strategy analysis",
+      "test_data_style": "'realistic' uses sentence patterns, 'random' uses random chars"
+    }
+  },
+  
+  "indexing": {
+    "batch_sizes": [32, 64, 128, 256],
+    "embedding_models": ["sentence-transformers/all-MiniLM-L6-v2"],
+    "index_types": ["faiss_flat", "faiss_ivf", "faiss_hnsw"],
+    "_comments": {
+      "batch_sizes": "Batch sizes for embedding generation",
+      "embedding_models": "Embedding models to benchmark",
+      "index_types": "FAISS index types to compare"
+    }
+  },
+  
+  "datasets": {
+    "beir_sample": {
+      "path": "data/beir_sample_2.0pct",
+      "description": "2% sample of BEIR benchmark for quick tests"
+    },
+    "beir_full": {
+      "path": "data/beir",
+      "description": "Full BEIR benchmark dataset"
+    },
+    "ragbench_sample": {
+      "path": "data/ragbench_sample_5.0pct",
+      "description": "5% sample of RAGBench for validation"
+    },
+    "ragbench_full": {
+      "path": "data/ragbench",
+      "description": "Full RAGBench dataset"
+    },
+    "beir_questions": {
+      "path": "data/beir_sample_questions.json",
+      "description": "Precomputed BEIR questions with ground truth"
+    },
+    "beir_with_ground_truth": {
+      "path": "data/beir_with_ground_truth.json",
+      "description": "BEIR questions with explicit ground truth mappings"
+    },
+    "debug_test_dataset": {
+      "path": "data/debug_test_dataset.json",
+      "description": "Simple test dataset for debugging"
+    }
+  },
+  
+  "output": {
+    "results_dir": "results/enterprise_benchmark",
+    "export_formats": ["json", "csv", "latex", "markdown", "html"],
+    "export_latex": true,
+    "export_csv": true,
+    "export_json": true,
+    "export_markdown": true,
+    "export_html": true,
+    "include_raw_values": false,
+    "timestamp_results": true,
+    "_comments": {
+      "results_dir": "Directory for benchmark output files",
+      "export_formats": "Formats to export results in",
+      "include_raw_values": "Whether to include raw measurement values in JSON export",
+      "timestamp_results": "Whether to add timestamp to output filenames"
+    }
+  },
+  
+  "statistical": {
+    "confidence_level": 0.95,
+    "min_samples_for_ci": 5,
+    "outlier_iqr_factor": 1.5,
+    "outlier_zscore_threshold": 3.0,
+    "_comments": {
+      "confidence_level": "Confidence level for confidence intervals (0.95 = 95%)",
+      "min_samples_for_ci": "Minimum samples needed to compute confidence intervals",
+      "outlier_iqr_factor": "IQR multiplier for outlier detection (1.5 is standard)",
+      "outlier_zscore_threshold": "Z-score threshold for outlier detection"
+    }
+  },
+  
+  "hardware": {
+    "track_gpu_memory": true,
+    "track_cpu_usage": true,
+    "track_disk_io": false,
+    "_comments": {
+      "track_gpu_memory": "Whether to track GPU/VRAM usage (requires torch+CUDA)",
+      "track_cpu_usage": "Whether to track CPU utilization",
+      "track_disk_io": "Whether to track disk I/O (can add overhead)"
+    }
+  },
+  
+  "profiles": {
+    "quick": {
+      "description": "Quick smoke test - minimal iterations",
+      "benchmark": {
+        "n_warmup": 1,
+        "n_iterations": 3
+      },
+      "retrieval": {
+        "n_queries": 20,
+        "k_values": [5, 10]
+      }
+    },
+    "standard": {
+      "description": "Standard benchmark - good balance of speed and accuracy",
+      "benchmark": {
+        "n_warmup": 3,
+        "n_iterations": 10
+      },
+      "retrieval": {
+        "n_queries": 100,
+        "k_values": [1, 5, 10, 20]
+      }
+    },
+    "thorough": {
+      "description": "Thorough benchmark - more iterations for publication",
+      "benchmark": {
+        "n_warmup": 5,
+        "n_iterations": 30
+      },
+      "retrieval": {
+        "n_queries": 500,
+        "k_values": [1, 3, 5, 10, 20, 50, 100]
+      }
+    },
+    "publication": {
+      "description": "Publication-grade - maximum statistical rigor",
+      "benchmark": {
+        "n_warmup": 10,
+        "n_iterations": 100
+      },
+      "retrieval": {
+        "n_queries": -1,
+        "k_values": [1, 3, 5, 10, 20, 50, 100]
+      },
+      "statistical": {
+        "confidence_level": 0.99
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "description": "Retrieval configuration presets for benchmarking",
+  "configs": [
+    {
+      "name": "laptop_default",
+      "description": "Default laptop mode configuration (16 GB RAM constraint)",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "top_k": 10,
+          "hybrid_enabled": true,
+          "bm25_weight": 0.4,
+          "dense_weight": 0.6,
+          "semantic_cache": {
+            "enabled": true,
+            "threshold": 0.92,
+            "max_entries": 500
+          }
+        }
+      }
+    },
+    {
+      "name": "laptop_high_recall",
+      "description": "Laptop mode optimized for higher recall (more candidates)",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "top_k": 20,
+          "hybrid_enabled": true,
+          "bm25_weight": 0.3,
+          "dense_weight": 0.7,
+          "candidate_multiplier": 3
+        }
+      }
+    },
+    {
+      "name": "laptop_low_latency",
+      "description": "Laptop mode optimized for lowest latency",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "top_k": 5,
+          "hybrid_enabled": true,
+          "bm25_weight": 0.5,
+          "dense_weight": 0.5,
+          "semantic_cache": {
+            "enabled": true,
+            "threshold": 0.90,
+            "max_entries": 1000
+          }
+        }
+      }
+    },
+    {
+      "name": "factual_queries",
+      "description": "Optimized for factual/keyword-heavy queries",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "hybrid_enabled": true,
+          "bm25_weight": 0.6,
+          "dense_weight": 0.4,
+          "routing_preset": "factual"
+        }
+      }
+    },
+    {
+      "name": "conceptual_queries",
+      "description": "Optimized for conceptual/semantic queries",
+      "config_updates": {
+        "laptop_mode": true,
+        "retrieval": {
+          "hybrid_enabled": true,
+          "bm25_weight": 0.2,
+          "dense_weight": 0.8,
+          "routing_preset": "conceptual"
+        }
+      }
+    }
+  ]
+}

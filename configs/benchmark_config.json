@@ -1,0 +1,19 @@
+{
+  "configs": [
+    {
+      "name": "hybrid_default",
+      "config_updates": {
+        "vector_store_backend": "faiss",
+        "routing": {"factual_bm25_weight": 0.6, "conceptual_dense_weight": 0.8},
+        "vector_index": {"hot_ratio": 0.2}
+      }
+    },
+    {
+      "name": "bm25_only",
+      "config_updates": {
+        "vector_store_backend": "faiss",
+        "routing": {"factual_bm25_weight": 1.0, "conceptual_dense_weight": 0.0}
+      }
+    }
+  ]
+}

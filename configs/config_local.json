@@ -1,0 +1,46 @@
+{
+    "laptop_mode": true,
+    "document_cache_size": 500,
+    
+    "ingestion": {
+        "deep": {
+            "enrich_enabled": false,
+            "n_workers": 1,
+            "batch_size": 5,
+            "chunk_batch_size": 50,
+            "throttle_delay_ms": 500,
+            "auto_generate_scaffolds": false
+        }
+    },
+    
+    "retrieval": {
+        "reranker_model": null,
+        "semantic_cache": {
+            "enabled": true,
+            "threshold": 0.92,
+            "max_entries": 500
+        }
+    },
+    
+    "vector_store": {
+        "persist_embeddings": "npy_sharded",
+        "embedding_dtype": "float16",
+        "embedding_cache_size": 512,
+        "shard_size": 1000
+    },
+    
+    "vector_index": {
+        "hot_ratio": 0.1,
+        "promote_threshold": 100,
+        "nlist": 512,
+        "pq_m": 32
+    },
+    
+    "clustering": {
+        "use_minibatch": true
+    },
+    
+    "deduplication": {
+        "max_candidates": 200
+    }
+}

@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir -r requirements-ci.txt
+          pip install --no-cache-dir -r requirements/requirements-ci.txt
           pip install --no-cache-dir -r requirements/requirements-lint.txt
           pip install --no-cache-dir -e .
           # Using requirements-ci.txt: ~500MB vs ~5GB (skips torch, transformers)

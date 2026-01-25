@@ -1,0 +1,62 @@
+{
+  "datasets": {
+    "ultradomain": {
+      "name": "UltraDomain",
+      "description": "LightRAG benchmark dataset (Agriculture, CS, Legal, Mix domains)",
+      "default_url": "manual",
+      "size_gb": 2.5,
+      "expected_files": ["agriculture.jsonl", "cs.jsonl", "legal.jsonl", "mix.jsonl"],
+      "file_count_approx": 428,
+      "domains": ["agriculture", "cs", "legal", "mix"],
+      "notes": "Download from https://huggingface.co/datasets/TommyChien/UltraDomain. Download agriculture.jsonl, cs.jsonl, legal.jsonl, mix.jsonl files manually."
+    },
+    "ragbench": {
+      "name": "RAGBench",
+      "description": "Multi-domain RAG evaluation benchmark (100k examples)",
+      "default_url": "hf://datasets/rungalileo/ragbench",
+      "size_gb": 5.0,
+      "expected_files": ["data-00000-of-00001.parquet"],
+      "file_count_approx": 100000,
+      "subsets": ["covidqa", "cuad", "delucionqa", "emanual", "expertqa", "finqa", "hagrid", "hotpotqa", "msmarco", "pubmedqa", "tatqa", "techqa"],
+      "notes": "HuggingFace dataset: rungalileo/ragbench with multiple subsets. Use load_dataset('rungalileo/ragbench', subset_name)"
+    },
+    "beir": {
+      "name": "BeIR (FiQA)",
+      "description": "Zero-shot IR benchmark for financial QA domain",
+      "default_url": "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/fiqa.zip",
+      "size_gb": 0.017,
+      "expected_files": ["queries.jsonl", "corpus.jsonl", "qrels/dev.tsv", "qrels/test.tsv", "qrels/train.tsv"],
+      "file_count_approx": 57638,
+      "subsets": ["fiqa"],
+      "notes": "BeIR FiQA subset for financial question answering. Contains queries, corpus, and relevance judgments."
+    },
+    "smoke": {
+      "name": "Smoke Test Dataset",
+      "description": "Small test dataset for quick validation (5 documents)",
+      "default_url": "local",
+      "size_gb": 0.001,
+      "expected_files": ["questions.json", "ground_truth.json", "doc1.txt", "doc2.txt", "doc3.txt", "doc4.txt", "doc5.txt"],
+      "file_count_approx": 5,
+      "notes": "Already included in repository"
+    }
+  },
+  "models": {
+    "embeddinggemma-300m": {
+      "name": "EmbeddingGemma 300M",
+      "description": "Google's 768-dim embedding model",
+      "source": "local",
+      "dimension": 768,
+      "size_gb": 0.6,
+      "notes": "Already included in repository"
+    },
+    "bge-base-en-v1.5": {
+      "name": "BGE Base English v1.5",
+      "description": "BAAI's 768-dim embedding model",
+      "source": "huggingface",
+      "hf_repo": "BAAI/bge-base-en-v1.5",
+      "dimension": 768,
+      "size_gb": 0.4,
+      "notes": "Alternative embedding model for fair comparison"
+    }
+  }
+}

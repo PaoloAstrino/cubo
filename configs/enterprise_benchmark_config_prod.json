@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Production benchmark configuration for long-session readiness tests",
+  
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2024",
+    "purpose": "Production-style 1% sample benchmarking with full infrastructure",
+    "notes": [
+      "CUDA-first with CPU fallback",
+      "Uses EmbeddingGemma-300M for embeddings",
+      "Uses llama3.2 via Ollama for LLM",
+      "Uses cross-encoder reranker",
+      "Uses mmap embedding persistence"
+    ]
+  },
+
+  "device": {
+    "prefer_gpu": true,
+    "cuda_device": 0,
+    "fallback_cpu": true,
+    "mixed_precision": true,
+    "memory_efficient_attention": true
+  },
+
+  "models": {
+    "embedding": {
+      "model_path": "./models/embeddinggemma-300m",
+      "fallback_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "batch_size": 32,
+      "max_seq_length": 512,
+      "normalize_embeddings": true,
+      "device": "auto"
+    },
+    "llm": {
+      "provider": "ollama",
+      "model_name": "llama3.2",
+      "fallback_model": "llama3.2:latest",
+      "temperature": 0.1,
+      "max_tokens": 1024,
+      "timeout_sec": 120,
+      "retry_count": 3
+    },
+    "reranker": {
+      "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "top_k_rerank": 20,
+      "enabled": true,
+      "device": "auto"
+    }
+  },
+
+  "datasets": {
+    "beir_sample": {
+      "name": "beir_sample_1pct",
+      "path": "data/beir_sample_1pct",
+      "type": "beir",
+      "sample_percent": 1.0,
+      "expected_docs": 100,
+      "expected_queries": 20
+    },
+    "ultradomain_sample": {
+      "name": "ultradomain_sample_1pct",
+      "path": "data/ultradomain_sample_1pct",
+      "type": "ultradomain",
+      "sample_percent": 1.0,
+      "expected_docs": 100,
+      "expected_queries": 20
+    },
+    "ragbench_sample": {
+      "name": "ragbench_sample_1pct",
+      "path": "data/ragbench_sample_1pct",
+      "type": "ragbench",
+      "sample_percent": 1.0,
+      "expected_docs": 100,
+      "expected_queries": 20
+    }
+  },
+
+  "ingestion": {
+    "deep": {
+      "enabled": true,
+      "enrich_enabled": true,
+      "auto_generate_scaffolds": true,
+      "n_workers": 2,
+      "batch_size": 10,
+      "max_chunk_size": 512,
+      "overlap": 50
+    },
+    "deduplication": {
+      "enabled": true,
+      "threshold": 0.92,
+      "candidate_cap": 1000
+    },
+    "persistence": {
+      "save_manifest": true,
+      "save_chunks_json": true,
+      "manifest_format": "json"
+    }
+  },
+
+  "indexing": {
+    "vector_store": {
+      "type": "faiss",
+      "index_type": "IVF,Flat",
+      "nlist": 100,
+      "nprobe": 10,
+      "use_gpu": true,
+      "fallback_cpu": true
+    },
+    "hot_cold": {
+      "enabled": true,
+      "hot_ratio": 0.2,
+      "promotion_threshold": 5,
+      "async_promotion": true
+    },
+    "embedding_storage": {
+      "mode": "mmap",
+      "dtype": "float16",
+      "shard_size": 10000,
+      "compression": false
+    }
+  },
+
+  "retrieval": {
+    "k_values": [5, 10, 20, 50, 100],
+    "hybrid_search": {
+      "enabled": true,
+      "bm25_weight": 0.3,
+      "dense_weight": 0.7,
+      "fusion_method": "rrf"
+    },
+    "reranking": {
+      "enabled": true,
+      "top_k_candidates": 100,
+      "top_k_final": 20
+    }
+  },
+
+  "benchmark": {
+    "profiles": {
+      "quick": {
+        "iterations": 3,
+        "warmup": 1,
+        "n_queries": 20,
+        "description": "Smoke test - validates infrastructure works"
+      },
+      "standard": {
+        "iterations": 10,
+        "warmup": 2,
+        "n_queries": 100,
+        "description": "Standard validation - production readiness check"
+      },
+      "thorough": {
+        "iterations": 30,
+        "warmup": 5,
+        "n_queries": 500,
+        "description": "Thorough analysis - detailed performance profiling"
+      },
+      "publication": {
+        "iterations": 100,
+        "warmup": 20,
+        "n_queries": 1000,
+        "description": "Publication quality - statistical significance"
+      }
+    },
+    "metrics": {
+      "retrieval": ["recall@5", "recall@10", "recall@20", "mrr", "ndcg@10"],
+      "latency": ["p50", "p95", "p99", "mean"],
+      "memory": ["peak_mb", "growth_mb", "embeddings_mb"],
+      "ingestion": ["docs_per_sec", "total_time_sec", "chunks_created"]
+    },
+    "stress_test": {
+      "enabled": true,
+      "continuous_hours": 0.5,
+      "memory_check_interval_sec": 60,
+      "max_memory_growth_mb": 50.0
+    }
+  },
+
+  "thresholds": {
+    "pass_fail": {
+      "min_recall_at_10": 0.5,
+      "max_p50_latency_ms": 500,
+      "max_p95_latency_ms": 2000,
+      "max_memory_growth_mb": 50,
+      "min_ingestion_docs_per_sec": 1.0
+    },
+    "warning": {
+      "recall_at_10_warning": 0.7,
+      "p50_latency_warning_ms": 200,
+      "memory_growth_warning_mb": 25
+    }
+  },
+
+  "output": {
+    "results_dir": "results/readiness",
+    "formats": ["json", "csv", "markdown"],
+    "include_raw_samples": true,
+    "generate_plots": false,
+    "verbose_logging": true
+  },
+
+  "environment": {
+    "CUBO_LAPTOP_MODE": "0",
+    "CUBO_TEST_GPU": "1",
+    "CUDA_VISIBLE_DEVICES": "0",
+    "TOKENIZERS_PARALLELISM": "false",
+    "OMP_NUM_THREADS": "4"
+  },
+
+  "comparison_targets": {
+    "lightrag": {
+      "description": "LightRAG baseline comparison targets",
+      "recall_win_rate": 0.60,
+      "latency_p50_ratio": 1.0,
+      "memory_ratio": 1.5
+    },
+    "notes": "Targets from how_to_compare.txt - CUBO should match or beat LightRAG"
+  }
+}

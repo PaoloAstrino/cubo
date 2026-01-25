@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "test_timestamp": 1764254310.804378,
+    "data_folder": "bench_data",
+    "fast_pass": true,
+    "hardware": {
+      "system": "Windows",
+      "release": "10",
+      "cpu": {
+        "model": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+        "cores_physical": 10,
+        "cores_logical": 16
+      },
+      "ram": {
+        "total_gb": 31.628311157226562
+      },
+      "gpu": {
+        "available": true,
+        "count": 1,
+        "device_name": "NVIDIA GeForce RTX 4050 Laptop GPU",
+        "vram_total_gb": 5.99658203125
+      }
+    }
+  },
+  "ingestion": {
+    "success": true,
+    "data_size": {
+      "total_bytes": 107310608,
+      "total_gb": 0.09994079172611237,
+      "total_mb": 102.33937072753906,
+      "file_count": 100
+    },
+    "ingestion_time_seconds": 151.919686794281,
+    "ingestion_time_minutes": 2.5319947799046836,
+    "seconds_per_gb": 1520.0968910734343,
+    "minutes_per_gb": 25.334948184557238,
+    "gb_per_minute": 0.039471168155360344,
+    "chunks_ingested": 100,
+    "chunks_per_second": 0.6582425366332738,
+    "memory_before": {
+      "ram_peak_gb": 17.67491912841797
+    },
+    "memory_after": {
+      "ram_peak_gb": 20.661006927490234
+    },
+    "memory_delta_gb": 2.9860877990722656,
+    "storage_estimate": {
+      "total_bytes": 776554365,
+      "total_gb": 0.723222610540688,
+      "faiss_bytes": 0,
+      "parquet_bytes": 776554365
+    },
+    "compression_ratio": 0.13818814604177776,
+    "fast_pass": true
+  }
+}

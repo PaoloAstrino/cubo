@@ -415,6 +415,9 @@ class CUBOApp:
 
     def interactive_mode(self):
         """Run the RAG system in interactive mode."""
+        # Print startup banner
+        self._print_startup_banner()
+        
         logger.info("Initializing RAG system...")
 
         data_folder = self._get_data_folder_input()
@@ -429,6 +432,26 @@ class CUBOApp:
             return
 
         self._run_interactive_conversation(documents)
+
+    def _print_startup_banner(self):
+        """Print CUBO startup banner with branding and access information."""
+        print("\n" + "="*70)
+        print(" " * 20 + "🎯 CUBO - Local RAG Assistant 🎯")
+        print("="*70)
+        print(f"\n✓ CUBO v{self._get_version()} initialized successfully!")
+        print("\n📍 Access CUBO at:")
+        print("   • Web UI (Gradio):  http://localhost:7860")
+        print("   • API (FastAPI):    http://localhost:8000")
+        print("   • API Docs:         http://localhost:8000/docs")
+        print("\n🔐 SECURITY INFO:")
+        print("   • Local-only processing - no data leaves your device")
+        print("   • All processing happens on your machine")
+        print("   • GDPR compliant - fully offline architecture")
+        print("\n💡 TIPS:")
+        print("   • Keep this terminal open while using CUBO")
+        print("   • Press Ctrl+C to stop the server")
+        print("   • Check logs in './logs' folder for debugging")
+        print("\n" + "="*70 + "\n")
 
     def _get_data_folder_input(self) -> str:
         """Get and validate data folder input from user."""
