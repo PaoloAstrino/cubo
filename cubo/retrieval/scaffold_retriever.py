@@ -113,7 +113,9 @@ class ScaffoldRetriever:
             top_k = 10
 
         # Retrieve a few scaffolds (allow over-retrieval to expand into chunks)
-        scaffold_candidates = self.retrieve_scaffolds(query, top_k= min(8, max(5, top_k)), expand_to_chunks=True)
+        scaffold_candidates = self.retrieve_scaffolds(
+            query, top_k=min(8, max(5, top_k)), expand_to_chunks=True
+        )
         if not scaffold_candidates:
             return []
 
@@ -277,7 +279,6 @@ class SimpleIndex:
         if self.embeddings.ndim != 2:
             raise ValueError(f"scaffold embeddings must be 2D (got shape={self.embeddings.shape})")
         self.ntotal = int(self.embeddings.shape[0])
-
 
     def search(self, query: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
         """

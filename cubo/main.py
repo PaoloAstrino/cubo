@@ -3,8 +3,8 @@
 CUBO - AI Document Assistant
 A portable Retrieval-Augmented Generation system using embedding models and LLMs.
 """
-import sys
 import subprocess
+import sys
 
 # Early short-circuit for lightweight CLI commands so we don't import heavy
 # optional dependencies when the user only wants to list models or check
@@ -31,7 +31,7 @@ if "--list-models" in sys.argv:
 
 if "--version" in sys.argv or "-v" in sys.argv:
     try:
-        from importlib.metadata import version, PackageNotFoundError
+        from importlib.metadata import PackageNotFoundError, version
 
         try:
             print(f"CUBO version {version('cubo')}")
@@ -51,10 +51,10 @@ from colorama import init
 
 # Core lightweight imports moved to top level to support static analysis and CI/CD
 from cubo.config import config
+from cubo.ingestion.document_loader import DocumentLoader
 from cubo.security.security import security_manager
 from cubo.utils.logger import logger
 from cubo.utils.utils import Utils, metrics
-from cubo.ingestion.document_loader import DocumentLoader
 
 # Set global thread control environment variables to reduce OpenMP/BLAS noise
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -90,7 +90,7 @@ class CUBOApp:
         does not trigger the setup wizard.
         """
         try:
-            from importlib.metadata import version, PackageNotFoundError
+            from importlib.metadata import PackageNotFoundError, version
 
             try:
                 return version("cubo")
@@ -124,7 +124,6 @@ class CUBOApp:
 
         self._configure_llm_model(args)
         self._optional_config_tweaks(args)
-
 
     def _validate_security_environment(self) -> bool:
         """Validate security environment variables."""
@@ -204,7 +203,9 @@ class CUBOApp:
     def _configure_llm_model(self, args=None):
         """Configure the LLM model selection and settings."""
         try:
-            no_interactive = bool(getattr(args, "no_interactive", False)) if args is not None else False
+            no_interactive = (
+                bool(getattr(args, "no_interactive", False)) if args is not None else False
+            )
             logger.info("Checking available Ollama models...")
             available_models = self.get_available_ollama_models(non_interactive=no_interactive)
 
@@ -224,7 +225,9 @@ class CUBOApp:
                         config.set("selected_llm_model", requested)
                         config.save()
                         print(f"✓ Model set to: {requested} (not verified locally)")
-                        logger.warning(f"Requested model '{requested}' not found locally; saved in config.")
+                        logger.warning(
+                            f"Requested model '{requested}' not found locally; saved in config."
+                        )
                         return
                     # Otherwise fall through to interactive selection
 
@@ -248,7 +251,6 @@ class CUBOApp:
                 logger.warning("You can change the selected model later in config.json")
         except Exception as e:
             logger.error(f"Error checking Ollama models: {e}")
-
 
     def _display_available_models(self, available_models):
         """Display available Ollama models."""
@@ -282,9 +284,9 @@ class CUBOApp:
 
     def _prompt_model_selection(self, available_models):
         """Prompt user to select from multiple models."""
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("Select a model by number (or press Enter to keep current):")
-        print("="*50)
+        print("=" * 50)
         choice = input("> ")
         if choice.strip():
             try:
@@ -334,13 +336,15 @@ class CUBOApp:
         retry or skip and returns an empty list when models cannot be determined.
         """
         try:
-            import subprocess
             import shutil
+            import subprocess
 
             # Quick check: is ollama available in PATH?
             if shutil.which("ollama") is None:
                 logger.warning("'ollama' binary not found in PATH; skipping model detection.")
-                print("Ollama CLI not found in PATH. To use local LLMs install Ollama and run 'ollama pull <model_name>'.")
+                print(
+                    "Ollama CLI not found in PATH. To use local LLMs install Ollama and run 'ollama pull <model_name>'."
+                )
                 print("Press Enter to continue without local LLM or type 'retry' to try again.")
                 choice = input("> ").strip().lower()
                 if choice == "retry":
@@ -354,10 +358,14 @@ class CUBOApp:
             while attempts < 3:
                 try:
                     print("Checking Ollama models (this may take a few seconds)...")
-                    result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
+                    result = subprocess.run(
+                        ["ollama", "list"], capture_output=True, text=True, timeout=5
+                    )
                     if result.returncode != 0:
                         logger.warning(f"ollama list failed: {result.stderr.strip()}")
-                        print("Failed to query Ollama. Press Enter to continue without local LLM, or type 'retry' to try again.")
+                        print(
+                            "Failed to query Ollama. Press Enter to continue without local LLM, or type 'retry' to try again."
+                        )
                         choice = input("> ").strip().lower()
                         if choice == "retry":
                             attempts += 1
@@ -375,7 +383,9 @@ class CUBOApp:
                     return []
                 except subprocess.TimeoutExpired:
                     logger.warning("Ollama 'list' timed out.")
-                    print("Ollama did not respond within 5 seconds. Type 'retry' to try again, or press Enter to continue without local LLM.")
+                    print(
+                        "Ollama did not respond within 5 seconds. Type 'retry' to try again, or press Enter to continue without local LLM."
+                    )
                     choice = input("> ").strip().lower()
                     if choice == "retry":
                         attempts += 1
@@ -394,8 +404,8 @@ class CUBOApp:
         start_time = time.time()
         try:
             from cubo.embeddings.model_loader import model_manager
-            from cubo.retrieval.retriever import DocumentRetriever
             from cubo.processing.generator import create_response_generator
+            from cubo.retrieval.retriever import DocumentRetriever
 
             with self._state_lock:
                 self.model = model_manager.get_model()
@@ -417,7 +427,7 @@ class CUBOApp:
         """Run the RAG system in interactive mode."""
         # Print startup banner
         self._print_startup_banner()
-        
+
         logger.info("Initializing RAG system...")
 
         data_folder = self._get_data_folder_input()
@@ -435,9 +445,9 @@ class CUBOApp:
 
     def _print_startup_banner(self):
         """Print CUBO startup banner with branding and access information."""
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print(" " * 20 + "🎯 CUBO - Local RAG Assistant 🎯")
-        print("="*70)
+        print("=" * 70)
         print(f"\n✓ CUBO v{self._get_version()} initialized successfully!")
         print("\n📍 Access CUBO at:")
         print("   • Web UI (Gradio):  http://localhost:7860")
@@ -451,13 +461,13 @@ class CUBOApp:
         print("   • Keep this terminal open while using CUBO")
         print("   • Press Ctrl+C to stop the server")
         print("   • Check logs in './logs' folder for debugging")
-        print("\n" + "="*70 + "\n")
+        print("\n" + "=" * 70 + "\n")
 
     def _get_data_folder_input(self) -> str:
         """Get and validate data folder input from user."""
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print(f"Enter path to data folder (default: {config.get('data_folder')})")
-        print("="*50)
+        print("=" * 50)
         data_folder_input = input("> ") or config.get("data_folder")
         data_folder_input = security_manager.sanitize_input(data_folder_input)
         try:
@@ -497,13 +507,13 @@ class CUBOApp:
 
     def _prompt_file_selection(self, files: list) -> str:
         """Display files and get user selection."""
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("Available files:")
         logger.info("Available files:")
         for i, f in enumerate(files, 1):
             print(f"{i}. {f}")
             logger.info(f"{i}. {f}")
-        print("="*50)
+        print("=" * 50)
 
         try:
             choice = int(input("Select file number: ")) - 1
@@ -727,7 +737,9 @@ class CUBOApp:
 
             # If the user only wants to list Ollama models, do that and exit
             if getattr(args, "list_models", False):
-                models = self.get_available_ollama_models(non_interactive=getattr(args, "no_interactive", False))
+                models = self.get_available_ollama_models(
+                    non_interactive=getattr(args, "no_interactive", False)
+                )
                 if models:
                     print("Available models:")
                     for m in models:
@@ -756,10 +768,20 @@ class CUBOApp:
         parser.add_argument("--query", help="The query to process.")
 
         # Setup & selection options
-        parser.add_argument("--skip-setup", action="store_true", help="Skip the interactive setup wizard.")
-        parser.add_argument("--select-model", help="Select and save an Ollama model (non-interactive).")
-        parser.add_argument("--list-models", action="store_true", help="List available Ollama models and exit.")
-        parser.add_argument("--no-interactive", action="store_true", help="Run non-interactively and do not prompt the user.")
+        parser.add_argument(
+            "--skip-setup", action="store_true", help="Skip the interactive setup wizard."
+        )
+        parser.add_argument(
+            "--select-model", help="Select and save an Ollama model (non-interactive)."
+        )
+        parser.add_argument(
+            "--list-models", action="store_true", help="List available Ollama models and exit."
+        )
+        parser.add_argument(
+            "--no-interactive",
+            action="store_true",
+            help="Run non-interactively and do not prompt the user.",
+        )
 
         # Laptop mode options
         laptop_group = parser.add_mutually_exclusive_group()

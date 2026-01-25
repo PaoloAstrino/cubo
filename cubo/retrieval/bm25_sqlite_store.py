@@ -203,7 +203,7 @@ class BM25SqliteStore(BM25Store):
 
         # ... (sanitization logic remains the same)
         safe_query = query.replace('"', '""')  # minimal escaping
-        
+
         # Tokenize simply to construct an OR query
         tokens = ["".join(c for c in w if c.isalnum()) for w in query.split()]
         tokens = [t for t in tokens if t and len(t) <= 64]

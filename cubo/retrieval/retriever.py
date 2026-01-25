@@ -603,6 +603,7 @@ class DocumentRetriever:
         trace_id: Optional[str] = None,
     ) -> List[Dict]:
         """Retrieve using sentence window with three-tier retrieval."""
+
         def _operation():
             if not self.document_store.has_documents():
                 return []
@@ -614,28 +615,37 @@ class DocumentRetriever:
             # Only generate embedding if dense retrieval is actually used
             if dense_weight > 0:
                 query_embedding = self.executor.generate_query_embedding(query)
-            
+
             retrieval_k = int(strategy.get("k_candidates", top_k * 3)) if strategy else top_k * 3
 
             # Tiered retrieval
             summary_ids, scaffold_ids, scaffold_scores = set(), set(), {}
             if dense_weight > 0 and (self.use_summary_prefilter or self.use_scaffold_compression):
-                summary_ids, scaffold_ids, scaffold_scores = self.orchestrator.execute_tiered_retrieval(
-                    query, np.array(query_embedding), self.summary_prefilter_k, max(5, top_k // 2)
+                summary_ids, scaffold_ids, scaffold_scores = (
+                    self.orchestrator.execute_tiered_retrieval(
+                        query,
+                        np.array(query_embedding),
+                        self.summary_prefilter_k,
+                        max(5, top_k // 2),
+                    )
                 )
 
             # Dense retrieval
             semantic = []
             if dense_weight > 0:
-                semantic = self.executor.query_dense(query_embedding, retrieval_k, query, self.current_documents, trace_id)
-            
+                semantic = self.executor.query_dense(
+                    query_embedding, retrieval_k, query, self.current_documents, trace_id
+                )
+
             # BM25 retrieval
             bm25 = []
             if bm25_weight > 0:
                 bm25 = self.executor.query_bm25(query, retrieval_k, self.current_documents)
 
             # Combine
-            combined = self.retrieval_strategy.combine_results(semantic, bm25, retrieval_k, dense_weight, bm25_weight)
+            combined = self.retrieval_strategy.combine_results(
+                semantic, bm25, retrieval_k, dense_weight, bm25_weight
+            )
 
             # Tiered boosting
             if summary_ids or scaffold_ids:
@@ -648,7 +658,9 @@ class DocumentRetriever:
                 strategy.get("use_reranker", self.use_reranker) if strategy else self.use_reranker
             )
             return self.retrieval_strategy.apply_postprocessing(
-                combined, top_k, query,
+                combined,
+                top_k,
+                query,
                 self.window_postprocessor if self.use_sentence_window else None,
                 self.reranker if self.use_sentence_window else None,
                 use_reranker,

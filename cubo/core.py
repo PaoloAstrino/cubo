@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterator, List, Optional
 from cubo.config import config
 from cubo.config.settings import settings
 from cubo.utils.logger import logger
+
 # Delay importing heavy components until needed to avoid importing optional
 # dependencies at module import time (improves CLI responsiveness).
 
@@ -79,8 +80,8 @@ class CuboCore:
         with self._state_lock:
             # Lazy import of components that may import optional heavy deps
             from cubo.ingestion.document_loader import DocumentLoader
-            from cubo.retrieval.retriever import DocumentRetriever
             from cubo.processing.generator import create_response_generator
+            from cubo.retrieval.retriever import DocumentRetriever
 
             self.doc_loader = DocumentLoader()
             # Inject settings directly from Pydantic models

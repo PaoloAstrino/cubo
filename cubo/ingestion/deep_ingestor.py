@@ -88,12 +88,10 @@ class DeepIngestor:
         self.ocr_processor = OCRProcessor(config)  # Initialize OCR processor
         self.input_folder.mkdir(parents=True, exist_ok=True)  # Ensure input folder exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Memory profiling for O(1) validation (ACL rebuttal)
         self._memory_profiler = (
-            MemoryProfiler(self.output_dir / "memory_profile.jsonl")
-            if profile_memory
-            else None
+            MemoryProfiler(self.output_dir / "memory_profile.jsonl") if profile_memory else None
         )
         self._supported_extensions = set(self.loader.supported_extensions) | {".csv", ".xlsx"}
 
@@ -128,12 +126,11 @@ class DeepIngestor:
             import gc
 
             gc.collect()
-            
+
             # Record memory after GC for O(1) validation
             if self._memory_profiler:
                 self._memory_profiler.record(
-                    f"batch_{batch_num}_flush_gc",
-                    extra={"chunks_flushed": len(chunks)}
+                    f"batch_{batch_num}_flush_gc", extra={"chunks_flushed": len(chunks)}
                 )
         except Exception as e:
             logger.warning(f"Failed to flush chunk batch: {e}")
@@ -416,9 +413,11 @@ class DeepIngestor:
         self._run_id = uuid.uuid4().hex[:8]
 
         files_to_process = [p for p in files if not (resume and str(p) in processed_set)]
-        
+
         if self._memory_profiler:
-            self._memory_profiler.record("files_discovered", extra={"file_count": len(files_to_process)})
+            self._memory_profiler.record(
+                "files_discovered", extra={"file_count": len(files_to_process)}
+            )
 
         try:
             if self.n_workers > 1:
@@ -442,7 +441,6 @@ class DeepIngestor:
                 self._memory_profiler.print_summary()
 
             return self._finalize_ingestion(manager, run_id, total_chunks, processed_files, resume)
-
 
         except Exception as e:
             logger.error(f"Ingestion failed: {e}")

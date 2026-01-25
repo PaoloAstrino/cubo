@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class QuantizationRouter:
     """
     Manages adaptive alpha computation based on quantization impact.
-    
+
     Attributes:
         calibration_curve: Dict mapping corpus_id -> calibration params
         alpha_base: Default static alpha value (0.0-1.0)
@@ -31,7 +31,7 @@ class QuantizationRouter:
     ):
         """
         Initialize the quantization router.
-        
+
         Args:
             alpha_base: Base alpha (dense weight) when no quantization detected
             use_adaptive: Whether to enable adaptive alpha computation
@@ -45,14 +45,16 @@ class QuantizationRouter:
             self.load_calibration(calibration_file)
         else:
             # Try to load from default location
-            default_calib_path = Path(__file__).parent.parent / "configs" / "calibration_curves.json"
+            default_calib_path = (
+                Path(__file__).parent.parent / "configs" / "calibration_curves.json"
+            )
             if default_calib_path.exists():
                 self.load_calibration(str(default_calib_path))
 
     def load_calibration(self, filepath: str) -> None:
         """
         Load calibration curves from JSON file.
-        
+
         Expected format:
         {
             "corpus_id": {
@@ -61,7 +63,7 @@ class QuantizationRouter:
                 ...
             }
         }
-        
+
         Args:
             filepath: Path to calibration JSON file
         """
@@ -76,19 +78,19 @@ class QuantizationRouter:
     def compute_adaptive_alpha(self, index_metadata: Optional[Dict[str, Any]]) -> float:
         """
         Compute adaptive alpha based on quantization metadata.
-        
+
         Algorithm:
         1. Check if index uses IVFPQ 8-bit quantization
         2. If not quantized, return static alpha
         3. Load corpus-specific calibration curve
         4. Compute: alpha' = alpha_base - (beta * dense_drop)
         5. Clamp to [0, 1]
-        
+
         Args:
             index_metadata: Dict with keys:
                 - quantization_type: 'IVFPQ_8bit' or None
                 - corpus_id: corpus identifier for lookup
-                
+
         Returns:
             float: Adapted alpha value in [0, 1]
         """
@@ -128,12 +130,10 @@ class QuantizationRouter:
 
         return alpha_adapted
 
-    def compute_weights(
-        self, index_metadata: Optional[Dict[str, Any]]
-    ) -> tuple[float, float]:
+    def compute_weights(self, index_metadata: Optional[Dict[str, Any]]) -> tuple[float, float]:
         """
         Compute (sparse_weight, dense_weight) tuple from adaptive alpha.
-        
+
         Returns:
             (sparse_weight, dense_weight) where sparse_weight + dense_weight = 1.0
         """

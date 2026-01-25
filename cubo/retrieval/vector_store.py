@@ -1381,7 +1381,7 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
 
             # 2. Check if any document_id itself looks like a filename (legacy/frontend direct)
             for did in collection_doc_ids:
-                if "." in did and not did.startswith("doc"): # Simple heuristic
+                if "." in did and not did.startswith("doc"):  # Simple heuristic
                     filenames.add(did)
 
             # 3. Join with documents table to get filenames from metadata for all IDs in collection
@@ -1389,14 +1389,18 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
             cur = conn.cursor()
             cur.execute("CREATE TEMP TABLE IF NOT EXISTS _coll_ids(id TEXT PRIMARY KEY)")
             try:
-                cur.executemany("INSERT OR REPLACE INTO _coll_ids(id) VALUES(?)", 
-                               ((did,) for did in collection_doc_ids))
-                
-                rows = conn.execute("""
+                cur.executemany(
+                    "INSERT OR REPLACE INTO _coll_ids(id) VALUES(?)",
+                    ((did,) for did in collection_doc_ids),
+                )
+
+                rows = conn.execute(
+                    """
                     SELECT DISTINCT metadata FROM documents 
                     WHERE id IN (SELECT id FROM _coll_ids)
-                """).fetchall()
-                
+                """
+                ).fetchall()
+
                 for row in rows:
                     try:
                         metadata = json.loads(row[0])

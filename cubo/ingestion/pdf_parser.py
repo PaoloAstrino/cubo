@@ -52,6 +52,7 @@ class AdvancedPDFParser:
         if not EASYOCR_AVAILABLE and EASYOCR_ERROR is None:
             try:
                 from easyocr import Reader
+
                 EASYOCR_AVAILABLE = True
             except Exception as e:
                 EASYOCR_AVAILABLE = False

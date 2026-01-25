@@ -20,7 +20,7 @@ except ImportError:
 
 class MemoryProfiler:
     """Track RSS memory usage over time for O(1) ingestion validation.
-    
+
     Usage:
         profiler = MemoryProfiler("ingestion_10gb.jsonl")
         profiler.record("start")
@@ -34,7 +34,7 @@ class MemoryProfiler:
 
     def __init__(self, output_file: str = "memory_profile.jsonl", enabled: bool = True):
         """Initialize the memory profiler.
-        
+
         Args:
             output_file: Path to output JSONL file for samples
             enabled: If False, all operations are no-ops (for production)
@@ -44,21 +44,21 @@ class MemoryProfiler:
         self.samples: List[Dict[str, Any]] = []
         self.start_time: Optional[float] = None
         self._process = psutil.Process() if psutil else None
-        
+
     def record(self, tag: str, extra: Optional[Dict[str, Any]] = None) -> None:
         """Record a memory sample with a descriptive tag.
-        
+
         Args:
             tag: Descriptive name for this checkpoint (e.g., "batch_5_flush", "gc_triggered")
             extra: Optional extra metadata to include
         """
         if not self.enabled:
             return
-            
+
         now = time.time()
         if self.start_time is None:
             self.start_time = now
-            
+
         try:
             mem_info = self._process.memory_info()
             rss_mb = mem_info.rss / (1024 * 1024)
@@ -66,7 +66,7 @@ class MemoryProfiler:
         except Exception:
             rss_mb = 0.0
             vms_mb = 0.0
-            
+
         sample = {
             "timestamp": now,
             "elapsed_s": round(now - self.start_time, 2),
@@ -74,32 +74,32 @@ class MemoryProfiler:
             "rss_mb": round(rss_mb, 1),
             "vms_mb": round(vms_mb, 1),
         }
-        
+
         if extra:
             sample.update(extra)
-            
+
         self.samples.append(sample)
-        
+
     def save(self) -> Path:
         """Save all samples to the JSONL file."""
         if not self.enabled or not self.samples:
             return self.output_file
-            
+
         self.output_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(self.output_file, "w", encoding="utf-8") as f:
             for sample in self.samples:
                 f.write(json.dumps(sample) + "\n")
-                
+
         return self.output_file
-        
+
     def get_stats(self) -> Dict[str, Any]:
         """Get summary statistics from recorded samples."""
         if not self.samples:
             return {"error": "No samples recorded"}
-            
+
         rss_values = [s["rss_mb"] for s in self.samples]
-        
+
         return {
             "sample_count": len(self.samples),
             "min_rss_mb": min(rss_values),
@@ -109,14 +109,14 @@ class MemoryProfiler:
             "duration_s": round(self.samples[-1]["elapsed_s"], 1) if self.samples else 0,
             "is_o1": (max(rss_values) - min(rss_values)) < 500,  # <500MB delta = O(1)
         }
-        
+
     def print_summary(self) -> None:
         """Print a human-readable summary of memory usage."""
         stats = self.get_stats()
         if "error" in stats:
             print(stats["error"])
             return
-            
+
         print("\n" + "=" * 60)
         print("MEMORY PROFILING SUMMARY")
         print("=" * 60)
@@ -127,7 +127,7 @@ class MemoryProfiler:
         print(f"Mean RSS:          {stats['mean_rss_mb']} MB")
         print(f"Delta (Max-Min):   {stats['delta_rss_mb']} MB")
         print("-" * 60)
-        
+
         if stats["is_o1"]:
             print("[OK] O(1) MEMORY CLAIM VALIDATED (delta < 500MB)")
         else:

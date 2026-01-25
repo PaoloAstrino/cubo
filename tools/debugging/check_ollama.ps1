@@ -12,18 +12,57 @@ $ErrorActionPreference = 'Stop'
 Write-Host "`n-- Checking Ollama Intelligence --" -ForegroundColor Cyan
 
 # 1. Check if Ollama is reachable
+$ollmaIsRunning = $false
 try {
     $tags = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get -TimeoutSec 2 -ErrorAction Stop
     Write-Host "✓ Ollama service is running." -ForegroundColor Green
+    $ollmaIsRunning = $true
 }
 catch {
-    Write-Host "✗ Ollama is not running or not reachable." -ForegroundColor Red
-    Write-Host "  CUBO uses 'Ollama' as its local AI brain to answer your questions privately." -ForegroundColor Yellow
-    Write-Host "  Please:" -ForegroundColor Yellow
-    Write-Host "  1. Download/Install Ollama from https://ollama.com (if you haven't)" -ForegroundColor Yellow
-    Write-Host "  2. Open the Ollama application to start the background service." -ForegroundColor Yellow
-    Write-Host "  3. Try running this script again.`n"
-    exit 1
+    Write-Host "⚠ Ollama is not running. Attempting to start it..." -ForegroundColor Yellow
+    
+    # Try to start Ollama
+    try {
+        # Check if ollama command exists
+        if (Get-Command ollama -ErrorAction SilentlyContinue) {
+            Write-Host "  Starting Ollama service..." -ForegroundColor Cyan
+            Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -PassThru | Out-Null
+            
+            # Wait for Ollama to start
+            $maxWait = 30
+            $waited = 0
+            while ($waited -lt $maxWait) {
+                try {
+                    $tags = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get -TimeoutSec 2 -ErrorAction Stop
+                    Write-Host "✓ Ollama service started successfully." -ForegroundColor Green
+                    $ollmaIsRunning = $true
+                    break
+                }
+                catch {
+                    Start-Sleep -Seconds 1
+                    $waited++
+                }
+            }
+            
+            if (-not $ollmaIsRunning) {
+                throw "Ollama did not start within 30 seconds"
+            }
+        }
+        else {
+            Write-Host "✗ Ollama is not installed or not found in PATH." -ForegroundColor Red
+            Write-Host "  Please download and install Ollama from https://ollama.com" -ForegroundColor Yellow
+            Write-Host "  Then run this script again.`n"
+            exit 1
+        }
+    }
+    catch {
+        Write-Host "✗ Failed to start Ollama: $_" -ForegroundColor Red
+        Write-Host "  Please manually start Ollama:" -ForegroundColor Yellow
+        Write-Host "  1. Download/Install Ollama from https://ollama.com (if you haven't)" -ForegroundColor Yellow
+        Write-Host "  2. Run 'ollama serve' in a terminal" -ForegroundColor Yellow
+        Write-Host "  3. Then try running this script again.`n"
+        exit 1
+    }
 }
 
 # 2. Check if the specific model exists
@@ -39,7 +78,8 @@ if ($tags.models) {
 
 if ($hasModel) {
     Write-Host "✓ AI Model '$ModelName' is ready." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "⚠ AI Model '$ModelName' is missing." -ForegroundColor Yellow
     Write-Host "  CUBO needs this model file (the 'brain') to understand your documents."
     Write-Host "  The file is approximately 2.0 GB and is downloaded once."
@@ -52,12 +92,14 @@ if ($hasModel) {
         ollama pull $ModelName
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✓ AI Model downloaded successfully!" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "✗ Download failed." -ForegroundColor Red
             Write-Host "  Please try running 'ollama pull $ModelName' manually in a terminal." -ForegroundColor Red
             exit 1
         }
-    } else {
+    }
+    else {
         Write-Host "  Skipping download." -ForegroundColor Gray 
         Write-Host "  Warning: CUBO will launch, but it won't be able to answer questions until you install a model." -ForegroundColor Red
     }

@@ -127,7 +127,9 @@ class EmbeddingGenerator:
         )
         return embeddings
 
-    def generate_embeddings(self, texts: List[str], batch_size: Optional[int] = None, prompt_name: Optional[str] = None) -> List[List[float]]:
+    def generate_embeddings(
+        self, texts: List[str], batch_size: Optional[int] = None, prompt_name: Optional[str] = None
+    ) -> List[List[float]]:
         """Backward-compatible alias for older callers.
 
         Older tooling (and external callers) may call `generate_embeddings(...)` — delegate

@@ -169,48 +169,48 @@ class MultilingualTokenizer:
             tokens = [stemmer.stem(token) for token in tokens]
 
         # Apply German compound splitting if enabled
-        if self.use_compound_splitter and language == 'de':
+        if self.use_compound_splitter and language == "de":
             tokens = self._split_german_compounds(tokens)
 
         # Filter by minimum length
         tokens = [t for t in tokens if len(t) >= self.min_token_length]
 
         return tokens
-    
+
     def _split_german_compounds(self, tokens: List[str]) -> List[str]:
         """Split German compound words.
-        
+
         German frequently uses compound words (e.g., 'Datenschutzgrundverordnung'
         = 'Datenschutz' + 'grund' + 'verordnung'). This method attempts to split
         them for better retrieval.
-        
+
         Args:
             tokens: List of tokens to process
-        
+
         Returns:
             Expanded list with compound words split
         """
         expanded_tokens = []
-        
+
         for token in tokens:
             # Only split long words (compounds are typically long)
             if len(token) < 10:
                 expanded_tokens.append(token)
                 continue
-            
+
             # Simple heuristic: split on common German compound patterns
             # This is a basic implementation; production could use CharSplit library
             splits = self._heuristic_german_split(token)
-            
+
             if splits and len(splits) > 1:
                 # Add both original and split forms
                 expanded_tokens.append(token)
                 expanded_tokens.extend(splits)
             else:
                 expanded_tokens.append(token)
-        
+
         return expanded_tokens
-    
+
     def _heuristic_german_split(self, word: str) -> List[str]:
         """Heuristic German compound word splitting with common-suffix fallbacks.
 
@@ -226,25 +226,39 @@ class MultilingualTokenizer:
 
         # Fast path: common German suffixes / morphemes that often end compounds
         common_suffixes = [
-            'verordnung', 'vertrautheit', 'datenschutz', 'schutz', 'ordnung', 'zeit', 'wahl',
-            'rechnung', 'gesetz', 'grund', 'steuer', 'arbeit', 'schiff', 'dampf', 'stelle', 'system'
+            "verordnung",
+            "vertrautheit",
+            "datenschutz",
+            "schutz",
+            "ordnung",
+            "zeit",
+            "wahl",
+            "rechnung",
+            "gesetz",
+            "grund",
+            "steuer",
+            "arbeit",
+            "schiff",
+            "dampf",
+            "stelle",
+            "system",
         ]
         for suf in common_suffixes:
             if w.endswith(suf) and len(w) - len(suf) >= 4:
                 prefix = w[: len(w) - len(suf)]
                 # If prefix still long, try to split prefix further on 'grund' etc.
-                if prefix.endswith('grund') and len(prefix) - 5 >= 4:
-                    return [w, prefix[:-5], 'grund', suf]
+                if prefix.endswith("grund") and len(prefix) - 5 >= 4:
+                    return [w, prefix[:-5], "grund", suf]
                 return [w, prefix, suf]
 
         # Fallback: original fugenelement heuristic (improved bounds)
-        linking_elements = ['s', 'n', 'es', 'en', 'e', 'er']
+        linking_elements = ["s", "n", "es", "en", "e", "er"]
         candidates = []
         for i in range(4, len(w) - 4):  # allow slightly earlier splits
             for link in linking_elements:
-                if w[i:i+len(link)] == link:
+                if w[i : i + len(link)] == link:
                     prefix = w[:i]
-                    suffix = w[i+len(link):]
+                    suffix = w[i + len(link) :]
                     if len(prefix) >= 4 and len(suffix) >= 4:
                         candidates.append((prefix, suffix))
 
@@ -259,9 +273,9 @@ class MultilingualTokenizer:
             for i in range(0, len(w) - part_len + 1):
                 substr = w[i : i + part_len]
                 # heuristic: substrings containing 'schutz'/'ver'/'wahl' indicate morphemes
-                if any(x in substr for x in ('schutz', 'ver', 'wahl', 'grund', 'dampf', 'schiff')):
+                if any(x in substr for x in ("schutz", "ver", "wahl", "grund", "dampf", "schiff")):
                     left = w[:i]
-                    right = w[i+part_len:]
+                    right = w[i + part_len :]
                     if len(left) >= 3 and len(right) >= 3:
                         greedy_parts = [w, left, substr, right]
                         break
