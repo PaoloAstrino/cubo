@@ -36,7 +36,8 @@ function Log-Error($msg) {
 Log-Info "Checking if Python is ready..."
 if (Get-Command python -ErrorAction SilentlyContinue) {
     $py = 'python'
-} else {
+}
+else {
     $py = 'python3'
 }
 
@@ -316,9 +317,19 @@ if ($conflictingProcesses.Count -gt 0) {
 # ... (existing port check code) ...
 
 # Check Ollama and Model Readiness
+Write-Host "`n-- Checking Ollama Intelligence --" -ForegroundColor Cyan
+Write-Host "IMPORTANT: Ollama must be running BEFORE starting CUBO" -ForegroundColor Yellow
+Write-Host "If you haven't started Ollama yet, open a separate terminal and run:" -ForegroundColor Yellow
+Write-Host "  ollama serve`n" -ForegroundColor Cyan
+
 $targetModel = $env:CUBO_LLM_MODEL
 if (-not $targetModel) { $targetModel = "llama3.2:latest" }
 & "tools\debugging\check_ollama.ps1" -ModelName $targetModel
+
+# If check_ollama.ps1 exits, the rest won't run
+if ($LASTEXITCODE -ne 0) {
+    exit 1
+}
 
 # Start fullstack (uses scripts/start_fullstack.py)
 Log-Info "Launching CUBO..."

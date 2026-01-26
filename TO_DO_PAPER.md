@@ -1,5 +1,21 @@
 # CUBO Paper: Tests to Run & Data to Collect
 
+## Summary: Paper Enhancements & Test Plan (Committed Jan 25, 2026)
+
+**Status**: ✅ All paper-only fixes complete. Code committed. Ready for empirical tests.
+
+**What's been done**:
+- **Code fixes**: Black/isort formatting (15 files), CI/CD workflow corrections, Ollama auto-start (Commit 06ab0c4)
+- **Paper clarity**: O(1) vs O(n) distinction, HNSW memory accounting, QAR theory, embedding consistency
+- **Paper citations**: PLAID, Distill-VQ, LUMA-RAG, efficiency surveys all integrated
+- **Reproducibility**: GitHub repo, configs, Docker, measurement protocol, confidence intervals documented
+- **Technical accuracy**: New section documenting all corrections (O(n) corpus, M=16 HNSW, embedding standardization)
+- **BEIR coverage**: Expanded to all 6 datasets with confidence interval methodology (bootstrap, 95% CI)
+
+**Next step**: Execute Tests 5 → 6 → 7 (critical reviewer concerns) then Tests 1-4, 10 (validation)
+
+---
+
 ## Paper Fixes Already Applied (Clarity Issues)
 
 ✅ **Fixed incorrect statement**: "Index size is independent of corpus size" was technically wrong

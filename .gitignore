@@ -230,3 +230,20 @@ the_final_analysis.md
 # Build and log files
 *.spec
 *.log
+
+configs/enterprise_benchmark_config_prod.json
+configs/calibration_curves.json
+# Additional Generated Data & Caches
+faiss_store/
+indexes/
+.ruff_cache/
+evaluation/evaluation.db
+evaluation/ingestion_results/
+TO_DO_PAPER.md
+
+# Test Artifacts
+tests/logs/
+tests/tmpdb/
+
+evaluation/ingestion_results/
+evaluation/__pycache__/

@@ -11,41 +11,70 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host "`n-- Checking Ollama Intelligence --" -ForegroundColor Cyan
 
-# 1. Check if Ollama is reachable
+# 1. Check if Ollama is installed and reachable
 $ollmaIsRunning = $false
 try {
-    $tags = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get -TimeoutSec 2 -ErrorAction Stop
-    Write-Host "✓ Ollama service is running." -ForegroundColor Green
-    $ollmaIsRunning = $true
+    # Try ollama list first (works if ollama serve is running)
+    $ollamaOutput = & ollama list 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✓ Ollama service is running." -ForegroundColor Green
+        $ollmaIsRunning = $true
+    }
+    else {
+        throw "ollama list failed"
+    }
 }
 catch {
-    Write-Host "⚠ Ollama is not running. Attempting to start it..." -ForegroundColor Yellow
+    Write-Host "⚠ Ollama is not running." -ForegroundColor Yellow
     
     # Try to start Ollama
     try {
         # Check if ollama command exists
         if (Get-Command ollama -ErrorAction SilentlyContinue) {
-            Write-Host "  Starting Ollama service..." -ForegroundColor Cyan
-            Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -PassThru | Out-Null
+            Write-Host "  Starting Ollama service (this may take 15-45 seconds on first run)..." -ForegroundColor Cyan
             
-            # Wait for Ollama to start
-            $maxWait = 30
+            # Start Ollama in background with error redirection
+            $process = Start-Process -FilePath "ollama" -ArgumentList "serve" `
+                -WindowStyle Hidden -PassThru `
+                -RedirectStandardError "$env:TEMP\ollama_error.log" `
+                -RedirectStandardOutput "$env:TEMP\ollama_output.log"
+            
+            # Wait for Ollama to start (longer timeout - it takes a while to initialize GPU)
+            $maxWait = 120
             $waited = 0
+            $pollInterval = 2  # Poll every 2 seconds (not 1)
+            $lastUpdate = 0
+            
             while ($waited -lt $maxWait) {
                 try {
-                    $tags = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get -TimeoutSec 2 -ErrorAction Stop
+                    $response = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" `
+                        -Method Get -TimeoutSec 2 -ErrorAction Stop -SkipHttpErrorCheck
                     Write-Host "✓ Ollama service started successfully." -ForegroundColor Green
                     $ollmaIsRunning = $true
                     break
                 }
                 catch {
-                    Start-Sleep -Seconds 1
-                    $waited++
+                    # Check if process died
+                    if ($process.HasExited) {
+                        $errorLog = Get-Content "$env:TEMP\ollama_error.log" -Raw 2>$null
+                        throw "Ollama process exited unexpectedly. Process may not have proper permissions or dependencies.`n$errorLog"
+                    }
+                    
+                    Start-Sleep -Seconds $pollInterval
+                    $waited += $pollInterval
+                    
+                    # Give user feedback every 15 seconds
+                    if ($waited - $lastUpdate -ge 15) {
+                        Write-Host "  Still initializing GPU... ($waited seconds elapsed)" -ForegroundColor DarkGray
+                        $lastUpdate = $waited
+                    }
                 }
             }
             
             if (-not $ollmaIsRunning) {
-                throw "Ollama did not start within 30 seconds"
+                $process | Stop-Process -Force -ErrorAction SilentlyContinue
+                Write-Host "`n✗ Ollama took too long to start (>120 seconds)" -ForegroundColor Red
+                throw "Ollama startup timeout - it may need to initialize GPU or models"
             }
         }
         else {
@@ -57,10 +86,9 @@ catch {
     }
     catch {
         Write-Host "✗ Failed to start Ollama: $_" -ForegroundColor Red
-        Write-Host "  Please manually start Ollama:" -ForegroundColor Yellow
-        Write-Host "  1. Download/Install Ollama from https://ollama.com (if you haven't)" -ForegroundColor Yellow
-        Write-Host "  2. Run 'ollama serve' in a terminal" -ForegroundColor Yellow
-        Write-Host "  3. Then try running this script again.`n"
+        Write-Host "  MANUAL FIX: Open a new terminal and run this command:" -ForegroundColor Yellow
+        Write-Host "    ollama serve" -ForegroundColor Cyan
+        Write-Host "  Then try this script again in another terminal.`n" -ForegroundColor Yellow
         exit 1
     }
 }
