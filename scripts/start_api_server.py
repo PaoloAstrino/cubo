@@ -83,7 +83,7 @@ if __name__ == "__main__":
             if attempt == max_attempts - 1:
                 print(f"✗ Could not find an available port after {max_attempts} attempts")
                 sys.exit(1)
-    
+
     if port != args.port:
         print(f"⚠ Using port {port} instead of {args.port}")
 

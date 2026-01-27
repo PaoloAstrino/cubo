@@ -196,11 +196,12 @@ export async function queryStream(
     top_k?: number;
     use_reranker?: boolean;
     collection_id?: string;
+    chat_history?: Array<{ role: "user" | "assistant"; content: string }>;
   },
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const { query: queryText, top_k = 5, use_reranker = true, collection_id } = params;
+  const { query: queryText, top_k = 5, use_reranker = true, collection_id, chat_history } = params;
 
   const response = await fetch(`${API_BASE_URL}/api/query`, {
     method: 'POST',
@@ -212,7 +213,8 @@ export async function queryStream(
       top_k,
       use_reranker,
       stream: true,
-      ...(collection_id && { collection_id })
+      ...(collection_id && { collection_id }),
+      ...(chat_history && { chat_history })
     }),
     signal,
   });
@@ -359,6 +361,7 @@ export interface Settings {
   llm_model: string;
   llm_provider: string;
   accent?: string;
+  source_min_score?: number;
 }
 
 export async function getLLMModels(): Promise<LLMModel[]> {

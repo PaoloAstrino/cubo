@@ -5,10 +5,15 @@ try:
     import ollama
 
     OLLAMA_AVAILABLE = True
-except Exception:
+except Exception as e:
     ollama = None
     OLLAMA_AVAILABLE = False
+    # Store the import error for later debugging
+    OLLAMA_IMPORT_ERROR = str(e)
     # Import failure is OK; tests can run without Ollama installed. We'll fallback or stub when needed.
+else:
+    OLLAMA_IMPORT_ERROR = None
+
 from colorama import Fore, Style
 
 from cubo.config import config
@@ -97,12 +102,32 @@ class ResponseGenerator:
                 or config.get("llm_model")
                 or "llama3"  # Default fallback
             )
+
+            # Check if ollama is available
             if not OLLAMA_AVAILABLE or ollama is None:
-                raise RuntimeError(
-                    "Ollama Python package not available. Install ollama or configure local provider."
+                error_msg = (
+                    f"Ollama Python package not available. Install ollama or configure local provider. "
+                    f"OLLAMA_AVAILABLE={OLLAMA_AVAILABLE}, ollama is None={ollama is None}, "
+                    f"Import error: {OLLAMA_IMPORT_ERROR}"
                 )
-            response = ollama.chat(model=model_name, messages=conversation_messages)
-            return response["message"]["content"]
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
+            # Call ollama.chat with proper error handling
+            try:
+                logger.info(f"Calling ollama.chat with model={model_name}")
+                response = ollama.chat(model=model_name, messages=conversation_messages)
+                result = response["message"]["content"]
+                logger.info(f"Ollama responded with {len(result)} chars")
+                return result
+            except KeyError as e:
+                logger.error(
+                    f"Invalid response format from Ollama: {e}, response keys: {response.keys() if 'response' in locals() else 'N/A'}"
+                )
+                raise RuntimeError(f"Invalid response format from Ollama: {e}")
+            except Exception as e:
+                logger.error(f"Ollama chat failed: {type(e).__name__}: {e}")
+                raise
 
         return self.service_manager.execute_sync("llm_generation", _generate_operation)
 
@@ -235,14 +260,15 @@ def create_response_generator() -> ResponseGenerator:
         # If provider is 'ollama' but the package is not available, attempt to fallback to local provider
         if provider in ("ollama", "default") and not OLLAMA_AVAILABLE:
             logger.warning(
-                "Ollama provider configured but 'ollama' package not available; defaulting to local provider."
+                f"Ollama provider configured but 'ollama' package not available. "
+                f"Import error: {OLLAMA_IMPORT_ERROR}; defaulting to local provider."
             )
             try:
                 from cubo.processing.llm_local import LocalResponseGenerator
 
                 return LocalResponseGenerator(config.get("local_llama_model_path", None))
-            except Exception:
+            except Exception as e:
                 logger.warning(
-                    "Local LLama generator failed to initialize; returning default ResponseGenerator which will raise when used."
+                    f"Local LLama generator failed to initialize ({e}); returning default ResponseGenerator which will raise when used."
                 )
         return ResponseGenerator()

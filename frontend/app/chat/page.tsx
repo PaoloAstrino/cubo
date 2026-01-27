@@ -17,7 +17,7 @@ import { X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { queryStream, getTrace, type Collection, type ReadinessResponse } from "@/lib/api"
+import { queryStream, getTrace, getCollections, type Collection, type ReadinessResponse } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useChatHistory, type Message } from "@/hooks/useChatHistory"
 import { SourcesList } from "@/components/sources-list"
@@ -29,14 +29,27 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { Copy } from "lucide-react"
+import { Copy, ChevronRight, Square, Trash2 } from "lucide-react"
 import TypingIndicator from '@/components/typing-indicator'
+import { ToastAction } from '@/components/ui/toast'
 
 function ChatContent() {
   const searchParams = useSearchParams()
   const collectionId = searchParams.get('collection')
+  const router = useRouter()
 
-  const { messages, setMessages, isHistoryLoaded } = useChatHistory(collectionId)
+  // SWR: Fetch all collections for selection
+  const { data: collections, isLoading: isLoadingCollections } = useSWR<Collection[]>(
+    '/api/collections',
+    getCollections
+  )
+
+  // SWR: Fetch active collection details
+  const { data: activeCollection } = useSWR<Collection>(
+    collectionId ? `/api/collections/${collectionId}` : null
+  )
+
+  const { messages, setMessages, isHistoryLoaded, clearHistory } = useChatHistory(collectionId)
   const [isLoading, setIsLoading] = React.useState(false)
   const [isStreaming, setIsStreaming] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
@@ -45,21 +58,21 @@ function ChatContent() {
   const { toast } = useToast()
   const scrollAreaRef = React.useRef<HTMLDivElement>(null)
 
-  // SWR: Fetch collection details
-  const { data: activeCollection } = useSWR<Collection>(
-    collectionId ? `/api/collections/${collectionId}` : null
-  )
-
-  const router = useRouter()
-
-  // Prevent opening an empty collection for chatting: redirect back to /chat and notify
+  // Redirect if collection is empty
   React.useEffect(() => {
     if (!router) return
     if (collectionId && activeCollection && activeCollection.document_count === 0) {
       toast({
-        title: "Collection Empty",
-        description: "This collection has no documents. Please add documents to the collection before opening it for chat.",
+        title: "Cannot chat: collection is empty",
+        description: "Cannot chat with an empty collection. Add items to the collection using the '+' button in Upload → Add documents, then return to Chat.",
         variant: "destructive",
+        action: (
+          <ToastAction asChild>
+            <Link href="/upload">
+              <Button size="sm">Go to Upload</Button>
+            </Link>
+          </ToastAction>
+        ),
       })
       // Clear collection filter by replacing URL without query param
       router.replace('/chat')
@@ -67,11 +80,6 @@ function ChatContent() {
   }, [collectionId, activeCollection, router, toast])
 
   type DocumentItem = { name: string; size: string; uploadDate: string }
-
-  // SWR: Check documents
-  const { data: documentsData } = useSWR<DocumentItem[]>('/api/documents')
-  const hasDocuments = Array.isArray(documentsData) && documentsData.length > 0
-  const documentCount = Array.isArray(documentsData) ? documentsData.length : 0
 
   // SWR: Poll readiness
   const { data: readinessData } = useSWR<ReadinessResponse>('/api/ready', {
@@ -103,20 +111,28 @@ function ChatContent() {
 
     if (!inputValue.trim()) return
 
-    if (hasDocuments === false) {
+    // MUST have a collection selected
+    if (!collectionId) {
       toast({
-        title: "No Documents",
-        description: "Please upload documents first before asking questions.",
+        title: "No Collection Selected",
+        description: "Please select a collection to chat with.",
         variant: "destructive",
       })
       return
     }
 
-    if (collectionId && activeCollection && activeCollection.document_count === 0) {
+    if (!activeCollection || activeCollection.document_count === 0) {
       toast({
-        title: "Collection Empty",
-        description: "This collection has no documents. Please add documents to this collection before starting a chat.",
+        title: "Cannot chat: collection is empty",
+        description: "Cannot chat with an empty collection. Add items to the collection using the '+' button in Upload → Add documents, then Build Index.",
         variant: "destructive",
+        action: (
+          <ToastAction asChild>
+            <Link href="/upload">
+              <Button size="sm">Go to Upload</Button>
+            </Link>
+          </ToastAction>
+        ),
       })
       return
     }
@@ -154,6 +170,10 @@ function ChatContent() {
         top_k: 5,
         use_reranker: true,
         collection_id: collectionId ?? undefined,
+        chat_history: messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
       }, (event) => {
         console.log('[Chat] Stream event:', event.type, event)
         
@@ -218,12 +238,12 @@ function ChatContent() {
            // Handle specific error messages
            console.error('[Chat] Error event:', event.message)
            let errorMsg = event.message || "Stream error"
-           if (errorMsg.includes("Vector index empty")) {
-             errorMsg = "Please build the index first. Go to Upload → Add documents → Build Index"
+           if (errorMsg.includes("Vector index empty") || errorMsg.includes("No documents indexed")) {
+             errorMsg = "Cannot chat: no documents are indexed. Add documents via Upload → Add documents (use the '+' button), then Build Index."
            } else if (errorMsg.includes("Retriever not initialized")) {
              errorMsg = "System is initializing. Please wait a moment and try again."
            } else if (errorMsg.includes("Collection") && (errorMsg.includes("no documents") || errorMsg.includes("has no documents"))) {
-             errorMsg = "This collection has no documents. Please add documents to the collection from the Upload page first."
+             errorMsg = "Cannot chat with an empty collection. Add documents to the collection using the '+' button in Upload → Add documents, then Build Index."
            }
            throw new Error(errorMsg)
         }
@@ -235,10 +255,22 @@ function ChatContent() {
 
       const errorMessage = error instanceof Error ? error.message : "Failed to process query"
       
+      // Build an optional upload action when the error indicates missing documents
+      const uploadAction = (
+        <ToastAction asChild>
+          <Link href="/upload">
+            <Button size="sm">Go to Upload</Button>
+          </Link>
+        </ToastAction>
+      )
+
+      const shouldShowUploadAction = /no documents|no documents indexed|empty collection/i.test(errorMessage)
+
       toast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
+        ...(shouldShowUploadAction ? { action: uploadAction } : {}),
       })
 
       // Always show a message in the chat even on error
@@ -293,6 +325,76 @@ function ChatContent() {
     )
   }
 
+  // Show collection picker if no collection is selected
+  if (!collectionId) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] flex-col items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-8">
+            <CuboLogo size={48} className="mx-auto mb-4 opacity-70" />
+            <h2 className="text-2xl font-bold mb-2">Start a Chat Session</h2>
+            <p className="text-muted-foreground">
+              Select a collection to begin chatting. Each collection contains specific documents that will be used to generate answers.
+            </p>
+          </div>
+
+          {isLoadingCollections ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : !collections || collections.length === 0 ? (
+            <Card className="p-8 text-center">
+              <div className="mb-4">
+                <CuboLogo size={32} className="mx-auto opacity-50" />
+              </div>
+              <h3 className="font-semibold mb-2">No Collections</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                You don&apos;t have any collections yet. Create a collection on the Upload page first.
+              </p>
+              <Link href="/upload">
+                <Button>Go to Upload</Button>
+              </Link>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {collections.map((collection) => (
+                <Link
+                  key={collection.id}
+                  href={`/chat?collection=${collection.id}`}
+                  className="block group"
+                >
+                  <Card className="p-4 cursor-pointer transition-all hover:border-primary/50 hover:shadow-md group-hover:bg-accent/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div
+                          className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: collection.color }}
+                        >
+                          <span className="text-white text-sm font-semibold">
+                            {collection.emoji || collection.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-lg">{collection.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {collection.document_count} document{collection.document_count !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       {/* Collection context bar */}
@@ -313,12 +415,22 @@ function ChatContent() {
               ({activeCollection.document_count} document{activeCollection.document_count !== 1 ? 's' : ''})
             </span>
           </div>
-          <Link href="/chat">
-            <Button variant="ghost" size="sm" className="h-7 px-2">
-              <X className="h-4 w-4 mr-1" />
-              Clear filter
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => {
+              clearHistory()
+              setInputValue("")
+              toast({
+                title: "Chat Cleared",
+                description: "All messages have been removed.",
+              })
+            }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Clear chat
+          </Button>
         </div>
       )}
 
@@ -330,33 +442,13 @@ function ChatContent() {
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <CuboLogo size={48} className="mb-4 opacity-50" />
-                  {hasDocuments === false ? (
-                    <>
-                      <h3 className="text-lg font-medium text-muted-foreground mb-2">No documents indexed</h3>
-                      <p className="text-sm text-muted-foreground max-w-md">
-                        Go to the <Link href="/upload" className="text-primary underline">Upload</Link> page to add documents to your knowledge base, then return here to ask questions.
-                      </p>
-                    </>
-                  ) : activeCollection ? (
-                    <>
-                      <h3 className="text-lg font-medium mb-2">
-                        Querying &ldquo;{activeCollection.name}&rdquo;
-                      </h3>
-                      <p className="text-sm text-muted-foreground max-w-md">
-                        Your questions will search only within this collection&apos;s {activeCollection.document_count} document{activeCollection.document_count !== 1 ? 's' : ''}.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <h3 className="text-lg font-medium mb-2">
-                        {documentCount} document{documentCount !== 1 ? 's' : ''} indexed
-                      </h3>
-                      <p className="text-sm text-muted-foreground max-w-md">
-                        Type a question below to search across your document collection.
-                        Answers will be generated based on the most relevant passages found.
-                      </p>
-                    </>
-                  )}
+                  <h3 className="text-lg font-medium mb-2">
+                    Querying &ldquo;{activeCollection?.name}&rdquo;
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    Your questions will search only within this collection&apos;s {activeCollection?.document_count} document{activeCollection?.document_count !== 1 ? 's' : ''}.
+                    Answers will be generated based on the most relevant passages found.
+                  </p>
                 </div>
               )}
               {messages.map((message) => (
@@ -425,21 +517,38 @@ function ChatContent() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={
-                hasDocuments === false
-                  ? "Upload documents first..."
-                  : (activeCollection && activeCollection.document_count === 0)
+                !collectionId || !activeCollection
+                  ? "Select a collection first..."
+                  : (activeCollection.document_count === 0)
                     ? "This collection is empty..."
-                    : activeCollection
-                      ? `Ask about "${activeCollection.name}"...`
-                      : "Ask a question about your documents..."
+                    : `Ask about "${activeCollection.name}"...`
               }
               aria-label="Ask a question about your documents"
-              disabled={isLoading || hasDocuments === false || !isReady || (activeCollection?.document_count === 0)}
+              disabled={isLoading || !collectionId || !activeCollection || activeCollection.document_count === 0 || !isReady}
               className="flex-1"
             />
-            <Button type="submit" disabled={isLoading || !inputValue.trim() || hasDocuments === false || (activeCollection?.document_count === 0)}>
-              Send
-            </Button>
+            {isLoading ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  if (abortControllerRef.current) {
+                    try {
+                      abortControllerRef.current.abort()
+                    } catch (err) {
+                      console.debug('Abort error (expected):', err)
+                    }
+                  }
+                }}
+              >
+                <Square className="h-4 w-4 mr-2" />
+                Stop
+              </Button>
+            ) : (
+              <Button type="submit" disabled={!inputValue.trim() || !collectionId || !activeCollection || activeCollection.document_count === 0}>
+                Send
+              </Button>
+            )}
           </form>
         </div>
       </Card>

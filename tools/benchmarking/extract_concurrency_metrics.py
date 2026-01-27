@@ -23,9 +23,9 @@ def load_concurrency_results(json_path: Path) -> Dict:
 
 def extract_metrics(smoke_data: Dict, full_data: Dict) -> Dict:
     """Extract and compare metrics from smoke and full tests."""
-    
+
     baseline_p95_single = 2949.6  # From Item #4 latency profiling (total query time)
-    
+
     metrics = {
         "smoke": {
             "workers": smoke_data["config"]["num_workers"],
@@ -44,37 +44,48 @@ def extract_metrics(smoke_data: Dict, full_data: Dict) -> Dict:
             "latency_p95_ms": full_data["performance"]["latency_p95_ms"],
             "latency_p99_ms": full_data["performance"]["latency_p99_ms"],
             "peak_memory_gb": full_data["resource_usage"]["peak_memory_gb"],
-        }
+        },
     }
-    
+
     # Calculate deltas for full test vs baseline (Item #4)
     metrics["full"]["latency_increase_pct"] = (
         (metrics["full"]["latency_p95_ms"] - baseline_p95_single) / baseline_p95_single * 100
     )
     metrics["full"]["latency_acceptable"] = metrics["full"]["latency_increase_pct"] < 25.0
-    
+
     return metrics
 
 
 def generate_csv(metrics: Dict, output_path: Path):
     """Generate comparison CSV."""
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write("Metric,Baseline (1 worker),Concurrent (4 workers),Delta,Status\n")
         f.write(f"Workers,1,{metrics['full']['workers']},+{metrics['full']['workers']-1},—\n")
-        f.write(f"Total Queries,100,{metrics['full']['total_queries']},+{metrics['full']['total_queries']-100},—\n")
-        f.write(f"Throughput (q/s),2.1,{metrics['full']['throughput_qps']:.2f},+{metrics['full']['throughput_qps']-2.1:.2f},Expected\n")
-        f.write(f"Latency p50 (ms),185,{metrics['full']['latency_p50_ms']:.0f},+{metrics['full']['latency_p50_ms']-185:.0f},Acceptable\n")
-        status = 'PASS' if metrics['full']['latency_acceptable'] else 'WARN'
-        f.write(f"Latency p95 (ms),2949.6,{metrics['full']['latency_p95_ms']:.0f},+{metrics['full']['latency_increase_pct']:.1f}%,{status}\n")
-        f.write(f"Peak RAM (GB),8.2,{metrics['full']['peak_memory_gb']:.2f},+{metrics['full']['peak_memory_gb']-8.2:.2f},OK_16GB\n")
-    
+        f.write(
+            f"Total Queries,100,{metrics['full']['total_queries']},+{metrics['full']['total_queries']-100},—\n"
+        )
+        f.write(
+            f"Throughput (q/s),2.1,{metrics['full']['throughput_qps']:.2f},+{metrics['full']['throughput_qps']-2.1:.2f},Expected\n"
+        )
+        f.write(
+            f"Latency p50 (ms),185,{metrics['full']['latency_p50_ms']:.0f},+{metrics['full']['latency_p50_ms']-185:.0f},Acceptable\n"
+        )
+        status = "PASS" if metrics["full"]["latency_acceptable"] else "WARN"
+        f.write(
+            f"Latency p95 (ms),2949.6,{metrics['full']['latency_p95_ms']:.0f},+{metrics['full']['latency_increase_pct']:.1f}%,{status}\n"
+        )
+        f.write(
+            f"Peak RAM (GB),8.2,{metrics['full']['peak_memory_gb']:.2f},+{metrics['full']['peak_memory_gb']-8.2:.2f},OK_16GB\n"
+        )
+
     print(f"[OK] CSV table saved to {output_path}")
 
 
 def generate_latex_table(metrics: Dict, output_path: Path):
     """Generate LaTeX table for paper."""
-    
-    latex = r"""\begin{table}[h]
+
+    latex = (
+        r"""\begin{table}[h]
 \centering
 \small
 \resizebox{\columnwidth}{!}{%
@@ -82,10 +93,28 @@ def generate_latex_table(metrics: Dict, output_path: Path):
 \toprule
 \textbf{Metric} & \textbf{Baseline} & \textbf{Concurrent (4W)} & \textbf{Delta} & \textbf{Status} \\
 \midrule
-Throughput (queries/sec) & 2.1 & """ + f"{metrics['full']['throughput_qps']:.2f}" + r""" & +""" + f"{metrics['full']['throughput_qps']-2.1:.2f}" + r""" & OK Expected \\
-Latency p50 (ms) & 185 & """ + f"{metrics['full']['latency_p50_ms']:.0f}" + r""" & +""" + f"{metrics['full']['latency_p50_ms']-185:.0f}" + r""" & OK <25% \\
-Latency p95 (ms) & 2950 & """ + f"{metrics['full']['latency_p95_ms']:.0f}" + r""" & +""" + f"{metrics['full']['latency_increase_pct']:.1f}\%" + r""" & """ + ("OK <25%" if metrics['full']['latency_acceptable'] else "WARN >25%") + r""" \\
-Peak RAM (GB) & 8.2 & """ + f"{metrics['full']['peak_memory_gb']:.2f}" + r""" & +""" + f"{metrics['full']['peak_memory_gb']-8.2:.2f}" + r""" & OK <16GB \\
+Throughput (queries/sec) & 2.1 & """
+        + f"{metrics['full']['throughput_qps']:.2f}"
+        + r""" & +"""
+        + f"{metrics['full']['throughput_qps']-2.1:.2f}"
+        + r""" & OK Expected \\
+Latency p50 (ms) & 185 & """
+        + f"{metrics['full']['latency_p50_ms']:.0f}"
+        + r""" & +"""
+        + f"{metrics['full']['latency_p50_ms']-185:.0f}"
+        + r""" & OK <25% \\
+Latency p95 (ms) & 2950 & """
+        + f"{metrics['full']['latency_p95_ms']:.0f}"
+        + r""" & +"""
+        + f"{metrics['full']['latency_increase_pct']:.1f}\%"
+        + r""" & """
+        + ("OK <25%" if metrics["full"]["latency_acceptable"] else "WARN >25%")
+        + r""" \\
+Peak RAM (GB) & 8.2 & """
+        + f"{metrics['full']['peak_memory_gb']:.2f}"
+        + r""" & +"""
+        + f"{metrics['full']['peak_memory_gb']-8.2:.2f}"
+        + r""" & OK <16GB \\
 SQLite busy\_count & 0 & 2 & +2 & OK Minimal \\
 \bottomrule
 \end{tabular}%
@@ -94,28 +123,37 @@ SQLite busy\_count & 0 & 2 & +2 & OK Minimal \\
 \label{tab:concurrency-metrics}
 \end{table}
 """
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
+    )
+
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(latex)
-    
+
     print(f"[OK] LaTeX table saved to {output_path}")
     return latex
 
 
 def main():
     parser = argparse.ArgumentParser(description="Extract concurrency metrics")
-    parser.add_argument("--smoke-json", type=Path, default=Path("results/concurrency/scifact_smoke.json"))
-    parser.add_argument("--full-json", type=Path, default=Path("results/concurrency/scifact_full.json"))
-    parser.add_argument("--output-csv", type=Path, default=Path("results/concurrency_metrics_table.csv"))
-    parser.add_argument("--output-latex", type=Path, default=Path("results/concurrency_metrics_table.tex"))
-    
+    parser.add_argument(
+        "--smoke-json", type=Path, default=Path("results/concurrency/scifact_smoke.json")
+    )
+    parser.add_argument(
+        "--full-json", type=Path, default=Path("results/concurrency/scifact_full.json")
+    )
+    parser.add_argument(
+        "--output-csv", type=Path, default=Path("results/concurrency_metrics_table.csv")
+    )
+    parser.add_argument(
+        "--output-latex", type=Path, default=Path("results/concurrency_metrics_table.tex")
+    )
+
     args = parser.parse_args()
-    
+
     # Check if full results exist
     if not args.full_json.exists():
         print(f"⏳ Full test results not yet available: {args.full_json}")
         print("   Using hypothetical data for table generation (will update when test completes)")
-        
+
         # Create mock data for now (will be replaced when test finishes)
         full_data = {
             "config": {"num_workers": 4, "total_queries": 400},
@@ -123,25 +161,25 @@ def main():
                 "throughput_qps": 9.2,  # hypothetical
                 "latency_median_ms": 310,  # hypothetical
                 "latency_p95_ms": 480,  # hypothetical
-                "latency_p99_ms": 650  # hypothetical
+                "latency_p99_ms": 650,  # hypothetical
             },
-            "resource_usage": {"peak_memory_gb": 14.8}  # hypothetical
+            "resource_usage": {"peak_memory_gb": 14.8},  # hypothetical
         }
     else:
         full_data = load_concurrency_results(args.full_json)
-    
+
     smoke_data = load_concurrency_results(args.smoke_json)
-    
+
     # Extract metrics
     metrics = extract_metrics(smoke_data, full_data)
-    
+
     # Generate outputs
     args.output_csv.parent.mkdir(parents=True, exist_ok=True)
     args.output_latex.parent.mkdir(parents=True, exist_ok=True)
-    
+
     generate_csv(metrics, args.output_csv)
     latex_content = generate_latex_table(metrics, args.output_latex)
-    
+
     # Print summary
     print("\n=== CONCURRENCY METRICS SUMMARY ===")
     print(f"Full test results: {args.full_json}")

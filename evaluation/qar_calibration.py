@@ -41,9 +41,7 @@ class QARCalibrationValidator:
         self.seed = seed
         np.random.seed(seed)
 
-    def validate_dataset(
-        self, dataset_name: str, data_dir: Path = None
-    ) -> Dict[str, float]:
+    def validate_dataset(self, dataset_name: str, data_dir: Path = None) -> Dict[str, float]:
         """
         Validate QAR on a single dataset.
 
@@ -109,11 +107,11 @@ class QARCalibrationValidator:
         # Load qrels (relevance judgments) - try multiple formats
         qrels_file = dataset_path / "qrels" / "test.tsv"
         qrels_format = "tsv"
-        
+
         if not qrels_file.exists():
             qrels_file = dataset_path / "qrels" / "test.jsonl"
             qrels_format = "jsonl"
-        
+
         if not qrels_file.exists():
             qrels_file = dataset_path / "qrels.jsonl"
             qrels_format = "jsonl"
@@ -127,7 +125,7 @@ class QARCalibrationValidator:
             if qrels_format == "tsv":
                 for line in f:
                     if line.strip():
-                        parts = line.strip().split('\t')
+                        parts = line.strip().split("\t")
                         if len(parts) >= 3:
                             query_id = parts[0]
                             corpus_id = parts[2]
@@ -170,28 +168,30 @@ class QARCalibrationValidator:
             # - FP32 recall: drawn from typical distribution (~0.4-0.7 for BEIR)
             # - IVFPQ degrades by 2-4% (tighter distribution)
             # - Degradation has slight correlation with recall level (higher recall → slightly higher loss)
-            
+
             # Corpus-specific base degradation (empirically observed)
             corpus_base_degradation = {
-                "scifact": 0.035,    # 3.5% mean degradation
-                "fiqa": 0.032,       # 3.2% mean degradation
-                "arguana": 0.038,    # 3.8% mean degradation
-                "nfcorpus": 0.040,   # 4.0% mean degradation
+                "scifact": 0.035,  # 3.5% mean degradation
+                "fiqa": 0.032,  # 3.2% mean degradation
+                "arguana": 0.038,  # 3.8% mean degradation
+                "nfcorpus": 0.040,  # 4.0% mean degradation
             }
-            
+
             base_deg = corpus_base_degradation.get(dataset_name, 0.035)
-            
+
             # FP32 recall with realistic distribution
             simulated_fp32_recall = np.random.normal(0.55, 0.12)
             simulated_fp32_recall = np.clip(simulated_fp32_recall, 0.1, 0.95)
-            
+
             # Quantization loss: base degradation + small variance + recall-dependent noise
-            recall_dependent_factor = (0.6 - simulated_fp32_recall) * 0.01  # Slightly higher loss for high recalls
+            recall_dependent_factor = (
+                0.6 - simulated_fp32_recall
+            ) * 0.01  # Slightly higher loss for high recalls
             random_variance = np.random.normal(0, 0.003)  # Tighter variance: std=0.3%
-            
+
             quantization_loss = base_deg + recall_dependent_factor + random_variance
             quantization_loss = np.clip(quantization_loss, 0.01, 0.08)
-            
+
             simulated_ivfpq_recall = max(0, simulated_fp32_recall - quantization_loss)
 
             # Compute per-query delta_q
@@ -207,9 +207,9 @@ class QARCalibrationValidator:
         corpus_delta_q_max = float(np.max(per_query_degradations))
 
         # Coverage: % of queries within ±2% of mean
-        coverage = np.sum(
-            np.abs(per_query_degradations - corpus_delta_q_mean) <= 0.02
-        ) / len(per_query_degradations)
+        coverage = np.sum(np.abs(per_query_degradations - corpus_delta_q_mean) <= 0.02) / len(
+            per_query_degradations
+        )
 
         logger.info(f"\nQAR Validation Results for {dataset_name.upper()}:")
         logger.info(f"  Corpus Δq (mean):     {corpus_delta_q_mean*100:.2f}%")
@@ -217,7 +217,9 @@ class QARCalibrationValidator:
         logger.info(f"  Min:                  {corpus_delta_q_min*100:.2f}%")
         logger.info(f"  Max:                  {corpus_delta_q_max*100:.2f}%")
         logger.info(f"  Coverage (±2%):       {coverage*100:.1f}%")
-        logger.info(f"  Acceptance (σ<1%):    {'✓ PASS' if corpus_delta_q_std < 0.01 else '✗ FAIL'}")
+        logger.info(
+            f"  Acceptance (σ<1%):    {'✓ PASS' if corpus_delta_q_std < 0.01 else '✗ FAIL'}"
+        )
 
         return {
             "dataset": dataset_name,
@@ -230,9 +232,7 @@ class QARCalibrationValidator:
             "acceptance_std_dev_under_1pct": bool(corpus_delta_q_std < 0.01),
         }
 
-    def validate_all(
-        self, datasets: List[str], data_dir: Optional[Path] = None
-    ) -> Dict:
+    def validate_all(self, datasets: List[str], data_dir: Optional[Path] = None) -> Dict:
         """
         Validate QAR across multiple datasets.
 
@@ -339,9 +339,7 @@ def main():
     print("QAR VALIDATION SUMMARY")
     print("=" * 60)
     print("\nPer-Dataset Results:")
-    print(
-        f"{'Dataset':<15} {'Δq Mean':<12} {'Std Dev':<12} {'Pass':<6} {'Coverage':<10}"
-    )
+    print(f"{'Dataset':<15} {'Δq Mean':<12} {'Std Dev':<12} {'Pass':<6} {'Coverage':<10}")
     print("-" * 60)
     for dataset, result in results["datasets"].items():
         status = "✓" if result["acceptance_std_dev_under_1pct"] else "✗"
@@ -351,8 +349,12 @@ def main():
             f"{result['coverage_within_2pct']*100:>6.1f}%"
         )
 
-    print(f"\nAggregate Acceptance: {'✓ PASS' if results['aggregate'].get('all_passed') else '✗ FAIL'}")
-    print(f"Datasets Passed: {results['aggregate'].get('num_datasets_passed')}/{results['aggregate'].get('num_datasets_total')}")
+    print(
+        f"\nAggregate Acceptance: {'✓ PASS' if results['aggregate'].get('all_passed') else '✗ FAIL'}"
+    )
+    print(
+        f"Datasets Passed: {results['aggregate'].get('num_datasets_passed')}/{results['aggregate'].get('num_datasets_total')}"
+    )
 
     return 0 if results["aggregate"].get("all_passed") else 1
 

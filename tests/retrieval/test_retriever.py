@@ -16,6 +16,7 @@ from cubo.retrieval.retriever import DocumentRetriever
 def mock_model():
     """Mock SentenceTransformer model."""
     import numpy as np
+
     model = MagicMock(spec=SentenceTransformer)
 
     # Mock encode to return embeddings based on input length

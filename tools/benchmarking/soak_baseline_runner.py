@@ -14,7 +14,9 @@ The script:
 - Appends per-run metadata and exit codes into an aggregated JSON
 - Writes incremental state to the output file so partial results are preserved
 """
+
 from __future__ import annotations
+
 import argparse
 import json
 import shlex
@@ -34,7 +36,9 @@ def now_iso() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
-def run_single(cmd: List[str], timeout: int | None, memory_limit_gb: float, log_path: Path) -> Dict[str, Any]:
+def run_single(
+    cmd: List[str], timeout: int | None, memory_limit_gb: float, log_path: Path
+) -> Dict[str, Any]:
     start = datetime.utcnow()
     proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     entry = {
@@ -61,7 +65,7 @@ def run_single(cmd: List[str], timeout: int | None, memory_limit_gb: float, log_
                 # memory watchdog
                 try:
                     p = psutil.Process(proc.pid)
-                    rss = p.memory_info().rss / (1024 ** 3)
+                    rss = p.memory_info().rss / (1024**3)
                     if rss > memory_limit_gb * 0.98:
                         p.kill()
                         entry["killed_for_memory"] = True
@@ -88,7 +92,9 @@ def main(argv: List[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--cmd", required=True, help="Command to run (shell-quoted) or JSON array")
     p.add_argument("--iterations", type=int, default=100, help="Number of iterations to run")
-    p.add_argument("--duration-hours", type=float, default=0.0, help="Alternate: run for this many hours")
+    p.add_argument(
+        "--duration-hours", type=float, default=0.0, help="Alternate: run for this many hours"
+    )
     p.add_argument("--memory-limit-gb", type=float, default=15.0)
     p.add_argument("--timeout", type=int, default=0, help="Per-run timeout in seconds (0 = none)")
     p.add_argument("--out", type=Path, required=True, help="Aggregated output JSON")
@@ -120,16 +126,23 @@ def main(argv: List[str] | None = None) -> int:
             iteration += 1
             tag = f"iter_{iteration:04d}_{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}"
             run_log = log_path.with_name(log_path.stem + f".{tag}.log")
-            meta = run_single(cmd, timeout=(args.timeout or None), memory_limit_gb=args.memory_limit_gb, log_path=run_log)
+            meta = run_single(
+                cmd,
+                timeout=(args.timeout or None),
+                memory_limit_gb=args.memory_limit_gb,
+                log_path=run_log,
+            )
             meta["iteration"] = iteration
             meta["tag"] = tag
             results.append(meta)
 
             # write incremental output
-            out_path.write_text(json.dumps({"run_id": now_iso(), "cmd": cmd, "results": results}, indent=2))
+            out_path.write_text(
+                json.dumps({"run_id": now_iso(), "cmd": cmd, "results": results}, indent=2)
+            )
 
             # rotate main log (append run_log)
-            with run_log.open('rb') as rf, log_path.open('ab') as lf:
+            with run_log.open("rb") as rf, log_path.open("ab") as lf:
                 lf.write(b"\n===== RUN: " + tag.encode() + b" =====\n")
                 lf.write(rf.read())
 
@@ -145,5 +158,5 @@ def main(argv: List[str] | None = None) -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())

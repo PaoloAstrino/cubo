@@ -2,6 +2,7 @@
 
 import { LLMSettings } from "@/components/llm-settings"
 import { AppearanceSettings } from '@/components/appearance-settings'
+import { SourcesSettings } from '@/components/sources-settings'
 import {
     Card,
     CardContent,
@@ -42,6 +43,10 @@ export default function SettingsPage() {
                     <AppearanceSettings />
                 </CardContent>
             </Card>
+
+            <div>
+                <SourcesSettings />
+            </div>
 
         </div>
     )

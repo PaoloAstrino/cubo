@@ -51,6 +51,7 @@ class PyseriniBenchmark:
         logger.info("Checking Pyserini installation...")
         try:
             import pyserini
+
             logger.info(f"✓ Pyserini version: {pyserini.__version__}")
             return True
         except ImportError:
@@ -71,7 +72,7 @@ class PyseriniBenchmark:
     def monitor_memory_during_indexing(self) -> Dict[str, float]:
         """Monitor memory usage during indexing."""
         logger.info("Starting memory monitoring...")
-        
+
         if self.process is None:
             logger.warning("No process to monitor")
             return {"peak_rss_mb": 0, "peak_vms_mb": 0}
@@ -86,7 +87,7 @@ class PyseriniBenchmark:
                     proc_info = self.process.memory_info()
                     rss_mb = proc_info.rss / (1024 * 1024)
                     vms_mb = proc_info.vms / (1024 * 1024)
-                    
+
                     peak_rss = max(peak_rss, rss_mb)
                     peak_vms = max(peak_vms, vms_mb)
                     measurements.append({"rss_mb": rss_mb, "vms_mb": vms_mb})
@@ -122,29 +123,33 @@ class PyseriniBenchmark:
 
         # Build index using pyserini
         logger.info("Building HNSW index (this may take 5-15 minutes)...")
-        
+
         start_time = time.time()
         start_memory = psutil.Process().memory_info().rss / (1024 * 1024)
 
         try:
             # Use Anserini index builder with HNSW
             cmd = [
-                "python", "-m", "pyserini.index.lucene",
-                "--collection", "JsonCollection",
-                "--input", str(corpus_file),
-                "--index", str(self.index_dir),
-                "--generator", "DefaultLuceneDocumentGenerator",
-                "--threads", "4",
-                "--storeRaw"
+                "python",
+                "-m",
+                "pyserini.index.lucene",
+                "--collection",
+                "JsonCollection",
+                "--input",
+                str(corpus_file),
+                "--index",
+                str(self.index_dir),
+                "--generator",
+                "DefaultLuceneDocumentGenerator",
+                "--threads",
+                "4",
+                "--storeRaw",
             ]
 
             logger.info(f"Running: {' '.join(cmd)}")
-            
+
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=3600  # 1 hour timeout
+                cmd, capture_output=True, text=True, timeout=3600  # 1 hour timeout
             )
 
             indexing_time = time.time() - start_time
@@ -204,18 +209,19 @@ class PyseriniBenchmark:
                     break
                 if line.strip():
                     import json as json_module
+
                     queries.append(json_module.loads(line))
 
         logger.info(f"Loaded {len(queries)} queries")
 
         # Run search benchmark
         logger.info("Running search benchmark (this may take 2-5 minutes)...")
-        
+
         try:
             from pyserini.search.lucene import LuceneSearcher
-            
+
             searcher = LuceneSearcher(str(self.index_dir))
-            
+
             latencies = []
             start_time = time.time()
 
@@ -302,9 +308,7 @@ class PyseriniBenchmark:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Benchmark Pyserini HNSW on BEIR dataset"
-    )
+    parser = argparse.ArgumentParser(description="Benchmark Pyserini HNSW on BEIR dataset")
     parser.add_argument(
         "--dataset",
         type=str,

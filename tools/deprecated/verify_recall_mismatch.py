@@ -32,7 +32,7 @@ def _load_relevant_docs(qrels_path, valid_qids):
 
     relevant_doc_ids = set()
     queries_with_relevant = 0
-    
+
     for qid in valid_qids:
         if qid in all_qrels:
             queries_with_relevant += 1
@@ -48,7 +48,7 @@ def _load_relevant_docs(qrels_path, valid_qids):
 def _scan_corpus_for_matches(corpus_path, relevant_doc_ids, limit):
     """Scan corpus and find matches with relevant documents."""
     print(f"Scanning first {limit} documents in {corpus_path}...")
-    
+
     found_docs = 0
     scanned = 0
     matches = []
@@ -63,7 +63,7 @@ def _scan_corpus_for_matches(corpus_path, relevant_doc_ids, limit):
             if doc_id in relevant_doc_ids:
                 found_docs += 1
                 matches.append(doc_id)
-    
+
     return found_docs, matches
 
 

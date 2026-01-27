@@ -1174,18 +1174,28 @@ class FaissStore(VectorStore):
         import uuid
         from datetime import datetime
 
+        from cubo.utils.logger import logger
+
         collection_id = str(uuid.uuid4())
         created_at = datetime.utcnow().isoformat()
 
-        with sqlite3.connect(str(self._db_path), timeout=30) as conn:
-            try:
-                conn.execute(
-                    "INSERT INTO collections (id, name, created_at, color, emoji) VALUES (?, ?, ?, ?, ?)",
-                    (collection_id, name, created_at, color, emoji or ""),
-                )
-                conn.commit()
-            except sqlite3.IntegrityError:
-                raise ValueError(f"Collection '{name}' already exists")
+        try:
+            with sqlite3.connect(str(self._db_path), timeout=30) as conn:
+                try:
+                    conn.execute(
+                        "INSERT INTO collections (id, name, created_at, color, emoji) VALUES (?, ?, ?, ?, ?)",
+                        (collection_id, name, created_at, color, emoji or ""),
+                    )
+                    conn.commit()
+                    logger.info(
+                        f"Collection '{name}' created and persisted to database with ID: {collection_id}"
+                    )
+                except sqlite3.IntegrityError as e:
+                    logger.error(f"Collection name '{name}' already exists in database: {e}")
+                    raise ValueError(f"Collection '{name}' already exists")
+        except Exception as e:
+            logger.error(f"Failed to create collection '{name}': {e}", exc_info=True)
+            raise
 
         return {
             "id": collection_id,
@@ -1490,6 +1500,12 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                 )
                 cur.execute("DELETE FROM documents WHERE id IN (SELECT id FROM _tmp_ids)")
                 cur.execute("DELETE FROM vectors WHERE id IN (SELECT id FROM _tmp_ids)")
+                # Also remove any references in collections junction table
+                try:
+                    cur.execute("DELETE FROM collection_documents WHERE document_id IN (SELECT id FROM _tmp_ids)")
+                except Exception:
+                    # If table missing for older DBs, ignore
+                    pass
                 conn.commit()
             finally:
                 cur.execute("DELETE FROM _tmp_ids")
@@ -1537,6 +1553,11 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                 try:
                     cur.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
                     cur.execute("DELETE FROM vectors WHERE id = ?", (doc_id,))
+                    # Also remove any collection links for this document
+                    try:
+                        cur.execute("DELETE FROM collection_documents WHERE document_id = ?", (doc_id,))
+                    except Exception:
+                        pass
                     conn.commit()
                 except Exception:
                     conn.rollback()

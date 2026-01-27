@@ -155,7 +155,9 @@ class CuboBeirAdapter:
         index_path = Path(index_dir)
         lock_path = index_path / ".indexing.lock"
         if lock_path.exists():
-            logger.warning(f"Indexing lock present at {lock_path}. Skipping reindex to avoid concurrent work.")
+            logger.warning(
+                f"Indexing lock present at {lock_path}. Skipping reindex to avoid concurrent work."
+            )
             return 0
         # create parent dirs if needed and write lock
         index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -261,7 +263,7 @@ class CuboBeirAdapter:
         if all_embeddings:
             final_embeddings = np.vstack(all_embeddings)
             faiss_manager.build_indexes(final_embeddings, all_ids, append=False)
-        
+
         logger.info("Saving FAISS index...")
         faiss_manager.save(index_path)
         conn.commit()
@@ -321,7 +323,7 @@ class CuboBeirAdapter:
         except Exception as e:
             logger.exception(f"DB Batch processing failed: {e}")
             raise
-        
+
         return embeddings.astype("float32")
 
     def load_index(self, index_dir: str):
@@ -409,9 +411,11 @@ class CuboBeirAdapter:
                     logger.info(f"Embedded {i + len(batch)}/{total} queries")
                 # Heartbeat log if embedding takes long
                 now = time.time()
-                if 'last_embed_log' in locals():
+                if "last_embed_log" in locals():
                     if now - last_embed_log > 30:
-                        logger.info(f"Embedding progress: {i + len(batch)}/{total} (last progress >30s)")
+                        logger.info(
+                            f"Embedding progress: {i + len(batch)}/{total} (last progress >30s)"
+                        )
                         last_embed_log = now
                 else:
                     last_embed_log = now
@@ -501,17 +505,17 @@ class CuboBeirAdapter:
 
             # Map indices to doc_ids and distances to scores
             # We need to distinguish between results from hot and cold indexes if we used both
-            
+
             # For now, retrieve_bulk_optimized only loaded hot.index at line 445.
             # Let's change it to optionally search cold too if it exists.
-            
+
             cold_index_path = Path(self.index_dir) / "cold.index"
             cold_ids = metadata.get("cold_ids", [])
             hot_ids = metadata.get("hot_ids", [])
-            
+
             # Already searched hot_index
             hot_distances, hot_indices = distances, indices
-            
+
             cold_search_done = False
             if cold_index_path.exists() and cold_ids:
                 logger.info(f"Loading COLD FAISS index from {cold_index_path}")
@@ -521,14 +525,14 @@ class CuboBeirAdapter:
 
             for i, qid in enumerate(query_ids):
                 query_results = {}
-                
+
                 # Add hot results
                 for dist, idx in zip(hot_distances[i], hot_indices[i]):
                     if idx >= 0 and idx < len(hot_ids):
                         doc_id = hot_ids[idx]
                         similarity = 1.0 - (dist / 2.0)
                         query_results[doc_id] = float(similarity)
-                
+
                 # Add cold results
                 if cold_search_done:
                     for dist, idx in zip(cold_distances[i], cold_indices[i]):
@@ -538,18 +542,22 @@ class CuboBeirAdapter:
                             # If doc already in results (shouldn't happen with hot/cold split, but for safety):
                             if doc_id not in query_results or similarity > query_results[doc_id]:
                                 query_results[doc_id] = float(similarity)
-                
+
                 # Sort and trim to top_k
-                sorted_results = dict(sorted(query_results.items(), key=lambda x: x[1], reverse=True)[:top_k])
+                sorted_results = dict(
+                    sorted(query_results.items(), key=lambda x: x[1], reverse=True)[:top_k]
+                )
                 results[qid] = sorted_results
 
                 if (i + 1) % 100 == 0:
                     logger.info(f"Processed {i + 1}/{total} queries")
                 # Time-based heartbeat
                 now = time.time()
-                if 'last_query_log' in locals():
+                if "last_query_log" in locals():
                     if now - last_query_log > 30:
-                        logger.info(f"Query processing progress: {i + 1}/{total} (last progress >30s)")
+                        logger.info(
+                            f"Query processing progress: {i + 1}/{total} (last progress >30s)"
+                        )
                         last_query_log = now
                 else:
                     last_query_log = now

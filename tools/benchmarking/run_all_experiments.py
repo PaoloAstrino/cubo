@@ -9,13 +9,15 @@ Run:
 
 The script is resilient: it records exit codes and continues to the next step.
 """
+
 from __future__ import annotations
+
 import json
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
@@ -28,7 +30,9 @@ MANIFESTS.mkdir(parents=True, exist_ok=True)
 
 RUN_ID = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
 try:
-    GIT_SHA = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT).decode().strip()
+    GIT_SHA = (
+        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT).decode().strip()
+    )
 except Exception:
     GIT_SHA = "unknown"
 
@@ -39,7 +43,9 @@ def write_manifest(man: Dict):
     MANIFEST_PATH.write_text(json.dumps(man, indent=2, ensure_ascii=False))
 
 
-def run_step(name: str, cmd: List[str], output_json: Path | None, timeout: int | None = None) -> Dict:
+def run_step(
+    name: str, cmd: List[str], output_json: Path | None, timeout: int | None = None
+) -> Dict:
     log_path = LOGS / f"{RUN_ID}-{name.replace(' ', '_')}.log"
     print(f"[STEP] {name} -> logging to {log_path}")
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -51,7 +57,7 @@ def run_step(name: str, cmd: List[str], output_json: Path | None, timeout: int |
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
-    
+
     entry = {
         "name": name,
         "cmd": cmd,
@@ -76,7 +82,11 @@ def seq_run():
     write_manifest(manifest)
 
     # Prefer canonical BEIR SciFact test index when available
-    index_dir = "data/beir_index_scifact" if (ROOT / "data" / "beir_index_scifact").exists() else "data/faiss_test"
+    index_dir = (
+        "data/beir_index_scifact"
+        if (ROOT / "data" / "beir_index_scifact").exists()
+        else "data/faiss_test"
+    )
     baseline_dir = RESULTS / "baselines"
     baseline_dir.mkdir(parents=True, exist_ok=True)
 

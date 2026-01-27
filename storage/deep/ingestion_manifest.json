@@ -1,0 +1,22 @@
+{
+  "ingested_at": "2026-01-27T17:33:08.715739+00:00",
+  "source_folder": "data",
+  "chunks_count": 34,
+  "processed_files": [
+    "data\\Ricevuta occasionale Paolo Astrino.pdf",
+    "data\\thesis_slides4.pdf",
+    "data\\beir\\UltraDomain_README.md",
+    "data\\benchmark_sample\\doc1.txt",
+    "data\\benchmark_sample\\doc2.txt",
+    "data\\ragbench\\README.md",
+    "data\\ragbench_sample_10.0pct\\README.md",
+    "data\\sample\\frogs.txt",
+    "data\\sample\\space.txt",
+    "data\\smoke\\doc1.txt",
+    "data\\smoke\\doc2.txt",
+    "data\\smoke\\doc3.txt",
+    "data\\smoke\\doc4.txt",
+    "data\\smoke\\doc5.txt"
+  ],
+  "created_by": "DeepIngestor"
+}

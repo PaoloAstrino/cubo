@@ -35,7 +35,7 @@ gap_queries = [
     {"query_id": "q_gap_1", "text": "gatto", "relevant_docs": ["doc_01"]},
     {"query_id": "q_gap_2", "text": "lavoratore", "relevant_docs": ["doc_02"]},
     {"query_id": "q_gap_3", "text": "proprietario", "relevant_docs": ["doc_03"]},
-    {"query_id": "q_gap_4", "text": "risoluzione", "relevant_docs": ["doc_04"]}
+    {"query_id": "q_gap_4", "text": "risoluzione", "relevant_docs": ["doc_04"]},
 ]
 
 all_queries = gap_queries

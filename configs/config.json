@@ -1,8 +1,8 @@
 {
   "paths": {
     "data_folder": "data",
-    "deep_output_dir": "data\\deep",
-    "fast_pass_output_dir": "data\\fastpass"
+    "deep_output_dir": "storage\\deep",
+    "fast_pass_output_dir": "storage\\fastpass"
   },
   "chunking": {
     "chunk_size": 1000,
@@ -61,9 +61,9 @@
   "parser": "basic",
   "max_file_size_mb": 10,
   "rate_limit_seconds": 1,
-  "faiss_index_dir": "./data/beir_index_scifact",
+  "faiss_index_dir": "./storage/cubo_index",
   "vector_store_backend": "faiss",
-  "vector_store_path": "./data/beir_index_scifact",
+  "vector_store_path": "./storage/cubo_index",
   "auto_merging_chunk_sizes": [
     2048,
     512,
@@ -72,19 +72,17 @@
   "auto_merging_collection_name": "cubo_auto_merging",
   "auto_merging_candidate_multiplier": 3,
   "auto_merging_parent_similarity_threshold": 0.1,
-  "deep_output_dir": "./data/deep",
+  "deep_output_dir": "./storage/deep",
   "deep_csv_rows_per_chunk": 25,
   "deep_chunk_id_use_file_hash": true,
-  "metadata_db_path": "./data/metadata.db",
-  "ingestion": {
+      "metadata_db_path": "./storage/metadata.db",  "ingestion": {
     "fast_pass": {
-      "output_dir": "data/fastpass",
+      "output_dir": "storage/fastpass",
       "skip_heavy_models": true,
       "auto_trigger_deep": false
     },
     "deep": {
-      "output_dir": "./data/deep",
-      "csv_rows_per_chunk": 25,
+      "output_dir": "./storage/deep",
       "use_file_hash_for_chunk_id": true,
       "n_workers": 2,
       "batch_size": 10,
@@ -118,14 +116,14 @@
     "index_type": "hnsw"
   },
   "scaffold": {
-    "output_dir": "./data/scaffolds",
+    "output_dir": "./storage/scaffolds",
     "use_semantic_clustering": false,
     "clustering_method": "kmeans",
     "scaffold_size": 5,
     "min_cluster_size": 3
   },
   "summary_embeddings": {
-    "output_dir": "./data/summary_embeddings",
+    "output_dir": "./storage/summary_embeddings",
     "embedding_dims": 256,
     "use_pca_compression": true
   },

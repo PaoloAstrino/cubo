@@ -11,17 +11,21 @@ def mock_cubo_app():
     app = MagicMock()
     app.vector_store = MagicMock()
     app.retriever = MagicMock()
+
     # Simulate documents cache on app.state
     class DummyCache:
         def __init__(self, docs):
             self._docs = docs
+
         async def get(self):
             # return (list_of_docs, etag)
             return ([{"name": d} for d in self._docs], "etag-1")
+
         def invalidate(self):
             pass
 
     from types import SimpleNamespace
+
     mock_state = SimpleNamespace(documents_cache=DummyCache(["a.pdf", "b.docx"]))
     app.state = mock_state
     return app
@@ -37,7 +41,9 @@ def client(mock_cubo_app):
 
 class TestBulkDeleteAPI:
     def test_bulk_delete_enqueues_jobs(self, client, mock_cubo_app):
-        mock_cubo_app.vector_store.enqueue_deletion.side_effect = lambda doc_id, **kw: f"job-{doc_id}"
+        mock_cubo_app.vector_store.enqueue_deletion.side_effect = (
+            lambda doc_id, **kw: f"job-{doc_id}"
+        )
 
         response = client.delete("/api/documents")
         assert response.status_code == 200
@@ -47,7 +53,9 @@ class TestBulkDeleteAPI:
         assert data["queued"][0]["job_id"] == "job-a.pdf"
 
     def test_bulk_delete_force_true(self, client, mock_cubo_app):
-        mock_cubo_app.vector_store.enqueue_deletion.side_effect = lambda doc_id, **kw: f"job-{doc_id}"
+        mock_cubo_app.vector_store.enqueue_deletion.side_effect = (
+            lambda doc_id, **kw: f"job-{doc_id}"
+        )
 
         response = client.delete("/api/documents?force=true")
         assert response.status_code == 200

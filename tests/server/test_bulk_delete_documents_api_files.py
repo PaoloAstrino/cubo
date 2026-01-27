@@ -1,10 +1,10 @@
 import pytest
 
 pytest.importorskip("fastapi")
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
-from pathlib import Path
 
 
 @pytest.fixture
@@ -12,16 +12,20 @@ def mock_cubo_app_with_files():
     app = MagicMock()
     app.vector_store = MagicMock()
     app.retriever = MagicMock()
+
     # Simulate documents cache on app.state with files
     class DummyCache:
         def __init__(self, docs):
             self._docs = docs
+
         async def get(self):
             return ([{"name": d} for d in self._docs], "etag-1")
+
         def invalidate(self):
             pass
 
     from types import SimpleNamespace
+
     mock_state = SimpleNamespace(documents_cache=DummyCache(["a.pdf", "b.docx"]))
     app.state = mock_state
     return app
@@ -45,7 +49,9 @@ class TestBulkDeleteFiles:
         assert (data_dir / "a.pdf").exists()
         assert (data_dir / "b.docx").exists()
 
-        mock_cubo_app_with_files.vector_store.enqueue_deletion.side_effect = lambda doc_id, **kw: f"job-{doc_id}"
+        mock_cubo_app_with_files.vector_store.enqueue_deletion.side_effect = (
+            lambda doc_id, **kw: f"job-{doc_id}"
+        )
 
         response = client.delete("/api/documents")
         assert response.status_code == 200

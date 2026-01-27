@@ -1,9 +1,10 @@
-import numpy as np
 import tempfile
 from pathlib import Path
 
-from cubo.retrieval.scaffold_retriever import SimpleIndex
+import numpy as np
+
 from cubo.processing.scaffold import ScaffoldGenerator
+from cubo.retrieval.scaffold_retriever import SimpleIndex
 
 
 def test_simpleindex_accepts_python_list_and_searches():
@@ -33,9 +34,11 @@ def test_load_scaffolds_returns_ndarray(tmp_path: Path):
     # create fake parquet and mapping files (write a minimal dataframe)
     import pandas as pd
 
-    pd.DataFrame([{"scaffold_id": "s1", "summary": "x"}]).to_parquet(tmp_path / "scaffold_metadata.parquet")
+    pd.DataFrame([{"scaffold_id": "s1", "summary": "x"}]).to_parquet(
+        tmp_path / "scaffold_metadata.parquet"
+    )
     mapping = {"s1": ["c1"]}
-    (tmp_path / "scaffold_mapping.json").write_text("{\"s1\": [\"c1\"]}")
+    (tmp_path / "scaffold_mapping.json").write_text('{"s1": ["c1"]}')
 
     # write a numpy embeddings file
     arr = np.random.randn(2, 8).astype(np.float32)

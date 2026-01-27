@@ -1,6 +1,7 @@
-import time
 import json
 import os
+import time
+
 from .pages.upload_page import UploadPage
 
 
@@ -93,7 +94,7 @@ def test_delete_collection_updates_sidebar(page, base_url):
     assert removed, "Deleted collection still present in /api/collections"
 
     # Sidebar should remove the collection (wait for it to be hidden)
-    locator.wait_for(state='hidden', timeout=10000)
+    locator.wait_for(state="hidden", timeout=10000)
     assert locator.count() == 0
 
 
@@ -124,7 +125,11 @@ def test_add_existing_document_to_collection_via_plus(page, base_url, tmp_path):
 
     # Modal should open; select the uploaded file
     # Wait for modal content, then check the document name checkbox and click Add
-    doc_checkbox = page.locator(f"text={os.path.basename(test_file)}").locator("..").locator("input[type='checkbox']")
+    doc_checkbox = (
+        page.locator(f"text={os.path.basename(test_file)}")
+        .locator("..")
+        .locator("input[type='checkbox']")
+    )
     # Fallback: select by label if structure differs
     if doc_checkbox.count() == 0:
         doc_checkbox = page.locator(f"text={os.path.basename(test_file)}")
@@ -145,8 +150,7 @@ def test_add_existing_document_to_collection_via_plus(page, base_url, tmp_path):
     resp = page.request.get(f"{base_url}/api/collections")
     assert resp.ok
     cols = resp.json()
-    coll = next((c for c in cols if c.get('name') == name), None)
+    coll = next((c for c in cols if c.get("name") == name), None)
     assert coll is not None
     del_resp = page.request.delete(f"{base_url}/api/collections/{coll.get('id')}")
     assert del_resp.ok
-

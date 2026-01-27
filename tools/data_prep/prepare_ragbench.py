@@ -12,10 +12,11 @@ The script processes all test split parquet files in the data/ragbench directory
 and merges them into a single BEIR-compatible dataset.
 """
 
-import pandas as pd
-import json
 import hashlib
+import json
 from pathlib import Path
+
+import pandas as pd
 
 
 def _process_parquet_file(fpath, base_path, corpus, queries, limit_per_file):
@@ -38,11 +39,7 @@ def _process_parquet_file(fpath, base_path, corpus, queries, limit_per_file):
                 corpus[doc_id] = doc_text
             relevant_doc_ids.append(doc_id)
 
-        queries.append({
-            "_id": qid,
-            "text": question,
-            "relevant_ids": relevant_doc_ids
-        })
+        queries.append({"_id": qid, "text": question, "relevant_ids": relevant_doc_ids})
 
 
 def _find_and_process_files(base_path, corpus, queries, limit_per_file):

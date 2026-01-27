@@ -149,6 +149,15 @@ class _DocumentsCache:
 
                 for file_path in self._data_dir.glob("*"):
                     if file_path.is_file():
+                        # Filter out system and metadata files
+                        if (
+                            file_path.name.startswith(".")
+                            or file_path.name.startswith("metadata")
+                            or file_path.name.endswith(".metadata.json")
+                            or file_path.name.endswith(".tmp")
+                        ):
+                            continue
+
                         stats = file_path.stat()
                         items.append((file_path.name, stats.st_mtime_ns, stats.st_size))
 
@@ -528,6 +537,10 @@ class QueryRequest(BaseModel):
     )
     # Collection filtering
     collection_id: Optional[str] = Field(None, description="Filter results to specific collection")
+    # Chat history for context
+    chat_history: Optional[list[dict[str, str]]] = Field(
+        None, description="Previous messages for context"
+    )
     # Streaming
     stream: bool = Field(False, description="Enable streaming response (opt-in)")
 
@@ -704,6 +717,7 @@ class SettingsResponse(BaseModel):
     llm_model: str
     llm_provider: str
     accent: Optional[str] = None
+    source_min_score: Optional[float] = None
     # Add other settings as needed
 
 
@@ -713,6 +727,7 @@ class SettingsUpdate(BaseModel):
     llm_model: Optional[str] = None
     llm_provider: Optional[str] = None
     accent: Optional[str] = None
+    source_min_score: Optional[float] = None
 
 
 # API Endpoints
@@ -770,6 +785,7 @@ async def get_settings(request: Request):
         or "llama3",
         llm_provider=config.get("llm.provider", "ollama"),
         accent=config.get("ui.accent", "blue"),
+        source_min_score=float(config.get("ui.sources.min_score", 0.25)),
     )
 
 
@@ -789,6 +805,16 @@ async def update_settings(settings: SettingsUpdate, request: Request):
     if settings.accent:
         config.set("ui.accent", settings.accent)
         updates["ui.accent"] = settings.accent
+
+    if settings.source_min_score is not None:
+        # Clamp to sensible range [0.0, 1.0]
+        val = float(settings.source_min_score)
+        if val < 0.0:
+            val = 0.0
+        if val > 1.0:
+            val = 1.0
+        config.set("ui.sources.min_score", val)
+        updates["ui.sources.min_score"] = val
 
     if updates:
         config.save()
@@ -1137,10 +1163,15 @@ async def delete_all_documents(request: Request, force: Optional[bool] = Query(F
         except Exception as e:
             errors.append({"doc_id": doc_id, "error": str(e)})
 
-    # Invalidate documents cache
+    # Invalidate documents and collections caches
     try:
         if hasattr(request.app.state, "documents_cache"):
             request.app.state.documents_cache.invalidate()
+    except Exception:
+        pass
+    try:
+        if hasattr(request.app.state, "collections_cache"):
+            request.app.state.collections_cache.invalidate()
     except Exception:
         pass
 
@@ -1343,7 +1374,7 @@ async def ingest_documents(
             try:
                 ingestor = DeepIngestor(
                     input_folder=str(data_path),
-                    output_dir=config.get("ingestion.deep.output_dir", "./data/deep"),
+                    output_dir=config.get("ingestion.deep.output_dir", "./storage/deep"),
                     run_id=rid,
                 )
                 ingestor.ingest()
@@ -1363,7 +1394,7 @@ async def ingest_documents(
     def run_ingestor():
         ingestor = DeepIngestor(
             input_folder=str(data_path),
-            output_dir=config.get("ingestion.deep.output_dir", "./data/deep"),
+            output_dir=config.get("ingestion.deep.output_dir", "./storage/deep"),
         )
         return ingestor.ingest()
 
@@ -1486,8 +1517,13 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             collection_count = 0
 
         if collection_count == 0:
-            logger.error("Vector index empty")
-            yield (json.dumps({"type": "error", "message": "Vector index empty"}) + "\n").encode()
+            logger.error("No documents indexed")
+            yield (
+                json.dumps({
+                    "type": "error",
+                    "message": "No documents indexed. Add documents via Upload (use the '+' button in Upload → Add documents) and build the index before chatting."
+                }) + "\n"
+            ).encode()
             return
 
         # Build where filter for collection if specified
@@ -1501,7 +1537,10 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             else:
                 logger.error(f"Collection {request_data.collection_id} has no documents")
                 yield (
-                    json.dumps({"type": "error", "message": "Collection has no documents"}) + "\n"
+                    json.dumps({
+                        "type": "error",
+                        "message": "Collection has no documents. Add documents to the collection using the '+' button in Upload → Add documents, then build the index before chatting."
+                    }) + "\n"
                 ).encode()
                 return
 
@@ -1666,7 +1705,7 @@ async def query(request_data: QueryRequest, request: Request):
     if collection_count == 0:
         raise HTTPException(
             status_code=503,
-            detail="Vector index empty. Please run /api/build-index to initialize the index before querying.",
+            detail="No documents indexed. Add documents via Upload (use the '+' button in Upload → Add documents) and build the index before querying.",
         )
 
     # Build where filter for collection if specified
@@ -1684,7 +1723,7 @@ async def query(request_data: QueryRequest, request: Request):
             logger.warning(f"Collection {request_data.collection_id} has no documents")
             raise HTTPException(
                 status_code=400,
-                detail=f"Collection '{request_data.collection_id}' has no documents. Please add documents to this collection before querying.",
+                detail=f"Collection '{request_data.collection_id}' has no documents. Add documents to the collection using the '+' button in Upload → Add documents, then Build Index before querying.",
             )
 
     # Retrieve documents using the correct method
@@ -1898,10 +1937,15 @@ async def delete_document(doc_id: str, request: Request):
     except Exception as e:
         logger.warning(f"Failed to remove uploaded file {doc_id}: {e}")
 
-    # Invalidate documents cache so listings refresh promptly
+    # Invalidate documents and collections caches so listings refresh promptly
     try:
         if request is not None and hasattr(request.app.state, "documents_cache"):
             request.app.state.documents_cache.invalidate()
+    except Exception:
+        pass
+    try:
+        if request is not None and hasattr(request.app.state, "collections_cache"):
+            request.app.state.collections_cache.invalidate()
     except Exception:
         pass
 

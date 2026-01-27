@@ -11,9 +11,18 @@ MODES = {
 }
 
 
-def run_mode(dataset, dataset_corpus, dataset_queries, mode, top_k, index_dir, output_base, force_reindex=False):
+def run_mode(
+    dataset,
+    dataset_corpus,
+    dataset_queries,
+    mode,
+    top_k,
+    index_dir,
+    output_base,
+    force_reindex=False,
+):
     out = Path(output_base) / f"beir_run_{dataset}_topk{top_k}_{mode}.json"
-    
+
     cmd = [
         "python",
         "tools/run_beir_adapter.py",
@@ -28,7 +37,7 @@ def run_mode(dataset, dataset_corpus, dataset_queries, mode, top_k, index_dir, o
         "--top-k",
         str(top_k),
     ]
-    
+
     # Only reindex if it's the first run or force_reindex is True
     # We'll handle this in the main loop
     if force_reindex:
@@ -59,14 +68,23 @@ if __name__ == "__main__":
 
     # Single shared index for this dataset/top_k combo
     shared_index_dir = Path(args.index_dir) / f"beir_index_{dataset}_shared"
-    
+
     # We only need to index once for the entire ablation suite
     first_run = True
     for mode in ["dense", "bm25", "hybrid"]:
         # Reindex on first mode run if directory doesn't exist or force_reindex is set
-        do_reindex = (first_run and (not shared_index_dir.exists() or args.force_reindex))
-        
-        run_mode(dataset, corpus, queries, mode, args.top_k, shared_index_dir, args.output_dir, force_reindex=do_reindex)
+        do_reindex = first_run and (not shared_index_dir.exists() or args.force_reindex)
+
+        run_mode(
+            dataset,
+            corpus,
+            queries,
+            mode,
+            args.top_k,
+            shared_index_dir,
+            args.output_dir,
+            force_reindex=do_reindex,
+        )
         first_run = False
 
     print("Ablation runs completed for", dataset)

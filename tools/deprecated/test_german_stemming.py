@@ -8,7 +8,7 @@ words = [
     ("Schäden", "Schaden"),
     ("Beiträge", "Beitrag"),
     ("Marken", "Marke"),
-    ("Patenten", "Patent")
+    ("Patenten", "Patent"),
 ]
 
 for w1, w2 in words:

@@ -20,8 +20,12 @@ def test_quickstart_scripts_exist():
     assert "start_fullstack.py" in content_ps1, "run_local.ps1 should start start_fullstack.py"
 
     # Ensure the canonical run_local.sh does an editable install and installs frontend deps
-    assert "install -e ." in content_sh, "run_local.sh should install the package in editable mode (pip install -e .)"
-    assert ("pnpm" in content_sh) or ("npm" in content_sh), "run_local.sh should install frontend dependencies with pnpm or npm"
+    assert (
+        "install -e ." in content_sh
+    ), "run_local.sh should install the package in editable mode (pip install -e .)"
+    assert ("pnpm" in content_sh) or (
+        "npm" in content_sh
+    ), "run_local.sh should install frontend dependencies with pnpm or npm"
 
     # Ensure quiet defaults exist (-q / --silent) so the script is unobtrusive by default
     assert "-q" in content_sh or "--silent" in content_sh

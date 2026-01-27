@@ -5,6 +5,7 @@ Usage:
 
 Returns exit code 0 if Ollama responds and the model can generate, non-zero otherwise.
 """
+
 import argparse
 import sys
 
@@ -16,17 +17,20 @@ except Exception as e:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check Ollama availability and model responsiveness")
+    parser = argparse.ArgumentParser(
+        description="Check Ollama availability and model responsiveness"
+    )
     parser.add_argument("--model", type=str, default=None, help="Model name to test (optional)")
     args = parser.parse_args()
 
     import os
+
     print("OLLAMA_BASE_URL:", os.environ.get("OLLAMA_BASE_URL"))
     print("OLLAMA_HOST:", os.environ.get("OLLAMA_HOST"))
     print("OLLAMA_PORT:", os.environ.get("OLLAMA_PORT"))
-    print("Python 'ollama' module info: version=", getattr(ollama, '__version__', 'n/a'))
+    print("Python 'ollama' module info: version=", getattr(ollama, "__version__", "n/a"))
     try:
-        print('ollama dir:', [k for k in dir(ollama) if not k.startswith('_')][:60])
+        print("ollama dir:", [k for k in dir(ollama) if not k.startswith("_")][:60])
     except Exception:
         pass
 
@@ -39,10 +43,14 @@ def main():
         try:
             print(f"Testing Ollama model '{model_name}' with a simple chat call...")
             try:
-                resp = ollama.chat(model=model_name, messages=[{"role": "user", "content": "Hello"}], timeout=5)
+                resp = ollama.chat(
+                    model=model_name, messages=[{"role": "user", "content": "Hello"}], timeout=5
+                )
             except TypeError:
                 # Some versions may not accept timeout kwarg
-                resp = ollama.chat(model=model_name, messages=[{"role": "user", "content": "Hello"}])
+                resp = ollama.chat(
+                    model=model_name, messages=[{"role": "user", "content": "Hello"}]
+                )
 
             # Handle either dict or iterator results
             if isinstance(resp, dict):
@@ -95,7 +103,9 @@ def main():
         except Exception as e:
             print(f"{ep} -> failed: {e}")
 
-    print("Ollama check failed for all probes. Ensure Ollama daemon is running and accessible to this process (same user/session).")
+    print(
+        "Ollama check failed for all probes. Ensure Ollama daemon is running and accessible to this process (same user/session)."
+    )
     sys.exit(6)
 
     print("Ollama check passed")

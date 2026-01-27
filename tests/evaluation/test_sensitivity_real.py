@@ -1,6 +1,5 @@
-import types
-
 import importlib.util
+import types
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location(

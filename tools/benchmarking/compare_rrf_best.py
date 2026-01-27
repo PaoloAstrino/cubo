@@ -2,20 +2,20 @@
 """Compare the best RRF settings in docs/eval/rrf_sensitivity_summary.md
 with entries in docs/eval/evaluation_antigravity.md and print a small report.
 """
-from pathlib import Path
 import re
+from pathlib import Path
 
-sfile = Path('docs/eval/rrf_sensitivity_summary.md').read_text(encoding='utf-8')
-afile = Path('docs/eval/evaluation_antigravity.md').read_text(encoding='utf-8')
+sfile = Path("docs/eval/rrf_sensitivity_summary.md").read_text(encoding="utf-8")
+afile = Path("docs/eval/evaluation_antigravity.md").read_text(encoding="utf-8")
 
 best_current = {}
-for section in sfile.split('\n\n'):
-    if section.startswith('## '):
+for section in sfile.split("\n\n"):
+    if section.startswith("## "):
         lines = section.splitlines()
-        ds = lines[0].strip().lstrip('## ').strip()
+        ds = lines[0].strip().lstrip("## ").strip()
         for l in lines:
-            if l.strip().startswith('| rrf_'):
-                parts = [p.strip() for p in l.strip().strip('|').split('|')]
+            if l.strip().startswith("| rrf_"):
+                parts = [p.strip() for p in l.strip().strip("|").split("|")]
                 tag = parts[0]
                 recall = float(parts[4])
                 mrr = float(parts[5])
@@ -40,11 +40,11 @@ for ds, cur in best_current.items():
         ptag, precall, pndcg = prev
         tag, recall, mrr, ndcg = cur
         if abs(recall - precall) < 1e-9 and abs(ndcg - pndcg) < 1e-9:
-            status = 'no change'
+            status = "no change"
         else:
             status = f"recall {precall:.4f} -> {recall:.4f}, nDCG {pndcg:.4f} -> {ndcg:.4f}"
     else:
-        status = 'no previous baseline found'
+        status = "no previous baseline found"
     report.append((ds, cur[0], recall, ndcg, status))
 
 for r in report:

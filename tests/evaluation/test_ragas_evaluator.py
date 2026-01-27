@@ -1,4 +1,5 @@
 import pytest
+
 from evaluation import ragas_evaluator as rev
 
 
@@ -20,7 +21,9 @@ def test_run_ragas_evaluation_serial_aggregation(monkeypatch):
     monkeypatch.setattr(rev, "evaluate", fake_evaluate)
 
     # Run in serial mode to force per-sample invocation
-    out = rev.run_ragas_evaluation(questions, contexts, ground_truths, answers, llm=None, max_workers=1)
+    out = rev.run_ragas_evaluation(
+        questions, contexts, ground_truths, answers, llm=None, max_workers=1
+    )
 
     # Expect averaged faithfulness: (0.6 + 0.7)/2 = 0.65
     assert pytest.approx(out.get("faithfulness", 0.0), rel=1e-6) == 0.65

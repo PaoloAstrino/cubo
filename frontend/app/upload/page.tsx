@@ -486,11 +486,11 @@ export default function UploadPage() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <div className={`collections-section grid gap-6 grid-cols-[repeat(auto-fit,minmax(180px,1fr))] ${draggingDocs ? 'z-40' : ''}`}>
+                    <div className={`collections-section grid gap-6 grid-cols-[repeat(auto-fit,minmax(180px,220px))] ${draggingDocs ? 'z-40' : ''}`}>
                         {collections.map((collection) => (
                             <Card
                                 key={collection.id}
-                                className="group relative cursor-pointer hover:shadow-lg transition-all overflow-hidden aspect-square w-full min-w-0"
+                                className="group relative cursor-pointer hover:shadow-lg transition-all overflow-hidden aspect-square w-full"
                                 style={{ aspectRatio: '1 / 1' }}
                                 onClick={() => handleOpenCollection(collection.id)}
                                 onDragOver={(e) => { e.preventDefault() }}
@@ -646,7 +646,7 @@ export default function UploadPage() {
                                 {documents.map((doc) => (
                                     <div
                                         key={doc.name}
-                                        className="group flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
+                                        className="group flex items-center justify-between p-3 border rounded-lg transition-colors"
                                         draggable
                                         onDragStart={(e) => handleDocDragStart(e, doc.name)}
                                     >

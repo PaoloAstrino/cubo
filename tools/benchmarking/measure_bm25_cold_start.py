@@ -17,7 +17,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -30,7 +30,7 @@ from cubo.retrieval.bm25_python_store import BM25PythonStore
 def flush_os_cache():
     """Flush OS file system cache (requires admin/sudo on most systems)."""
     import platform
-    
+
     system = platform.system()
     if system == "Linux":
         os.system("sudo sync; sudo echo 3 > /proc/sys/vm/drop_caches")
@@ -42,7 +42,9 @@ def flush_os_cache():
         # On Windows, use RAMMap from Sysinternals (requires download)
         # Alternative: restart search service
         print("⚠️  Windows: Cannot automatically flush cache. Run:")
-        print("   1. Download RAMMap from https://learn.microsoft.com/en-us/sysinternals/downloads/rammap")
+        print(
+            "   1. Download RAMMap from https://learn.microsoft.com/en-us/sysinternals/downloads/rammap"
+        )
         print("   2. Click 'Empty → Empty Working Sets' before cold-start test")
         print("   Otherwise, latencies will reflect warm cache only.")
     else:
@@ -58,38 +60,38 @@ def measure_bm25_latency(
 ) -> Dict[str, float]:
     """
     Measure BM25 search latencies.
-    
+
     Args:
         bm25_store: BM25PythonStore instance
         queries: List of query strings
         top_k: Number of results to return
         is_cold_start: If True, assume cache is empty (only test first query)
         num_runs: Number of repeated runs
-    
+
     Returns:
         Dictionary with p50, p95, p99, mean, and min latencies in ms
     """
     latencies = []
-    
+
     for run in range(num_runs):
         if is_cold_start and run > 0:
             # For cold-start, only measure the first query
             break
-        
+
         # Flush cache before cold-start run
         if is_cold_start and run == 0:
             print("  Flushing OS cache (requires admin)...")
             flush_os_cache()
             time.sleep(1)  # Give OS time to stabilize
-        
+
         for query in queries:
             start = time.perf_counter()
             results = bm25_store.search(query, top_k=top_k)
             end = time.perf_counter()
-            
+
             latency_ms = (end - start) * 1000
             latencies.append(latency_ms)
-    
+
     # Compute percentiles
     latencies = sorted(latencies)
     return {
@@ -104,9 +106,7 @@ def measure_bm25_latency(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Measure BM25 cold-start vs warm-cache latencies"
-    )
+    parser = argparse.ArgumentParser(description="Measure BM25 cold-start vs warm-cache latencies")
     parser.add_argument(
         "--corpus",
         type=str,
@@ -137,9 +137,9 @@ def main():
         action="store_true",
         help="Skip cold-start test (require manual cache flush, slow)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Generate sample queries
     print(f"Generating {args.queries} sample queries...")
     sample_queries = [
@@ -155,9 +155,9 @@ def main():
         "sparse retrieval BM25",
     ]
     # Cycle through sample queries if needed
-    query_list = (sample_queries * (args.queries // len(sample_queries) + 1))[:args.queries]
+    query_list = (sample_queries * (args.queries // len(sample_queries) + 1))[: args.queries]
     print(f"Using {len(query_list)} queries")
-    
+
     # Determine index directory
     if args.index_dir is None:
         # Try common locations
@@ -171,29 +171,30 @@ def main():
             if os.path.exists(path):
                 args.index_dir = path
                 break
-    
+
     if not args.index_dir or not os.path.exists(args.index_dir):
         print(f"❌ BM25 index not found")
         print(f"   Searched in common locations (e.g., data/beir_index_bm25_{args.corpus})")
         print(f"   Available BEIR BM25 indices:")
         import glob
+
         for idx in sorted(glob.glob("data/beir_index_bm25_*")):
             print(f"     - {idx}")
         sys.exit(1)
-    
+
     # Load BM25 store
     print(f"Loading BM25 index from {args.index_dir}...")
     bm25_store = BM25PythonStore(index_dir=args.index_dir)
-    
+
     results = {}
-    
+
     # Cold-start test (requires cache flush)
     if not args.skip_cold:
         print("\n🔴 COLD-START TEST (disk I/O, cache empty)")
         print("   WARNING: This requires admin privileges to flush OS cache.")
         print("   On Windows, manually use RAMMap → Empty Working Sets before running.")
         print("   Measuring first query only...")
-        
+
         try:
             cold_latencies = measure_bm25_latency(
                 bm25_store,
@@ -209,11 +210,11 @@ def main():
         except Exception as e:
             print(f"   ⚠️  Cold-start failed: {e}")
             print("   Skipping cold-start test.")
-    
+
     # Warm-cache test
     print("\n🟢 WARM-CACHE TEST (hot inverted lists in memory)")
     print(f"   Running {args.runs} iterations with {len(query_list)} queries each...")
-    
+
     warm_latencies = measure_bm25_latency(
         bm25_store,
         query_list,
@@ -222,16 +223,16 @@ def main():
         num_runs=args.runs,
     )
     results["warm_cache"] = warm_latencies
-    
+
     print(f"   p50: {warm_latencies['p50']:.1f} ms")
     print(f"   p95: {warm_latencies['p95']:.1f} ms")
     print(f"   p99: {warm_latencies['p99']:.1f} ms")
-    
+
     # Summary
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    
+
     if "cold_start" in results:
         cold = results["cold_start"]
         warm = results["warm_cache"]
@@ -239,12 +240,12 @@ def main():
         print(f"  p50:  {cold['p50']:6.1f} ms")
         print(f"  p95:  {cold['p95']:6.1f} ms")
         print(f"  p99:  {cold['p99']:6.1f} ms")
-        
+
         print(f"\nWarm-Cache ({warm['samples']} queries, hot lists):")
         print(f"  p50:  {warm['p50']:6.1f} ms")
         print(f"  p95:  {warm['p95']:6.1f} ms")
         print(f"  p99:  {warm['p99']:6.1f} ms")
-        
+
         print(f"\nPenalty (Cold - Warm):")
         print(f"  p50:  {cold['p50'] - warm['p50']:6.1f} ms")
         print(f"  p95:  {cold['p95'] - warm['p95']:6.1f} ms")
@@ -255,26 +256,28 @@ def main():
         print(f"  p50:  {warm['p50']:6.1f} ms")
         print(f"  p95:  {warm['p95']:6.1f} ms")
         print(f"  p99:  {warm['p99']:6.1f} ms")
-    
+
     # Save results
     output_file = f"bm25_latency_{args.corpus}.json"
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\n✅ Results saved to {output_file}")
-    
+
     # Recommendations for paper
     print("\n" + "=" * 60)
     print("FOR PAPER")
     print("=" * 60)
-    
+
     if "cold_start" in results:
         cold = results["cold_start"]
         warm = results["warm_cache"]
         print(f"\nUse this text in Table 6 footnote:")
         print(f"\n  BM25 latencies measured with warm index cache; cold-start")
-        print(f"  latencies (empty OS cache, disk I/O) are {cold['p50']:.0f}–{cold['p95']:.0f} ms p50–p95.")
+        print(
+            f"  latencies (empty OS cache, disk I/O) are {cold['p50']:.0f}–{cold['p95']:.0f} ms p50–p95."
+        )
         print(f"  In production, BM25 achieves <{warm['p50']:.0f} ms after warm-up.")
-    
+
 
 if __name__ == "__main__":
     main()

@@ -3,10 +3,10 @@
 import pytest
 
 pytest.importorskip("fastapi")
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
-from pathlib import Path
 
 
 @pytest.fixture

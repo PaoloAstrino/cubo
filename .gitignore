@@ -241,9 +241,21 @@ evaluation/evaluation.db
 evaluation/ingestion_results/
 TO_DO_PAPER.md
 
+# Runtime metadata & cache files (generated each run)
+cache/query_cache.json
+cache/semantic_cache.json
+*.db
+*.sqlite
+*.sqlite3
+
 # Test Artifacts
 tests/logs/
 tests/tmpdb/
 
 evaluation/ingestion_results/
 evaluation/__pycache__/
+
+# Python environment generated files
+*.pth
+.python-version.local
+pip-freeze-*.txt

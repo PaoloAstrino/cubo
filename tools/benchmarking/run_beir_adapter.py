@@ -25,10 +25,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime
 
-from evaluation.beir_adapter import CuboBeirAdapter
 from cubo.config import config
 from cubo.config.settings import settings
 from cubo.utils.logger import Logger
+from evaluation.beir_adapter import CuboBeirAdapter
 
 # Setup logging
 logger = Logger()
@@ -101,6 +101,7 @@ def _needs_id_resolution(queries):
         return False
     first_query = next(iter(queries.values()), "")
     import re
+
     return re.match(r"^[a-f0-9\-]+$", first_query) and len(first_query) >= 20
 
 
@@ -113,7 +114,9 @@ def _build_corpus_map(corpus_path):
                 item = json.loads(line)
                 cid = item.get("_id")
                 if cid:
-                    corpus_map[str(cid)] = (item.get("title", "") + " " + item.get("text", "")).strip()
+                    corpus_map[str(cid)] = (
+                        item.get("title", "") + " " + item.get("text", "")
+                    ).strip()
             except json.JSONDecodeError:
                 continue
     return corpus_map
@@ -140,7 +143,7 @@ def load_queries(queries_path: str, corpus_path: str = None) -> Dict[str, str]:
         print("Detected ID-based queries. Resolving against corpus...")
         corpus_map = _build_corpus_map(corpus_path)
         _resolve_query_ids(queries, corpus_map)
-            
+
     return queries
 
 
@@ -188,8 +191,14 @@ def _parse_arguments():
         help="Enable laptop mode (lazy loading, no reranking, etc)",
     )
     parser.add_argument("--query-limit", type=int, help="Limit number of queries to process")
-    parser.add_argument("--num-seeds", type=int, default=1, help="Number of random seeds for statistical validation")
-    parser.add_argument("--hot-fraction", type=float, help="Override hot fraction (e.g. 0.2 to test IVF+PQ variance)")
+    parser.add_argument(
+        "--num-seeds", type=int, default=1, help="Number of random seeds for statistical validation"
+    )
+    parser.add_argument(
+        "--hot-fraction",
+        type=float,
+        help="Override hot fraction (e.g. 0.2 to test IVF+PQ variance)",
+    )
 
     args = parser.parse_args()
 
@@ -218,28 +227,28 @@ def _apply_config_overrides(args):
 def _setup_logging(args):
     """Setup file and console logging handlers."""
     from pathlib import Path
-    
+
     logs_dir = Path("results/logs")
     logs_dir.mkdir(parents=True, exist_ok=True)
     logfile = logs_dir / f"beir_adapter_{Path(args.output).stem}.log"
-    
+
     try:
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.INFO)
-        
+
         fh = logging.FileHandler(str(logfile))
         fh.setLevel(logging.INFO)
         fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
-        
+
         if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
             root_logger.addHandler(fh)
-        
+
         if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
             sh = logging.StreamHandler()
             sh.setLevel(logging.INFO)
             sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
             root_logger.addHandler(sh)
-        
+
         log.info(f"Logging to {logfile} and console")
         return logfile
     except Exception as e:
@@ -251,16 +260,21 @@ def _initialize_adapter(args, logfile, seed=42):
     """Initialize and prepare the BEIR adapter with index."""
     log.info(f"Initializing CuboBeirAdapter (seed={seed})...")
     adapter = CuboBeirAdapter(
-        index_dir=args.index_dir, 
-        lightweight=False, 
+        index_dir=args.index_dir,
+        lightweight=False,
         seed=seed,
-        hot_fraction=args.hot_fraction if args.hot_fraction is not None else 0.2
+        hot_fraction=args.hot_fraction if args.hot_fraction is not None else 0.2,
     )
 
     try:
         if args.reindex:
             log.info(f"Reindexing corpus from {args.corpus}...")
-            adapter.index_corpus(corpus_path=args.corpus, index_dir=args.index_dir, limit=args.limit, batch_size=args.batch_size)
+            adapter.index_corpus(
+                corpus_path=args.corpus,
+                index_dir=args.index_dir,
+                limit=args.limit,
+                batch_size=args.batch_size,
+            )
         else:
             log.info(f"Loading index from {args.index_dir}...")
             adapter.load_index(args.index_dir)
@@ -268,7 +282,7 @@ def _initialize_adapter(args, logfile, seed=42):
         log.exception(f"Index operation failed for {args.index_dir}: {e}")
         print(f"Index operation failed: {e}. See log file: {logfile}", flush=True)
         sys.exit(1)
-    
+
     return adapter
 
 
@@ -276,17 +290,17 @@ def _load_and_limit_queries(args):
     """Load queries and optionally limit the number."""
     log.info(f"Loading queries from {args.queries}...")
     queries = load_queries(args.queries, args.corpus)
-    
+
     # If evaluating, filter queries to only those in qrels
     if args.evaluate and args.qrels:
         log.info(f"Filtering queries to match qrels in {args.qrels}...")
         qrels_ids = set()
         with open(args.qrels, "r") as f:
-            next(f) # Skip header
+            next(f)  # Skip header
             for line in f:
                 qid = line.strip().split("\t")[0]
                 qrels_ids.add(qid)
-        
+
         original_count = len(queries)
         queries = {qid: qtext for qid, qtext in queries.items() if qid in qrels_ids}
         log.info(f"Filtered queries from {original_count} to {len(queries)} matching qrels.")
@@ -294,7 +308,7 @@ def _load_and_limit_queries(args):
     if args.query_limit:
         log.info(f"Limiting to first {args.query_limit} queries...")
         queries = dict(list(queries.items())[: args.query_limit])
-    
+
     log.info(f"Loaded {len(queries)} queries")
     return queries
 
@@ -302,7 +316,7 @@ def _load_and_limit_queries(args):
 def _run_retrieval(adapter, queries, args):
     """Execute retrieval using either optimized or full production mode."""
     log.info(f"Running retrieval (top_k={args.top_k}, optimized={args.use_optimized})...")
-    
+
     if args.use_optimized:
         return adapter.retrieve_bulk_optimized(
             queries=queries, top_k=args.top_k, skip_reranker=True, batch_size=args.batch_size
@@ -314,7 +328,7 @@ def _run_retrieval(adapter, queries, args):
 def _save_results(results, metadata, args):
     """Save retrieval results with metadata to output file."""
     output_data = {**metadata, **results}
-    
+
     log.info(f"Saving run to {args.output}")
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=2)
@@ -338,20 +352,20 @@ def main():
     args = _parse_arguments()
     _apply_config_overrides(args)
     logfile = _setup_logging(args)
-    
+
     queries = _load_and_limit_queries(args)
     metadata = collect_benchmark_metadata(args, args.use_optimized)
-    
+
     all_metrics = []
     num_runs = args.num_seeds
-    
+
     for i in range(num_runs):
         seed = 42 + i
         log.info(f"--- Starting Run {i+1}/{num_runs} with seed {seed} ---")
-        
+
         # Initialize adapter with current seed
         adapter = _initialize_adapter(args, logfile, seed=seed)
-        
+
         # Retrieval
         results = _run_retrieval(adapter, queries, args)
 
@@ -362,7 +376,7 @@ def main():
             metrics = _calculate_metrics(results, args)
             if metrics:
                 all_metrics.append(metrics)
-        
+
         # Save individual run results
         if metrics is not None:
             run_metrics_file = args.output.replace(".json", f"_run_{i+1}_metrics.json")
@@ -385,10 +399,12 @@ def main():
     if num_runs > 1 and all_metrics:
         _aggregate_and_report_metrics(all_metrics, args)
 
+
 def _calculate_metrics(results, args):
     """Run BEIR evaluation and return metrics dict."""
     try:
         from beir.retrieval.evaluation import EvaluateRetrieval
+
         qrels = _load_qrels(args.qrels)
         evaluator = EvaluateRetrieval()
         ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, [1, 10, 100])
@@ -397,23 +413,25 @@ def _calculate_metrics(results, args):
         log.error(f"Metric calculation failed: {e}")
         return None
 
+
 def _print_evaluation_results(metrics):
     print("\n--- BEIR Evaluation Results ---")
     print(f"NDCG@10: {metrics['ndcg']['NDCG@10']:.4f}")
     print(f"Recall@100: {metrics['recall']['Recall@100']:.4f}")
     print(f"Precision@10: {metrics['precision']['P@10']:.4f}")
 
+
 def _aggregate_and_report_metrics(all_metrics, args):
     """Aggregate metrics from multiple runs and report mean ± std."""
     import numpy as np
-    
+
     metric_keys = ["ndcg", "recall", "precision"]
     sub_keys = ["NDCG@10", "Recall@100", "P@10"]
-    
+
     print(f"\n--- Statistical Results over {len(all_metrics)} runs ---")
-    
+
     stats_out = {}
-    
+
     for m_key in metric_keys:
         for s_key in sub_keys:
             if m_key in all_metrics[0] and s_key in all_metrics[0][m_key]:
@@ -421,13 +439,16 @@ def _aggregate_and_report_metrics(all_metrics, args):
                 mean = np.mean(vals)
                 std = np.std(vals)
                 print(f"{s_key}: {mean:.4f} ± {std:.4f}")
-                stats_out[s_key] = {"mean": float(mean), "std": float(std), "raw": [float(v) for v in vals]}
-    
+                stats_out[s_key] = {
+                    "mean": float(mean),
+                    "std": float(std),
+                    "raw": [float(v) for v in vals],
+                }
+
     stats_file = args.output.replace(".json", "_stats.json")
     with open(stats_file, "w") as f:
         json.dump(stats_out, f, indent=2)
     log.info(f"Statistical results saved to {stats_file}")
-
 
 
 if __name__ == "__main__":

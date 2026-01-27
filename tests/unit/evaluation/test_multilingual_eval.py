@@ -12,7 +12,7 @@ def test_skips_missing_queries(tmp_path):
 
 def test_skips_missing_index(tmp_path):
     qfile = tmp_path / "queries.jsonl"
-    qfile.write_text('{"_id":"q1","text":"test"}\n', encoding='utf-8')
+    qfile.write_text('{"_id":"q1","text":"test"}\n', encoding="utf-8")
     res = run_multilingual_eval("miracl-de", qfile, Path("nonexistent_index_dir"))
     assert res.get("skipped") is True
     assert res.get("reason") == "missing index"

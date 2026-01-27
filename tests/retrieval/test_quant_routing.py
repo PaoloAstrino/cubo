@@ -202,14 +202,19 @@ if __name__ == "__main__":
         """When quant-aware is enabled, α should be adjusted based on degradation."""
         router = QueryRouter(
             presets={
-                "factual": {"bm25_weight": 0.5, "dense_weight": 0.5, "use_reranker": False, "k_candidates": 100}
+                "factual": {
+                    "bm25_weight": 0.5,
+                    "dense_weight": 0.5,
+                    "use_reranker": False,
+                    "k_candidates": 100,
+                }
             }
         )
         router.quant_aware_enabled = True
         router.quant_degradation_factor = 0.10  # 10% recall drop
-        
+
         strategy = router.compute_strategy("What is the capital of France?")
-        
+
         # Dense weight should be reduced: 0.5 * (1 - 1.0 * 0.10) = 0.45
         # After renormalization: dense = 0.45/(0.5+0.45) = 0.474
         assert strategy.dense_weight < 0.5
@@ -220,21 +225,28 @@ if __name__ == "__main__":
     def test_sensitivity_parameter(self, monkeypatch):
         """Test different sensitivity (β) values."""
         from cubo.config import config
-        
-        monkeypatch.setitem(config._overrides, "query_router", {
-            "quant_sensitivity": 2.0  # More aggressive adjustment
-        })
-        
+
+        monkeypatch.setitem(
+            config._overrides,
+            "query_router",
+            {"quant_sensitivity": 2.0},  # More aggressive adjustment
+        )
+
         router = QueryRouter(
             presets={
-                "factual": {"bm25_weight": 0.5, "dense_weight": 0.5, "use_reranker": False, "k_candidates": 100}
+                "factual": {
+                    "bm25_weight": 0.5,
+                    "dense_weight": 0.5,
+                    "use_reranker": False,
+                    "k_candidates": 100,
+                }
             }
         )
         router.quant_aware_enabled = True
         router.quant_degradation_factor = 0.10
-        
+
         strategy = router.compute_strategy("What is the capital of France?")
-        
+
         # With β=2.0: 0.5 * (1 - 2.0 * 0.10) = 0.5 * 0.8 = 0.4
         # More aggressive reduction in dense weight
         assert strategy.dense_weight < 0.45
@@ -243,14 +255,19 @@ if __name__ == "__main__":
         """With zero degradation, α should not change."""
         router = QueryRouter(
             presets={
-                "factual": {"bm25_weight": 0.6, "dense_weight": 0.4, "use_reranker": False, "k_candidates": 100}
+                "factual": {
+                    "bm25_weight": 0.6,
+                    "dense_weight": 0.4,
+                    "use_reranker": False,
+                    "k_candidates": 100,
+                }
             }
         )
         router.quant_aware_enabled = True
         router.quant_degradation_factor = 0.0  # No degradation
-        
+
         strategy = router.compute_strategy("What is the capital of France?")
-        
+
         # Should keep original weights
         assert abs(strategy.bm25_weight - 0.6) < 0.01
         assert abs(strategy.dense_weight - 0.4) < 0.01
@@ -259,14 +276,19 @@ if __name__ == "__main__":
         """Extreme degradation should not produce negative weights."""
         router = QueryRouter(
             presets={
-                "conceptual": {"bm25_weight": 0.2, "dense_weight": 0.8, "use_reranker": True, "k_candidates": 100}
+                "conceptual": {
+                    "bm25_weight": 0.2,
+                    "dense_weight": 0.8,
+                    "use_reranker": True,
+                    "k_candidates": 100,
+                }
             }
         )
         router.quant_aware_enabled = True
         router.quant_degradation_factor = 0.95  # 95% degradation (extreme)
-        
+
         strategy = router.compute_strategy("Why does the sky appear blue?")
-        
+
         # Dense weight should be heavily reduced but not negative
         assert strategy.dense_weight >= 0.0
         assert strategy.bm25_weight >= 0.0
@@ -276,16 +298,26 @@ if __name__ == "__main__":
         """All query types should respect quant-aware adjustment."""
         router = QueryRouter(
             presets={
-                "factual": {"bm25_weight": 0.6, "dense_weight": 0.4, "use_reranker": False, "k_candidates": 100},
-                "conceptual": {"bm25_weight": 0.3, "dense_weight": 0.7, "use_reranker": True, "k_candidates": 100}
+                "factual": {
+                    "bm25_weight": 0.6,
+                    "dense_weight": 0.4,
+                    "use_reranker": False,
+                    "k_candidates": 100,
+                },
+                "conceptual": {
+                    "bm25_weight": 0.3,
+                    "dense_weight": 0.7,
+                    "use_reranker": True,
+                    "k_candidates": 100,
+                },
             }
         )
         router.quant_aware_enabled = True
         router.quant_degradation_factor = 0.15
-        
+
         factual_strategy = router.compute_strategy("What is GDP?")
         conceptual_strategy = router.compute_strategy("Why does inflation occur?")
-        
+
         # Both should have reduced dense weights
         assert factual_strategy.dense_weight < 0.4
         assert conceptual_strategy.dense_weight < 0.7

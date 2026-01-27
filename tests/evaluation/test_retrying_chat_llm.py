@@ -3,8 +3,8 @@ import time
 from pathlib import Path
 
 import pytest
-from langchain_core.messages import HumanMessage, AIMessage
-from langchain_core.outputs import ChatResult, ChatGeneration
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 from evaluation.ragas_evaluator import RetryingChatLLM
 

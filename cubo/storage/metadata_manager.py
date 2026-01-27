@@ -15,7 +15,10 @@ from cubo.utils.logger import logger
 
 class MetadataManager:
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = Path(db_path or config.get("metadata_db_path", "./data/metadata.db"))
+        # Default to ./storage/metadata.db if not provided or configured differently
+        # This keeps the 'data' folder clean for user documents only.
+        default_path = config.get("metadata_db_path", "./storage/metadata.db")
+        self.db_path = Path(db_path or default_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         # Allow cross-thread use with a simple lock guard; set a small timeout to avoid busy errors.
         self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=5.0)

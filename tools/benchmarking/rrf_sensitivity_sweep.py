@@ -4,8 +4,8 @@ Writes run files and computes metrics via calculate_beir_metrics.py, and produce
 """
 import json
 import subprocess
-from pathlib import Path
 from itertools import product
+from pathlib import Path
 
 DATASETS = ["arguana", "fiqa", "nfcorpus", "scifact"]
 K_VALUES = [20, 60, 120]
@@ -14,6 +14,7 @@ TOP_K = 50
 RESULTS_DIR = Path("results")
 DOCS_DIR = Path("docs/eval")
 SUMMARY_FILE = DOCS_DIR / "rrf_sensitivity_summary.md"
+
 
 # Helper to load run json (qid -> {doc_id: score}) and convert to list format expected by rrf_fuse
 def load_run_as_list(run_path):
@@ -47,12 +48,12 @@ def _compute_rrf_fusion(dense_list, bm25_list, k, sw, bw, top_k):
     # BM25 ranks
     for idx, entry in enumerate(bm25_list[:top_k]):
         rank = idx + 1
-        doc = entry.get('doc_id')
+        doc = entry.get("doc_id")
         scores[doc] = scores.get(doc, 0.0) + bw * (1.0 / (k + rank))
     # Semantic ranks
     for idx, entry in enumerate(dense_list[:top_k]):
         rank = idx + 1
-        doc = entry.get('doc_id')
+        doc = entry.get("doc_id")
         scores[doc] = scores.get(doc, 0.0) + sw * (1.0 / (k + rank))
     # Sort by fused score
     ordered = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -62,11 +63,20 @@ def _compute_rrf_fusion(dense_list, bm25_list, k, sw, bw, top_k):
 def _write_and_compute_metrics(fused_results, out_run, qrels):
     """Write fused results to file and compute metrics."""
     # Write run json
-    with open(out_run, 'w', encoding='utf-8') as f:
+    with open(out_run, "w", encoding="utf-8") as f:
         json.dump(fused_results, f, indent=2)
 
     # Compute metrics via existing script
-    cmd = ["python", "tools/calculate_beir_metrics.py", "--results", str(out_run), "--qrels", str(qrels), "--k", "10"]
+    cmd = [
+        "python",
+        "tools/calculate_beir_metrics.py",
+        "--results",
+        str(out_run),
+        "--qrels",
+        str(qrels),
+        "--k",
+        "10",
+    ]
     try:
         subprocess.run(cmd, check=True)
         return True
@@ -77,16 +87,16 @@ def _write_and_compute_metrics(fused_results, out_run, qrels):
 def _collect_sweep_result(out_metrics, dataset, tag, k, sw, bw):
     """Load metrics from file and return sweep result entry."""
     if out_metrics.exists():
-        m = json.load(open(out_metrics, 'r', encoding='utf-8'))
+        m = json.load(open(out_metrics, "r", encoding="utf-8"))
         return {
             "dataset": dataset,
             "tag": tag,
             "k": k,
             "sw": sw,
             "bw": bw,
-            "recall": m.get('recall_at_k'),
-            "mrr": m.get('mrr'),
-            "ndcg": m.get('ndcg')
+            "recall": m.get("recall_at_k"),
+            "mrr": m.get("mrr"),
+            "ndcg": m.get("ndcg"),
         }
     return None
 
@@ -105,7 +115,7 @@ def run_sweep_for_dataset(dataset):
     combos = []
 
     for k, sw, bw in product(K_VALUES, WEIGHTS, WEIGHTS):
-        tag = f"rrf_k{k}_sw{sw}_bw{bw}".replace('.', 'p')
+        tag = f"rrf_k{k}_sw{sw}_bw{bw}".replace(".", "p")
         out_run = RESULTS_DIR / f"beir_run_{dataset}_topk50_hybrid_{tag}.json"
         out_metrics = RESULTS_DIR / f"beir_run_{dataset}_topk50_hybrid_{tag}_metrics_k10.json"
 
@@ -129,13 +139,16 @@ def run_sweep_for_dataset(dataset):
             print(f"Missing metrics file for {dataset} {tag}")
 
     # Sort combos by recall desc
-    combos.sort(key=lambda x: float(x['recall'] or 0.0), reverse=True)
+    combos.sort(key=lambda x: float(x["recall"] or 0.0), reverse=True)
     return combos
 
 
 def main():
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
-    summary_lines = ["# RRF Sensitivity Sweep Results\n", "This file summarizes results of RRF hyperparameter sweeps (k, semantic_weight, bm25_weight) conducted on dense/bm25 topk50 runs.\n"]
+    summary_lines = [
+        "# RRF Sensitivity Sweep Results\n",
+        "This file summarizes results of RRF hyperparameter sweeps (k, semantic_weight, bm25_weight) conducted on dense/bm25 topk50 runs.\n",
+    ]
 
     overall = []
     for ds in DATASETS:
@@ -148,26 +161,29 @@ def main():
         summary_lines.append("| tag | k | sw | bw | Recall@10 | MRR | nDCG@10 |\n")
         summary_lines.append("|---|---:|---:|---:|---:|---:|---:|\n")
         for c in combos[:10]:  # top 10
-            summary_lines.append(f"| {c['tag']} | {c['k']} | {c['sw']} | {c['bw']} | {c['recall']:.4f} | {c['mrr']:.4f} | {c['ndcg']:.4f} |\n")
+            summary_lines.append(
+                f"| {c['tag']} | {c['k']} | {c['sw']} | {c['bw']} | {c['recall']:.4f} | {c['mrr']:.4f} | {c['ndcg']:.4f} |\n"
+            )
         overall.append((ds, combos[0] if combos else None))
 
     # write summary
-    with open(SUMMARY_FILE, 'w', encoding='utf-8') as f:
+    with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
         f.writelines(summary_lines)
 
     # append short recommendations into canonical doc
-    canon = Path('docs/eval/evaluation_antigravity.md')
+    canon = Path("docs/eval/evaluation_antigravity.md")
     if canon.exists():
-        text = canon.read_text(encoding='utf-8')
-        appended = '\n\n## RRF Sensitivity Sweep (summary)\n\n'
+        text = canon.read_text(encoding="utf-8")
+        appended = "\n\n## RRF Sensitivity Sweep (summary)\n\n"
         for ds, best in overall:
             if best:
                 appended += f"- **{ds}** best: {best['tag']} (Recall@10={best['recall']:.4f}, nDCG={best['ndcg']:.4f})\n"
             else:
                 appended += f"- **{ds}**: no sweep results available\n"
-        canon.write_text(text + appended, encoding='utf-8')
+        canon.write_text(text + appended, encoding="utf-8")
 
-    print('Sweep complete. Summary written to', SUMMARY_FILE)
+    print("Sweep complete. Summary written to", SUMMARY_FILE)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

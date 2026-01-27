@@ -1,17 +1,19 @@
 """Profile retrieval WITHOUT reranking to get clean breakdown."""
 
-import sys
 import json
-from pathlib import Path
 
 # Disable reranking before importing CUBO
 import os
-os.environ['CUBO_RERANKER_ENABLED'] = 'false'
+import sys
+from pathlib import Path
+
+os.environ["CUBO_RERANKER_ENABLED"] = "false"
 
 # Now run profiling
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from cubo.config import config
+
 config.set("retrieval.reranker_enabled", False)
 
 # Import and run the profiler

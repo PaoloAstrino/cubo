@@ -11,6 +11,7 @@ Provides statistics on file sizes, question counts, and context uniqueness.
 import json
 import os
 from pathlib import Path
+
 import pandas as pd
 
 
@@ -46,7 +47,9 @@ def inspect_ultradomain():
                 except:
                     continue
 
-        print(f"{cat:15} | File: {file_size:6.1f}MB | Questions: {q_count:6} | Contexts: {len(contexts):5}")
+        print(
+            f"{cat:15} | File: {file_size:6.1f}MB | Questions: {q_count:6} | Contexts: {len(contexts):5}"
+        )
         total_q += q_count
         total_c += len(contexts)
 
@@ -73,8 +76,17 @@ def inspect_ragbench():
             df = pd.read_parquet(fpath)
             # Try to identify question/context columns
             # RAGBench usually has 'question', 'context', or 'documents'
-            q_col = next((c for c in df.columns if 'question' in c.lower() or 'query' in c.lower()), None)
-            c_col = next((c for c in df.columns if 'context' in c.lower() or 'doc' in c.lower() or 'passage' in c.lower()), None)
+            q_col = next(
+                (c for c in df.columns if "question" in c.lower() or "query" in c.lower()), None
+            )
+            c_col = next(
+                (
+                    c
+                    for c in df.columns
+                    if "context" in c.lower() or "doc" in c.lower() or "passage" in c.lower()
+                ),
+                None,
+            )
 
             file_size = os.path.getsize(fpath) / (1024 * 1024)
             n_q = len(df)
@@ -87,7 +99,9 @@ def inspect_ragbench():
                 elif isinstance(df[c_col].iloc[0], (list, tuple)):
                     n_c = "N/A (List of docs)"
 
-            print(f"{fpath.name:30} | Size: {file_size:5.1f}MB | Questions: {n_q:6} | Contexts: {n_c}")
+            print(
+                f"{fpath.name:30} | Size: {file_size:5.1f}MB | Questions: {n_q:6} | Contexts: {n_c}"
+            )
         except Exception as e:
             print(f"{fpath.name:30} | Error: {e}")
 

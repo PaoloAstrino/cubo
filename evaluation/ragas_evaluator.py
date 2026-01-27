@@ -5,15 +5,20 @@ Wraps CUBO's local LLM and Embedding models to be used with the RAGAS framework
 for evaluating generation quality (Faithfulness, Answer Relevance, Context Precision).
 """
 
+# For retry wrapper
+import json
 import logging
-from typing import List, Optional, Any, Dict
+import os
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
+from datasets import Dataset
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain_core.outputs import ChatResult, ChatGeneration
-from pydantic import Field
-
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from pydantic import BaseModel, Field
 from ragas import evaluate
 from ragas.metrics import (
     answer_relevancy,
@@ -21,16 +26,6 @@ from ragas.metrics import (
     context_recall,
     faithfulness,
 )
-
-# For retry wrapper
-import json
-import time
-import os
-from pathlib import Path
-from langchain_core.messages import HumanMessage
-from typing import Optional
-from pydantic import BaseModel
-from datasets import Dataset
 
 from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.processing.generator import create_response_generator
@@ -93,10 +88,10 @@ class CuboRagasLLM(BaseChatModel):
 
         # Extract query from the last user message
         query = cubo_messages[-1]["content"]
-        
+
         # Extract context from kwargs if provided by RAGAS (some metrics pass it)
         context = kwargs.get("context", "")
-        
+
         # If no explicit context, build full prompt from all messages for judge compatibility
         if not context:
             full_prompt = "\n".join([m["content"] for m in cubo_messages])
@@ -105,11 +100,7 @@ class CuboRagasLLM(BaseChatModel):
             # Use explicit context for faithful generation
             response_text = self.generator.generate_response(query=query, context=context)
 
-        return ChatResult(
-            generations=[
-                ChatGeneration(message=AIMessage(content=response_text))
-            ]
-        )
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=response_text))])
 
 
 class RetryingChatLLM(BaseChatModel):
@@ -124,11 +115,13 @@ class RetryingChatLLM(BaseChatModel):
     max_retries: int = Field(default=2)
     retry_pause: float = Field(default=0.5)
     debug_dir: Optional[str] = Field(default=None)
-    
+
     class Config:
         arbitrary_types_allowed = True
 
-    def __init__(self, wrapped: Any, max_retries: int = 2, debug_dir: Optional[str] = None, **kwargs):
+    def __init__(
+        self, wrapped: Any, max_retries: int = 2, debug_dir: Optional[str] = None, **kwargs
+    ):
         super().__init__(**kwargs)
         self.wrapped = wrapped
         self.max_retries = max_retries
@@ -139,7 +132,7 @@ class RetryingChatLLM(BaseChatModel):
 
     @property
     def _llm_type(self) -> str:
-        return getattr(self.wrapped, '_llm_type', 'retrying-chat')
+        return getattr(self.wrapped, "_llm_type", "retrying-chat")
 
     def _normalize_result(self, res: Any) -> ChatResult:
         """Normalize various LLM return types to ChatResult."""
@@ -178,27 +171,33 @@ class RetryingChatLLM(BaseChatModel):
     def _generate(self, *args, **kwargs) -> ChatResult:
         # Forward-compatible signature: accept positional args (messages, stop, run_manager, ...)
         # Extract messages and stop from args/kwargs for compatibility with different call styles
-        messages = kwargs.get('messages') if 'messages' in kwargs else (args[0] if len(args) > 0 else [])
-        stop = kwargs.get('stop') if 'stop' in kwargs else (args[1] if len(args) > 1 else None)
+        messages = (
+            kwargs.get("messages") if "messages" in kwargs else (args[0] if len(args) > 0 else [])
+        )
+        stop = kwargs.get("stop") if "stop" in kwargs else (args[1] if len(args) > 1 else None)
 
         # Use a simple counter tracking instead of Field
-        if not hasattr(self, '_call_counter'):
+        if not hasattr(self, "_call_counter"):
             self._call_counter = 0
         self._call_counter += 1
         call_id = self._call_counter
-        
+
         # First attempt
         try:
             # Call wrapped._generate() directly to get ChatResult
             # Pass all extra kwargs that _generate might need (e.g., context for RAGAS)
-            res = self.wrapped._generate(messages=messages, stop=stop, **{k: v for k, v in kwargs.items() if k not in ('messages','stop')})
+            res = self.wrapped._generate(
+                messages=messages,
+                stop=stop,
+                **{k: v for k, v in kwargs.items() if k not in ("messages", "stop")},
+            )
         except Exception as e:
             # If the underlying LLM fails outright, re-raise
             logger.error(f"[RetryingChatLLM call={call_id}] Underlying LLM failed: {e}")
             raise
 
         text = self._extract_text_from_result(res)
-        
+
         # Save initial attempt if debug enabled
         if self.debug_dir:
             try:
@@ -215,80 +214,99 @@ class RetryingChatLLM(BaseChatModel):
             return res
         except Exception as parse_err:
             # Not valid JSON; attempt retries
-            logger.warning(f"[RetryingChatLLM call={call_id}] Initial response not valid JSON: {str(parse_err)[:100]}")
+            logger.warning(
+                f"[RetryingChatLLM call={call_id}] Initial response not valid JSON: {str(parse_err)[:100]}"
+            )
             last_text = text
             last_error = str(parse_err)
-            
+
             for attempt in range(1, self.max_retries + 1):
-                logger.info(f"[RetryingChatLLM call={call_id}] Retry attempt {attempt}/{self.max_retries}")
-                
+                logger.info(
+                    f"[RetryingChatLLM call={call_id}] Retry attempt {attempt}/{self.max_retries}"
+                )
+
                 # Craft a strict follow-up instruction asking for valid JSON only
                 # Be very explicit about the format requirement
-                followup = HumanMessage(content=(
-                    "CRITICAL: Your previous response was not valid JSON and caused a parsing error.\n"
-                    f"Error: {last_error[:200]}\n\n"
-                    "You MUST respond with ONLY a valid JSON object. Requirements:\n"
-                    "1. Start with { and end with }\n"
-                    "2. Use double quotes for all strings\n"
-                    "3. No surrounding text, explanations, or markdown\n"
-                    "4. No trailing commas\n"
-                    "5. Properly escape special characters\n\n"
-                    "If you cannot provide the requested information in valid JSON format, "
-                    "return exactly: {\"error\": \"UNPARSABLE\"}\n\n"
-                    f"Previous invalid output was:\n{last_text[:500]}\n\n"
-                    "Provide ONLY the corrected JSON now:"
-                ))
-                
+                followup = HumanMessage(
+                    content=(
+                        "CRITICAL: Your previous response was not valid JSON and caused a parsing error.\n"
+                        f"Error: {last_error[:200]}\n\n"
+                        "You MUST respond with ONLY a valid JSON object. Requirements:\n"
+                        "1. Start with { and end with }\n"
+                        "2. Use double quotes for all strings\n"
+                        "3. No surrounding text, explanations, or markdown\n"
+                        "4. No trailing commas\n"
+                        "5. Properly escape special characters\n\n"
+                        "If you cannot provide the requested information in valid JSON format, "
+                        'return exactly: {"error": "UNPARSABLE"}\n\n'
+                        f"Previous invalid output was:\n{last_text[:500]}\n\n"
+                        "Provide ONLY the corrected JSON now:"
+                    )
+                )
+
                 try:
                     raw_res2 = self.wrapped.generate(messages=messages + [followup], stop=stop)
                     res2 = self._normalize_result(raw_res2)
                 except Exception as retry_err:
-                    logger.warning(f"[RetryingChatLLM call={call_id}] Retry {attempt} LLM call failed: {retry_err}")
+                    logger.warning(
+                        f"[RetryingChatLLM call={call_id}] Retry {attempt} LLM call failed: {retry_err}"
+                    )
                     time.sleep(self.retry_pause)
                     continue
-                    
+
                 text2 = self._extract_text_from_result(res2)
-                
+
                 # Save retry attempt if debug enabled
                 if self.debug_dir:
                     try:
-                        debug_file = Path(self.debug_dir) / f"call_{call_id:04d}_attempt_{attempt}.txt"
+                        debug_file = (
+                            Path(self.debug_dir) / f"call_{call_id:04d}_attempt_{attempt}.txt"
+                        )
                         with open(debug_file, "w", encoding="utf-8") as f:
                             f.write(f"Retry {attempt} response (call {call_id}):\n\n{text2}")
                     except Exception as e:
                         logger.warning(f"Failed to write debug file: {e}")
-                
+
                 try:
                     json.loads(text2)
-                    logger.info(f"[RetryingChatLLM call={call_id}] Valid JSON on retry attempt {attempt}")
+                    logger.info(
+                        f"[RetryingChatLLM call={call_id}] Valid JSON on retry attempt {attempt}"
+                    )
                     return res2
                 except Exception as retry_parse_err:
-                    logger.warning(f"[RetryingChatLLM call={call_id}] Retry {attempt} still not valid JSON: {str(retry_parse_err)[:100]}")
+                    logger.warning(
+                        f"[RetryingChatLLM call={call_id}] Retry {attempt} still not valid JSON: {str(retry_parse_err)[:100]}"
+                    )
                     last_text = text2
                     last_error = str(retry_parse_err)
                     time.sleep(self.retry_pause)
                     continue
-                    
+
             # If we exhaust retries, log final failure and return the last response (so upstream can log/handle)
-            logger.error(f"[RetryingChatLLM call={call_id}] Exhausted all {self.max_retries} retries; returning last response")
-            
+            logger.error(
+                f"[RetryingChatLLM call={call_id}] Exhausted all {self.max_retries} retries; returning last response"
+            )
+
             # Save final failure summary if debug enabled
             if self.debug_dir:
                 try:
                     summary_file = Path(self.debug_dir) / f"call_{call_id:04d}_FAILED.json"
                     with open(summary_file, "w", encoding="utf-8") as f:
-                        json.dump({
-                            "call_id": call_id,
-                            "max_retries": self.max_retries,
-                            "final_text": last_text[:1000],
-                            "final_error": last_error,
-                            "status": "EXHAUSTED_RETRIES"
-                        }, f, indent=2)
+                        json.dump(
+                            {
+                                "call_id": call_id,
+                                "max_retries": self.max_retries,
+                                "final_text": last_text[:1000],
+                                "final_error": last_error,
+                                "status": "EXHAUSTED_RETRIES",
+                            },
+                            f,
+                            indent=2,
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to write failure summary: {e}")
-                    
-            return res
 
+            return res
 
 
 def run_ragas_evaluation(
@@ -340,7 +358,9 @@ def run_ragas_evaluation(
 
     # If user requests serial execution (max_workers==1), evaluate each sample individually
     if max_workers == 1:
-        logger.info("Running RAGAS evaluation in serial mode (max_workers=1) to reduce judge concurrency")
+        logger.info(
+            "Running RAGAS evaluation in serial mode (max_workers=1) to reduce judge concurrency"
+        )
         aggregate = {}
         valid_counts = {}
         n = len(questions)
@@ -353,7 +373,9 @@ def run_ragas_evaluation(
             }
             single_dataset = Dataset.from_dict(single_data)
             try:
-                res = evaluate(dataset=single_dataset, metrics=metrics, llm=eval_llm, embeddings=embeddings)
+                res = evaluate(
+                    dataset=single_dataset, metrics=metrics, llm=eval_llm, embeddings=embeddings
+                )
             except Exception as e:
                 logger.warning(f"RAGAS per-sample evaluation failed for index {i}: {e}")
                 continue
@@ -379,7 +401,11 @@ def run_ragas_evaluation(
                 valid_counts[k] = valid_counts.get(k, 0) + 1
 
         # Compute averages for metrics with at least one valid value
-        averaged = {k: (aggregate[k] / valid_counts[k]) for k in aggregate.keys() if valid_counts.get(k, 0) > 0}
+        averaged = {
+            k: (aggregate[k] / valid_counts[k])
+            for k in aggregate.keys()
+            if valid_counts.get(k, 0) > 0
+        }
         return averaged
 
     # Default: run evaluation over the full dataset (may be parallel depending on RAGAS defaults)
@@ -402,8 +428,9 @@ def run_ragas_evaluation(
     if save_per_sample_path:
         try:
             from pathlib import Path
+
             Path(save_per_sample_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(save_per_sample_path, 'w', encoding='utf-8') as f:
+            with open(save_per_sample_path, "w", encoding="utf-8") as f:
                 for i in range(len(questions)):
                     sample = {
                         "sample_id": i,
@@ -420,10 +447,14 @@ def run_ragas_evaluation(
                             df = results.to_pandas()
                             if i < len(df):
                                 for col in df.columns:
-                                    sample[f"ragas_{col}"] = float(df[col].iloc[i]) if not pd.isna(df[col].iloc[i]) else None
+                                    sample[f"ragas_{col}"] = (
+                                        float(df[col].iloc[i])
+                                        if not pd.isna(df[col].iloc[i])
+                                        else None
+                                    )
                         except Exception as e:
                             logger.warning(f"Could not extract per-sample metrics: {e}")
-                    f.write(json.dumps(sample, ensure_ascii=False) + '\n')
+                    f.write(json.dumps(sample, ensure_ascii=False) + "\n")
             logger.info(f"Saved per-sample raw outputs to {save_per_sample_path}")
         except Exception as e:
             logger.error(f"Failed to save per-sample outputs: {e}")

@@ -5,7 +5,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-
 from cubo.indexing.faiss_index import FAISSIndexManager
 from cubo.retrieval.bm25_sqlite_store import BM25SqliteStore
 from cubo.retrieval.vector_store import FaissStore

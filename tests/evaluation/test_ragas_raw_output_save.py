@@ -1,4 +1,5 @@
 """Test per-sample raw output saving in RAGAS evaluation."""
+
 import json
 import tempfile
 from pathlib import Path
@@ -26,6 +27,7 @@ def test_per_sample_raw_output_saved(monkeypatch, tmp_path):
         class FakeResult:
             def to_dict(self):
                 return {"faithfulness": 0.8, "context_precision": 0.9}
+
         return FakeResult()
 
     monkeypatch.setattr(rev, "evaluate", fake_evaluate)
@@ -51,11 +53,11 @@ def test_per_sample_raw_output_saved(monkeypatch, tmp_path):
 
     # Verify JSONL file created and contains expected fields
     assert output_path.exists()
-    
+
     with open(output_path, "r") as f:
         lines = f.readlines()
         assert len(lines) == 2  # Two samples
-        
+
         for i, line in enumerate(lines):
             sample = json.loads(line)
             assert sample["sample_id"] == i
@@ -80,6 +82,7 @@ def test_per_sample_raw_output_optional(monkeypatch, tmp_path):
         class FakeResult:
             def to_dict(self):
                 return {"faithfulness": 0.7}
+
         return FakeResult()
 
     monkeypatch.setattr(rev, "evaluate", fake_evaluate)
@@ -95,6 +98,6 @@ def test_per_sample_raw_output_optional(monkeypatch, tmp_path):
 
     # Should still return aggregate scores
     assert "faithfulness" in scores
-    
+
     # No JSONL file should be created
     assert not any(tmp_path.glob("*.jsonl"))

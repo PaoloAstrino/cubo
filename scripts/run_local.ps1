@@ -21,15 +21,15 @@ if ($IsVerbose) { Write-Host "== CUBO Local Quickstart (PowerShell) ==" }
 
 # Helper function for logging
 function Log-Info($msg) {
-    if ($IsVerbose) { Write-Host "✓ $msg" -ForegroundColor Green }
+    if ($IsVerbose) { Write-Host "[INFO] $msg" -ForegroundColor Green }
 }
 
 function Log-Warning($msg) {
-    Write-Host "⚠ $msg" -ForegroundColor Yellow
+    Write-Host "[WARN] $msg" -ForegroundColor Yellow
 }
 
 function Log-Error($msg) {
-    Write-Host "✗ $msg" -ForegroundColor Red
+    Write-Host "[ERROR] $msg" -ForegroundColor Red
 }
 
 # System Checks
@@ -105,7 +105,7 @@ if ($CleanInstall -and (Test-Path -Path '.venv')) {
 if (-not (Test-Path -Path '.venv')) {
     Log-Info "Setting up a local environment for CUBO..."
     try {
-        python -m venv .venv
+        & $py -m venv .venv
         if ($LASTEXITCODE -ne 0) {
             Log-Error "Failed to create the local environment."
             exit 1
@@ -120,18 +120,24 @@ else {
     Log-Info "Found existing local environment."
 }
 
-# Activate virtualenv
+# Prepare the environment
 Log-Info "Preparing the environment..."
+$venvPython = ".\.venv\Scripts\python.exe"
+if (Test-Path $venvPython) {
+    $python = $venvPython
+    Log-Info "Using Python from local environment."
+}
+else {
+    Log-Error "Python not found in venv at $venvPython"
+    exit 1
+}
+
+# Try to activate venv (non-blocking, suppress output)
 try {
-    & .\.venv\Scripts\Activate.ps1
-    if ($LASTEXITCODE -ne 0) {
-        Log-Error "Failed to activate the environment."
-        exit 1
-    }
+    & .\.venv\Scripts\Activate.ps1 2>&1 | Out-Null
 }
 catch {
-    Log-Error "Failed to activate the environment: $_"
-    exit 1
+    # Silently ignore - we'll use venv Python directly anyway
 }
 
 # Clean up corrupted pip packages (packages starting with ~)
@@ -163,10 +169,10 @@ while (-not $pipSuccess -and $retryCount -lt $maxRetries) {
         }
         
         if ($IsVerbose) {
-            python -m pip install -e .
+            & $python -m pip install -e .
         }
         else {
-            python -m pip install -q -e . 2>&1 | Out-Null
+            & $python -m pip install -q -e . 2>&1 | Out-Null
         }
         
         if ($LASTEXITCODE -eq 0) {
@@ -273,11 +279,17 @@ foreach ($portInfo in $portsToCheck) {
                 $processId = [int]$Matches[1]
                 $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
                 if ($process) {
-                    $conflictingProcesses += @{
-                        Port        = $port
-                        Name        = $name
-                        PID         = $processId
-                        ProcessName = $process.ProcessName
+                    # Skip Ollama - it's required and should be running
+                    if ($port -eq 11434 -and $process.ProcessName -eq "ollama") {
+                        Log-Info "Ollama AI service is running on port 11434 (OK)"
+                    }
+                    else {
+                        $conflictingProcesses += @{
+                            Port        = $port
+                            Name        = $name
+                            PID         = $processId
+                            ProcessName = $process.ProcessName
+                        }
                     }
                 }
             }
@@ -313,9 +325,6 @@ if ($conflictingProcesses.Count -gt 0) {
     }
 }
 
-# Check for port conflicts and offer to kill existing processes
-# ... (existing port check code) ...
-
 # Check Ollama and Model Readiness
 Write-Host "`n-- Checking Ollama Intelligence --" -ForegroundColor Cyan
 Write-Host "IMPORTANT: Ollama must be running BEFORE starting CUBO" -ForegroundColor Yellow
@@ -331,6 +340,11 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Display selected model
+if ($env:CUBO_SELECTED_MODEL) {
+    Write-Host "Using AI model: $($env:CUBO_SELECTED_MODEL)" -ForegroundColor Green
+}
+
 # Start fullstack (uses scripts/start_fullstack.py)
 Log-Info "Launching CUBO..."
 Log-Info "Please wait while we start the services..."
@@ -340,13 +354,13 @@ try {
         $env:CUBO_VERBOSE = '1'
         Write-Host "`n=== Starting services in verbose mode ===" -ForegroundColor Cyan
         Write-Host "Press Ctrl+C to stop all services`n" -ForegroundColor Cyan
-        python scripts/start_fullstack.py
+        & $python scripts/start_fullstack.py
     }
     else {
         $env:CUBO_VERBOSE = '0'
         
         # Start process and wait a bit to see if it crashes immediately
-        $process = Start-Process -FilePath "python" -ArgumentList "scripts/start_fullstack.py" -WindowStyle Hidden -PassThru
+        $process = Start-Process -FilePath $python -ArgumentList "scripts/start_fullstack.py" -WindowStyle Hidden -PassThru
         Start-Sleep -Seconds 5
         
         if ($process.HasExited) {
@@ -368,12 +382,12 @@ try {
         }
         
         if ($healthOk) {
-            Write-Host "`n✓ CUBO is running!" -ForegroundColor Green
+            Write-Host "`nCUBO is running!" -ForegroundColor Green
             Write-Host "  Open this link in your browser: http://localhost:3000" -ForegroundColor Cyan
             Write-Host "`n  (To stop CUBO, close this window or use Task Manager to stop python.exe)" -ForegroundColor Gray
         }
         else {
-            Write-Host "`n✓ CUBO is starting up..." -ForegroundColor Green
+            Write-Host "`nCUBO is starting up..." -ForegroundColor Green
             Write-Host "  It might take a few more seconds." -ForegroundColor Gray
             Write-Host "  Open this link in your browser: http://localhost:3000" -ForegroundColor Cyan
         }

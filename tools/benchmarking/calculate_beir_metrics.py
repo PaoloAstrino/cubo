@@ -68,7 +68,8 @@ def _calculate_mrr(relevant_ids: set, hit_ids: list) -> float:
 def _dcg(rels):
     """Calculate Discounted Cumulative Gain for a list of relevance scores."""
     import math
-    return sum((2 ** r - 1) / math.log2(i + 2) for i, r in enumerate(rels))
+
+    return sum((2**r - 1) / math.log2(i + 2) for i, r in enumerate(rels))
 
 
 def _calculate_ndcg(qrels: dict, results: dict, k: int) -> list:
@@ -89,8 +90,8 @@ def _calculate_ndcg(qrels: dict, results: dict, k: int) -> list:
 
 def _save_metrics(results_path: str, metrics: dict, k: int):
     """Save metrics to JSON file."""
-    metrics_file = results_path.replace('.json', f'_metrics_k{k}.json')
-    with open(metrics_file, 'w', encoding='utf-8') as mf:
+    metrics_file = results_path.replace(".json", f"_metrics_k{k}.json")
+    with open(metrics_file, "w", encoding="utf-8") as mf:
         json.dump(metrics, mf, indent=2)
     print(f"Metrics saved to {metrics_file}")
 
@@ -120,7 +121,7 @@ def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
 
         found_queries += 1
         relevant_ids = _get_relevant_ids(qrels[qid])
-        
+
         # Sort hits by score descending and take top-k
         sorted_hits = sorted(hits.items(), key=lambda x: x[1], reverse=True)[:k]
         hit_ids = [str(hid) for hid, score in sorted_hits]
@@ -161,10 +162,21 @@ def calculate_metrics(results_path: str, qrels_path: str, k: int = 10):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Calculate BEIR metrics from run results")
-    parser.add_argument("--results", type=str, default="results/beir_run_nfcorpus.json", help="Path to the results JSON file")
-    parser.add_argument("--qrels", type=str, default="data/beir/nfcorpus/qrels/test.tsv", help="Path to the qrels file (TSV or JSON)")
+    parser.add_argument(
+        "--results",
+        type=str,
+        default="results/beir_run_nfcorpus.json",
+        help="Path to the results JSON file",
+    )
+    parser.add_argument(
+        "--qrels",
+        type=str,
+        default="data/beir/nfcorpus/qrels/test.tsv",
+        help="Path to the qrels file (TSV or JSON)",
+    )
     parser.add_argument("--k", type=int, default=10, help="Top-k for metrics calculation")
-    
+
     args = parser.parse_args()
     calculate_metrics(args.results, args.qrels, args.k)
