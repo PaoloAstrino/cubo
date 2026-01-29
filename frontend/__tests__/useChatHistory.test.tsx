@@ -65,18 +65,26 @@ describe('useChatHistory', () => {
     expect(localStorage.getItem('cubo_chat_history_global')).toBeNull()
   })
 
-  it('should clear history', () => {
-    const { result } = renderHook(() => useChatHistory(null))
+  it('should clear history and notify backend for collection', async () => {
+    const collectionId = 'col-1'
+    // Mock fetch
+    global.fetch = jest.fn(() => Promise.resolve({ ok: true })) as any
+
+    const { result } = renderHook(() => useChatHistory(collectionId))
 
     act(() => {
       result.current.setMessages([{ id: '1', role: 'user', content: 'hello' } as any])
     })
 
-    act(() => {
-      result.current.clearHistory()
+    await act(async () => {
+      await result.current.clearHistory()
     })
 
     expect(result.current.messages).toEqual([])
-    expect(localStorage.getItem('cubo_chat_history_global')).toBeNull()
+    expect(localStorage.getItem(`cubo_chat_history_${collectionId}`)).toBeNull()
+    expect(global.fetch).toHaveBeenCalledWith('/api/chat/clear', expect.any(Object))
+
+    // Cleanup mock
+    ;(global.fetch as jest.Mock).mockRestore()
   })
 })

@@ -732,6 +732,60 @@ class SettingsUpdate(BaseModel):
 
 
 # API Endpoints
+
+
+# -----------------------------
+# Chat control endpoints
+# -----------------------------
+class ClearChatRequest(BaseModel):
+    conversation_id: Optional[str] = Field(None, description="Conversation ID to clear")
+    collection_id: Optional[str] = Field(None, description="Collection ID to clear session for")
+
+
+@app.post("/api/chat/clear", status_code=204)
+async def clear_chat(request: Request, body: ClearChatRequest):
+    """Clear chat context for a conversation or collection (idempotent).
+
+    If `conversation_id` is provided, removes messages for that conversation and
+    clears any in-memory LLM session. If `collection_id` is provided, publishes
+    an invalidation for sessions associated with that collection.
+    """
+    from cubo.storage.metadata_manager import get_metadata_manager
+    from cubo.llm.session_manager import get_session_manager
+
+    mm = get_metadata_manager()
+    sm = get_session_manager()
+
+    if body.conversation_id:
+        # Remove messages (keep conversation metadata) and invalidate session
+        mm.clear_conversation(body.conversation_id)
+        sm.clear_session(body.conversation_id)
+        return Response(status_code=204)
+
+    if body.collection_id:
+        sm.clear_sessions_by_collection(body.collection_id)
+        return Response(status_code=204)
+
+    raise HTTPException(status_code=400, detail="conversation_id or collection_id required")
+
+
+@app.delete("/api/chat/{conversation_id}", status_code=204)
+async def delete_chat(request: Request, conversation_id: str):
+    """Delete a conversation and all its messages (irreversible)."""
+    from cubo.storage.metadata_manager import get_metadata_manager
+    from cubo.llm.session_manager import get_session_manager
+
+    mm = get_metadata_manager()
+    sm = get_session_manager()
+
+    deleted = mm.delete_conversation(conversation_id)
+    if deleted:
+        sm.clear_session(conversation_id)
+        return Response(status_code=204)
+    else:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+
 @app.get("/api/llm/models", response_model=List[LLMModel])
 async def list_llm_models(request: Request):
     """List available LLM models from Ollama."""

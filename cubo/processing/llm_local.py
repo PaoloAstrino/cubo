@@ -77,19 +77,27 @@ class LocalResponseGenerator:
         model_name = config.get("llm_model") or self.model_path or "llama3"
         prompt = self.chat_template_manager.format_chat(convo, model_name=model_name)
 
+        # Get timeout from config, default to 60s
+        timeout = config.get("llm.generation_timeout", 60)
+
         def _generate_operation():
             if not self._llm:
                 raise RuntimeError("Local LLM not initialized; check model path and dependencies")
             try:
                 # llama_cpp API supports create_completion or generate depending on versions; try both
                 if hasattr(self._llm, "create_completion"):
-                    resp = self._llm.create_completion(prompt=prompt, max_tokens=512)
-                    # older versions return dict
-                    if isinstance(resp, dict):
-                        # Support choices structure returned by newer APIs
-                        text = resp.get("choices", [{}])[0].get("text") or resp.get("text") or ""
-                        return text
-                    return str(resp)
+                    # Create completion iterator
+                    stream = self._llm.create_completion(prompt=prompt, max_tokens=512, stream=True)
+                    text_parts = []
+                    start_gen = time.time()
+                    for chunk in stream:
+                        if time.time() - start_gen > timeout:
+                            logger.warning(f"Local LLM generation timed out after {timeout}s")
+                            break
+                        if isinstance(chunk, dict):
+                            part = chunk.get("choices", [{}])[0].get("text") or ""
+                            text_parts.append(part)
+                    return "".join(text_parts).strip()
                 elif hasattr(self._llm, "generate"):
                     resp = self._llm.generate(prompt)
                     # generate usually returns an object with 'choices'
@@ -135,6 +143,7 @@ class LocalResponseGenerator:
         prompt = self.chat_template_manager.format_chat(convo, model_name=model_name)
 
         start_time = time.time()
+        timeout = config.get("llm.generation_timeout", 60)
 
         if not self._llm:
             logger.error("Local LLM not initialized")
@@ -152,6 +161,16 @@ class LocalResponseGenerator:
                 try:
                     stream = self._llm.create_completion(prompt=prompt, max_tokens=512, stream=True)
                     for chunk in stream:
+                        # Check timeout
+                        if time.time() - start_time > timeout:
+                            logger.warning(f"Local LLM streaming timed out after {timeout}s")
+                            yield {
+                                "type": "error", 
+                                "message": f"Generation timed out after {timeout} seconds",
+                                "trace_id": trace_id
+                            }
+                            return
+
                         if isinstance(chunk, dict):
                             delta = chunk.get("choices", [{}])[0].get("text", "")
                             if delta:

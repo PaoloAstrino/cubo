@@ -63,14 +63,28 @@ export function useChatHistory(collectionId: string | null) {
     }
   }, [messages, storageKey, isHistoryLoaded])
 
-  const clearHistory = useCallback(() => {
+  const clearHistory = useCallback(async () => {
     setMessages([])
     try {
       localStorage.removeItem(storageKey)
     } catch (error) {
       console.error("Failed to clear chat history:", error)
     }
-  }, [storageKey])
+
+    // Notify backend to clear server-side session/context for this collection
+    if (collectionId) {
+      try {
+        await fetch('/api/chat/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection_id: collectionId })
+        })
+      } catch (e) {
+        // Non-blocking: ignore network failures for now but log
+        console.error('Failed to notify backend to clear chat for collection:', e)
+      }
+    }
+  }, [storageKey, collectionId])
 
   return {
     messages,

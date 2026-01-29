@@ -248,6 +248,11 @@ cache/semantic_cache.json
 *.sqlite
 *.sqlite3
 
+# Storage folder (indices, ingestion artifacts, deep chunks, etc.)
+# Ignore the entire storage directory and its contents
+/storage/
+storage/
+
 # Test Artifacts
 tests/logs/
 tests/tmpdb/
