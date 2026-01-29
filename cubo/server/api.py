@@ -537,6 +537,7 @@ class QueryRequest(BaseModel):
     )
     # Collection filtering
     collection_id: Optional[str] = Field(None, description="Filter results to specific collection")
+    doc_ids: Optional[List[str]] = Field(None, description="Filter results to specific document IDs")
     # Chat history for context
     chat_history: Optional[list[dict[str, str]]] = Field(
         None, description="Previous messages for context"
@@ -1398,41 +1399,55 @@ async def ingest_documents(
         )
         return ingestor.ingest()
 
-    # Acquire lock to prevent OOM from concurrent heavy tasks
-    async with compute_lock:
-        result = await run_in_threadpool(run_ingestor)
+    try:
+        # Acquire lock to prevent OOM from concurrent heavy tasks
+        async with compute_lock:
+            result = await run_in_threadpool(run_ingestor)
 
-    if not result:
-        logger.warning("Deep ingestion produced no results")
-        return IngestResponse(
-            status="completed",
-            documents_processed=0,
-            trace_id=request.state.trace_id,
-            message="No chunks generated from documents",
+        if not result:
+            logger.warning("Deep ingestion produced no results")
+            return IngestResponse(
+                status="completed",
+                documents_processed=0,
+                trace_id=request.state.trace_id,
+                message="No chunks generated from documents",
+            )
+
+        chunks_count = result.get("chunks_count", 0)
+        parquet_path = result.get("chunks_parquet", "")
+        run_id = result.get("run_id")
+
+        logger.info(
+            "Document ingestion completed",
+            extra={"chunks_processed": chunks_count, "parquet_path": parquet_path},
+        )
+        trace_collector.record(
+            request.state.trace_id,
+            "api",
+            "ingest.completed",
+            {"chunks_processed": chunks_count, "parquet_path": parquet_path},
         )
 
-    chunks_count = result.get("chunks_count", 0)
-    parquet_path = result.get("chunks_parquet", "")
-    run_id = result.get("run_id")
-
-    logger.info(
-        "Document ingestion completed",
-        extra={"chunks_processed": chunks_count, "parquet_path": parquet_path},
-    )
-    trace_collector.record(
-        request.state.trace_id,
-        "api",
-        "ingest.completed",
-        {"chunks_processed": chunks_count, "parquet_path": parquet_path},
-    )
-
-    return IngestResponse(
-        status="completed",
-        documents_processed=chunks_count,
-        run_id=run_id,
-        trace_id=request.state.trace_id,
-        message="Ingestion completed successfully",
-    )
+        return IngestResponse(
+            status="completed",
+            documents_processed=chunks_count,
+            run_id=run_id,
+            trace_id=request.state.trace_id,
+            message="Ingestion completed successfully",
+        )
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Document ingestion failed: {error_msg}", exc_info=True)
+        trace_collector.record(
+            request.state.trace_id,
+            "api",
+            "ingest.failed",
+            {"error": error_msg}
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ingestion failed: {error_msg}"
+        )
 
 
 @app.get("/api/ingest/{run_id}", response_model=IngestRunStatus)
@@ -1474,21 +1489,32 @@ async def build_index(
 
     logger.info("Index build started", extra={"force_rebuild": request_data.force_rebuild})
 
-    # Build index using CUBOApp's build_index method with explicit data folder
-    # Acquire lock to prevent OOM
-    async with compute_lock:
-        doc_count = await run_in_threadpool(cubo_app.build_index, "data")
+    try:
+        # Build index using CUBOApp's build_index method with explicit data folder
+        # Acquire lock to prevent OOM
+        async with compute_lock:
+            doc_count = await run_in_threadpool(cubo_app.build_index, "data")
 
-    logger.info(f"Index build completed with {doc_count} documents")
-    trace_collector.record(
-        request.state.trace_id, "api", "build_index.completed", {"documents_indexed": doc_count}
-    )
+        logger.info(f"Index build completed with {doc_count} documents")
+        trace_collector.record(
+            request.state.trace_id, "api", "build_index.completed", {"documents_indexed": doc_count}
+        )
 
-    return BuildIndexResponse(
-        status="completed",
-        trace_id=request.state.trace_id,
-        message=f"Index built successfully with {doc_count} documents",
-    )
+        return BuildIndexResponse(
+            status="completed",
+            trace_id=request.state.trace_id,
+            message=f"Index built successfully with {doc_count} documents",
+        )
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Index build failed: {error_msg}", exc_info=True)
+        trace_collector.record(
+            request.state.trace_id, "api", "build_index.failed", {"error": error_msg}
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Index building failed: {error_msg}"
+        )
 
 
 async def _query_stream_generator(request_data: QueryRequest, request: Request):
@@ -1922,10 +1948,9 @@ async def delete_document(doc_id: str, request: Request):
     }
     logger.info("GDPR Audit: Document deletion", extra=audit_entry)
 
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
-
     # Attempt to remove the physical file from the data directory
+    # Do this REGARDLESS of whether it was in the vector store,
+    # so users can delete files that were uploaded but not indexed yet
     try:
         data_path = Path("data") / doc_id
         if await run_in_threadpool(data_path.exists):
@@ -1934,8 +1959,17 @@ async def delete_document(doc_id: str, request: Request):
                 "Removed uploaded file from disk",
                 extra={"path": str(data_path), "trace_id": request.state.trace_id},
             )
+            deleted = True  # Mark as deleted since we removed the file
+        else:
+            # File doesn't exist on disk either
+            if not deleted:
+                raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning(f"Failed to remove uploaded file {doc_id}: {e}")
+        if not deleted:
+            raise HTTPException(status_code=500, detail=f"Failed to delete document {doc_id}: {e}")
 
     # Invalidate documents and collections caches so listings refresh promptly
     try:

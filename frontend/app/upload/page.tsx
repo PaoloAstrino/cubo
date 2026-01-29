@@ -119,27 +119,59 @@ export default function UploadPage() {
         if (!file) return
 
         setUploadProgress(0)
+        console.log('[Upload] Starting pipeline for:', file.name, `(${(file.size / 1024).toFixed(2)}KB)`)
 
         try {
             // Step 1: Upload
-            await uploadFile(file)
-            setUploadProgress(33)
-            mutate('/api/documents') // Refresh documents list
+            try {
+                console.log('[Upload] Step 1/3: Uploading file to server...')
+                await uploadFile(file)
+                console.log('[Upload] Step 1/3: ✓ Upload complete')
+                setUploadProgress(33)
+                mutate('/api/documents') // Refresh documents list
+            } catch (err) {
+                const errorMsg = err instanceof Error ? err.message : "Failed to upload file"
+                console.error('[Upload] Step 1/3: ✗ Upload failed -', errorMsg)
+                console.error('[Upload] Full error object:', err)
+                throw new Error(`Upload failed: ${errorMsg}`)
+            }
 
             // Step 2: Ingest
-            await ingestDocuments({ fast_pass: true })
-            setUploadProgress(66)
+            try {
+                console.log('[Upload] Step 2/3: Ingesting and processing document...')
+                await ingestDocuments({ fast_pass: true })
+                console.log('[Upload] Step 2/3: ✓ Ingest complete')
+                setUploadProgress(66)
+            } catch (err) {
+                const errorMsg = err instanceof Error ? err.message : "Failed to process document"
+                console.error('[Upload] Step 2/3: ✗ Ingest failed -', errorMsg)
+                console.error('[Upload] Full error object:', err)
+                throw new Error(`Ingestion failed: ${errorMsg}`)
+            }
 
             // Step 3: Build Index
-            await buildIndex()
-            setUploadProgress(100)
-            mutate('/api/documents') // Refresh again just in case
-            mutate('/api/ready') // Trigger readiness check update if needed
+            try {
+                console.log('[Upload] Step 3/3: Building search index...')
+                await buildIndex()
+                console.log('[Upload] Step 3/3: ✓ Index build complete')
+                setUploadProgress(100)
+                mutate('/api/documents') // Refresh again just in case
+                mutate('/api/ready') // Trigger readiness check update if needed
+            } catch (err) {
+                const errorMsg = err instanceof Error ? err.message : "Failed to build index"
+                console.error('[Upload] Step 3/3: ✗ Index build failed -', errorMsg)
+                console.error('[Upload] Full error object:', err)
+                throw new Error(`Index building failed: ${errorMsg}`)
+            }
+
+            console.log('[Upload] ✓ All steps completed successfully')
 
             // If a collectionId was provided, add the uploaded document to that collection
             if (collectionId) {
                 try {
+                    console.log('[Upload] Adding document to collection:', collectionId)
                     await addDocumentsToCollection(collectionId, [file.name])
+                    console.log('[Upload] ✓ Document added to collection')
                     // Refresh collections to update counts
                     mutate('/api/collections')
                     toast({
@@ -148,9 +180,12 @@ export default function UploadPage() {
                     })
                 } catch (err) {
                     // If adding to collection fails, still surface the main success but log error
+                    const errorMsg = err instanceof Error ? err.message : "Failed to add file to collection"
+                    console.error('[Upload] ✗ Failed to add document to collection -', errorMsg)
+                    console.error('[Upload] Full error object:', err)
                     toast({
                         title: "Added But Failed to Link",
-                        description: err instanceof Error ? err.message : "Failed to add file to collection",
+                        description: errorMsg,
                         variant: "destructive",
                     })
                 }
@@ -161,13 +196,18 @@ export default function UploadPage() {
                 })
             }
         } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Failed to process file"
+            console.error('[Upload] ✗ Pipeline failed:', errorMsg)
+            console.error('[Upload] Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+            console.error('[Upload] Full error object:', error)
             toast({
                 title: "Processing Failed",
-                description: error instanceof Error ? error.message : "Failed to process file",
+                description: errorMsg,
                 variant: "destructive",
             })
         } finally {
             setUploadProgress(null)
+            console.log('[Upload] Pipeline finished (progress reset)')
         }
     }
 
@@ -583,7 +623,7 @@ export default function UploadPage() {
             </div>
 
             {/* Document List */}
-            <Card className={`flex-1 flex flex-col ${draggingDocs ? 'opacity-20 blur-sm pointer-events-none' : ''}`}>
+            <Card className="flex-1 flex flex-col">
                 <CardHeader className="flex flex-col">
                     <div className="flex items-center justify-between w-full">
                         <CardTitle>All Files</CardTitle>
@@ -607,7 +647,36 @@ export default function UploadPage() {
                         Documents in your data directory ({documents.length})
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="flex-1 p-0">
+                <CardContent
+                    className="flex-1 p-0 relative"
+                    onDragOver={(e) => {
+                        e.preventDefault()
+                        setDragActive(true)
+                    }}
+                    onDragLeave={(e) => {
+                        // Prevent flicker when dragging over children
+                        if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                        setDragActive(false)
+                    }}
+                    onDrop={(e) => {
+                        e.preventDefault()
+                        setDragActive(false)
+                        const files = e.dataTransfer?.files
+                        if (files && files.length > 0) {
+                            Array.from(files).forEach((f) => processFile(f))
+                        }
+                    }}
+                >
+                    {dragActive && (
+                        <div className="absolute inset-0 bg-primary/10 border-2 border-primary border-dashed rounded-lg z-50 flex items-center justify-center pointer-events-none m-4">
+                            <div className="bg-background/90 px-6 py-4 rounded-full shadow-lg border">
+                                <p className="text-lg font-bold text-primary flex items-center gap-2">
+                                    <Upload className="w-5 h-5" />
+                                    Drop to upload
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     <ScrollArea className="h-full px-4">
                         {isLoading ? (
                             <div className="space-y-2">
@@ -623,18 +692,7 @@ export default function UploadPage() {
                             </div>
                         ) : documents.length === 0 ? (
                             <div
-                                className={`flex-1 w-full flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg p-6 transition-colors ${dragActive ? 'bg-accent/20 border-primary' : ''}`}
-                                onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
-                                onDragLeave={() => setDragActive(false)}
-                                onDrop={(e) => {
-                                    e.preventDefault()
-                                    setDragActive(false)
-                                    const files = e.dataTransfer?.files
-                                    if (files && files.length > 0) {
-                                        // Process all dropped files
-                                        Array.from(files).forEach((f) => processFile(f))
-                                    }
-                                }}
+                                className="flex-1 w-full flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg p-6 transition-colors"
                             >
                                 <File className="h-12 w-12 mb-4 opacity-20" />
                                 <p className="font-medium text-lg">No documents yet</p>

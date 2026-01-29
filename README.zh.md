@@ -11,15 +11,16 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Testing: Pytest](https://img.shields.io/badge/tests-passing-green.svg)](tests/)
-[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
+<!-- [![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX) -->
 [![Stars](https://img.shields.io/github/stars/PaoloAstrino/CUBO?style=social)](https://github.com/PaoloAstrino/CUBO)
 
 </div>
 
-<!-- Demo / GIF 占位符：将 XXXXX 替换为实际 YouTube ID 或添加 assets/demo.gif -->
+<!-- Demo / GIF 占位符：将 XXXXX 替换为实际 YouTube ID 或添加 assets/demo.gif
 [![观看 90 秒演示](https://img.youtube.com/vi/XXXXX/0.jpg)](https://www.youtube.com/watch?v=XXXXX)
 _90 秒演示：拖放 5 GB 合同 → 摄取 → 查询“解除条款” → 带引用的答案_  
 _或_ `![demo](assets/demo.svg)`
+-->
 
 ---
 

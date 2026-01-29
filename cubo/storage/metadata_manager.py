@@ -690,6 +690,42 @@ class MetadataManager:
 
         return {"id": row[0], "title": row[1], "created_at": row[2], "updated_at": row[3]}
 
+    def get_filenames_in_collection(self, collection_id: str) -> List[str]:
+        """Get all document filenames associated with a collection.
+        
+        Args:
+            collection_id: The collection ID to query
+            
+        Returns:
+            List of document filenames in the collection, or empty list if collection not found
+        """
+        try:
+            with self._lock:
+                cur = self.conn.cursor()
+                # Query ingestion_files table for files in this collection
+                # We assume collection_id is stored in run_id or related metadata
+                cur.execute("""
+                    SELECT DISTINCT file_path FROM ingestion_files
+                    WHERE run_id = ? AND status = 'success'
+                """, (collection_id,))
+                rows = cur.fetchall()
+                return [row[0] for row in rows] if rows else []
+        except Exception as e:
+            logger.warning(f"Failed to get filenames for collection {collection_id}: {e}")
+            return []
+
+    def clear_conversation(self, conversation_id: str) -> bool:
+        """Clear conversation messages but keep the conversation record.
+
+        Returns True if any messages were removed.
+        """
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+            rows_deleted = cur.rowcount
+            self.conn.commit()
+            return rows_deleted > 0
+
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation and all its messages."""
         with self._lock:

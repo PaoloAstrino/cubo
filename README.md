@@ -11,15 +11,16 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Testing: Pytest](https://img.shields.io/badge/tests-passing-green.svg)](tests/)
-[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
+<!-- [![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX) -->
 [![Stars](https://img.shields.io/github/stars/PaoloAstrino/CUBO?style=social)](https://github.com/PaoloAstrino/CUBO)
 
 </div>
 
-<!-- Demo / GIF placeholder: replace XXXXX with the real YouTube id or add assets/demo.gif -->
+<!-- Demo / GIF placeholder: replace XXXXX with the real YouTube id or add assets/demo.gif
 [![Watch the 90s demo](https://img.youtube.com/vi/XXXXX/0.jpg)](https://www.youtube.com/watch?v=XXXXX)
 _90s demo: drag 5 GB contracts → ingest → query "clausola recesso" → answer with citation_  
 _or_ `![demo](assets/demo.svg)`
+-->
 
 ---
 

@@ -11,15 +11,16 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Testing: Pytest](https://img.shields.io/badge/tests-passing-green.svg)](tests/)
-[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX)
+<!-- [![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b.svg)](https://arxiv.org/abs/XXXX.XXXXX) -->
 [![Stars](https://img.shields.io/github/stars/PaoloAstrino/CUBO?style=social)](https://github.com/PaoloAstrino/CUBO)
 
 </div>
 
-<!-- Demo / GIF placeholder: sostituisci XXXXX con l'ID YouTube reale o aggiungi assets/demo.gif -->
+<!-- Demo / GIF placeholder: sostituisci XXXXX con l'ID YouTube reale o aggiungi assets/demo.gif
 [![Guarda la demo di 90s](https://img.youtube.com/vi/XXXXX/0.jpg)](https://www.youtube.com/watch?v=XXXXX)
 _Demo 90s: trascina 5 GB di contratti → ingestione → query "clausola recesso" → risposta con citazione_  
 _oppure_ `![demo](assets/demo.svg)`
+-->
 
 ---
 

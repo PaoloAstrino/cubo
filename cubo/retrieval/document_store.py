@@ -270,6 +270,8 @@ class DocumentStore:
         Returns:
             List of unique IDs for each chunk
         """
+        import re
+        
         chunk_ids = []
         prefer_hash = config.get("deep_chunk_id_use_file_hash", True)
 
@@ -278,7 +280,10 @@ class DocumentStore:
             if prefer_hash and metadata.get("file_hash"):
                 base = metadata.get("file_hash")
             else:
-                base = filename
+                # Sanitize filename to remove spaces and special characters
+                # Replace spaces and special chars with underscores
+                sanitized = re.sub(r'[^A-Za-z0-9._:-]', '_', filename)
+                base = sanitized
 
             if self.use_sentence_window and "sentence_index" in metadata:
                 sentence_idx = metadata["sentence_index"]
@@ -488,9 +493,12 @@ class DocumentStore:
         embeddings = self.generate_embeddings([content], filename)
         # Use unique chunk id suffix to avoid replacing existing DB entries if duplicate
         import uuid
+        import re
 
         uid = uuid.uuid4().hex
-        chunk_ids = [f"{filename}_chunk_0_{uid}"]
+        # Sanitize filename to remove spaces and special characters not allowed in IDs
+        sanitized_filename = re.sub(r'[^A-Za-z0-9._:-]', '_', filename)
+        chunk_ids = [f"{sanitized_filename}_chunk_0_{uid}"]
         base_metadata = {
             "filename": filename,
             "file_hash": file_hash,

@@ -2,8 +2,22 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'HTTP error');
+    let errorMessage = 'HTTP error';
+    try {
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        // Extract error message from various possible formats
+        errorMessage = errorData.detail || errorData.message || errorData.error || JSON.stringify(errorData);
+      } else {
+        errorMessage = await response.text();
+      }
+    } catch (e) {
+      // If parsing fails, use status code and text
+      errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    }
+    console.error(`[API] Error ${response.status}:`, errorMessage);
+    throw new Error(errorMessage);
   }
   return response.json();
 }

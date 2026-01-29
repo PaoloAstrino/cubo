@@ -453,9 +453,23 @@ class DocumentRetriever:
         query: str,
         top_k: Optional[int] = None,
         trace_id: Optional[str] = None,
+        collection_id: Optional[str] = None,
+        doc_ids: Optional[List[str]] = None,
         **kwargs,
     ) -> List[Dict]:
-        """Retrieve top-k relevant document chunks using hybrid retrieval."""
+        """Retrieve top-k relevant document chunks using hybrid retrieval.
+        
+        Args:
+            query: The search query
+            top_k: Number of results to retrieve
+            trace_id: Optional trace ID for debugging
+            collection_id: Optional collection ID to filter results by collection
+            doc_ids: Optional list of document IDs to filter results to specific documents
+            **kwargs: Additional arguments (e.g., 'k' for top_k)
+            
+        Returns:
+            List of relevant document chunks
+        """
         try:
             if not query or not str(query).strip():
                 return []
@@ -471,8 +485,27 @@ class DocumentRetriever:
                 top_k = self.top_k
 
             logger.debug(
-                f"retrieve_top_documents query='{query[:50]}' top_k={top_k} trace_id={trace_id}"
+                f"retrieve_top_documents query='{query[:50]}' top_k={top_k} collection_id={collection_id} "
+                f"doc_ids_count={len(doc_ids) if doc_ids else 0} trace_id={trace_id}"
             )
+
+            # Expand collection_id to doc_ids if provided
+            effective_doc_ids = set(doc_ids) if doc_ids else None
+            if collection_id and not doc_ids:
+                try:
+                    from cubo.storage.metadata_manager import MetadataManager
+                    mm = MetadataManager()
+                    filenames = mm.get_filenames_in_collection(collection_id)
+                    if filenames:
+                        effective_doc_ids = set(filenames)
+                        logger.debug(f"Expanded collection_id={collection_id} to {len(filenames)} documents")
+                except Exception as e:
+                    logger.warning(f"Failed to expand collection_id={collection_id}: {e}")
+
+            # Short-circuit if effective_doc_ids is empty
+            if effective_doc_ids is not None and len(effective_doc_ids) == 0:
+                logger.debug(f"Short-circuit: empty doc_ids set for collection_id={collection_id}")
+                return []
 
             if trace_id:
                 trace_collector.record(
@@ -482,9 +515,9 @@ class DocumentRetriever:
             strategy = self.router.route_query(query) if self.router else None
 
             if self.use_auto_merging and self.auto_merging_retriever:
-                results = self._hybrid_retrieval(query, top_k, strategy, trace_id)
+                results = self._hybrid_retrieval(query, top_k, strategy, trace_id, effective_doc_ids)
             else:
-                results = self._retrieve_sentence_window(query, top_k, strategy, trace_id)
+                results = self._retrieve_sentence_window(query, top_k, strategy, trace_id, effective_doc_ids)
 
             # Normalize metadata shape for backward compatibility
             try:
@@ -567,11 +600,20 @@ class DocumentRetriever:
             ) from e
 
     def _hybrid_retrieval(
-        self, query: str, top_k: int, strategy: Optional[Dict], trace_id: Optional[str]
+        self, query: str, top_k: int, strategy: Optional[Dict], trace_id: Optional[str],
+        doc_ids: Optional[Set[str]] = None
     ) -> List[Dict]:
-        """Combine sentence window and auto-merging retrieval."""
+        """Combine sentence window and auto-merging retrieval.
+        
+        Args:
+            query: Search query
+            top_k: Number of results to retrieve
+            strategy: Retrieval strategy configuration
+            trace_id: Optional trace ID
+            doc_ids: Optional set of document IDs to filter results
+        """
         sentence_results = self._retrieve_sentence_window(
-            query, top_k // 2 + top_k % 2, strategy, trace_id
+            query, top_k // 2 + top_k % 2, strategy, trace_id, doc_ids
         )
         auto_results = self._retrieve_auto_merging(query, top_k // 2)
 
@@ -601,8 +643,17 @@ class DocumentRetriever:
         top_k: int,
         strategy: Optional[Dict] = None,
         trace_id: Optional[str] = None,
+        doc_ids: Optional[Set[str]] = None,
     ) -> List[Dict]:
-        """Retrieve using sentence window with three-tier retrieval."""
+        """Retrieve using sentence window with three-tier retrieval.
+        
+        Args:
+            query: Search query
+            top_k: Number of results
+            strategy: Retrieval strategy
+            trace_id: Optional trace ID
+            doc_ids: Optional set of document IDs to filter by
+        """
 
         def _operation():
             if not self.document_store.has_documents():
@@ -634,13 +685,13 @@ class DocumentRetriever:
             semantic = []
             if dense_weight > 0:
                 semantic = self.executor.query_dense(
-                    query_embedding, retrieval_k, query, self.current_documents, trace_id
+                    query_embedding, retrieval_k, query, doc_ids, trace_id
                 )
 
             # BM25 retrieval
             bm25 = []
             if bm25_weight > 0:
-                bm25 = self.executor.query_bm25(query, retrieval_k, self.current_documents)
+                bm25 = self.executor.query_bm25(query, retrieval_k, doc_ids)
 
             # Combine
             combined = self.retrieval_strategy.combine_results(

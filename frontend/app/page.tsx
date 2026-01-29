@@ -38,7 +38,7 @@ export default function LandingPage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-muted-foreground text-base md:text-lg max-w-md mx-auto">
-                            Interact with your uploaded documents using our intelligent offline chatbot.
+                            Interact with your uploaded documents using our intelligent chatbot.
                         </p>
                     </CardContent>
                 </Card>

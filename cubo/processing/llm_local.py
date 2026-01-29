@@ -72,8 +72,9 @@ class LocalResponseGenerator:
         convo.append({"role": "user", "content": user_content})
 
         # Use ChatTemplateManager to format
-        # We try to infer model name from path or config to pick the right template
-        model_name = self.model_path or config.get("llm_model") or "llama3"
+        # Prioritize explicit model name from config for template selection,
+        # fallback to inferring from path if model_name is generic or missing.
+        model_name = config.get("llm_model") or self.model_path or "llama3"
         prompt = self.chat_template_manager.format_chat(convo, model_name=model_name)
 
         def _generate_operation():

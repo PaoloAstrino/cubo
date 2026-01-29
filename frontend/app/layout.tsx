@@ -9,7 +9,7 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: 'CUBO - Offline RAG Assistant',
+  title: 'CUBO',
   description: 'Privacy-first document intelligence. Ask questions about your documents with complete data sovereignty.',
   icons: {
     icon: '/icon.svg',

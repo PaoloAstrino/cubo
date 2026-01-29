@@ -1,18 +1,11 @@
 {
   "dimension": 768,
   "hot_ids": [
-    "Ricevuta occasionale Paolo Astrino.pdf_chunk_0_4242bdfc4bcd4d138d4dc27fd3907ac0",
-    "UltraDomain_README.md_chunk_0_fca11a189e154af1bc44e51e7169bfde"
+    "README.md_chunk_0_e5de16fb48db4f0ab7e80a4eed57ae26"
   ],
   "cold_ids": [
-    "doc1.txt_chunk_0_374057159d6b489289100782293e7d46",
-    "doc2.txt_chunk_0_3b3d95229176463c8915fd7f544fac9e",
-    "README.md_chunk_0_6bb144e9ffa64063922f75e47ab5bff9",
-    "frogs.txt_chunk_0_e216305a029044a19bc71b82535e203f",
-    "space.txt_chunk_0_14d6b34e4e5f43e6a7d371fb703df231",
-    "doc3.txt_chunk_0_3aa26e9d562f4547b5ec5c17a26e8541",
-    "doc4.txt_chunk_0_6be9c376e48b449b88f8e0fdfa99aa8f",
-    "doc5.txt_chunk_0_8ba2baab4f2a4afd9b075927f4699909"
+    "UltraDomain_README.md_chunk_0_8e98d77b49164e46a7e48e943537a1fd",
+    "paper.pdf_chunk_0_b7c519e5ea3b4ed2aeae6477ee078cc1"
   ],
   "nlist": 32,
   "m": 8,
