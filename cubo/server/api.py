@@ -537,7 +537,9 @@ class QueryRequest(BaseModel):
     )
     # Collection filtering
     collection_id: Optional[str] = Field(None, description="Filter results to specific collection")
-    doc_ids: Optional[List[str]] = Field(None, description="Filter results to specific document IDs")
+    doc_ids: Optional[List[str]] = Field(
+        None, description="Filter results to specific document IDs"
+    )
     # Chat history for context
     chat_history: Optional[list[dict[str, str]]] = Field(
         None, description="Previous messages for context"
@@ -1492,16 +1494,8 @@ async def ingest_documents(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Document ingestion failed: {error_msg}", exc_info=True)
-        trace_collector.record(
-            request.state.trace_id,
-            "api",
-            "ingest.failed",
-            {"error": error_msg}
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Ingestion failed: {error_msg}"
-        )
+        trace_collector.record(request.state.trace_id, "api", "ingest.failed", {"error": error_msg})
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {error_msg}")
 
 
 @app.get("/api/ingest/{run_id}", response_model=IngestRunStatus)
@@ -1565,10 +1559,7 @@ async def build_index(
         trace_collector.record(
             request.state.trace_id, "api", "build_index.failed", {"error": error_msg}
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Index building failed: {error_msg}"
-        )
+        raise HTTPException(status_code=500, detail=f"Index building failed: {error_msg}")
 
 
 async def _query_stream_generator(request_data: QueryRequest, request: Request):
@@ -1599,10 +1590,13 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
         if collection_count == 0:
             logger.error("No documents indexed")
             yield (
-                json.dumps({
-                    "type": "error",
-                    "message": "No documents indexed. Add documents via Upload (use the '+' button in Upload → Add documents) and build the index before chatting."
-                }) + "\n"
+                json.dumps(
+                    {
+                        "type": "error",
+                        "message": "No documents indexed. Add documents via Upload (use the '+' button in Upload → Add documents) and build the index before chatting.",
+                    }
+                )
+                + "\n"
             ).encode()
             return
 
@@ -1617,10 +1611,13 @@ async def _query_stream_generator(request_data: QueryRequest, request: Request):
             else:
                 logger.error(f"Collection {request_data.collection_id} has no documents")
                 yield (
-                    json.dumps({
-                        "type": "error",
-                        "message": "Collection has no documents. Add documents to the collection using the '+' button in Upload → Add documents, then build the index before chatting."
-                    }) + "\n"
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "message": "Collection has no documents. Add documents to the collection using the '+' button in Upload → Add documents, then build the index before chatting.",
+                        }
+                    )
+                    + "\n"
                 ).encode()
                 return
 

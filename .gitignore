@@ -253,6 +253,11 @@ cache/semantic_cache.json
 /storage/
 storage/
 
+# Allow frontend-specific lib/ folder to be checked-in even though a top-level
+# "lib/" pattern exists. This lets imports like "@/lib/*" resolve during CI builds.
+!frontend/lib/
+!frontend/lib/*
+
 # Test Artifacts
 tests/logs/
 tests/tmpdb/

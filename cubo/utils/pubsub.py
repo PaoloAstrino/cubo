@@ -3,6 +3,7 @@
 Provides publish_event(topic, payload) with a best-effort Redis pub/sub connection
 and a no-op fallback for local dev and tests.
 """
+
 from typing import Any, Dict
 import json
 import logging

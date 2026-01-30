@@ -69,7 +69,7 @@ describe('ChatPage Trace Inspector', () => {
     })
 
     // Submit a query to generate a message with trace_id
-    const input = screen.getByPlaceholderText(/Ask a question/i)
+    const input = screen.getByLabelText(/Ask a question/i)
     fireEvent.change(input, { target: { value: 'Hello' } })
     fireEvent.submit(screen.getByRole('button', { name: /Send/i }))
 

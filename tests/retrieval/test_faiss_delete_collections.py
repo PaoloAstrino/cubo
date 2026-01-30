@@ -61,6 +61,8 @@ def test_enqueue_deletion_removes_collection_links(tmp_path: Path):
 
     # Deletion job should be present in deletion_jobs table
     with sqlite3.connect(str(store._db_path)) as conn:
-        row = conn.execute("SELECT id, doc_id, status FROM deletion_jobs WHERE id = ?", (job_id,)).fetchone()
+        row = conn.execute(
+            "SELECT id, doc_id, status FROM deletion_jobs WHERE id = ?", (job_id,)
+        ).fetchone()
     assert row is not None
     assert row[1] == doc_id

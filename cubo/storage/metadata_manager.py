@@ -692,10 +692,10 @@ class MetadataManager:
 
     def get_filenames_in_collection(self, collection_id: str) -> List[str]:
         """Get all document filenames associated with a collection.
-        
+
         Args:
             collection_id: The collection ID to query
-            
+
         Returns:
             List of document filenames in the collection, or empty list if collection not found
         """
@@ -704,10 +704,13 @@ class MetadataManager:
                 cur = self.conn.cursor()
                 # Query ingestion_files table for files in this collection
                 # We assume collection_id is stored in run_id or related metadata
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT DISTINCT file_path FROM ingestion_files
                     WHERE run_id = ? AND status = 'success'
-                """, (collection_id,))
+                """,
+                    (collection_id,),
+                )
                 rows = cur.fetchall()
                 return [row[0] for row in rows] if rows else []
         except Exception as e:

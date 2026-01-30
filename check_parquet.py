@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-parquet_file = Path(r'c:\Users\paolo\Desktop\cubo\storage\deep\chunks_deep.parquet')
+parquet_file = Path(r"c:\Users\paolo\Desktop\cubo\storage\deep\chunks_deep.parquet")
 if parquet_file.exists():
     df = pd.read_parquet(parquet_file)
     print(f"Total chunks in parquet: {len(df)}")

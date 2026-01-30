@@ -61,10 +61,10 @@ describe('ChatPage Streaming', () => {
     })
 
     // Wait for initial load
-    await waitFor(() => expect(screen.getByPlaceholderText(/Ask a question/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText(/Ask a question/i)).toBeInTheDocument())
 
     // Type and submit query
-    const input = screen.getByPlaceholderText(/Ask a question/i)
+    const input = screen.getByLabelText(/Ask a question/i)
     fireEvent.change(input, { target: { value: 'Hello' } })
     fireEvent.submit(screen.getByRole('button', { name: /Send/i }))
 

@@ -31,7 +31,7 @@ SANITIZE_RE = re.compile(r"[^A-Za-z0-9._:-]")
 
 def sanitize_id(old_id: str) -> Optional[str]:
     """Sanitize an ID by replacing invalid characters with underscores.
-    
+
     Returns None if ID is already valid, otherwise returns sanitized version.
     """
     if VALID_ID_RE.match(old_id):
@@ -43,7 +43,7 @@ def scan_collection_for_invalid_ids(
     collection: Any,
 ) -> List[Dict[str, Any]]:
     """Scan collection for IDs with invalid characters.
-    
+
     Returns list of dicts with 'old_id', 'new_id', and 'valid' status.
     """
     all_data = collection.get()
@@ -56,14 +56,16 @@ def scan_collection_for_invalid_ids(
     for idx, old_id in enumerate(ids):
         new_id = sanitize_id(old_id)
         if new_id is not None:
-            invalid_ids.append({
-                "old_id": old_id,
-                "new_id": new_id,
-                "metadata": metadatas[idx] if idx < len(metadatas) else {},
-                "document": documents[idx] if idx < len(documents) else "",
-                "embedding": embeddings[idx] if idx < len(embeddings) else None,
-            })
-    
+            invalid_ids.append(
+                {
+                    "old_id": old_id,
+                    "new_id": new_id,
+                    "metadata": metadatas[idx] if idx < len(metadatas) else {},
+                    "document": documents[idx] if idx < len(documents) else "",
+                    "embedding": embeddings[idx] if idx < len(embeddings) else None,
+                }
+            )
+
     return invalid_ids
 
 
@@ -73,29 +75,29 @@ def apply_sanitization(
     verbose: bool = False,
 ) -> List[Dict[str, Any]]:
     """Apply ID sanitization changes to the collection.
-    
+
     Returns list of successfully applied changes.
     """
     applied = []
-    
+
     for change in changes:
         try:
             old_id = change["old_id"]
             new_id = change["new_id"]
-            
+
             # Get the document data
             result = collection.get(ids=[old_id])
             if not result["ids"]:
                 logger.warning(f"ID not found: {old_id}")
                 continue
-            
+
             metadata = result["metadatas"][0] if result["metadatas"] else {}
             document = result["documents"][0] if result["documents"] else ""
             embedding = result["embeddings"][0] if result["embeddings"] else None
-            
+
             # Delete old ID
             collection.delete(ids=[old_id])
-            
+
             # Add with new ID
             if embedding is not None:
                 collection.upsert(
@@ -110,25 +112,29 @@ def apply_sanitization(
                     metadatas=[metadata],
                     documents=[document],
                 )
-            
+
             if verbose:
                 logger.info(f"Migrated: {old_id} -> {new_id}")
-            
-            applied.append({
-                "old_id": old_id,
-                "new_id": new_id,
-                "status": "success",
-            })
-        
+
+            applied.append(
+                {
+                    "old_id": old_id,
+                    "new_id": new_id,
+                    "status": "success",
+                }
+            )
+
         except Exception as e:
             logger.error(f"Failed to migrate {change['old_id']}: {e}")
-            applied.append({
-                "old_id": change["old_id"],
-                "new_id": change["new_id"],
-                "status": "failed",
-                "error": str(e),
-            })
-    
+            applied.append(
+                {
+                    "old_id": change["old_id"],
+                    "new_id": change["new_id"],
+                    "status": "failed",
+                    "error": str(e),
+                }
+            )
+
     return applied
 
 
@@ -162,40 +168,40 @@ def main():
         type=str,
         help="Path to save backup of changes",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Configure
     if args.db_path:
         config.set("vector_store_path", args.db_path)
-    
+
     config.set("collection_name", args.collection)
-    
+
     # Initialize retriever and collection
     retriever = DocumentRetriever(model=None)
     collection = retriever.collection
-    
+
     logger.info(f"Scanning collection '{args.collection}' for invalid IDs...")
     invalid_ids = scan_collection_for_invalid_ids(collection)
-    
+
     if not invalid_ids:
         logger.info("✓ No invalid IDs found. Collection is clean.")
         return
-    
+
     logger.info(f"Found {len(invalid_ids)} IDs with invalid characters:")
     for item in invalid_ids[:5]:  # Show first 5
         logger.info(f"  {item['old_id']} -> {item['new_id']}")
     if len(invalid_ids) > 5:
         logger.info(f"  ... and {len(invalid_ids) - 5} more")
-    
+
     if args.dry_run:
         logger.info("\n[DRY RUN] No changes applied. Use --apply to fix.")
         return
-    
+
     if not args.apply:
         logger.info("\nTo apply changes, run with --apply flag")
         return
-    
+
     # Backup metadata if requested
     if args.backup:
         backup_path = Path(args.backup)
@@ -204,14 +210,14 @@ def main():
             for item in invalid_ids:
                 f.write(json.dumps(item) + "\n")
         logger.info(f"✓ Backup created")
-    
+
     # Apply changes
     logger.info("Applying sanitization...")
     applied = apply_sanitization(collection, invalid_ids, verbose=True)
-    
+
     successful = sum(1 for a in applied if a["status"] == "success")
     failed = sum(1 for a in applied if a["status"] == "failed")
-    
+
     logger.info(f"\n✓ Sanitization complete: {successful} succeeded, {failed} failed")
 
 

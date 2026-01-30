@@ -44,7 +44,10 @@ def test_chunk_ids_sanitize_spaces_in_filename():
 
     chunk_ids = dr._create_chunk_ids(metadatas, filename)
     # Spaces should be replaced with underscores
-    assert chunk_ids == ["Ricevuta_occasionale_Paolo_Astrino.pdf_s0", "Ricevuta_occasionale_Paolo_Astrino.pdf_s1"]
+    assert chunk_ids == [
+        "Ricevuta_occasionale_Paolo_Astrino.pdf_s0",
+        "Ricevuta_occasionale_Paolo_Astrino.pdf_s1",
+    ]
 
 
 def test_chunk_ids_sanitize_special_chars_in_filename():
@@ -60,4 +63,3 @@ def test_chunk_ids_sanitize_special_chars_in_filename():
     chunk_ids = dr._create_chunk_ids(metadatas, filename)
     # Parentheses and spaces should be replaced with underscores
     assert chunk_ids == ["document__v1_.txt_chunk_0", "document__v1_.txt_chunk_1"]
-

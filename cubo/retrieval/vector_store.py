@@ -1502,7 +1502,9 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                 cur.execute("DELETE FROM vectors WHERE id IN (SELECT id FROM _tmp_ids)")
                 # Also remove any references in collections junction table
                 try:
-                    cur.execute("DELETE FROM collection_documents WHERE document_id IN (SELECT id FROM _tmp_ids)")
+                    cur.execute(
+                        "DELETE FROM collection_documents WHERE document_id IN (SELECT id FROM _tmp_ids)"
+                    )
                 except Exception:
                     # If table missing for older DBs, ignore
                     pass
@@ -1555,7 +1557,9 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                     cur.execute("DELETE FROM vectors WHERE id = ?", (doc_id,))
                     # Also remove any collection links for this document
                     try:
-                        cur.execute("DELETE FROM collection_documents WHERE document_id = ?", (doc_id,))
+                        cur.execute(
+                            "DELETE FROM collection_documents WHERE document_id = ?", (doc_id,)
+                        )
                     except Exception:
                         pass
                     conn.commit()

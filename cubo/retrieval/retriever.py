@@ -458,7 +458,7 @@ class DocumentRetriever:
         **kwargs,
     ) -> List[Dict]:
         """Retrieve top-k relevant document chunks using hybrid retrieval.
-        
+
         Args:
             query: The search query
             top_k: Number of results to retrieve
@@ -466,7 +466,7 @@ class DocumentRetriever:
             collection_id: Optional collection ID to filter results by collection
             doc_ids: Optional list of document IDs to filter results to specific documents
             **kwargs: Additional arguments (e.g., 'k' for top_k)
-            
+
         Returns:
             List of relevant document chunks
         """
@@ -494,11 +494,14 @@ class DocumentRetriever:
             if collection_id and not doc_ids:
                 try:
                     from cubo.storage.metadata_manager import MetadataManager
+
                     mm = MetadataManager()
                     filenames = mm.get_filenames_in_collection(collection_id)
                     if filenames:
                         effective_doc_ids = set(filenames)
-                        logger.debug(f"Expanded collection_id={collection_id} to {len(filenames)} documents")
+                        logger.debug(
+                            f"Expanded collection_id={collection_id} to {len(filenames)} documents"
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to expand collection_id={collection_id}: {e}")
 
@@ -515,9 +518,13 @@ class DocumentRetriever:
             strategy = self.router.route_query(query) if self.router else None
 
             if self.use_auto_merging and self.auto_merging_retriever:
-                results = self._hybrid_retrieval(query, top_k, strategy, trace_id, effective_doc_ids)
+                results = self._hybrid_retrieval(
+                    query, top_k, strategy, trace_id, effective_doc_ids
+                )
             else:
-                results = self._retrieve_sentence_window(query, top_k, strategy, trace_id, effective_doc_ids)
+                results = self._retrieve_sentence_window(
+                    query, top_k, strategy, trace_id, effective_doc_ids
+                )
 
             # Normalize metadata shape for backward compatibility
             try:
@@ -600,11 +607,15 @@ class DocumentRetriever:
             ) from e
 
     def _hybrid_retrieval(
-        self, query: str, top_k: int, strategy: Optional[Dict], trace_id: Optional[str],
-        doc_ids: Optional[Set[str]] = None
+        self,
+        query: str,
+        top_k: int,
+        strategy: Optional[Dict],
+        trace_id: Optional[str],
+        doc_ids: Optional[Set[str]] = None,
     ) -> List[Dict]:
         """Combine sentence window and auto-merging retrieval.
-        
+
         Args:
             query: Search query
             top_k: Number of results to retrieve
@@ -646,7 +657,7 @@ class DocumentRetriever:
         doc_ids: Optional[Set[str]] = None,
     ) -> List[Dict]:
         """Retrieve using sentence window with three-tier retrieval.
-        
+
         Args:
             query: Search query
             top_k: Number of results

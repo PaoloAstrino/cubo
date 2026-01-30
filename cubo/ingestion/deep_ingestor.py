@@ -740,7 +740,8 @@ class DeepIngestor:
             # Sanitize base to remove spaces and special characters not allowed in IDs
             # This is important when using filename-based IDs (when file_hash is not available)
             import re
-            base = re.sub(r'[^A-Za-z0-9._:-]', '_', base)
+
+            base = re.sub(r"[^A-Za-z0-9._:-]", "_", base)
 
         if chunk.get("chunk_type") == "csv":
             start = chunk.get("row_start", chunk.get("chunk_index", 0))

@@ -125,29 +125,33 @@ class CuboCore:
                     )
 
             folder = data_folder or config.get("data_folder")
-            
+
             # Try to load pre-chunked documents from parquet first
             from pathlib import Path
+
             deep_output_dir = Path(config.get("ingestion.deep.output_dir", "./storage/deep"))
             chunks_parquet = deep_output_dir / "chunks_deep.parquet"
-            
+
             documents = None
             if chunks_parquet.exists():
                 logger.info(f"Loading pre-chunked documents from {chunks_parquet}")
                 try:
                     import pyarrow.parquet as pq
+
                     table = pq.read_table(chunks_parquet)
                     # Convert parquet table to list of dicts
                     documents = table.to_pylist()
                     logger.info(f"Loaded {len(documents)} pre-chunked documents from parquet")
                 except Exception as e:
-                    logger.warning(f"Failed to load pre-chunked documents: {e}. Falling back to re-chunking.")
+                    logger.warning(
+                        f"Failed to load pre-chunked documents: {e}. Falling back to re-chunking."
+                    )
                     documents = None
-            
+
             # Fallback: re-chunk documents if parquet not available
             if documents is None:
                 documents = self._load_all_documents(folder)
-            
+
             if not documents:
                 return 0
 
@@ -197,8 +201,13 @@ class CuboCore:
         return bg_manager.get_status(job_id)
 
     def query_retrieve(
-        self, query: str, top_k: int = None, trace_id: Optional[str] = None, 
-        collection_id: Optional[str] = None, doc_ids: Optional[List[str]] = None, **kwargs
+        self,
+        query: str,
+        top_k: int = None,
+        trace_id: Optional[str] = None,
+        collection_id: Optional[str] = None,
+        doc_ids: Optional[List[str]] = None,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve relevant documents for a query.
@@ -220,8 +229,12 @@ class CuboCore:
             if top_k is None:
                 top_k = config.get("retrieval.default_top_k", 6)
             return self.retriever.retrieve_top_documents(
-                query, top_k, trace_id=trace_id, 
-                collection_id=collection_id, doc_ids=doc_ids, **kwargs
+                query,
+                top_k,
+                trace_id=trace_id,
+                collection_id=collection_id,
+                doc_ids=doc_ids,
+                **kwargs,
             )
 
     def generate_response_safe(

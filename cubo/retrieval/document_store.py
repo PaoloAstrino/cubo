@@ -271,7 +271,7 @@ class DocumentStore:
             List of unique IDs for each chunk
         """
         import re
-        
+
         chunk_ids = []
         prefer_hash = config.get("deep_chunk_id_use_file_hash", True)
 
@@ -282,7 +282,7 @@ class DocumentStore:
             else:
                 # Sanitize filename to remove spaces and special characters
                 # Replace spaces and special chars with underscores
-                sanitized = re.sub(r'[^A-Za-z0-9._:-]', '_', filename)
+                sanitized = re.sub(r"[^A-Za-z0-9._:-]", "_", filename)
                 base = sanitized
 
             if self.use_sentence_window and "sentence_index" in metadata:
@@ -497,7 +497,7 @@ class DocumentStore:
 
         uid = uuid.uuid4().hex
         # Sanitize filename to remove spaces and special characters not allowed in IDs
-        sanitized_filename = re.sub(r'[^A-Za-z0-9._:-]', '_', filename)
+        sanitized_filename = re.sub(r"[^A-Za-z0-9._:-]", "_", filename)
         chunk_ids = [f"{sanitized_filename}_chunk_0_{uid}"]
         base_metadata = {
             "filename": filename,

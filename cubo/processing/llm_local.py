@@ -165,9 +165,9 @@ class LocalResponseGenerator:
                         if time.time() - start_time > timeout:
                             logger.warning(f"Local LLM streaming timed out after {timeout}s")
                             yield {
-                                "type": "error", 
+                                "type": "error",
                                 "message": f"Generation timed out after {timeout} seconds",
-                                "trace_id": trace_id
+                                "trace_id": trace_id,
                             }
                             return
 
