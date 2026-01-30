@@ -25,6 +25,7 @@ import numpy as np
 from cubo.config import config
 from cubo.utils.logger import logger
 from cubo.utils.trace_collector import trace_collector
+from cubo.utils.pubsub import publish_event
 
 # Promotion throttling constants to prevent RAM spikes
 MIN_REBUILD_INTERVAL_SECONDS = 60  # Minimum time between index rebuilds
@@ -1498,6 +1499,16 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                 cur.executemany(
                     "INSERT OR REPLACE INTO _tmp_ids(id) VALUES(?)", ((i,) for i in ids)
                 )
+
+                # Determine affected collections before deleting links
+                try:
+                    affected = conn.execute(
+                        "SELECT DISTINCT collection_id FROM collection_documents WHERE document_id IN (SELECT id FROM _tmp_ids)"
+                    ).fetchall()
+                    affected_collections = [r[0] for r in affected]
+                except Exception:
+                    affected_collections = []
+
                 cur.execute("DELETE FROM documents WHERE id IN (SELECT id FROM _tmp_ids)")
                 cur.execute("DELETE FROM vectors WHERE id IN (SELECT id FROM _tmp_ids)")
                 # Also remove any references in collections junction table
@@ -1509,6 +1520,34 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                     # If table missing for older DBs, ignore
                     pass
                 conn.commit()
+
+                # For each affected collection, determine remaining count and remove if empty; publish events
+                for cid in affected_collections:
+                    try:
+                        cnt_row = conn.execute(
+                            "SELECT COUNT(document_id) FROM collection_documents WHERE collection_id = ?",
+                            (cid,),
+                        ).fetchone()
+                        count = cnt_row[0] if cnt_row else 0
+                        if count == 0:
+                            try:
+                                conn.execute("DELETE FROM collections WHERE id = ?", (cid,))
+                                conn.commit()
+                                try:
+                                    publish_event("collection.deleted", {"collection_id": cid})
+                                except Exception:
+                                    pass
+                            except Exception:
+                                # If deletion failed, continue
+                                pass
+                        else:
+                            try:
+                                publish_event("collection.updated", {"collection_id": cid, "document_count": count})
+                            except Exception:
+                                pass
+                    except Exception:
+                        # Best-effort; do not let failures stop overall deletion
+                        continue
             finally:
                 cur.execute("DELETE FROM _tmp_ids")
                 conn.commit()
@@ -1553,6 +1592,16 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
             with sqlite3.connect(str(self._db_path), timeout=30) as conn:
                 cur = conn.cursor()
                 try:
+                    # Determine affected collections before deleting links
+                    try:
+                        affected_rows = conn.execute(
+                            "SELECT DISTINCT collection_id FROM collection_documents WHERE document_id = ?",
+                            (doc_id,),
+                        ).fetchall()
+                        affected_collections = [r[0] for r in affected_rows]
+                    except Exception:
+                        affected_collections = []
+
                     cur.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
                     cur.execute("DELETE FROM vectors WHERE id = ?", (doc_id,))
                     # Also remove any collection links for this document
@@ -1563,6 +1612,33 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                     except Exception:
                         pass
                     conn.commit()
+
+                    # For each affected collection, determine remaining count and remove if empty; publish events
+                    for cid in affected_collections:
+                        try:
+                            cnt_row = conn.execute(
+                                "SELECT COUNT(document_id) FROM collection_documents WHERE collection_id = ?",
+                                (cid,),
+                            ).fetchone()
+                            count = cnt_row[0] if cnt_row else 0
+                            if count == 0:
+                                try:
+                                    conn.execute("DELETE FROM collections WHERE id = ?", (cid,))
+                                    conn.commit()
+                                    try:
+                                        publish_event("collection.deleted", {"collection_id": cid})
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    # If deletion failed, continue
+                                    pass
+                            else:
+                                try:
+                                    publish_event("collection.updated", {"collection_id": cid, "document_count": count})
+                                except Exception:
+                                    pass
+                        except Exception:
+                            continue
                 except Exception:
                     conn.rollback()
                     raise

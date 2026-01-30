@@ -54,6 +54,7 @@ describe('queryStream', () => {
 
     ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
+      headers: { get: () => 'application/x-ndjson' },
       body: mockStream
     })
 
@@ -78,6 +79,7 @@ describe('queryStream', () => {
 
     ;(global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
+      headers: { get: () => 'application/x-ndjson' },
       body: mockStream
     })
 

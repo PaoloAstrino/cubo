@@ -15,6 +15,7 @@ jest.mock('swr', () => ({
     ], isLoading: false }
     return { data: [], isLoading: false }
   },
+  mutate: jest.fn(),
 }))
 
 // Mock API module (include upload/ingest/build helpers used by upload flow)

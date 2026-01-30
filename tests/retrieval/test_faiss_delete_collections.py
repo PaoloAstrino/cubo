@@ -28,11 +28,20 @@ def test_delete_removes_collection_links(tmp_path: Path):
     assert doc_id in docs_in_coll
 
     # Now delete the document
-    store.delete(ids=[doc_id])
+    from unittest.mock import patch
 
-    # After deletion, collection should no longer include the doc
-    docs_in_coll_after = store.get_collection_documents(coll["id"])
-    assert doc_id not in docs_in_coll_after
+    with patch("cubo.retrieval.vector_store.publish_event") as mock_pub:
+        store.delete(ids=[doc_id])
+
+        # After deletion, collection should no longer include the doc
+        docs_in_coll_after = store.get_collection_documents(coll["id"])
+        assert doc_id not in docs_in_coll_after
+
+        # Collection should be deleted entirely since it has no docs
+        assert store.get_collection(coll["id"]) is None
+
+        # publish_event should have been called for collection.deleted
+        mock_pub.assert_any_call("collection.deleted", {"collection_id": coll["id"]})
 
     # And documents table should not contain the document
     assert store.count() == 0
@@ -49,15 +58,24 @@ def test_enqueue_deletion_removes_collection_links(tmp_path: Path):
     store.add_documents_to_collection(coll["id"], [doc_id])
 
     # Enqueue deletion
-    job_id = store.enqueue_deletion(doc_id, trace_id="t1", force=True)
-    assert job_id is not None
+    from unittest.mock import patch
 
-    # The document should already be removed from the documents table (enqueue_deletion deletes DB rows)
-    assert store.count() == 0
+    with patch("cubo.retrieval.vector_store.publish_event") as mock_pub:
+        job_id = store.enqueue_deletion(doc_id, trace_id="t1", force=True)
+        assert job_id is not None
 
-    # Collection should no longer include the doc
-    docs_in_coll = store.get_collection_documents(coll["id"])
-    assert doc_id not in docs_in_coll
+        # The document should already be removed from the documents table (enqueue_deletion deletes DB rows)
+        assert store.count() == 0
+
+        # Collection should no longer include the doc
+        docs_in_coll = store.get_collection_documents(coll["id"])
+        assert doc_id not in docs_in_coll
+
+        # Collection should be deleted entirely
+        assert store.get_collection(coll["id"]) is None
+
+        # publish_event should have been called for collection.deleted
+        mock_pub.assert_any_call("collection.deleted", {"collection_id": coll["id"]})
 
     # Deletion job should be present in deletion_jobs table
     with sqlite3.connect(str(store._db_path)) as conn:

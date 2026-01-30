@@ -56,6 +56,8 @@ describe('Collection API Client', () => {
     it('should throw error on failure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
         text: () => Promise.resolve('Server error'),
       })
 
@@ -123,6 +125,8 @@ describe('Collection API Client', () => {
     it('should throw error on failure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 409,
+        statusText: 'Conflict',
         text: () => Promise.resolve('Collection already exists'),
       })
 

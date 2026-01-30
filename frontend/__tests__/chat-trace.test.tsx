@@ -24,16 +24,19 @@ global.ResizeObserver = class ResizeObserver {
 
 // Mock useSearchParams
 jest.mock('next/navigation', () => ({
-  useSearchParams: () => ({ get: () => null }),
-  useRouter: () => ({ push: jest.fn() }),
+  useSearchParams: () => ({ get: (key: string) => key === 'collection' ? 'col_1' : null }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
 }))
 
 // Mock SWR
 jest.mock('swr', () => ({
   __esModule: true,
   default: jest.fn((key) => {
-    if (key === '/api/documents') {
-      return { data: [{ name: 'doc1.txt', size: '1KB', uploadDate: '2023-01-01' }] }
+    if (key === '/api/collections') {
+      return { data: [{ id: 'col_1', name: 'Test Collection', document_count: 5 }] }
+    }
+    if (key === '/api/collections/col_1') {
+      return { data: { id: 'col_1', name: 'Test Collection', document_count: 5, color: '#000000' } }
     }
     if (key === '/api/ready') {
       return { data: { components: { retriever: true, generator: true } } }

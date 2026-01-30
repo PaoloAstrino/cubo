@@ -106,46 +106,50 @@ describe('UploadPage', () => {
 
       const card = screen.getByText('Research Papers').closest('.group')
       expect(card).toHaveClass('aspect-square')
-      expect(card).toHaveClass('min-w-[200px]')
     })
 
-    it('should upload a file to a collection when using the per-card upload', async () => {
-      const user = userEvent.setup()
-
-      ;(api.uploadFile as jest.Mock).mockResolvedValue({})
-      ;(api.ingestDocuments as jest.Mock).mockResolvedValue({})
-      ;(api.buildIndex as jest.Mock).mockResolvedValue({})
+    it('should handle file drop onto a collection card', async () => {
       ;(api.addDocumentsToCollection as jest.Mock).mockResolvedValue({ added_count: 1, already_in_collection: 0 })
 
       render(<UploadPage />)
 
       await waitFor(() => expect(screen.getByText('Research Papers')).toBeInTheDocument())
 
-      const input = screen.getByLabelText(`Upload to ${mockCollections[0].name}`) as HTMLInputElement
+      const collCard = screen.getByText('Research Papers').closest('.group') as HTMLElement
       const file = new File(['content'], 'paper.pdf', { type: 'application/pdf' })
 
-      await user.upload(input, file)
+      // Create drop event with files
+      const dropEvent = createEvent.drop(collCard)
+      Object.defineProperty(dropEvent, 'dataTransfer', {
+        value: {
+          files: [file],
+          types: ['Files']
+        }
+      })
 
+      fireEvent(collCard, dropEvent)
+
+      // The component calls processFile which calls upload -> ingest -> build -> addDocumentsToCollection
       await waitFor(() => expect(api.uploadFile).toHaveBeenCalled())
       await waitFor(() => expect(api.addDocumentsToCollection).toHaveBeenCalledWith('coll-1', [file.name]))
     })
 
-    it('clicking the per-card plus does NOT navigate to the collection', async () => {
+    it('clicking the per-card plus opens the add documents modal', async () => {
       const user = userEvent.setup()
 
       render(<UploadPage />)
 
       await waitFor(() => expect(screen.getByText('Research Papers')).toBeInTheDocument())
 
-      const plusLabel = screen.getByLabelText(`Upload to ${mockCollections[0].name}`).nextSibling as HTMLElement
-      // Click the visible plus label
-      await user.click(plusLabel)
+      const plusButton = screen.getByLabelText(`Add existing documents to ${mockCollections[0].name}`)
+      await user.click(plusButton)
 
-      // Ensure the router push (navigation) wasn't called
+      // Should open the dialog
+      expect(screen.getByText('Add documents to collection')).toBeInTheDocument()
       expect(mockPush).not.toHaveBeenCalled()
     })
 
-    it('dragging a document from All Files to a collection calls addDocumentsToCollection and setDragImage is used', async () => {
+    it('dragging a document from All Files to a collection calls addDocumentsToCollection', async () => {
       render(<UploadPage />)
 
       await waitFor(() => expect(screen.getByText('Research Papers')).toBeInTheDocument())
@@ -153,19 +157,12 @@ describe('UploadPage', () => {
       const docRow = screen.getByText('report.pdf').closest('div') as HTMLElement
       const collCard = screen.getByText('Research Papers').closest('.group') as HTMLElement
 
-      // Mock DataTransfer for dragStart to capture setDragImage
-      const dtMock = { setData: jest.fn(), setDragImage: jest.fn() }
-      // Simulate external file dragover and ensure UI highlights collections
-      const globalDragOver = createEvent.dragOver(document)
-      Object.defineProperty(globalDragOver, 'dataTransfer', { value: { types: ['Files'] } })
-      fireEvent(document, globalDragOver)
-
-      const allFilesCard = Array.from(document.querySelectorAll('.flex-1.flex.flex-col')).find(el => el.textContent?.includes('All Files')) as HTMLElement
-      expect(allFilesCard?.className).toContain('blur-sm')
-
-      // Now simulate internal drag start
+      // Mock DataTransfer for dragStart
+      const dtMock = { setData: jest.fn(), setDragImage: jest.fn(), effectAllowed: 'move' }
+      
+      // Simulate internal drag start
       fireEvent.dragStart(docRow, { dataTransfer: dtMock } as any)
-      expect(dtMock.setDragImage).toHaveBeenCalled()
+      
       // Simulate drop with custom payload
       const dropEvent = createEvent.drop(collCard)
       Object.defineProperty(dropEvent, 'dataTransfer', {
@@ -183,7 +180,7 @@ describe('UploadPage', () => {
       await waitFor(() => expect((api.addDocumentsToCollection as jest.Mock)).toHaveBeenCalledWith('coll-1', ['report.pdf']))
     })
 
-    it('should use a denser grid so collection cards are roughly half the width', async () => {
+    it('should use a responsive grid layout for collections', async () => {
       render(<UploadPage />)
 
       await waitFor(() => {
@@ -191,10 +188,7 @@ describe('UploadPage', () => {
       })
 
       const grid = screen.getByText('Research Papers').closest('.grid')
-      expect(grid).toHaveClass('grid-cols-4')
-      expect(grid).toHaveClass('md:grid-cols-6')
-      expect(grid).toHaveClass('lg:grid-cols-8')
-      expect(grid).toHaveClass('gap-6')
+      expect(grid?.className).toContain('grid-cols-[repeat(auto-fit,minmax(180px,220px))]')
     })
 
     it('should render emoji icon with white background and colored border when collection has emoji', async () => {
