@@ -40,15 +40,6 @@ jest.mock('@/hooks/use-toast', () => ({
 }))
 
 describe('UploadPage layout', () => {
-  beforeAll(() => {
-    // Mock ResizeObserver used by radix ScrollArea
-    class ResizeObserverMock {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-    ;(global as any).ResizeObserver = ResizeObserverMock
-  })
   it('renders document list as a two-column grid on small screens and up', () => {
     render(<UploadPage />)
 

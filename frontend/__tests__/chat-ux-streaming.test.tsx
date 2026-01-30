@@ -12,16 +12,6 @@ jest.mock('@/lib/api', () => ({
   query: jest.fn(), // Mock legacy query as well
 }))
 
-// Mock scrollIntoView
-window.HTMLElement.prototype.scrollIntoView = jest.fn()
-
-// Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-
 // Mock useSearchParams
 jest.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: (key: string) => key === 'collection' ? 'col_1' : null }),
