@@ -2,7 +2,7 @@
 
 import useSWR from 'swr'
 import { useEffect } from 'react'
-import { ACCENTS, applyAccent } from '@/lib/accent'
+import { applyAccent } from '@/lib/accent'
 
 export default function ApplyAccent() {
   const { data: settings } = useSWR('/api/settings')

@@ -3,7 +3,7 @@
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLegend, FieldSet, FieldTitle } from '@/components/ui/field'
 import { toast } from 'sonner'
 import useSWR, { mutate } from 'swr'
-import { getSettings, updateSettings, type Settings } from '@/lib/api'
+import { updateSettings, type Settings } from '@/lib/api'
 import { ACCENTS, applyAccent } from '@/lib/accent'
 import { useEffect, useState } from 'react'
 

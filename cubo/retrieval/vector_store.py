@@ -1542,7 +1542,10 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                                 pass
                         else:
                             try:
-                                publish_event("collection.updated", {"collection_id": cid, "document_count": count})
+                                publish_event(
+                                    "collection.updated",
+                                    {"collection_id": cid, "document_count": count},
+                                )
                             except Exception:
                                 pass
                     except Exception:
@@ -1634,7 +1637,10 @@ SELECT c.id, c.name, c.color, c.emoji, c.created_at,
                                     pass
                             else:
                                 try:
-                                    publish_event("collection.updated", {"collection_id": cid, "document_count": count})
+                                    publish_event(
+                                        "collection.updated",
+                                        {"collection_id": cid, "document_count": count},
+                                    )
                                 except Exception:
                                     pass
                         except Exception:

@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast'
 import { getSettings, updateSettings } from '@/lib/api'
 
 export function SourcesSettings() {
-  const { data: settings, isLoading } = useSWR('/api/settings', getSettings)
+  const { data: settings } = useSWR('/api/settings', getSettings)
   const [value, setValue] = React.useState<number | ''>('')
   const { toast } = useToast()
 
