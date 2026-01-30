@@ -10,9 +10,7 @@ import {
   CardContent,
 } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { CuboLogo } from "@/components/cubo-logo"
-import { X } from "lucide-react"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -51,7 +49,6 @@ function ChatContent() {
 
   const { messages, setMessages, isHistoryLoaded, clearHistory } = useChatHistory(collectionId)
   const [isLoading, setIsLoading] = React.useState(false)
-  const [isStreaming, setIsStreaming] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
   const [traceData, setTraceData] = React.useState<{ trace_id: string; events: Array<Record<string, unknown>> } | null>(null)
   const [isTraceOpen, setIsTraceOpen] = React.useState(false)
@@ -79,7 +76,6 @@ function ChatContent() {
     }
   }, [collectionId, activeCollection, router, toast])
 
-  type DocumentItem = { name: string; size: string; uploadDate: string }
 
   // SWR: Poll readiness
   const { data: readinessData } = useSWR<ReadinessResponse>('/api/ready', {
@@ -146,7 +142,6 @@ function ChatContent() {
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
     setIsLoading(true)
-    setIsStreaming(true)
 
     // Create placeholder assistant message
     const assistantMessageId = (Date.now() + 1).toString()
@@ -175,14 +170,11 @@ function ChatContent() {
           content: msg.content
         }))
       }, (event) => {
-        console.log('[Chat] Stream event:', event.type, event)
         
         if (event.type === 'token' && event.delta) {
-          console.log('[Chat] Token received, delta length:', event.delta?.length)
           setMessages((prev) => prev.map(msg => {
             if (msg.id === assistantMessageId) {
               const newContent = msg.content + event.delta
-              console.log('[Chat] Updated content length:', msg.content?.length, '->', newContent?.length)
               return { ...msg, content: newContent }
             }
             return msg
@@ -203,16 +195,9 @@ function ChatContent() {
            }))
         } else if (event.type === 'done') {
            // Mark streaming as complete - now sources will be visible
-           console.log('[Chat] Done event received, full event:', JSON.stringify(event))
-           console.log('[Chat] Done event keys:', Object.keys(event))
-           setIsStreaming(false)
            
            setMessages((prev) => prev.map(msg => {
              if (msg.id !== assistantMessageId) return msg
-             
-             console.log('[Chat] Current msg.content length before done:', msg.content?.length)
-             console.log('[Chat] Event has answer key:', 'answer' in event)
-             console.log('[Chat] Event answer value:', event.answer)
              
              // If answer is in the done event, use it; otherwise keep accumulated tokens
              // Only use fallback if both are empty
@@ -223,9 +208,6 @@ function ChatContent() {
              if (!finalAnswer || !finalAnswer.trim()) {
                finalAnswer = "I apologize, but I was unable to generate a response. Please try again."
              }
-             
-             console.log('[Chat] Final answer length:', finalAnswer?.length)
-             console.log('[Chat] Using answer from:', event.answer ? 'event.answer' : msg.content ? 'msg.content' : 'fallback')
              
              return { 
                ...msg, 
@@ -285,7 +267,6 @@ function ChatContent() {
       ))
     } finally {
       setIsLoading(false)
-      setIsStreaming(false)
       
       // Final safety check: ensure assistant message has content
       setMessages((prev) => prev.map(msg => {

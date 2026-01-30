@@ -12,7 +12,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
       } else {
         errorMessage = await response.text();
       }
-    } catch (e) {
+    } catch {
       // If parsing fails, use status code and text
       errorMessage = `HTTP ${response.status}: ${response.statusText}`;
     }
@@ -242,23 +242,25 @@ export async function queryStream(
   // If the server returned a non-streaming JSON response (streaming disabled server-side),
   // parse it and emit a single 'done' event so consumers receive the final answer and trace id.
   if (contentType.includes('application/json')) {
-    console.log('[API] Non-streaming JSON response detected')
-    const data = await response.json();
-    console.log('[API] JSON data:', { answer: data.answer?.substring(0, 50), trace_id: data.trace_id, sources_count: data.sources?.length })
+    type QueryResponse = {
+      answer?: string
+      trace_id?: string
+      sources?: Array<{ content?: string; metadata?: Record<string, unknown>; score?: number }>
+    }
+    const data = (await response.json()) as QueryResponse
 
     // Emit sources first if present (keep interface similar to streaming)
-    if (Array.isArray((data as any).sources)) {
-      for (const src of (data as any).sources) {
+    if (Array.isArray(data.sources)) {
+      for (const src of data.sources) {
         onEvent({ type: 'source', content: src.content, metadata: src.metadata, score: src.score, index: 0 } as StreamEvent)
       }
     }
 
     // Emit final done event
-    onEvent({ type: 'done', answer: (data as any).answer, trace_id: (data as any).trace_id } as StreamEvent)
+    onEvent({ type: 'done', answer: data.answer, trace_id: data.trace_id } as StreamEvent)
     return
   }
 
-  console.log('[API] NDJSON streaming response detected')
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -297,18 +299,34 @@ export async function getDocuments(): Promise<Array<{ name: string; size: string
   return handleResponse<Array<{ name: string; size: string; uploadDate: string }>>(response);
 }
 
-export async function deleteDocument(filename: string): Promise<any> {
+export interface DeleteDocumentResponse {
+  doc_id: string;
+  deleted: boolean;
+  chunks_removed: number;
+  trace_id: string;
+  message: string;
+  job_id?: string | null;
+  queued?: boolean;
+}
+
+export async function deleteDocument(filename: string): Promise<DeleteDocumentResponse> {
   const response = await fetch(`${API_BASE_URL}/api/documents/${encodeURIComponent(filename)}`, {
     method: 'DELETE',
   });
-  return handleResponse<any>(response);
+  return handleResponse<DeleteDocumentResponse>(response);
 }
 
-export async function deleteAllDocuments(): Promise<any> {
+export interface BulkDeleteResponse {
+  deleted_count: number;
+  queued: Array<{ doc_id: string; job_id: string }>;
+  errors: Array<Record<string, string>>;
+}
+
+export async function deleteAllDocuments(): Promise<BulkDeleteResponse> {
   const response = await fetch(`${API_BASE_URL}/api/documents`, {
     method: 'DELETE',
   });
-  return handleResponse<any>(response);
+  return handleResponse<BulkDeleteResponse>(response);
 }
 
 export interface ReadinessResponse {

@@ -92,7 +92,7 @@ export default function UploadPage() {
                     e.preventDefault()
                     setDraggingDocs(true)
                 }
-            } catch (err) { /* ignore */ }
+            } catch { /* ignore */ }
         }
 
         const onDropGlobal = () => {
@@ -119,14 +119,11 @@ export default function UploadPage() {
         if (!file) return
 
         setUploadProgress(0)
-        console.log('[Upload] Starting pipeline for:', file.name, `(${(file.size / 1024).toFixed(2)}KB)`)
 
         try {
             // Step 1: Upload
             try {
-                console.log('[Upload] Step 1/3: Uploading file to server...')
                 await uploadFile(file)
-                console.log('[Upload] Step 1/3: ✓ Upload complete')
                 setUploadProgress(33)
                 mutate('/api/documents') // Refresh documents list
             } catch (err) {
@@ -138,9 +135,7 @@ export default function UploadPage() {
 
             // Step 2: Ingest
             try {
-                console.log('[Upload] Step 2/3: Ingesting and processing document...')
                 await ingestDocuments({ fast_pass: true })
-                console.log('[Upload] Step 2/3: ✓ Ingest complete')
                 setUploadProgress(66)
             } catch (err) {
                 const errorMsg = err instanceof Error ? err.message : "Failed to process document"
@@ -151,9 +146,7 @@ export default function UploadPage() {
 
             // Step 3: Build Index
             try {
-                console.log('[Upload] Step 3/3: Building search index...')
                 await buildIndex()
-                console.log('[Upload] Step 3/3: ✓ Index build complete')
                 setUploadProgress(100)
                 mutate('/api/documents') // Refresh again just in case
                 mutate('/api/ready') // Trigger readiness check update if needed
@@ -164,14 +157,10 @@ export default function UploadPage() {
                 throw new Error(`Index building failed: ${errorMsg}`)
             }
 
-            console.log('[Upload] ✓ All steps completed successfully')
-
             // If a collectionId was provided, add the uploaded document to that collection
             if (collectionId) {
                 try {
-                    console.log('[Upload] Adding document to collection:', collectionId)
                     await addDocumentsToCollection(collectionId, [file.name])
-                    console.log('[Upload] ✓ Document added to collection')
                     // Refresh collections to update counts
                     mutate('/api/collections')
                     toast({
@@ -207,7 +196,6 @@ export default function UploadPage() {
             })
         } finally {
             setUploadProgress(null)
-            console.log('[Upload] Pipeline finished (progress reset)')
         }
     }
 
@@ -257,7 +245,7 @@ export default function UploadPage() {
                 try {
                     document.removeEventListener('dragend', onEnd)
                     document.removeEventListener('drop', onEnd)
-                } catch (err) {
+                } catch {
                     // ignore
                 }
             }
@@ -269,11 +257,11 @@ export default function UploadPage() {
             setTimeout(() => {
                 try {
                     document.body.removeChild(dragEl)
-                } catch (err) {
+                } catch {
                     /* ignore */
                 }
             }, 0)
-        } catch (err) {
+        } catch {
             // ignore
         }
     }
@@ -328,7 +316,7 @@ export default function UploadPage() {
         if (deleteTarget === 'all') {
             try {
                 const res = await deleteAllDocuments()
-                try { if (typeof mutate === 'function') await mutate('/api/documents') } catch (e) { /* swallow */ }
+                try { if (typeof mutate === 'function') await mutate('/api/documents') } catch { /* swallow */ }
                 const deletedCount = res?.deleted_count ?? 0
                 toast({ title: 'Deleted', description: `${deletedCount} documents scheduled for deletion.` })
             } catch (err) {
@@ -336,8 +324,8 @@ export default function UploadPage() {
             }
         } else {
             try {
-                const res = await deleteDocument(deleteTarget)
-                try { if (typeof mutate === 'function') await mutate('/api/documents') } catch (e) { /* swallow */ }
+                await deleteDocument(deleteTarget)
+                try { if (typeof mutate === 'function') await mutate('/api/documents') } catch { /* swallow */ }
                 toast({ title: 'Deleted', description: `${deleteTarget} scheduled for deletion.` })
             } catch (err) {
                 toast({ title: 'Delete Failed', description: err instanceof Error ? err.message : 'Could not delete file', variant: 'destructive' })
@@ -555,7 +543,7 @@ export default function UploadPage() {
                                                 toast({ title: 'Added', description: `${docIds.length} document(s) added to ${collection.name}` })
                                             }
                                         }
-                                    } catch (err) {
+                                    } catch {
                                         // ignore invalid payload
                                     }
                                 }}
