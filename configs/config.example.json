@@ -1,0 +1,32 @@
+{
+  "paths": {
+    "data_folder": "data",
+    "deep_output_dir": "storage/deep",
+    "fast_pass_output_dir": "storage/fastpass"
+  },
+  "chunking": {
+    "chunk_size": 1000,
+    "min_chunk_size": 100,
+    "chunk_overlap_sentences": 1
+  },
+  "retrieval": {
+    "default_top_k": 3,
+    "default_window_size": 3
+  },
+  "llm": {
+    "provider": "ollama",
+    "model_name": "<YOUR_MODEL_NAME>",
+    "enable_streaming": true
+  },
+  "log_level": "INFO",
+  "model_path": "./models/<embedding-model-dir>",
+  "data_folder": "./data",
+  "vector_store": {
+    "persist_embeddings": "mmap",
+    "embedding_dtype": "float16"
+  },
+  "faiss_index_dir": "./storage/cubo_index",
+  "vector_store_backend": "faiss",
+  "vector_store_path": "./storage/cubo_index",
+  "metadata_db_path": "./storage/metadata.db"
+}

@@ -233,6 +233,8 @@ the_final_analysis.md
 
 configs/enterprise_benchmark_config_prod.json
 configs/calibration_curves.json
+# User runtime configuration (sensitive / environment-specific)
+configs/config.json
 # Additional Generated Data & Caches
 faiss_store/
 indexes/
