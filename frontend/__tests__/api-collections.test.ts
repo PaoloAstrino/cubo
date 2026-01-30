@@ -153,6 +153,8 @@ describe('Collection API Client', () => {
     it('should throw error on failure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 404,
+        statusText: 'Not Found',
         text: () => Promise.resolve('Not found'),
       })
 
@@ -198,6 +200,8 @@ describe('Collection API Client', () => {
     it('should throw error on failure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 404,
+        statusText: 'Not Found',
         text: () => Promise.resolve('Not found'),
       })
 
@@ -226,6 +230,8 @@ describe('Collection API Client', () => {
     it('should throw error on failure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 404,
+        statusText: 'Not Found',
         text: () => Promise.resolve('Not found'),
       })
 
