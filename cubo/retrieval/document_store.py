@@ -492,8 +492,8 @@ class DocumentStore:
 
         embeddings = self.generate_embeddings([content], filename)
         # Use unique chunk id suffix to avoid replacing existing DB entries if duplicate
-        import uuid
         import re
+        import uuid
 
         uid = uuid.uuid4().hex
         # Sanitize filename to remove spaces and special characters not allowed in IDs

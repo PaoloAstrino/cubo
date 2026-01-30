@@ -752,8 +752,8 @@ async def clear_chat(request: Request, body: ClearChatRequest):
     clears any in-memory LLM session. If `collection_id` is provided, publishes
     an invalidation for sessions associated with that collection.
     """
-    from cubo.storage.metadata_manager import get_metadata_manager
     from cubo.llm.session_manager import get_session_manager
+    from cubo.storage.metadata_manager import get_metadata_manager
 
     mm = get_metadata_manager()
     sm = get_session_manager()
@@ -774,8 +774,8 @@ async def clear_chat(request: Request, body: ClearChatRequest):
 @app.delete("/api/chat/{conversation_id}", status_code=204)
 async def delete_chat(request: Request, conversation_id: str):
     """Delete a conversation and all its messages (irreversible)."""
-    from cubo.storage.metadata_manager import get_metadata_manager
     from cubo.llm.session_manager import get_session_manager
+    from cubo.storage.metadata_manager import get_metadata_manager
 
     mm = get_metadata_manager()
     sm = get_session_manager()

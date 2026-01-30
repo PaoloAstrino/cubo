@@ -1,5 +1,6 @@
-from cubo.llm.session_manager import get_session_manager
 from unittest.mock import patch
+
+from cubo.llm.session_manager import get_session_manager
 
 
 def test_clear_session_publishes_event():

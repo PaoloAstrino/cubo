@@ -24,8 +24,8 @@ import numpy as np
 
 from cubo.config import config
 from cubo.utils.logger import logger
-from cubo.utils.trace_collector import trace_collector
 from cubo.utils.pubsub import publish_event
+from cubo.utils.trace_collector import trace_collector
 
 # Promotion throttling constants to prevent RAM spikes
 MIN_REBUILD_INTERVAL_SECONDS = 60  # Minimum time between index rebuilds

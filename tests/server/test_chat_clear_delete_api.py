@@ -1,8 +1,10 @@
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
+
+from cubo.llm.session_manager import get_session_manager
 from cubo.server.api import app
 from cubo.storage.metadata_manager import get_metadata_manager
-from cubo.llm.session_manager import get_session_manager
-from unittest.mock import patch
 
 client = TestClient(app)
 

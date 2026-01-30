@@ -9,12 +9,11 @@ Note: Some integration tests are skipped when DocumentRetriever requires
 full initialization. Unit tests focus on API and core layer acceptance.
 """
 
-import unittest
-from unittest.mock import MagicMock, patch, call
-from typing import List, Dict, Set, Optional
-
 import sys
+import unittest
 from pathlib import Path
+from typing import Dict, List, Optional, Set
+from unittest.mock import MagicMock, call, patch
 
 # Add the parent directory to the path so we can import cubo modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -114,8 +113,9 @@ class TestRetrieverSignature(unittest.TestCase):
 
     def test_retrieve_top_documents_signature(self):
         """Test that retrieve_top_documents accepts collection_id and doc_ids."""
-        from cubo.retrieval.retriever import DocumentRetriever
         import inspect
+
+        from cubo.retrieval.retriever import DocumentRetriever
 
         sig = inspect.signature(DocumentRetriever.retrieve_top_documents)
         params = list(sig.parameters.keys())
@@ -126,8 +126,9 @@ class TestRetrieverSignature(unittest.TestCase):
 
     def test_retrieve_sentence_window_signature(self):
         """Test that _retrieve_sentence_window accepts doc_ids."""
-        from cubo.retrieval.retriever import DocumentRetriever
         import inspect
+
+        from cubo.retrieval.retriever import DocumentRetriever
 
         sig = inspect.signature(DocumentRetriever._retrieve_sentence_window)
         params = list(sig.parameters.keys())
@@ -137,8 +138,9 @@ class TestRetrieverSignature(unittest.TestCase):
 
     def test_hybrid_retrieval_signature(self):
         """Test that _hybrid_retrieval accepts doc_ids."""
-        from cubo.retrieval.retriever import DocumentRetriever
         import inspect
+
+        from cubo.retrieval.retriever import DocumentRetriever
 
         sig = inspect.signature(DocumentRetriever._hybrid_retrieval)
         params = list(sig.parameters.keys())

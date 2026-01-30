@@ -1,13 +1,13 @@
+import os
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
-import sys
-import os
 
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from cubo.processing.llm_local import LocalResponseGenerator
 from cubo.config import config
+from cubo.processing.llm_local import LocalResponseGenerator
 
 
 class TestLocalLLMFormatting(unittest.TestCase):
