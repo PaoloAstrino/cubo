@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from cubo.adapters.beir_adapter import CuboBeirAdapter
+from evaluation.beir_adapter import CuboBeirAdapter
 
 
 class TestCuboBeirAdapter(unittest.TestCase):
@@ -29,9 +29,9 @@ class TestCuboBeirAdapter(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.test_dir)
 
-    @patch("cubo.adapters.beir_adapter.DocumentRetriever")
-    @patch("cubo.adapters.beir_adapter.FAISSIndexManager")
-    @patch("cubo.adapters.beir_adapter.sqlite3")
+    @patch("evaluation.beir_adapter.DocumentRetriever")
+    @patch("evaluation.beir_adapter.FAISSIndexManager")
+    @patch("evaluation.beir_adapter.sqlite3")
     def test_index_corpus(self, mock_sqlite, mock_faiss_cls, mock_retriever_cls):
         # Setup mocks
         mock_faiss_instance = MagicMock()
@@ -64,8 +64,8 @@ class TestCuboBeirAdapter(unittest.TestCase):
         # Verify retriever reload was called
         mock_retriever_instance.collection.load.assert_called_with(self.index_dir)
 
-    @patch("cubo.adapters.beir_adapter.DocumentRetriever")
-    @patch("cubo.adapters.beir_adapter.FAISSIndexManager")
+    @patch("evaluation.beir_adapter.DocumentRetriever")
+    @patch("evaluation.beir_adapter.FAISSIndexManager")
     def test_retrieve(self, mock_faiss_cls, mock_retriever_cls):
         # Setup mock retriever
         mock_retriever_instance = MagicMock()
@@ -86,8 +86,8 @@ class TestCuboBeirAdapter(unittest.TestCase):
         self.assertEqual(results[0][1], 0.9)
         mock_retriever_instance.retrieve_top_documents.assert_called_with("query", top_k=10)
 
-    @patch("cubo.adapters.beir_adapter.DocumentRetriever")
-    @patch("cubo.adapters.beir_adapter.FAISSIndexManager")
+    @patch("evaluation.beir_adapter.DocumentRetriever")
+    @patch("evaluation.beir_adapter.FAISSIndexManager")
     def test_retrieve_bulk(self, mock_faiss_cls, mock_retriever_cls):
         mock_retriever_instance = MagicMock()
         mock_retriever_cls.return_value = mock_retriever_instance

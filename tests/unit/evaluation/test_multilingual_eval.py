@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tools.run_multilingual_eval import run_multilingual_eval
+from tools.benchmarking.run_multilingual_eval import run_multilingual_eval
 
 
 def test_skips_missing_queries(tmp_path):

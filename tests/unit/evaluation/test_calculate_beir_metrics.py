@@ -1,7 +1,7 @@
 import json
 import os
 
-from scripts.calculate_beir_metrics import calculate_metrics
+from tools.benchmarking.calculate_beir_metrics import calculate_metrics
 
 
 def test_calculate_metrics_ndcg(tmp_path):

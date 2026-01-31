@@ -1,6 +1,6 @@
 import json
 
-from cubo.adapters.beir_adapter import CuboBeirAdapter
+from evaluation.beir_adapter import CuboBeirAdapter
 
 
 class StubEmbeddingGenerator:
