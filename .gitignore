@@ -260,6 +260,9 @@ storage/
 !frontend/lib/
 !frontend/lib/*
 
+# Ignored paths
+cubo/storage/
+
 # Test Artifacts
 tests/logs/
 tests/tmpdb/
