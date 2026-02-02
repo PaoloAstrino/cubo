@@ -52,9 +52,10 @@ class HierarchicalChunker:
         self.tokenizer = None
         if tokenizer_name:
             try:
-                from transformers import AutoTokenizer
-                from pathlib import Path
                 import os
+                from pathlib import Path
+
+                from transformers import AutoTokenizer
 
                 # If a local path is provided, load directly (safe).
                 if Path(tokenizer_name).exists():
