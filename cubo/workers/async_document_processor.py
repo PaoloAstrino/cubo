@@ -154,7 +154,7 @@ class DocumentProcessorWorker(QObject):
                     logger.warning(f"Could not initialize enhanced processor: {e}")
                     if self.processor_type == "enhanced":
                         raise RuntimeError(
-                            "Enhanced processing requested but Dolphin not available"
+                            "Enhanced processing requested but vision processor not available"
                         )
 
         except Exception as e:
@@ -177,7 +177,7 @@ class DocumentProcessorWorker(QObject):
             return self._process_with_standard(file_path)
 
     def _process_with_enhanced(self, file_path: str) -> List[Dict[str, Any]]:
-        """Process document with enhanced (Dolphin) processing."""
+        """Process document with enhanced vision processing."""
         try:
             # Use the enhanced processor
             return self.enhanced_processor.process_document(file_path)

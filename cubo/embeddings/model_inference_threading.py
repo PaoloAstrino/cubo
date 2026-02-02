@@ -43,9 +43,9 @@ class ModelInferenceThreading:
         # Performance tracking
         self.inference_stats = {
             "embeddings_generated": 0,
-            "dolphin_inferences": 0,
+            "vision_inferences": 0,
             "total_embedding_time": 0.0,
-            "total_dolphin_time": 0.0,
+            "total_vision_time": 0.0,
         }
 
     def generate_embeddings_threaded(
@@ -159,15 +159,15 @@ class ModelInferenceThreading:
                 logger.error(f"Batch embedding failed: {e}")
                 return [[] for _ in text_batch]
 
-    def run_dolphin_inference_threaded(
-        self, images_or_texts: List[Any], dolphin_processor, batch_size: int = 1
+    def run_vision_inference_threaded(
+        self, images_or_texts: List[Any], vision_processor, batch_size: int = 1
     ) -> List[Dict[str, Any]]:
         """
-        Run Dolphin inference with threading.
+        Run vision-model inference with threading.
 
         Args:
             images_or_texts: List of images or texts for processing
-            dolphin_processor: Dolphin processor instance
+            vision_processor: Vision processor instance
             batch_size: Batch size (usually 1 for GPU memory)
 
         Returns:
@@ -177,7 +177,7 @@ class ModelInferenceThreading:
             return []
 
         start_time = time.time()
-        logger.info(f"Starting threaded Dolphin inference for {len(images_or_texts)} items")
+        logger.info(f"Starting threaded vision inference for {len(images_or_texts)} items")
 
         batches = [
             images_or_texts[i : i + batch_size] for i in range(0, len(images_or_texts), batch_size)
@@ -187,7 +187,7 @@ class ModelInferenceThreading:
         with ThreadPoolExecutor(max_workers=min(self.max_concurrent, 2)) as executor:
             # Submit GPU tasks
             future_to_batch = {
-                executor.submit(self._process_dolphin_batch, batch, dolphin_processor): batch
+                executor.submit(self._process_vision_batch, batch, vision_processor): batch
                 for batch in batches
             }
 
@@ -203,34 +203,34 @@ class ModelInferenceThreading:
 
         # Update stats
         total_time = time.time() - start_time
-        self.inference_stats["dolphin_inferences"] += len(images_or_texts)
-        self.inference_stats["total_dolphin_time"] += total_time
+        self.inference_stats["vision_inferences"] += len(images_or_texts)
+        self.inference_stats["total_vision_time"] += total_time
 
         logger.info(
-            f"Threaded Dolphin inference completed: {len(all_results)} results "
+            f"Threaded vision inference completed: {len(all_results)} results "
             f"in {total_time:.2f}s"
         )
 
         return all_results
 
-    def _process_dolphin_batch(self, batch: List[Any], dolphin_processor) -> List[Dict[str, Any]]:
-        """Process a batch with Dolphin."""
+    def _process_vision_batch(self, batch: List[Any], vision_processor) -> List[Dict[str, Any]]:
+        """Process a batch with a vision processor."""
         results = []
 
         for item in batch:
             with self.model_semaphore:
-                with self.gpu_lock:  # Exclusive GPU access for Dolphin
+                with self.gpu_lock:  # Exclusive GPU access for vision models
                     try:
                         # GPU memory management
                         if self.gpu_available:
                             self._manage_gpu_memory()
 
                         # Process item
-                        result = dolphin_processor.process_item(item)
+                        result = vision_processor.process_item(item)
                         results.append(result)
 
                     except Exception as e:
-                        logger.error(f"Dolphin processing failed: {e}")
+                        logger.error(f"Vision processing failed: {e}")
                         results.append({"error": str(e)})
 
         return results
@@ -330,8 +330,8 @@ class ModelInferenceThreading:
         if stats["total_embedding_time"] > 0:
             stats["embedding_rate"] = stats["embeddings_generated"] / stats["total_embedding_time"]
 
-        if stats["total_dolphin_time"] > 0:
-            stats["dolphin_rate"] = stats["dolphin_inferences"] / stats["total_dolphin_time"]
+        if stats["total_vision_time"] > 0:
+            stats["vision_rate"] = stats["vision_inferences"] / stats["total_vision_time"]
 
         return stats
 
@@ -339,9 +339,9 @@ class ModelInferenceThreading:
         """Reset performance statistics."""
         self.inference_stats = {
             "embeddings_generated": 0,
-            "dolphin_inferences": 0,
+            "vision_inferences": 0,
             "total_embedding_time": 0.0,
-            "total_dolphin_time": 0.0,
+            "total_vision_time": 0.0,
         }
 
 

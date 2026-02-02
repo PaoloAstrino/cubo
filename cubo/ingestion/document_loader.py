@@ -37,15 +37,15 @@ class DocumentLoader:
                 )
                 self.parser_type = "basic"
 
-        # Try to load enhanced processor if Dolphin is enabled
-        if not self.skip_model and config.get("dolphin", {}).get("enabled", False):
+        # Try to load enhanced processor if vision model is enabled
+        if not self.skip_model and config.get("vision", {}).get("enabled", False):
             try:
                 from .enhanced_document_processor import EnhancedDocumentProcessor
 
                 self.enhanced_processor = EnhancedDocumentProcessor(
                     config, skip_model=self.skip_model
                 )
-                logger.info("Enhanced document processor (Dolphin) loaded")
+                logger.info("Enhanced document processor (vision) loaded")
             except Exception as e:
                 logger.warning(f"Enhanced processor not available: {e}")
 
@@ -69,7 +69,7 @@ class DocumentLoader:
 
     def _should_use_enhanced_processing(self) -> bool:
         """Check if enhanced processing should be used."""
-        return self.enhanced_processor and config.get("dolphin", {}).get("enabled", False)
+        return self.enhanced_processor and config.get("vision", {}).get("enabled", False)
 
     def _try_enhanced_processing(self, file_path: str) -> Optional[List[dict]]:
         """Try enhanced processing, return None if it fails."""

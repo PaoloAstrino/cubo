@@ -44,13 +44,13 @@ class ChunkingSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CUBO_CHUNKING_")
 
 
-class DolphinSettings(BaseSettings):
-    """Dolphin Vision/Enhanced processing settings."""
+class VisionSettings(BaseSettings):
+    """Vision-model / Enhanced processing settings."""
 
-    enabled: bool = Field(default=False, description="Enable Dolphin vision processing")
-    model_path: Optional[str] = Field(default=None, description="Path to custom Dolphin model")
+    enabled: bool = Field(default=False, description="Enable vision-model processing")
+    model_path: Optional[str] = Field(default=None, description="Path to custom vision model")
 
-    model_config = SettingsConfigDict(env_prefix="CUBO_DOLPHIN_")
+    model_config = SettingsConfigDict(env_prefix="CUBO_VISION_")
 
 
 class RetrievalSettings(BaseSettings):
@@ -118,7 +118,7 @@ class Settings(BaseSettings):
 
     paths: Paths = Field(default_factory=Paths)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
-    dolphin: DolphinSettings = Field(default_factory=DolphinSettings)
+    vision: VisionSettings = Field(default_factory=VisionSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
 

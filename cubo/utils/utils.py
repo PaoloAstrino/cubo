@@ -51,27 +51,27 @@ class Utils:
 
 
 def resolve_hf_revision() -> Optional[str]:
-        """Resolve a pinned HF revision from environment or enforce explicit opt-in.
+    """Resolve a pinned HF revision from environment or enforce explicit opt-in.
 
-        Behavior:
-          - If HF_PINNED_REVISION is set, return it and use it for `revision`.
-          - If HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 is set, allow unpinned downloads (returns None).
-          - Otherwise raise a RuntimeError to force explicit pinning or opt-in.
-        """
-        import os
+    Behavior:
+      - If HF_PINNED_REVISION is set, return it and use it for `revision`.
+      - If HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 is set, allow unpinned downloads (returns None).
+      - Otherwise raise a RuntimeError to force explicit pinning or opt-in.
+    """
+    import os
 
-        rev = os.getenv("HF_PINNED_REVISION")
-        allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
-        if rev:
-            return rev
-        if allow_unpinned:
-            logger.warning(
-                "Hugging Face downloads are unpinned (HF_ALLOW_UNPINNED_HF_DOWNLOADS=1). For security, prefer pinning via HF_PINNED_REVISION."
-            )
-            return None
-        raise RuntimeError(
-            "Hugging Face downloads must be pinned. Set HF_PINNED_REVISION or set HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to opt-in."
+    rev = os.getenv("HF_PINNED_REVISION")
+    allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
+    if rev:
+        return rev
+    if allow_unpinned:
+        logger.warning(
+            "Hugging Face downloads are unpinned (HF_ALLOW_UNPINNED_HF_DOWNLOADS=1). For security, prefer pinning via HF_PINNED_REVISION."
         )
+        return None
+    raise RuntimeError(
+        "Hugging Face downloads must be pinned. Set HF_PINNED_REVISION or set HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to opt-in."
+    )
 
     @staticmethod
     @log_errors("File size validated successfully")

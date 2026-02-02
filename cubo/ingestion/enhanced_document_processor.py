@@ -15,10 +15,10 @@ from cubo.embeddings.embedding_generator import EmbeddingGenerator
 from cubo.embeddings.model_loader import ModelManager
 
 try:
-    from cubo.models.dolphin_processor import DolphinProcessor
+    from cubo.models.vision_processor import VisionProcessor
 except Exception:
-    DolphinProcessor = None
-    # Dolphin model support is optional; if import fails, fallback occurs at runtime.
+    VisionProcessor = None
+    # Vision model support is optional; if import fails, fallback occurs at runtime.
 from cubo.utils.utils import Utils
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class EnhancedDocumentProcessor:
     """
-    Enhanced document processor combining Dolphin vision parsing
+    Enhanced document processor combining optional vision parsing
     with EmbeddingGemma-300M semantic embeddings.
     """
 
@@ -40,15 +40,15 @@ class EnhancedDocumentProcessor:
         self.config = config
 
         # Initialize components
-        self.dolphin = None
+        self.vision_processor = None
         self.embedding_model = None
 
-        # Try to load Dolphin (optional)
+        # Try to load vision processor (optional)
         try:
-            self.dolphin = DolphinProcessor()
-            logger.info("Dolphin processor loaded")
+            self.vision_processor = VisionProcessor()
+            logger.info("Vision processor loaded")
         except Exception as e:
-            logger.warning(f"Dolphin not available: {e}")
+            logger.warning(f"Vision processor not available: {e}")
             logger.info("Falling back to text-only processing")
 
         # Load embedding model if not skipping models
@@ -58,9 +58,9 @@ class EnhancedDocumentProcessor:
             self.embedding_model = model_loader.load_model()
             logger.info("EmbeddingGemma-300M loaded")
 
-    def process_pdf_with_dolphin(self, pdf_path: str) -> List[Dict[str, Any]]:
+    def process_pdf_with_vision(self, pdf_path: str) -> List[Dict[str, Any]]:
         """
-        Process PDF using Dolphin vision parsing + EmbeddingGemma embeddings.
+        Process PDF using an optional vision model + EmbeddingGemma embeddings.
 
         Args:
                 pdf_path: Path to PDF file
@@ -68,12 +68,12 @@ class EnhancedDocumentProcessor:
         Returns:
                 List of processed chunks with embeddings
         """
-        if not self.dolphin:
-            raise ValueError("Dolphin processor not available")
+        if not self.vision_processor:
+            raise ValueError("Vision processor not available")
 
         try:
             images = self._convert_pdf_to_images(pdf_path)
-            page_contents = self.dolphin.process_document_pages(images)
+            page_contents = self.vision_processor.process_document_pages(images)
             full_content = self._combine_page_contents(page_contents)
             chunks = self._create_enhanced_chunks(full_content, pdf_path)
 
@@ -102,9 +102,9 @@ class EnhancedDocumentProcessor:
             f"--- Page {i+1} ---\n{content}" for i, content in enumerate(page_contents)
         )
 
-    def process_image_with_dolphin(self, image_path: str) -> List[Dict[str, Any]]:
+    def process_image_with_vision(self, image_path: str) -> List[Dict[str, Any]]:
         """
-        Process single image using Dolphin + embeddings.
+        Process single image using an optional vision model + embeddings.
 
         Args:
                 image_path: Path to image file
@@ -112,15 +112,15 @@ class EnhancedDocumentProcessor:
         Returns:
                 List of processed chunks with embeddings
         """
-        if not self.dolphin:
-            raise ValueError("Dolphin processor not available")
+        if not self.vision_processor:
+            raise ValueError("Vision processor not available")
 
         try:
             # Load image
             image = Image.open(image_path)
 
-            # Process with Dolphin
-            content = self.dolphin.process_image(image)
+            # Process with vision processor
+            content = self.vision_processor.process_image(image)
 
             # Create chunks with embeddings
             chunks = self._create_enhanced_chunks(content, image_path)
@@ -170,7 +170,7 @@ class EnhancedDocumentProcessor:
                 "source": source_path,
                 "chunk_index": i,
                 "total_chunks": len(text_chunks),
-                "processing_method": "dolphin_enhanced",
+                "processing_method": "vision_enhanced",
             }
             chunks.append(chunk)
 
@@ -178,7 +178,7 @@ class EnhancedDocumentProcessor:
 
     def process_text_fallback(self, text_path: str) -> List[Dict[str, Any]]:
         """
-        Fallback text processing without Dolphin.
+        Fallback text processing without a vision model.
 
         Args:
                 text_path: Path to text file
@@ -216,15 +216,15 @@ class EnhancedDocumentProcessor:
 
         # Determine processing method based on file type
         if file_path.suffix.lower() == ".pdf":
-            if self.dolphin:
-                return self.process_pdf_with_dolphin(str(file_path))
+            if self.vision_processor:
+                return self.process_pdf_with_vision(str(file_path))
             else:
-                raise ValueError("PDF processing requires Dolphin model")
+                raise ValueError("PDF processing requires a vision model")
         elif file_path.suffix.lower() in [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]:
-            if self.dolphin:
-                return self.process_image_with_dolphin(str(file_path))
+            if self.vision_processor:
+                return self.process_image_with_vision(str(file_path))
             else:
-                raise ValueError("Image processing requires Dolphin model")
+                raise ValueError("Image processing requires a vision model")
         elif file_path.suffix.lower() == ".txt":
             return self.process_text_fallback(str(file_path))
         else:
@@ -240,8 +240,8 @@ class EnhancedDocumentProcessor:
         Returns:
                 Structured information dictionary
         """
-        if not self.dolphin:
-            return {"error": "Dolphin processor not available"}
+        if not self.vision_processor:
+            return {"error": "Vision processor not available"}
 
         file_path = Path(file_path)
 
@@ -251,7 +251,7 @@ class EnhancedDocumentProcessor:
         try:
             image = self._load_image_for_extraction(file_path)
             return (
-                self.dolphin.extract_structured_data(image)
+                self.vision_processor.extract_structured_data(image)
                 if image
                 else {"error": "Could not load image"}
             )
@@ -272,6 +272,6 @@ class EnhancedDocumentProcessor:
         else:
             return Image.open(file_path)
 
-    def is_dolphin_available(self) -> bool:
-        """Check if Dolphin processor is available."""
-        return self.dolphin is not None and self.dolphin.is_available()
+    def is_vision_available(self) -> bool:
+        """Check if a vision processor is available."""
+        return self.vision_processor is not None and self.vision_processor.is_available()
