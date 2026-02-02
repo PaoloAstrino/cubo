@@ -17,7 +17,9 @@ def main():
     parser.add_argument("folder", help="Folder to ingest")
     parser.add_argument("--output", default=None, help="Output directory for fast pass")
     parser.add_argument(
-        "--skip-model", action="store_true", help="Skip loading heavy optional models (e.g., embeddings/vision models)"
+        "--skip-model",
+        action="store_true",
+        help="Skip loading heavy optional models (e.g., embeddings/vision models)",
     )
     parser.add_argument("--deep", action="store_true", help="Run deep ingestion after fast pass")
     parser.add_argument(
