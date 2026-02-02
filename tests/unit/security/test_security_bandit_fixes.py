@@ -6,9 +6,8 @@ import pytest
 
 from cubo.ingestion.document_loader import DocumentLoader
 from cubo.retrieval.vector_store import FaissStore
-from cubo.scripts import download_dolphin
 from cubo.storage.metadata_manager import MetadataManager
-from cubo.utils.utils import Utils
+from cubo.utils.utils import Utils, resolve_hf_revision
 
 
 def test_compute_file_hash_is_sha256(tmp_path):
@@ -65,11 +64,11 @@ def test_hf_revision_resolver_requires_pin(monkeypatch):
     monkeypatch.delenv("HF_PINNED_REVISION", raising=False)
     monkeypatch.delenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", raising=False)
     with pytest.raises(RuntimeError):
-        download_dolphin._resolve_hf_revision()
+        resolve_hf_revision()
 
     # set pin and ensure it returns
     monkeypatch.setenv("HF_PINNED_REVISION", "v1.2.3")
-    assert download_dolphin._resolve_hf_revision() == "v1.2.3"
+    assert resolve_hf_revision() == "v1.2.3"
 
 
 def test_create_sentence_window_chunks_handles_unpinned_tokenizer(monkeypatch):
