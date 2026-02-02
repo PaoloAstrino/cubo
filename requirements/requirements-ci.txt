@@ -37,6 +37,9 @@ tqdm>=4.64.0
 pytest>=7.0.0
 pytest-cov>=4.0.0
 pytest-asyncio>=0.21.0
+# Pydantic settings for config parsing in tests
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
 
 # === NLP (lightweight) ===
 nltk>=3.8.1
