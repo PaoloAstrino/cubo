@@ -58,7 +58,7 @@ class HierarchicalChunker:
                 from transformers import AutoTokenizer
 
                 # If a local path is provided, load directly (safe).
-                    if Path(tokenizer_name).exists():
+                if Path(tokenizer_name).exists():
                     # Local load - safe to call without revision
                     self.tokenizer = AutoTokenizer.from_pretrained(
                         tokenizer_name, use_fast=True
