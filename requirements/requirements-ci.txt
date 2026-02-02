@@ -40,6 +40,8 @@ pytest-asyncio>=0.21.0
 # Pydantic settings for config parsing in tests
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
+# Embeddings lib required by some unit tests
+sentence-transformers>=2.2.2
 
 # === NLP (lightweight) ===
 nltk>=3.8.1
