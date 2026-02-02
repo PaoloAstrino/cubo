@@ -260,7 +260,8 @@ class Utils:
 
                     # If tokenizer_name is a local path, load it directly
                     if Path(tokenizer_name).exists():
-                        tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                        # Local tokenizer path - safe to load without HF revision
+                        tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)  # nosec B615
                     else:
                         # Remote HF repo - require pinned revision or explicit opt-in
                         rev = os.getenv("HF_PINNED_REVISION")
@@ -273,9 +274,10 @@ class Utils:
                             logger.warning(
                                 f"Loading tokenizer {tokenizer_name} without pinned revision because HF_ALLOW_UNPINNED_HF_DOWNLOADS=1."
                             )
+                            # When explicitly allowed by env, mark this as intentional
                             tokenizer = _AutoTokenizer.from_pretrained(
                                 tokenizer_name, use_fast=True
-                            )
+                            )  # nosec B615
                         else:
                             raise RuntimeError(
                                 "Attempted to download tokenizer without pinned HF revision. Set HF_PINNED_REVISION or HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to proceed."

@@ -119,10 +119,11 @@ def test_dolphin_model():
     try:
         print("🧪 Testing Dolphin model...")
 
-        # Load from local directory
-        tokenizer = AutoTokenizer.from_pretrained(dolphin_dir)
-        processor = AutoProcessor.from_pretrained(dolphin_dir)
-        model = AutoModelForVision2Seq.from_pretrained(dolphin_dir)
+        # Load from local directory (safe)
+        # Explicitly mark as nosec for Bandit B615 (local load)
+        tokenizer = AutoTokenizer.from_pretrained(dolphin_dir)  # nosec B615
+        processor = AutoProcessor.from_pretrained(dolphin_dir)  # nosec B615
+        model = AutoModelForVision2Seq.from_pretrained(dolphin_dir)  # nosec B615
 
         # Verify components loaded
         assert tokenizer is not None
