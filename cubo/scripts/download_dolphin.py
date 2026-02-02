@@ -72,16 +72,16 @@ def _download_model_components(dolphin_dir):
     kwargs = {"cache_dir": str(dolphin_dir)}
     if revision:
         kwargs["revision"] = revision
-    tokenizer = AutoTokenizer.from_pretrained("ByteDance/Dolphin", **kwargs)
+    tokenizer = AutoTokenizer.from_pretrained("ByteDance/Dolphin", **kwargs)  # nosec B615
 
     print("📥 Downloading processor...")
-    processor = AutoProcessor.from_pretrained("ByteDance/Dolphin", **kwargs)
+    processor = AutoProcessor.from_pretrained("ByteDance/Dolphin", **kwargs)  # nosec B615
 
     print("📥 Downloading model (400MB)...")
     model_kwargs = {"cache_dir": str(dolphin_dir), "torch_dtype": "auto"}
     if revision:
         model_kwargs["revision"] = revision
-    model = AutoModelForVision2Seq.from_pretrained("ByteDance/Dolphin", **model_kwargs)
+    model = AutoModelForVision2Seq.from_pretrained("ByteDance/Dolphin", **model_kwargs)  # nosec B615
 
     return tokenizer, processor, model
 

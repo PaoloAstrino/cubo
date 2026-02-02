@@ -272,6 +272,9 @@ class Utils:
                             tokenizer = _AutoTokenizer.from_pretrained(
                                 tokenizer_name, revision=rev, use_fast=True
                             )
+                            # This call is guarded by explicit revision pinning (env HF_PINNED_REVISION)
+                            # Mark as intentional for Bandit (B615)
+                            # nosec: B615
                         elif allow_unpinned:
                             logger.warning(
                                 f"Loading tokenizer {tokenizer_name} without pinned revision because HF_ALLOW_UNPINNED_HF_DOWNLOADS=1."
