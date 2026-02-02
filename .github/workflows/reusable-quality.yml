@@ -42,7 +42,7 @@ jobs:
         run: ruff check cubo/ --select=E9,F63,F7,F82
 
       - name: Formatting Check (Black)
-        run: black --check cubo/
+        run: black --check --config pyproject.toml cubo/
 
       - name: Import Sorting (Isort)
         run: |

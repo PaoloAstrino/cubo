@@ -2,6 +2,6 @@
 # See pyproject extras 'lint' for convenient install: pip install -e .[lint]
 
 ruff>=0.7.0
-black>=24.0.0
+black==25.11.0
 isort>=5.13.0
 bandit[toml]>=1.7.0
