@@ -59,7 +59,9 @@ class HierarchicalChunker:
                 # If a local path is provided, load directly (safe).
                 if Path(tokenizer_name).exists():
                     # Local load - safe to call without revision
-                    self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)  # nosec B615
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        tokenizer_name, use_fast=True
+                    )  # nosec B615
                 else:
                     # Remote HF repo - require pinned revision or explicit opt-in
                     rev = os.getenv("HF_PINNED_REVISION")
@@ -72,7 +74,9 @@ class HierarchicalChunker:
                         logger.warning(
                             f"Loading tokenizer {tokenizer_name} without pinned revision because HF_ALLOW_UNPINNED_HF_DOWNLOADS=1."
                         )
-                        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
+                        self.tokenizer = AutoTokenizer.from_pretrained(
+                            tokenizer_name, use_fast=True
+                        )
                     else:
                         raise RuntimeError(
                             "Attempted to download tokenizer without pinned HF revision. Set HF_PINNED_REVISION or HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to proceed."

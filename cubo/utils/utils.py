@@ -261,7 +261,9 @@ class Utils:
                     # If tokenizer_name is a local path, load it directly
                     if Path(tokenizer_name).exists():
                         # Local tokenizer path - safe to load without HF revision
-                        tokenizer = _AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)  # nosec B615
+                        tokenizer = _AutoTokenizer.from_pretrained(
+                            tokenizer_name, use_fast=True
+                        )  # nosec B615
                     else:
                         # Remote HF repo - require pinned revision or explicit opt-in
                         rev = os.getenv("HF_PINNED_REVISION")
