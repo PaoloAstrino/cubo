@@ -263,7 +263,7 @@ class Utils:
                         # Local tokenizer path - safe to load without HF revision
                         tokenizer = _AutoTokenizer.from_pretrained(
                             tokenizer_name, use_fast=True
-                        )  # nosec B615
+                        )  # nosec
                     else:
                         # Remote HF repo - require pinned revision or explicit opt-in
                         rev = os.getenv("HF_PINNED_REVISION")
@@ -271,10 +271,7 @@ class Utils:
                         if rev:
                             tokenizer = _AutoTokenizer.from_pretrained(
                                 tokenizer_name, revision=rev, use_fast=True
-                            )
-                            # This call is guarded by explicit revision pinning (env HF_PINNED_REVISION)
-                            # Mark as intentional for Bandit (B615)
-                            # nosec: B615
+                            )  # nosec
                         elif allow_unpinned:
                             logger.warning(
                                 f"Loading tokenizer {tokenizer_name} without pinned revision because HF_ALLOW_UNPINNED_HF_DOWNLOADS=1."
@@ -282,7 +279,7 @@ class Utils:
                             # When explicitly allowed by env, mark this as intentional
                             tokenizer = _AutoTokenizer.from_pretrained(
                                 tokenizer_name, use_fast=True
-                            )  # nosec B615
+                            )  # nosec
                         else:
                             raise RuntimeError(
                                 "Attempted to download tokenizer without pinned HF revision. Set HF_PINNED_REVISION or HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to proceed."
