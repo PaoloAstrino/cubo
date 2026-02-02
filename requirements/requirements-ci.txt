@@ -33,6 +33,11 @@ python-json-logger
 colorama>=0.4.0
 tqdm>=4.64.0
 
+# === Testing ===
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-asyncio>=0.21.0
+
 # === NLP (lightweight) ===
 nltk>=3.8.1
 simplemma>=0.9.0
