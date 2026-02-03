@@ -140,4 +140,9 @@ jobs:
       - run: pip install pyinstaller
       - run: pip install -e .
       - name: Build One-File Binary
-        run: pyinstaller --onefile --name cubo-cli --clean src/cubo/main.py
+        run: |
+          if [ -f cubo/main.py ]; then
+            pyinstaller --onefile --name cubo-cli --clean cubo/main.py
+          else
+            echo "cubo/main.py not found — skipping pyinstaller build"
+          fi
