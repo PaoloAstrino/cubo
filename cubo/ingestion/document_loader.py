@@ -10,6 +10,12 @@ from cubo.ingestion.chunkers import ChunkerFactory
 from cubo.utils.logger import logger
 from cubo.utils.utils import Utils
 
+# Expose AdvancedPDFParser at module level so tests can patch it
+try:
+    from .pdf_parser import AdvancedPDFParser  # type: ignore
+except Exception:
+    AdvancedPDFParser = None
+
 
 class DocumentLoader:
     """Handles loading and processing of various document types for CUBO."""
@@ -26,11 +32,14 @@ class DocumentLoader:
         self.advanced_parser = None
         if self.parser_type == "advanced":
             try:
-                # Import AdvancedPDFParser lazily to avoid importing heavy
-                # optional dependencies (e.g., EasyOCR) at module import time.
-                from .pdf_parser import AdvancedPDFParser
+                # Use module-level AdvancedPDFParser if available (tests may patch this symbol)
+                if AdvancedPDFParser is None:
+                    # Try importing from the implementation as a fallback
+                    from .pdf_parser import AdvancedPDFParser as _AdvancedPDFParser
 
-                self.advanced_parser = AdvancedPDFParser()
+                    self.advanced_parser = _AdvancedPDFParser()
+                else:
+                    self.advanced_parser = AdvancedPDFParser()
             except Exception as e:
                 logger.warning(
                     f"Failed to initialize AdvancedPDFParser: {e}. Falling back to basic."

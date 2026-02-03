@@ -173,7 +173,11 @@ class CuboBeirAdapter:
         index_path.mkdir(parents=True, exist_ok=True)
 
         faiss_manager = FAISSIndexManager(
-            dimension=self.embedding_generator.model.get_sentence_embedding_dimension(),
+            dimension=(
+                self.embedding_generator.model.get_sentence_embedding_dimension()
+                if hasattr(self.embedding_generator, "model") and hasattr(self.embedding_generator.model, "get_sentence_embedding_dimension")
+                else getattr(self.embedding_generator, "dimension", getattr(self.embedding_generator, "get_sentence_embedding_dimension", 768))
+            ),
             index_dir=index_path,
             # Use hot_fraction from adapter if not overridden
             hot_fraction=hot_fraction if hot_fraction is not None else self.hot_fraction,
@@ -294,14 +298,30 @@ class CuboBeirAdapter:
             texts_to_encode = texts
 
         try:
-            embeddings = self.embedding_generator.model.encode(
-                texts_to_encode,
-                batch_size=8,
-                show_progress_bar=False,
-                convert_to_numpy=True,
-            )
+            # Support two possible embedding generator interfaces used in tests:
+            # 1) embedding_generator.model.encode(...)
+            # 2) embedding_generator.encode(...)
+            # Prefer a direct `embedding_generator.encode()` if provided (common in tests/mocks),
+            # otherwise fall back to `embedding_generator.model.encode()` for production models.
+            if hasattr(self.embedding_generator, "encode"):
+                embeddings = self.embedding_generator.encode(texts_to_encode)
+            elif hasattr(self.embedding_generator, "model") and hasattr(self.embedding_generator.model, "encode"):
+                embeddings = self.embedding_generator.model.encode(
+                    texts_to_encode,
+                    batch_size=8,
+                    show_progress_bar=False,
+                    convert_to_numpy=True,
+                )
+            else:
+                raise AttributeError("Embedding generator has no usable encode() API")
         except TypeError:
-            embeddings = self.embedding_generator.model.encode(texts_to_encode, batch_size=8)
+            # Fallback for implementations that accept only (texts, batch_size)
+            if hasattr(self.embedding_generator, "encode"):
+                embeddings = self.embedding_generator.encode(texts_to_encode)
+            elif hasattr(self.embedding_generator, "model") and hasattr(self.embedding_generator.model, "encode"):
+                embeddings = self.embedding_generator.model.encode(texts_to_encode, batch_size=8)
+            else:
+                raise
 
         if hasattr(embeddings, "cpu"):
             embeddings = embeddings.cpu().numpy()

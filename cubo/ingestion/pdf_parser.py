@@ -15,6 +15,7 @@ except ImportError:
 
 EASYOCR_AVAILABLE = False
 EASYOCR_ERROR = None
+Reader = None
 logger = logging.getLogger(__name__)
 # EasyOCR will be imported lazily when OCR is actually requested. This avoids
 # importing heavy optional dependencies (like torchvision) during module import,
@@ -51,8 +52,10 @@ class AdvancedPDFParser:
         # If we haven't attempted to import EasyOCR yet, try now
         if not EASYOCR_AVAILABLE and EASYOCR_ERROR is None:
             try:
-                from easyocr import Reader
+                from easyocr import Reader as _Reader
 
+                # Expose module-level alias for tests that patch easyocr.Reader
+                globals()["Reader"] = _Reader
                 EASYOCR_AVAILABLE = True
             except Exception as e:
                 EASYOCR_AVAILABLE = False
@@ -64,9 +67,14 @@ class AdvancedPDFParser:
             try:
                 logger.info(f"Loading EasyOCR reader for {self.languages} (GPU={self.gpu})...")
                 # Local import of Reader to ensure we only import when needed
-                from easyocr import Reader
+                # Use module-level Reader if available (and set by our import above)
+                if "Reader" in globals() and globals()["Reader"] is not None:
+                    self.reader = globals()["Reader"](self.languages, gpu=self.gpu)
+                else:
+                    from easyocr import Reader as _Reader
 
-                self.reader = Reader(self.languages, gpu=self.gpu)
+                    globals()["Reader"] = _Reader
+                    self.reader = _Reader(self.languages, gpu=self.gpu)
             except Exception as e:
                 logger.error(f"Failed to initialize EasyOCR Reader: {e}")
                 self.reader = None

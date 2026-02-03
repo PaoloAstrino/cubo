@@ -173,7 +173,9 @@ class TestConfigPathResolution:
 
     def test_relative_path_resolution(self):
         """Test resolution of relative paths in config."""
-        base_path = Path("c:/Users/paolo/Desktop/cubo")
+        from pathlib import PureWindowsPath
+
+        base_path = PureWindowsPath("c:/Users/paolo/Desktop/cubo")
         relative_path = "data/beir/nfcorpus/corpus.jsonl"
 
         full_path = base_path / relative_path

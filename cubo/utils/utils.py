@@ -49,30 +49,6 @@ class Utils:
             raise ValueError("Path traversal detected.")
         return abs_path
 
-
-def resolve_hf_revision() -> Optional[str]:
-    """Resolve a pinned HF revision from environment or enforce explicit opt-in.
-
-    Behavior:
-      - If HF_PINNED_REVISION is set, return it and use it for `revision`.
-      - If HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 is set, allow unpinned downloads (returns None).
-      - Otherwise raise a RuntimeError to force explicit pinning or opt-in.
-    """
-    import os
-
-    rev = os.getenv("HF_PINNED_REVISION")
-    allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
-    if rev:
-        return rev
-    if allow_unpinned:
-        logger.warning(
-            "Hugging Face downloads are unpinned (HF_ALLOW_UNPINNED_HF_DOWNLOADS=1). For security, prefer pinning via HF_PINNED_REVISION."
-        )
-        return None
-    raise RuntimeError(
-        "Hugging Face downloads must be pinned. Set HF_PINNED_REVISION or set HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to opt-in."
-    )
-
     @staticmethod
     @log_errors("File size validated successfully")
     def validate_file_size(file_path: str, max_size_mb: float) -> None:
@@ -93,7 +69,6 @@ def resolve_hf_revision() -> Optional[str]:
     @log_errors("Text cleaned successfully")
     def clean_text(text: str) -> str:
         """Clean and normalize text content."""
-        # Remove extra whitespace, normalize
         text = re.sub(r"\s+", " ", text)
         text = text.strip()
         return text
@@ -106,17 +81,14 @@ def resolve_hf_revision() -> Optional[str]:
             text = text.lower()
         if remove_punct:
             text = re.sub(r"[^\w\s]", "", text)  # Remove punctuation
-        text = Utils.clean_text(text)  # Reuse clean_text
+        text = Utils.clean_text(text)
         return text
 
     @staticmethod
     def chunk_text(text: str, chunk_size: int = None, overlap: int = None) -> List[str]:
         """Split text into overlapping chunks with adaptive sizing based on text length."""
         text_length = len(text)
-
-        # Get adaptive chunk parameters
         chunk_size, overlap = Utils._get_adaptive_chunk_params(text_length, chunk_size, overlap)
-
         chunks = Utils._create_overlapping_chunks(text, chunk_size, overlap)
         logger.info(f"Text chunked into {len(chunks)} chunks")
         return chunks
@@ -166,14 +138,12 @@ def resolve_hf_revision() -> Optional[str]:
         """
         text = re.sub(r"\s+", " ", text.strip())
 
-        # Try NLTK first
         try:
             import nltk
 
             try:
                 return nltk.sent_tokenize(text)
             except LookupError:
-                # Attempt to download punkt if missing
                 try:
                     nltk.download("punkt", quiet=True)
                     return nltk.sent_tokenize(text)
@@ -182,8 +152,6 @@ def resolve_hf_revision() -> Optional[str]:
         except ImportError:
             pass
 
-        # Fallback: Improved Regex
-        # Protect common abbreviations
         abbreviations = {
             "Mr.",
             "Mrs.",
@@ -206,22 +174,16 @@ def resolve_hf_revision() -> Optional[str]:
             "Vol.",
         }
 
-        # Sort by length descending to handle nested abbreviations (e.g. U.S.A. before U.S.)
         sorted_abbreviations = sorted(abbreviations, key=len, reverse=True)
 
         processed_text = text
         for abbr in sorted_abbreviations:
-            # Replace "Mr." with "Mr<PRD>"
-            # Use \b to ensure we match whole words (e.g. don't match "start." in "restart.")
-            # But "Art." might be at start of sentence.
             pattern = r"\b" + re.escape(abbr[:-1]) + r"\."
             replacement = abbr[:-1] + "<PRD>"
             processed_text = re.sub(pattern, replacement, processed_text, flags=re.IGNORECASE)
 
-        # Split on terminal punctuation followed by space
         sentences = re.split(r"(?<=[.!?])\s+", processed_text)
 
-        # Restore dots
         final_sentences = []
         for s in sentences:
             s = s.replace("<PRD>", ".")
@@ -235,14 +197,12 @@ def resolve_hf_revision() -> Optional[str]:
         """Return approximate token count; use HF tokenizer if provided, else fallback to word count."""
         if tokenizer:
             try:
-                # Handle HF tokenizer or tiktoken
                 if hasattr(tokenizer, "encode"):
                     return len(tokenizer.encode(text, add_special_tokens=False))
-                elif hasattr(tokenizer, "encode_ordinary"):  # tiktoken
+                elif hasattr(tokenizer, "encode_ordinary"):
                     return len(tokenizer.encode_ordinary(text))
             except Exception:
                 pass
-        # Fallback: approximate by words
         return max(1, len(text.split()))
 
     @staticmethod
@@ -256,40 +216,25 @@ def resolve_hf_revision() -> Optional[str]:
         """
         Create sentence window chunks: single sentences with window metadata.
         Each chunk contains one sentence for matching, plus surrounding context window.
-
-        Args:
-            text: Input text to chunk
-            window_size: Number of sentences in the context window (odd numbers work best)
-            tokenizer_name: Path to HF tokenizer for accurate token counting
-            add_window_text: Whether to include the full window text in the chunk (materialized).
-                             Set to False for 'pointer' mode (requires separate doc storage).
-
-        Returns:
-            List of dicts with 'text', 'window' (optional), and metadata
         """
         try:
             sentences = Utils._split_into_sentences(text)
             if not sentences:
                 return []
 
-            # Load tokenizer if provided
             tokenizer = None
             if tokenizer_name:
                 try:
-                    # Lazy import of transformers locally to avoid module-level import cost
                     import os
                     from pathlib import Path
 
                     from transformers import AutoTokenizer as _AutoTokenizer
 
-                    # If tokenizer_name is a local path, load it directly
                     if Path(tokenizer_name).exists():
-                        # Local tokenizer path - safe to load without HF revision
                         tokenizer = _AutoTokenizer.from_pretrained(
                             tokenizer_name, use_fast=True
                         )  # nosec
                     else:
-                        # Remote HF repo - require pinned revision or explicit opt-in
                         rev = os.getenv("HF_PINNED_REVISION")
                         allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
                         if rev:
@@ -300,7 +245,6 @@ def resolve_hf_revision() -> Optional[str]:
                             logger.warning(
                                 f"Loading tokenizer {tokenizer_name} without pinned revision because HF_ALLOW_UNPINNED_HF_DOWNLOADS=1."
                             )
-                            # When explicitly allowed by env, mark this as intentional
                             tokenizer = _AutoTokenizer.from_pretrained(
                                 tokenizer_name, use_fast=True
                             )  # nosec
@@ -315,21 +259,18 @@ def resolve_hf_revision() -> Optional[str]:
             n = len(sentences)
 
             for i, sentence in enumerate(sentences):
-                # Calculate window bounds (symmetric around current sentence)
                 half_window = window_size // 2
                 start = max(0, i - half_window)
                 end = min(n, i + half_window + 1)
 
-                # Create window text
                 window_sentences = sentences[start:end]
                 window_text = " ".join(window_sentences)
 
-                # Calculate token counts
                 sentence_tokens = Utils._token_count(sentence, tokenizer)
                 window_tokens = Utils._token_count(window_text, tokenizer)
 
                 chunk = {
-                    "text": sentence,  # Single sentence for embedding/matching
+                    "text": sentence,
                     "sentence_index": i,
                     "window_start": start,
                     "window_end": end - 1,
@@ -382,3 +323,25 @@ class Metrics:
 
 # Global metrics instance
 metrics = Metrics()
+
+
+def resolve_hf_revision() -> Optional[str]:
+    """Resolve a pinned HF revision from environment or enforce explicit opt-in.
+
+    Behavior:
+      - If HF_PINNED_REVISION is set, return it and use it for `revision`.
+      - If HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 is set, allow unpinned downloads (returns None).
+      - Otherwise raise a RuntimeError to force explicit pinning or opt-in.
+    """
+    rev = os.getenv("HF_PINNED_REVISION")
+    allow_unpinned = os.getenv("HF_ALLOW_UNPINNED_HF_DOWNLOADS", "0") == "1"
+    if rev:
+        return rev
+    if allow_unpinned:
+        logger.warning(
+            "Hugging Face downloads are unpinned (HF_ALLOW_UNPINNED_HF_DOWNLOADS=1). For security, prefer pinning via HF_PINNED_REVISION."
+        )
+        return None
+    raise RuntimeError(
+        "Hugging Face downloads must be pinned. Set HF_PINNED_REVISION or set HF_ALLOW_UNPINNED_HF_DOWNLOADS=1 to opt-in."
+    )
