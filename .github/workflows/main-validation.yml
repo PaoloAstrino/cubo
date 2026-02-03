@@ -44,7 +44,7 @@ jobs:
           pip --version || true
 
           # Install minimal CI dependencies only (avoid heavy optional dev packages)
-          pip install --no-cache-dir -r requirements-ci.txt
+          pip install --no-cache-dir -r requirements/requirements-ci.txt
           pip install --no-cache-dir -r requirements/requirements-lint.txt
           pip install --no-cache-dir -e .
 
