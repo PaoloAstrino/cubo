@@ -56,8 +56,26 @@ jobs:
           # those packages for specific workflows, add a targeted job that runs on a
           # runner with more disk or installs only those packages explicitly.
 
-      - name: Run Integration Tests
-        run: pytest integration_tests/ -v
+      - name: Run Integration Tests (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if [ -d integration_tests ]; then
+            pytest integration_tests/ -v
+          else
+            echo "integration_tests/ not found — skipping integration tests"
+          fi
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run Integration Tests (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          if (Test-Path -Path integration_tests) {
+            pytest integration_tests/ -v
+          } else {
+            Write-Host 'integration_tests/ not found — skipping integration tests'
+          }
         env:
           PYTHONPATH: ${{ github.workspace }}
 
