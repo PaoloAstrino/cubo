@@ -7,6 +7,10 @@ date-released: 2024-11-30
 url: "https://github.com/PaoloAstrino/cubo"
 repository-code: "https://github.com/PaoloAstrino/cubo"
 license: MIT
+identifiers:
+  - type: url
+    value: "https://arxiv.org/abs/2602.03731"
+    description: arXiv
 authors:
   - family-names: Astrino
     given-names: Paolo
