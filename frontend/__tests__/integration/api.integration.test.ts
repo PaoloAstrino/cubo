@@ -98,7 +98,7 @@ describe('API integration', () => {
         json: async () => complexData,
       })
 
-      const result = await fetcher('/api/items')
+      const result = (await fetcher('/api/items')) as typeof complexData
 
       expect(result).toEqual(complexData)
       expect(result.items).toHaveLength(2)
