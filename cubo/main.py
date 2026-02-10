@@ -6,11 +6,14 @@ A portable Retrieval-Augmented Generation system using embedding models and LLMs
 import subprocess
 import sys
 
+# Skip CLI handling during pytest to prevent SystemExit during import
+_is_pytest = "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv)
+
 # Early short-circuit for lightweight CLI commands so we don't import heavy
 # optional dependencies when the user only wants to list models or check
 # the version. This keeps the executable responsive and robust in minimal
 # environments.
-if "--list-models" in sys.argv:
+if not _is_pytest and "--list-models" in sys.argv:
     try:
         result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
         if result.returncode == 0 and result.stdout.strip():
@@ -29,7 +32,7 @@ if "--list-models" in sys.argv:
         print(f"Could not query Ollama models: {e}")
     sys.exit(0)
 
-if "--version" in sys.argv or "-v" in sys.argv:
+if not _is_pytest and ("--version" in sys.argv or "-v" in sys.argv):
     try:
         from importlib.metadata import PackageNotFoundError, version
 

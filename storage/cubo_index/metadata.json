@@ -1,13 +1,16 @@
 {
   "dimension": 768,
   "hot_ids": [
-    "README.md_chunk_0_e5de16fb48db4f0ab7e80a4eed57ae26"
+    "README.md_chunk_0_64da2adf7e34427ba95b023b5c2de295"
   ],
   "cold_ids": [
+    "README.md_chunk_0_e5de16fb48db4f0ab7e80a4eed57ae26",
+    "UltraDomain_README.md_chunk_0_0067d774831f4f8fb8ae0e0b2a85e484",
     "UltraDomain_README.md_chunk_0_8e98d77b49164e46a7e48e943537a1fd",
     "paper.pdf_chunk_0_b7c519e5ea3b4ed2aeae6477ee078cc1",
-    "UltraDomain_README.md_chunk_0_0067d774831f4f8fb8ae0e0b2a85e484",
-    "README.md_chunk_0_64da2adf7e34427ba95b023b5c2de295"
+    "Ricevuta_occasionale_Paolo_Astrino.pdf_chunk_0_9257e59e90e8403196a221d1b2dca8a1",
+    "UltraDomain_README.md_chunk_0_ebf454284dee419aad9b544dc76c78e3",
+    "README.md_chunk_0_4ec56833b20c4c118163779e04330283"
   ],
   "nlist": 32,
   "m": 8,
